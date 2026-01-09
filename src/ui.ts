@@ -1,0 +1,195 @@
+// src/ui.ts
+// Zentrales UI-Design-System – konsistent für Menü, Stats, MatchDetails, usw.
+
+import type { CSSProperties } from 'react'
+
+const cardShadow =
+  '0 1px 2px rgba(0,0,0,0.04), 0 10px 20px rgba(0,0,0,0.03)'
+
+export const ui: Record<string, CSSProperties> = {
+  /** Seiten-Wrapper */
+  page: {
+    display: 'grid',
+    gap: 16,
+    padding: 12,
+    background: '#f8fafc', // leichtes Grau-Blau für App-Hintergrund
+    minHeight: '100vh',
+    boxSizing: 'border-box',
+  },
+
+  /** Zentrier-Helfer für Menüs/Formulare */
+  centerPage: {
+    display: 'grid',
+    placeItems: 'center',
+    minHeight: '70vh',
+    padding: 12,
+  },
+  centerInner: {
+    display: 'grid',
+    gap: 16,
+    width: 'min(480px, 92vw)',
+  },
+  centerInnerWide: {
+    display: 'grid',
+    gap: 12,
+    width: 'min(520px, 92vw)',
+  },
+
+  /** Kopfzeile mit Titel + Back-Button rechts */
+  headerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    margin: '2px 0 8px',
+  },
+
+  /** Hauptseiten-Headline (statt natives H1 Default) */
+  pageHeadline: {
+    margin: 0,
+    fontSize: 20,
+    lineHeight: 1.25,
+    fontWeight: 800,
+    color: '#0f172a',
+  },
+
+  /** Sekundärtitel in Cards / Kacheln */
+  title: {
+    fontWeight: 700,
+    margin: 0,
+    fontSize: 16,
+    lineHeight: 1.3,
+    color: '#0f172a',
+  },
+
+  /** Subtext / Meta */
+  sub: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    opacity: 0.7,
+    marginTop: 4,
+    color: '#0f172a',
+  },
+
+  /** Standard Card */
+  card: {
+    border: '1px solid #e5e7eb',
+    background: '#fff',
+    borderRadius: 14,
+    boxShadow: cardShadow,
+    padding: 14,
+  },
+
+  /** Zeilenkarte in Listen */
+  rowCard: {
+    border: '1px solid #e5e7eb',
+    borderRadius: 12,
+    padding: '10px 12px',
+    background: '#ffffff',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    cursor: 'pointer',
+  },
+
+  /** große Kachel-Buttons im Menü */
+  tile: {
+    border: '1px solid #e5e7eb',
+    background: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    boxShadow: cardShadow,
+    cursor: 'pointer',
+    textAlign: 'left',
+    display: 'grid',
+    gap: 4,
+    transition: 'border-color .12s ease, box-shadow .12s ease, background .12s ease',
+  },
+
+  tileHoverable: {
+    borderColor: '#cbd5e1',
+    boxShadow:
+      '0 2px 4px rgba(0,0,0,0.05), 0 16px 24px rgba(0,0,0,0.05)',
+    background: '#fff',
+  },
+
+  tileDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+
+  /** Button / Links */
+  backBtn: {
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid #e5e7eb',
+    background: '#fff',
+    cursor: 'pointer',
+    fontSize: 14,
+    lineHeight: 1.2,
+    padding: '6px 10px',
+    fontWeight: 600,
+    color: '#0f172a',
+  },
+
+  btnGhost: {
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid #e5e7eb',
+    background: '#fff',
+    cursor: 'pointer',
+    fontSize: 14,
+    padding: '6px 12px',
+    fontWeight: 600,
+    color: '#0f172a',
+  },
+
+  btnPrimary: {
+    height: 36,
+    borderRadius: 10,
+    border: '1px solid #111827',
+    background: '#111827',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+    padding: '6px 12px',
+  },
+
+  /** Pills / Badges */
+  pills: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+
+  pill: {
+    border: '1px solid #e5e7eb',
+    background: '#fff',
+    color: '#0f172a',
+    borderRadius: 999,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+
+  badge: {
+    display: 'inline-block',
+    padding: '4px 8px',
+    borderRadius: 999,
+    border: '1px solid #e5e7eb',
+    background: '#f8fafc',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#0f172a',
+  },
+
+  /** Layout helpers */
+  grid: {
+    display: 'grid',
+    gap: 10,
+  },
+}
+

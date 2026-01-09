@@ -1,0 +1,387 @@
+/* src/screens/game.css */
+/* Design Tokens */
+:root {
+  --bg: #ffffff;
+  --bg-muted: #f8fafc;
+  --bg-soft: #f1f5f9;
+  --fg: #0f172a;
+  --fg-dim: #6b7280;
+  --border: #e5e7eb;
+  --accent: #111827;
+  --success: #16a34a;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.04);
+  --shadow-2: 0 10px 20px rgba(0,0,0,.03);
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1020;
+    --bg-muted: #0f172a;
+    --bg-soft: #111827;
+    --fg: #e5e7eb;
+    --fg-dim: #94a3b8;
+    --border: #1f2937;
+    --accent: #e5e7eb;
+    --success: #22c55e;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.6);
+    --shadow-2: 0 10px 20px rgba(0,0,0,.35);
+  }
+}
+
+/* Page */
+.g-page {
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* Header */
+.g-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.g-title {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+
+/* Buttons */
+.g-btn {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .05s ease, background .2s ease, border-color .2s ease;
+}
+.g-btn:disabled { opacity: .6; cursor: not-allowed; }
+.g-btn:hover:not(:disabled) { background: var(--bg-muted); }
+.g-btn:active:not(:disabled) { transform: translateY(1px); }
+
+/* Chips */
+.g-chipRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.g-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* Grid of player cards */
+.g-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/* Card */
+.g-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--bg);
+  box-shadow: var(--shadow-1), var(--shadow-2);
+  display: grid;
+  gap: 10px;
+}
+.g-card.is-active {
+  background: linear-gradient(180deg, var(--bg-soft), var(--bg) 60%);
+}
+
+/* Card header */
+.g-nameRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.g-name {
+  font-weight: 900;
+}
+.g-meta {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+/* Main row: big number left, darts right */
+.g-mainRow {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  align-items: start;
+  gap: 10px;
+}
+.g-bigNum {
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .5px;
+}
+
+/* Darts column */
+.g-dartsCol {
+  text-align: right;
+  min-height: 60px;
+  display: grid;
+  gap: 6px;
+}
+.g-dartPill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 13px;
+}
+.g-dartPill.faint {
+  background: var(--bg-soft);
+}
+
+/* Small text */
+.g-sub { font-size: 12px; color: var(--fg-dim); }
+.g-avg { font-size: 12px; color: var(--fg-dim); }
+
+/* Table wrapper (Endscreen) */
+.g-tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.g-table {
+  border-collapse: collapse;
+  min-width: 520px;
+  width: 100%;
+}
+.g-th, .g-tdh {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.g-td {
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  color: var(--fg);
+}
+
+/* Toolbar */
+.g-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+/* Utility */
+.g-dim { opacity: .7; }
+.g-winner { color: var(--success); font-weight: 800; }
+
+@keyframes scoreFlash {
+  0%   { opacity: 0; transform: scale(0.8); }
+  10%  { opacity: 1; transform: scale(1.0); }
+  60%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+
+/* optional: Klasse, falls du mal CSS-Klasse lieber nutzt */
+.scoreFlash {
+  animation: scoreFlash 1.1s ease-out forwards;
+}
+
+/* =========================
+   Intermission Overlay / Modal
+   ========================= */
+
+.g-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, #000 45%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  z-index: 9999;
+}
+
+.g-modal {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--shadow-1), var(--shadow-2);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.g-modalHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.g-modalTitle {
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.g-modalSub {
+  font-size: 12px;
+  color: var(--fg-dim);
+  margin-top: 4px;
+}
+
+.g-summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.g-summaryTile {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-muted);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.g-k {
+  font-size: 12px;
+  color: var(--fg-dim);
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+.g-v {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.g-miniTableWrap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  background: var(--bg);
+}
+
+.g-miniTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 560px;
+  font-size: 13px;
+}
+
+.g-miniTable th,
+.g-miniTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.g-miniTable th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--fg-dim);
+  letter-spacing: .2px;
+  text-transform: uppercase;
+}
+
+.g-details {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 12px;
+}
+
+.g-detailsTitle {
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.g-visitList {
+  display: grid;
+  gap: 8px;
+}
+
+.g-visit {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  display: grid;
+  gap: 6px;
+}
+
+.g-visit.is-bust {
+  border-color: color-mix(in srgb, #dc2626 55%, var(--border));
+  background: color-mix(in srgb, #dc2626 8%, var(--bg));
+}
+
+.g-visitTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.g-visitBottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.g-legCard {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--bg);
+  display: grid;
+  gap: 10px;
+}
+
+.g-legCardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.g-legCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.g-legMini {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-muted);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.g-subDetails {
+  margin-top: 6px;
+}

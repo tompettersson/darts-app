@@ -1,0 +1,45 @@
+{
+  "name": "darts-501-engine",
+  "version": "1.0.0",
+  "description": "Local-first Darts 501 engine with React + TypeScript + Vite",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "manual": "tsx src/manual.ts",
+    "server": "tsx src/server.ts"
+  },
+  "keywords": [
+    "darts",
+    "react",
+    "vite",
+    "typescript"
+  ],
+  "author": "Thomas Pettersson",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^27.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
+  }
+}
