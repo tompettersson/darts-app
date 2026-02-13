@@ -1,6 +1,6 @@
 // src/screens/LegDetails.tsx
 import React, { useMemo } from 'react'
-import { loadMatchById } from '../storage'
+import { loadMatchById, getProfiles } from '../storage'
 import {
   applyEvents,
   type DartsEvent,
@@ -9,6 +9,8 @@ import {
   type LegFinished,
 } from '../darts501'
 import { ui } from '../ui'
+import ScoreProgressionChart, { PLAYER_COLORS } from '../components/ScoreProgressionChart'
+import X01StaircaseChart from '../components/X01StaircaseChart'
 
 type Props = {
   matchId: string
@@ -123,6 +125,19 @@ export default function LegDetails({ matchId, legId, onBackToMatch, onBackToSet 
   const eventsAll = stored.events as DartsEvent[]
   const stateAll = useMemo(() => applyEvents(eventsAll), [eventsAll])
   const match = stateAll.match as MatchStarted | undefined
+
+  // Spielerfarben aus Profilen
+  const profiles = useMemo(() => getProfiles(), [])
+  const playerColors = useMemo(() => {
+    const colors: Record<string, string> = {}
+    if (match) {
+      match.players.forEach((p, idx) => {
+        const profile = profiles.find(pr => pr.id === p.playerId)
+        colors[p.playerId] = profile?.color ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+      })
+    }
+    return colors
+  }, [match, profiles])
 
   if (!match) {
     return (
@@ -499,37 +514,62 @@ export default function LegDetails({ matchId, legId, onBackToMatch, onBackToSet 
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Score Progression Chart */}
+      <div style={styles.card}>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>Punkteverlauf</div>
+        <div style={{
+          height: 400,
+          background: '#f8fafc',
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}>
+          <ScoreProgressionChart
+            startScore={match.startingScorePerLeg}
+            players={match.players.map((p, index) => ({
+              id: p.playerId,
+              name: p.name ?? p.playerId,
+              color: playerColors[p.playerId],
+              visits: visits
+                .filter((v: any) => v.playerId === p.playerId)
+                .map((v: any, i: number) => ({
+                  visitIndex: i + 1,
+                  remainingBefore: v.remainingBefore ?? match.startingScorePerLeg,
+                  remainingAfter: v.remainingAfter ?? 0,
+                  bust: !!v.bust,
+                  dartScores: (v.darts || []).map((d: any) => d?.score ?? 0),
+                })),
+            }))}
+            winnerPlayerId={winnerId}
+            showCheckoutLine={true}
+            showFinishLine={true}
+          />
+        </div>
+      </div>
+
+      {/* Leg-Verlauf (Staircase) */}
       <div style={styles.card}>
         <div style={{ fontWeight: 800, marginBottom: 8 }}>Leg-Verlauf</div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          {visitRows.length === 0 ? (
-            <div style={{ opacity: 0.7 }}>Keine Aufnahmen in diesem Leg.</div>
-          ) : (
-            visitRows.map((v, i) => (
-              <div key={v.eventId} style={{ ...styles.timelineRow, ...(v.bust ? { background: '#fff7f7' } : null) }}>
-                <div style={styles.timelineTop}>
-                  <div style={{ fontWeight: 900 }}>
-                    #{i + 1} · {v.playerName} {v.bust ? <span style={{ marginLeft: 8, ...styles.bust, padding: '3px 8px', borderRadius: 999, border: '1px solid #fecdd3' }}>BUST</span> : null}
-                  </div>
-                  <div style={{ opacity: 0.8, fontVariantNumeric: 'tabular-nums' }}>
-                    Rest: {v.before} → <b>{v.after}</b>
-                  </div>
-                </div>
-
-                <div style={styles.pills}>
-                  <span style={styles.pill}>{v.darts[0]}</span>
-                  <span style={styles.pill}>{v.darts[1]}</span>
-                  <span style={styles.pill}>{v.darts[2]}</span>
-                  <span style={{ ...styles.pill, marginLeft: 6, fontWeight: 900 }}>
-                    Visit: {v.visit}
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {visitRows.length === 0 ? (
+          <div style={{ opacity: 0.7 }}>Keine Aufnahmen in diesem Leg.</div>
+        ) : (
+          <X01StaircaseChart
+            startScore={match.startingScorePerLeg}
+            visits={visitRows.map(v => ({
+              visitScore: v.visit,
+              remainingBefore: v.before,
+              remainingAfter: v.after,
+              bust: v.bust,
+              darts: v.darts,
+              playerId: v.playerId,
+              playerName: v.playerName,
+              playerColor: playerColors[v.playerId],
+              isCheckout: v.after === 0 && !v.bust,
+            }))}
+            compact={false}
+            showHeader={false}
+          />
+        )}
       </div>
     </div>
   )

@@ -1,32 +1,42 @@
 /* src/screens/game.css */
-/* Design Tokens */
+/* Design Tokens - mapped to global theme variables */
 :root {
-  --bg: #ffffff;
-  --bg-muted: #f8fafc;
-  --bg-soft: #f1f5f9;
-  --fg: #0f172a;
-  --fg-dim: #6b7280;
-  --border: #e5e7eb;
-  --accent: #111827;
-  --success: #16a34a;
+  /* Map to theme variables from ThemeProvider */
+  --bg: var(--theme-bg, #ffffff);
+  --bg-muted: var(--theme-bg-muted, #f8fafc);
+  --bg-soft: var(--theme-bg-soft, #f1f5f9);
+  --fg: var(--theme-fg, #0f172a);
+  --fg-dim: var(--theme-fg-dim, #6b7280);
+  --border: var(--theme-border, #e5e7eb);
+  --accent: var(--theme-accent, #111827);
+  --success: var(--theme-success, #16a34a);
+  --error: var(--theme-error, #dc2626);
+  --warning: var(--theme-warning, #d97706);
+
+  /* Theme-aware shadows */
   --shadow-1: 0 1px 2px rgba(0,0,0,.04);
   --shadow-2: 0 10px 20px rgba(0,0,0,.03);
   --radius: 14px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b1020;
-    --bg-muted: #0f172a;
-    --bg-soft: #111827;
-    --fg: #e5e7eb;
-    --fg-dim: #94a3b8;
-    --border: #1f2937;
-    --accent: #e5e7eb;
-    --success: #22c55e;
-    --shadow-1: 0 1px 2px rgba(0,0,0,.6);
-    --shadow-2: 0 10px 20px rgba(0,0,0,.35);
-  }
+/* Arcade theme: darker shadows + digital font */
+[data-theme="arcade"] {
+  --shadow-1: 0 1px 2px rgba(0,0,0,.6);
+  --shadow-2: 0 10px 20px rgba(0,0,0,.35);
+}
+
+/* Arcade-Theme globales Styling */
+[data-theme="arcade"] body {
+  background: #0a0a0a;
+  color: #e5e7eb;
+}
+
+/* Arcade-Theme für große Zahlen (Scores) - extra digital */
+[data-theme="arcade"] .g-bigNum,
+[data-theme="arcade"] .arcade-score {
+  font-family: "Orbitron", monospace;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
 }
 
 /* Page */

@@ -21,6 +21,7 @@
   "author": "Thomas Pettersson",
   "license": "ISC",
   "dependencies": {
+    "@sqlite.org/sqlite-wasm": "^3.51.2-build6",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "react": "^19.2.0",

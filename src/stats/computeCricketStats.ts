@@ -14,7 +14,7 @@ import {
 
 // Wir nehmen die gleichen Grundtypen wie in dartsCricket.ts
 export type CricketRange = 'short' | 'long'
-export type CricketStyle = 'standard' | 'cutthroat'
+export type CricketStyle = 'standard' | 'cutthroat' | 'simple' | 'crazy'
 
 // Ein Cricket-Target ist eine Zahl (10..20 oder 15..20 je nach Range) oder Bull
 export type CricketTarget = number | 'BULL'
@@ -37,9 +37,11 @@ export type CricketPlayerMatchStats = {
   doublesHit: number
   bullHitsSingle: number      // Bulls mit mult=1
   bullHitsDouble: number      // Bulls mit mult>=2
+  bullAttempts: number        // Anzahl Würfe auf Bull
   bullAccuracy: number        // Bulls/Versuche auf Bull
 
   turnsWithNoScore: number    // Turns mit 0 Marks UND 0 Punkte
+  totalTurns: number          // Gesamtzahl der Turns
   longestStreakMarks: number  // längste Serie von Turns mit >=1 Mark hintereinander
   bestTurnMarks: number       // maximale Marks in EINEM Turn
   bestTurnPoints: number      // maximale Punkte in EINEM Turn
@@ -47,6 +49,7 @@ export type CricketPlayerMatchStats = {
   favouriteField: CricketTarget | null      // Feld, das am häufigsten zuerst geschlossen wurde
   strongestField: CricketTarget | null      // Feld mit den meisten Gesamt-Marks
   weakestField: CricketTarget | null        // Feld mit den wenigsten Gesamt-Marks (unter den Cricket-Zielen)
+  fieldMarks: Record<string, number>        // Marks pro Feld
 
   finishField: CricketTarget | null         // Mit welchem Feld wurde das Leg entschieden (das Sieger-Leg, letzter Dart)
   firstCloseOrder: CricketTarget[]          // Reihenfolge, in der Felder im Match erstmals zu waren
@@ -520,9 +523,11 @@ export function computeCricketStats(cricketMatch: {
       doublesHit: acc.doublesHit,
       bullHitsSingle: acc.bullHitsSingle,
       bullHitsDouble: acc.bullHitsDouble,
+      bullAttempts: acc.bullAttempts,
       bullAccuracy,
 
       turnsWithNoScore: acc.turnsWithNoScore,
+      totalTurns: acc.totalTurns,
       longestStreakMarks: acc.longestHitStreak,
       bestTurnMarks: acc.bestTurnMarks,
       bestTurnPoints: acc.bestTurnPoints,
@@ -530,6 +535,7 @@ export function computeCricketStats(cricketMatch: {
       favouriteField,
       strongestField,
       weakestField,
+      fieldMarks: { ...acc.marksByField } as Record<string, number>,
 
       finishField: acc.finishField,
       firstCloseOrder: acc.firstCloseOrder,

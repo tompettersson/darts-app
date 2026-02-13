@@ -9,7 +9,8 @@ import {
   getProfiles, getMatches, saveMatches, setLastOpenMatchId,
   type Profile, type StoredMatch
 } from '../storage'
-import { ui } from '../ui'
+import { getThemedUI } from '../ui'
+import { useTheme } from '../ThemeProvider'
 import './game.css'
 
 type ModeStr = '121-double-out' | '301-double-out' | '501-double-out' | '701-double-out' | '901-double-out'
@@ -41,6 +42,9 @@ function inRuleShort(r: InRule) { return r === 'double-in' ? 'DI' : 'SI' }
 const GUEST_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#84cc16']
 
 export default function NewGame({ preset, onCancel, onStarted }: Props) {
+  const { isArcade, colors } = useTheme()
+  const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
   const profiles = dedupeProfiles(getProfiles())
 
   // Gäste nur lokal in diesem Screen verwalten
@@ -81,24 +85,25 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     const label = preset.mode.replace('-double-out', '').toUpperCase()
     return (
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={ui.pills}>
-          <span style={{ ...ui.pill, borderColor: '#e5e7eb', background: '#f8fafc', cursor: 'default' }}>
+        <div style={styles.pills}>
+          <span style={{ ...styles.pill, borderColor: colors.border, background: colors.bgMuted, cursor: 'default' }}>
             Modus: <b style={{ marginLeft: 6 }}>{label}</b>
           </span>
-          <span style={{ ...ui.pill, borderColor: '#e5e7eb', background: '#f8fafc', cursor: 'default' }}>
+          <span style={{ ...styles.pill, borderColor: colors.border, background: colors.bgMuted, cursor: 'default' }}>
             Startscore: <b style={{ marginLeft: 6 }}>{preset.startingScore}</b>
           </span>
         </div>
-        {rulesDisabled ? <div style={ui.sub}>Hinweis: Bei 121 sind In/Out-Optionen deaktiviert.</div> : null}
+        {rulesDisabled ? <div style={styles.sub}>Hinweis: Bei 121 sind In/Out-Optionen deaktiviert.</div> : null}
       </div>
     )
-  }, [preset, rulesDisabled])
+  }, [preset, rulesDisabled, styles, colors])
 
   // gemischte Liste (Profile + Gäste) zur Anzeige
   const mixedList = useMemo(() => {
     const guestAsProfiles: Profile[] = guests.map((g) => ({
       id: g.id,
       name: g.name,
+      color: g.color,
       createdAt: '',
       updatedAt: '',
     }))
@@ -132,6 +137,20 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
       const [item] = copy.splice(i, 1)
       copy.splice(j, 0, item)
       return copy
+    })
+  }
+
+  // Zufällige Reihenfolge
+  const shuffleOrder = () => {
+    setOrder((o) => {
+      const list = dedupeIds(o).filter((pid) => selected.includes(pid))
+      // Fisher-Yates Shuffle
+      const shuffled = [...list]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      return shuffled
     })
   }
 
@@ -235,174 +254,184 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     onStarted?.(matchId)
   }
 
-  const pillStyle = (active: boolean): React.CSSProperties => ({
-    ...ui.pill,
-    borderColor: active ? '#0ea5e9' : '#e5e7eb',
-    background: active ? '#e0f2fe' : '#fff',
-    color: active ? '#0369a1' : '#0f172a',
-  })
+  const pillActive: React.CSSProperties = {
+    ...styles.pill,
+    borderColor: colors.accent,
+    background: isArcade ? colors.accent : '#e0f2fe',
+    color: isArcade ? '#fff' : '#0369a1',
+  }
+  const pillInactive: React.CSSProperties = { ...styles.pill }
+  const pillStyle = (active: boolean) => active ? pillActive : pillInactive
 
   return (
-    <div style={ui.page}>
-      <div style={ui.headerRow}>
-        <h2 style={{ margin: 0 }}>Spiel konfigurieren</h2>
-        {onCancel ? <button style={ui.backBtn} onClick={onCancel}>← Zurück</button> : null}
+    <div style={styles.page}>
+      <div style={styles.headerRow}>
+        <h2 style={{ margin: 0, color: colors.fg }}>Spiel konfigurieren</h2>
+        {onCancel ? <button style={styles.backBtn} onClick={onCancel}>← Zurück</button> : null}
       </div>
 
-      {/* Preset-Anzeige */}
-      {preset ? (
-        <div>
-          <div style={ui.sub}>Auswahl</div>
-          {presetBadge}
-        </div>
-      ) : null}
-
-      {/* Regeln */}
-      <div style={ui.card}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Regeln</div>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <div>
-            <div style={ui.sub}>Out</div>
-            <div style={{ ...ui.pills, marginTop: 4 }}>
-              {(['double-out', 'master-out', 'single-out'] as const).map((r) => {
-                const active = outRule === r
-                return (
-                  <button
-                    key={r}
-                    style={{ ...pillStyle(active), ...(rulesDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
-                    onClick={() => !rulesDisabled && setOutRule(r)}
-                    disabled={rulesDisabled}
-                    aria-pressed={active}
-                  >
-                    {outRuleLabel(r)}
-                  </button>
-                )
-              })}
+      <div style={styles.centerPage}>
+        <div style={styles.centerInner}>
+          {/* Preset-Anzeige */}
+          {preset ? (
+            <div>
+              <div style={styles.sub}>Auswahl</div>
+              {presetBadge}
             </div>
-          </div>
+          ) : null}
 
-          <div>
-            <div style={ui.sub}>In</div>
-            <div style={{ ...ui.pills, marginTop: 4 }}>
-              {(['straight-in', 'double-in'] as const).map((r) => {
-                const active = inRule === r
-                return (
-                  <button
-                    key={r}
-                    style={{ ...pillStyle(active), ...(rulesDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
-                    onClick={() => !rulesDisabled && setInRule(r)}
-                    disabled={rulesDisabled}
-                    aria-pressed={active}
-                  >
-                    {inRuleLabel(r)}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-        {rulesDisabled ? <div style={{ ...ui.sub, marginTop: 8 }}>Bei 121 ist die Regelwahl deaktiviert (Standard: DO / SI).</div> : null}
-      </div>
-
-      {/* Spieler wählen + Gast hinzufügen */}
-      <div style={{ display: 'grid', gap: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={ui.sub}>Spieler (1–8)</div>
-          <button style={ui.pill} onClick={addGuest}>Gast hinzufügen</button>
-        </div>
-
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-          {mixedList.map((p) => {
-            const isSel = selected.includes(p.id)
-            const isGuest = guests.some(g => g.id === p.id)
-            const gColor = guests.find(g => g.id === p.id)?.color
-            return (
-              <div key={p.id} style={ui.rowCard}>
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="checkbox" checked={isSel} onChange={() => toggleSel(p.id)} />
-                  <span style={{ ...(isGuest ? { color: gColor } : {}) }}>{p.name}</span>
-                </label>
-                {isSel ? (
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <button style={ui.backBtn} onClick={() => moveInOrder(p.id, -1)}>↑</button>
-                    <button style={ui.backBtn} onClick={() => moveInOrder(p.id, +1)}>↓</button>
-                    <span style={ui.sub}>Pos: {dedupeIds(order).indexOf(p.id) + 1}</span>
-                  </div>
-                ) : <div />}
+          {/* Regeln */}
+          <div style={styles.card}>
+            <div style={{ fontWeight: 700, marginBottom: 8, color: colors.fg }}>Regeln</div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div>
+                <div style={styles.sub}>Out</div>
+                <div style={{ ...styles.pills, marginTop: 4 }}>
+                  {(['double-out', 'master-out', 'single-out'] as const).map((r) => {
+                    const active = outRule === r
+                    return (
+                      <button
+                        key={r}
+                        style={{ ...pillStyle(active), ...(rulesDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                        onClick={() => !rulesDisabled && setOutRule(r)}
+                        disabled={rulesDisabled}
+                        aria-pressed={active}
+                      >
+                        {outRuleLabel(r)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            )
-          })}
-        </div>
-      </div>
 
-      {/* Struktur */}
-      <div style={ui.card}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Struktur</div>
-        <div style={{ ...ui.pills, marginBottom: 10 }}>
-          <button
-            style={pillStyle(structure.kind === 'legs')}
-            onClick={() => setStructure({ kind: 'legs', bestOfLegs: structure.kind === 'legs' ? structure.bestOfLegs : 3 })}
-          >
-            Legs
-          </button>
-          <button
-            style={pillStyle(structure.kind === 'sets')}
-            onClick={() => setStructure({ kind: 'sets', legsPerSet: 5, bestOfSets: 3 })}
-          >
-            Sets
-          </button>
-        </div>
+              <div>
+                <div style={styles.sub}>In</div>
+                <div style={{ ...styles.pills, marginTop: 4 }}>
+                  {(['straight-in', 'double-in'] as const).map((r) => {
+                    const active = inRule === r
+                    return (
+                      <button
+                        key={r}
+                        style={{ ...pillStyle(active), ...(rulesDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                        onClick={() => !rulesDisabled && setInRule(r)}
+                        disabled={rulesDisabled}
+                        aria-pressed={active}
+                      >
+                        {inRuleLabel(r)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+            {rulesDisabled ? <div style={{ ...styles.sub, marginTop: 8 }}>Bei 121 ist die Regelwahl deaktiviert (Standard: DO / SI).</div> : null}
+          </div>
 
-        {structure.kind === 'legs' ? (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span>Best of</span>
-            <select
-              value={structure.bestOfLegs ?? 3}
-              onChange={(e) => setStructure({ kind: 'legs', bestOfLegs: Number(e.target.value) })}
-              style={{ height: 36, borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff', padding: '6px 10px' }}
+          {/* Spieler wählen + Gast hinzufügen */}
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={styles.sub}>Spieler (1–8)</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {selected.length >= 2 && (
+                  <button style={styles.pill} onClick={shuffleOrder}>🎲 Zufällig</button>
+                )}
+                <button style={styles.pill} onClick={addGuest}>Gast hinzufügen</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              {mixedList.map((p) => {
+                const isSel = selected.includes(p.id)
+                const isGuest = guests.some(g => g.id === p.id)
+                return (
+                  <div key={p.id} style={styles.rowCard}>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input type="checkbox" checked={isSel} onChange={() => toggleSel(p.id)} />
+                      <span style={{ color: p.color, fontWeight: p.color ? 600 : undefined }}>{p.name}</span>
+                    </label>
+                    {isSel ? (
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <button style={styles.backBtn} onClick={() => moveInOrder(p.id, -1)}>↑</button>
+                        <button style={styles.backBtn} onClick={() => moveInOrder(p.id, +1)}>↓</button>
+                        <span style={styles.sub}>Pos: {dedupeIds(order).indexOf(p.id) + 1}</span>
+                      </div>
+                    ) : <div />}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Struktur */}
+          <div style={styles.card}>
+            <div style={{ fontWeight: 700, marginBottom: 8, color: colors.fg }}>Struktur</div>
+            <div style={{ ...styles.pills, marginBottom: 10 }}>
+              <button
+                style={pillStyle(structure.kind === 'legs')}
+                onClick={() => setStructure({ kind: 'legs', bestOfLegs: structure.kind === 'legs' ? structure.bestOfLegs : 3 })}
+              >
+                Legs
+              </button>
+              <button
+                style={pillStyle(structure.kind === 'sets')}
+                onClick={() => setStructure({ kind: 'sets', legsPerSet: 3, bestOfSets: 3 })}
+              >
+                Sets
+              </button>
+            </div>
+
+            {structure.kind === 'legs' ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span>First to</span>
+                <select
+                  value={Math.floor(((structure.bestOfLegs ?? 3) + 1) / 2)}
+                  onChange={(e) => setStructure({ kind: 'legs', bestOfLegs: Number(e.target.value) * 2 - 1 })}
+                  style={{ height: 36, borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.bgCard, color: colors.fg, padding: '6px 10px' }}
+                >
+                  <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option><option value={5}>5</option>
+                </select>
+                <span>Legs</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span>First to</span>
+                  <select
+                    value={Math.floor((structure.legsPerSet + 1) / 2)}
+                    onChange={(e) => setStructure({ kind: 'sets', legsPerSet: Number(e.target.value) * 2 - 1, bestOfSets: (structure as any).bestOfSets ?? 3 })}
+                    style={{ height: 36, borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.bgCard, color: colors.fg, padding: '6px 10px' }}
+                  >
+                    <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option>
+                  </select>
+                  <span>Legs pro Set</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span>First to</span>
+                  <select
+                    value={Math.floor(((structure as any).bestOfSets + 1) / 2)}
+                    onChange={(e) => setStructure({ kind: 'sets', legsPerSet: (structure as any).legsPerSet, bestOfSets: Number(e.target.value) * 2 - 1 })}
+                    style={{ height: 36, borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.bgCard, color: colors.fg, padding: '6px 10px' }}
+                  >
+                    <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
+                  </select>
+                  <span>Sets</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Starten */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            {onCancel ? <button style={styles.backBtn} onClick={onCancel}>Abbrechen</button> : null}
+            <button
+              style={{ ...styles.backBtn, ...(canStart ? { borderColor: isArcade ? colors.accent : '#111827', background: isArcade ? colors.accent : '#111827', color: '#fff', fontWeight: 700 } : {}) }}
+              disabled={!canStart}
+              onClick={handleStart}
             >
-              <option value={1}>1</option><option value={3}>3</option><option value={5}>5</option><option value={7}>7</option><option value={9}>9</option>
-            </select>
-            <span>Legs</span>
+              Spiel starten
+            </button>
           </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span>Je Set: Best of</span>
-              <select
-                value={structure.legsPerSet}
-                onChange={(e) => setStructure({ kind: 'sets', legsPerSet: Number(e.target.value), bestOfSets: (structure as any).bestOfSets ?? 3 })}
-                style={{ height: 36, borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff', padding: '6px 10px' }}
-              >
-                <option value={3}>3</option><option value={5}>5</option><option value={7}>7</option>
-              </select>
-              <span>Legs</span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span>Best of</span>
-              <select
-                value={(structure as any).bestOfSets}
-                onChange={(e) => setStructure({ kind: 'sets', legsPerSet: (structure as any).legsPerSet, bestOfSets: Number(e.target.value) })}
-                style={{ height: 36, borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff', padding: '6px 10px' }}
-              >
-                <option value={1}>1</option><option value={3}>3</option><option value={5}>5</option>
-              </select>
-              <span>Sets</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Starten */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        {onCancel ? <button style={ui.backBtn} onClick={onCancel}>Abbrechen</button> : null}
-        <button
-          style={{ ...ui.backBtn, ...(canStart ? { borderColor: '#111827', background: '#111827', color: '#fff', fontWeight: 700 } : {}) }}
-          disabled={!canStart}
-          onClick={handleStart}
-        >
-          Spiel starten
-        </button>
+        </div>
       </div>
     </div>
   )

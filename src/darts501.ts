@@ -160,6 +160,41 @@ export function isDouble(d: Dart) {
 export function isTriple(d: Dart) {
   return typeof d.bed === 'number' && d.mult === 3
 }
+
+/* ----------------- Event Type Guards ----------------- */
+// Diese Type Guards ermöglichen type-safe Event-Filterung ohne `as any`
+
+export function isMatchStarted(e: DartsEvent): e is MatchStarted {
+  return e.type === 'MatchStarted'
+}
+
+export function isLegStarted(e: DartsEvent): e is LegStarted {
+  return e.type === 'LegStarted'
+}
+
+export function isLegFinished(e: DartsEvent): e is LegFinished {
+  return e.type === 'LegFinished'
+}
+
+export function isMatchFinished(e: DartsEvent): e is MatchFinished {
+  return e.type === 'MatchFinished'
+}
+
+export function isVisitAdded(e: DartsEvent): e is VisitAdded {
+  return e.type === 'VisitAdded'
+}
+
+export function isSetStarted(e: DartsEvent): e is SetStarted {
+  return e.type === 'SetStarted'
+}
+
+export function isSetFinished(e: DartsEvent): e is SetFinished {
+  return e.type === 'SetFinished'
+}
+
+export function isEventReverted(e: DartsEvent): e is EventReverted {
+  return e.type === 'EventReverted'
+}
 export function isBull50(d: Dart) {
   return d.bed === 'DBULL'
 }
@@ -192,12 +227,29 @@ const SECTOR_NEIGHBORS: Record<number, [number, number]> = {
   11:[8,14], 14:[11,9], 9:[14,12], 12:[9,5], 5:[12,20],
 }
 
-// „Unmögliche“ Finishes bei Double-Out
+// „Unmögliche" Finishes bei Double-Out
 const IMPOSSIBLE_DO = new Set([169, 168, 166, 165, 163, 162, 159])
 
 function isCheckoutNumber(rem: number, outRule: OutRule): boolean {
   if (rem <= 1 || rem > 170) return false
   return outRule === 'double-out' ? !IMPOSSIBLE_DO.has(rem) : true
+}
+
+/**
+ * Prüft, ob der Rest ein DIREKTER Double-Checkout ist.
+ * Das heißt: Mit einem einzigen Wurf auf ein Doppelfeld kann man auschecken.
+ *
+ * Bei Double-Out / Master-Out:
+ * - 50 (D25/Bull)
+ * - Gerade Zahlen 2-40 (D1 bis D20)
+ *
+ * Ungerade Reste (z.B. 35) erfordern erst ein "Stellen" → kein Doppelversuch.
+ */
+function isDirectDoubleCheckout(rem: number, outRule: OutRule): boolean {
+  if (outRule === 'single-out') return false
+  if (rem === 50) return true
+  if (rem >= 2 && rem <= 40 && rem % 2 === 0) return true
+  return false
 }
 
 /**
@@ -396,18 +448,27 @@ export function recordVisit({
 
   for (let i = 0; i < darts.length && i < 3; i++) {
     const base = darts[i]
-    const dart: Dart & { score: number } = { ...base, score: scoreOf(base) }
-    thrown.push(dart)
 
+    // Double-In: Score ist 0 wenn noch nicht "in"
+    let effectiveScore = scoreOf(base)
     if (inRule === 'double-in' && !isIn) {
-      if (isDouble(dart)) {
+      if (isDouble(base)) {
         isIn = true
+        // Dieser Dart zählt - Score bleibt
       } else {
-        continue
+        effectiveScore = 0 // Dart zählt nicht
       }
     }
 
-    const after = tmp - dart.score
+    const dart: Dart & { score: number } = { ...base, score: effectiveScore }
+    thrown.push(dart)
+
+    // Nur wenn Score > 0, Punktelogik ausführen
+    if (effectiveScore === 0) {
+      continue
+    }
+
+    const after = tmp - effectiveScore
 
     if (after === 0) {
       if (finishAllowed(outRule, dart)) {
@@ -488,7 +549,10 @@ export type PlayerStats = {
   doublePctDart: number
 
   highestCheckout: number
-  bins: { _180: number; _140plus: number; _100plus: number }
+  bins: { _180: number; _140plus: number; _100plus: number; _61plus: number }
+  busts: number
+  finishingDoubles: Record<string, number>  // z.B. { "D20": 3, "D16": 1 }
+  bestLegDarts: number | null
 }
 
 /**
@@ -579,14 +643,34 @@ export function computeStats(events: DartsEvent[]): Record<string, PlayerStats> 
       doublePctDart: 0,
 
       highestCheckout: 0,
-      bins: { _180: 0, _140plus: 0, _100plus: 0 },
+      bins: { _180: 0, _140plus: 0, _100plus: 0, _61plus: 0 },
+      busts: 0,
+      finishingDoubles: {},
+      bestLegDarts: null,
     }
   }
 
   // First 9 pro (Leg,Player)
   const first9: Record<string, { points: number; darts: number }> = {}
 
+  // Darts pro Leg pro Spieler (für bestes Leg)
+  const dartsPerLeg: Record<string, Record<string, number>> = {}  // legId -> playerId -> darts
+
   for (const e of events) {
+    // LegFinished: Bestes Leg tracken
+    if (e.type === 'LegFinished') {
+      const lf = e as LegFinished
+      const winnerId = lf.winnerPlayerId
+      const s = stats[winnerId]
+      if (s && dartsPerLeg[lf.legId]?.[winnerId]) {
+        const dartsForLeg = dartsPerLeg[lf.legId][winnerId]
+        if (s.bestLegDarts === null || dartsForLeg < s.bestLegDarts) {
+          s.bestLegDarts = dartsForLeg
+        }
+      }
+      continue
+    }
+
     if (e.type !== 'VisitAdded') continue
     const s = stats[e.playerId]
     if (!s) continue
@@ -594,9 +678,17 @@ export function computeStats(events: DartsEvent[]): Record<string, PlayerStats> 
     // --- Basiswerte ---
     s.dartsThrown += e.darts.length
     s.pointsScored += e.visitScore || 0
+
+    // Darts pro Leg tracken (für bestes Leg)
+    if (!dartsPerLeg[e.legId]) dartsPerLeg[e.legId] = {}
+    dartsPerLeg[e.legId][e.playerId] = (dartsPerLeg[e.legId][e.playerId] ?? 0) + e.darts.length
     if (e.visitScore === 180) s.bins._180 += 1
     else if (e.visitScore >= 140) s.bins._140plus += 1
     else if (e.visitScore >= 100) s.bins._100plus += 1
+    else if (e.visitScore >= 61) s.bins._61plus += 1
+
+    // Busts zählen
+    if (e.bust) s.busts += 1
 
     // --- First 9 ---
     const key = `${e.legId}:${e.playerId}`
@@ -615,14 +707,16 @@ export function computeStats(events: DartsEvent[]): Record<string, PlayerStats> 
       }
     }
 
-    // --- Dart-basierte Double-Stats (DIE sind für die Quote, über die du dich beschwert hast) ---
-    // Wir simulieren den Rest innerhalb dieser Aufnahme so wie recordVisit das gemacht hat.
+    // --- Dart-basierte Double-Stats ---
+    // Ein Doppelversuch zählt nur, wenn der Rest ein DIREKTER Double-Checkout ist:
+    // 50 (Bull) oder gerade Zahlen 2-40 (D1 bis D20).
+    // Bei ungeraden Resten (z.B. 35, 67) muss erst "gestellt" werden → kein Doppelversuch.
     let liveRem = e.remainingBefore
     for (let i = 0; i < e.darts.length; i++) {
       const d = e.darts[i]
 
-      // echter Checkout-Versuch?
-      if (countsAsDoubleAttempt(liveRem, d, outRule)) {
+      // Doppelversuch = Rest ist direkter Double-Checkout
+      if (isDirectDoubleCheckout(liveRem, outRule)) {
         s.doubleAttemptsDart += 1
       }
 
@@ -631,6 +725,13 @@ export function computeStats(events: DartsEvent[]): Record<string, PlayerStats> 
       // erfolgreicher Checkout-Dart?
       if (after === 0 && finishAllowed(outRule, d)) {
         s.doublesHitDart += 1
+
+        // Finishing Double tracken
+        const doubleKey = d.mult === 2
+          ? (d.bed === 'BULL' ? 'DBULL' : `D${d.bed}`)
+          : (d.bed === 'BULL' ? 'BULL' : String(d.bed))  // Single-Out
+        s.finishingDoubles[doubleKey] = (s.finishingDoubles[doubleKey] ?? 0) + 1
+
         liveRem = after
         break // Leg vorbei
       }

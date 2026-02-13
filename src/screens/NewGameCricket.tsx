@@ -1,6 +1,7 @@
 // src/screens/NewGameCricket.tsx
 import React, { useMemo, useState } from 'react'
-import { ui } from '../ui'
+import { getThemedUI } from '../ui'
+import { useTheme } from '../ThemeProvider'
 import { getProfiles } from '../storage'
 import { CricketSetup } from "./newgame/../../types/cricket"
 
@@ -17,7 +18,7 @@ type Props = {
 }
 
 /* ---------- kleine Utils ---------- */
-type Profile = { id: string; name: string; createdAt: string; updatedAt: string }
+type Profile = { id: string; name: string; createdAt: string; updatedAt: string; color?: string }
 function dedupeProfiles(arr: Profile[]): Profile[] {
   const m = new Map<string, Profile>()
   for (const p of arr) if (!m.has(p.id)) m.set(p.id, p)
@@ -30,6 +31,8 @@ function id(): string { return (Date.now().toString(36) + Math.random().toString
 const GUEST_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#84cc16']
 
 export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
+  const { isArcade, colors } = useTheme()
+  const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
   const profiles = dedupeProfiles(getProfiles())
 
   // Gäste nur lokal in diesem Screen verwalten
@@ -50,6 +53,7 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
     const guestAsProfiles: Profile[] = guests.map((g) => ({
       id: g.id,
       name: g.name,
+      color: g.color,
       createdAt: '',
       updatedAt: '',
     }))
@@ -84,6 +88,19 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
     })
   }
 
+  const shuffleOrder = () => {
+    setOrder((o) => {
+      const list = dedupeIds(o)
+      // Fisher-Yates Shuffle
+      const shuffled = [...list]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      return shuffled
+    })
+  }
+
   const addGuest = () => {
     const idx = guests.length % GUEST_COLORS.length
     const color = GUEST_COLORS[idx]
@@ -98,28 +115,30 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
 
   const canStart = selected.length >= 1 && selected.length <= maxPlayers
 
-  const pill = (active: boolean): React.CSSProperties => ({
-    ...ui.pill,
-    borderColor: active ? '#0ea5e9' : '#e5e7eb',
-    background: active ? '#e0f2fe' : '#fff',
-    color: active ? '#0369a1' : '#0f172a',
-  })
+  const pillActive: React.CSSProperties = {
+    ...styles.pill,
+    borderColor: colors.accent,
+    background: isArcade ? colors.accent : '#e0f2fe',
+    color: isArcade ? '#fff' : '#0369a1',
+  }
+  const pillInactive: React.CSSProperties = { ...styles.pill }
+  const pill = (active: boolean) => active ? pillActive : pillInactive
 
   return (
-    <div style={ui.page}>
-      <div style={ui.headerRow}>
-        <h2 style={{ margin: 0 }}>Cricket konfigurieren</h2>
-        {onCancel ? <button style={ui.backBtn} onClick={onCancel}>← Zurück</button> : null}
+    <div style={styles.page}>
+      <div style={styles.headerRow}>
+        <h2 style={{ margin: 0, color: colors.fg }}>Cricket konfigurieren</h2>
+        {onCancel ? <button style={styles.backBtn} onClick={onCancel}>← Zurück</button> : null}
       </div>
 
       {/* Auswahl-Info aus dem Picker */}
-      <div style={{ ...ui.card, marginBottom: 8 }}>
-        <div style={ui.sub}>Auswahl</div>
-        <div style={{ ...ui.pills, marginTop: 6 }}>
-          <span style={{ ...ui.pill, background: '#f8fafc', cursor: 'default', borderColor: '#e5e7eb' }}>
+      <div style={{ ...styles.card, marginBottom: 8 }}>
+        <div style={styles.sub}>Auswahl</div>
+        <div style={{ ...styles.pills, marginTop: 6 }}>
+          <span style={{ ...styles.pill, background: colors.bgMuted, cursor: 'default', borderColor: colors.border }}>
             Range: <b style={{ marginLeft: 6 }}>{cfg.range === 'short' ? 'Short (15–20)' : 'Long (10–20)'}</b>
           </span>
-          <span style={{ ...ui.pill, background: '#f8fafc', cursor: 'default', borderColor: '#e5e7eb' }}>
+          <span style={{ ...styles.pill, background: colors.bgMuted, cursor: 'default', borderColor: colors.border }}>
             Variante: <b style={{ marginLeft: 6 }}>{cfg.style === 'cutthroat' ? 'Cutthroat' : 'Standard'}</b>
           </span>
         </div>
@@ -127,27 +146,30 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
 
       {/* Spieler wählen + Gast hinzufügen */}
       <div style={{ display: 'grid', gap: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={ui.sub}>Spieler (1–8)</div>
-          <button style={ui.pill} onClick={addGuest}>Gast hinzufügen</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={styles.sub}>Spieler (1–8)</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {selected.length >= 2 && (
+              <button style={styles.pill} onClick={shuffleOrder}>🎲 Zufällig</button>
+            )}
+            <button style={styles.pill} onClick={addGuest}>Gast hinzufügen</button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           {mixedList.map((p) => {
             const isSel = selected.includes(p.id)
-            const isGuest = guests.some(g => g.id === p.id)
-            const gColor = guests.find(g => g.id === p.id)?.color
             return (
-              <div key={p.id} style={ui.rowCard}>
+              <div key={p.id} style={styles.rowCard}>
                 <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input type="checkbox" checked={isSel} onChange={() => toggleSel(p.id)} />
-                  <span style={{ ...(isGuest ? { color: gColor } : {}) }}>{p.name}</span>
+                  <span style={{ color: p.color, fontWeight: p.color ? 600 : undefined }}>{p.name}</span>
                 </label>
                 {isSel ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <button style={ui.backBtn} onClick={() => moveInOrder(p.id, -1)}>↑</button>
-                    <button style={ui.backBtn} onClick={() => moveInOrder(p.id, +1)}>↓</button>
-                    <span style={ui.sub}>Pos: {dedupeIds(order).indexOf(p.id) + 1}</span>
+                    <button style={styles.backBtn} onClick={() => moveInOrder(p.id, -1)}>↑</button>
+                    <button style={styles.backBtn} onClick={() => moveInOrder(p.id, +1)}>↓</button>
+                    <span style={styles.sub}>Pos: {dedupeIds(order).indexOf(p.id) + 1}</span>
                   </div>
                 ) : <div />}
               </div>
@@ -157,9 +179,9 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
       </div>
 
       {/* Serie: First to N */}
-      <div style={ui.card}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Serie</div>
-        <div style={{ ...ui.pills, marginBottom: 10 }}>
+      <div style={styles.card}>
+        <div style={{ fontWeight: 700, marginBottom: 8, color: colors.fg }}>Serie</div>
+        <div style={{ ...styles.pills, marginBottom: 10 }}>
           {[1,2,3,4,5].map(n => (
             <button
               key={n}
@@ -170,16 +192,16 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
             </button>
           ))}
         </div>
-        <div style={ui.sub}>
+        <div style={styles.sub}>
           Sieger ist, wer zuerst <b>{targetWins}</b> Spiele gewinnt.
         </div>
       </div>
 
       {/* Starten */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        {onCancel ? <button style={ui.backBtn} onClick={onCancel}>Abbrechen</button> : null}
+        {onCancel ? <button style={styles.backBtn} onClick={onCancel}>Abbrechen</button> : null}
         <button
-          style={{ ...ui.backBtn, ...(canStart ? { borderColor: '#111827', background: '#111827', color: '#fff', fontWeight: 700 } : {}) }}
+          style={{ ...styles.backBtn, ...(canStart ? { borderColor: isArcade ? colors.accent : '#111827', background: isArcade ? colors.accent : '#111827', color: '#fff', fontWeight: 700 } : {}) }}
           disabled={!canStart}
           onClick={() => {
             if (!canStart) return

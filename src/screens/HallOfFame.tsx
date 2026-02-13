@@ -1,519 +1,404 @@
-import React, { useState, useMemo } from 'react'
-import { ui } from '../ui'
+// src/screens/HallOfFame.tsx
+// Neue Hall of Fame mit Navigation zwischen Kategorien
 
-// Storage-Funktionen
-import {
-  getCricketLeaderboards,
-  getCricketMatches,
-  loadLeaderboards, // oder getX01LeaderboardsUI() wenn du sie schon hast
-  getProfiles, // Name-Resolver nutzt Profile
-} from '../storage'
-
-// Effizienz-Berechnung für Cricket
-import {
-  computeCricketEfficiencyFromMatches,
-  fmtFixed2,
-  fmtPct,
-} from '../logic/cricketEfficiency'
-
-// Typen aus zentraler Stats-Typdatei
-import type {
-  CricketLeaderboardsUI,
-  CricketTripleHunterRow,
-  CricketBestTurnRow,
-  CricketFastestLegRow,
-  X01LeaderboardsUI,
-  X01HighVisitRow,
-  X01HighCheckoutRow,
-  X01LegRow,
-  X01CheckoutPctRow,
-} from '../types/stats'
+import React, { useState, useMemo, useEffect } from 'react'
+import { getThemedUI } from '../ui'
+import { useTheme } from '../ThemeProvider'
+import { getAllHighscoresSQL } from '../db/stats'
+import type { HighscoreCategory, HighscoreGameType } from '../types/highscores'
 
 type Props = {
   onBack: () => void
 }
 
-/* =========================================================
-   Name-Resolver: Profile + Matches -> nameOf(playerId)
-   ========================================================= */
-function useNameOf(matches: any[]) {
-  const profiles = getProfiles() || []
-  return React.useMemo(() => {
-    const map = new Map<string, string>()
-    // 1) Profile (höchste Priorität)
-    for (const p of profiles) {
-      if (p?.id) map.set(p.id, (p.name || '').trim() || p.id)
-    }
-    // 2) Matches (Fallback, falls Profile fehlen)
-    for (const m of matches || []) {
-      for (const p of m.players || []) {
-        if (p?.id && !map.has(p.id)) {
-          map.set(p.id, (p.name || '').trim() || p.id)
-        }
-      }
-    }
-    return (pid: string | undefined) => (pid ? map.get(pid) || pid : '—')
-  }, [profiles, matches])
+const GAME_TYPE_LABELS: Record<HighscoreGameType, string> = {
+  all: 'Allgemein',
+  x01: 'X01',
+  cricket: 'Cricket',
+  atb: 'Around the Block',
 }
-
-// kleine Helper für Tab-Buttons
-function tabButtonStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: '8px 12px',
-    borderRadius: 8,
-    border: '1px solid ' + (active ? '#0ea5e9' : 'transparent'),
-    background: active ? '#e0f2fe' : 'transparent',
-    color: active ? '#0369a1' : '#0f172a',
-    cursor: 'pointer',
-    fontWeight: 600,
-    flex: '0 0 auto',
-  }
-}
-
-// eine kompakte Row für Einträge
-function rowStyle(): React.CSSProperties {
-  return {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    maxWidth: 420,
-    width: '100%',
-    margin: '0 auto',
-    padding: '8px 12px',
-    borderBottom: '1px solid #e2e8f0',
-    fontSize: 14,
-  }
-}
-
-function nameStyle(): React.CSSProperties {
-  return {
-    fontWeight: 600,
-    color: '#0f172a',
-    flex: 1,
-    marginRight: 8,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  }
-}
-
-function metaStyle(): React.CSSProperties {
-  return {
-    ...ui.sub,
-    fontSize: 12,
-    marginLeft: 8,
-    whiteSpace: 'nowrap',
-  }
-}
-
-function valueStyle(): React.CSSProperties {
-  return {
-    fontVariantNumeric: 'tabular-nums',
-    color: '#334155',
-    fontWeight: 700,
-    whiteSpace: 'nowrap',
-    minWidth: 104,
-    textAlign: 'right',
-  }
-}
-
-function sectionHeaderStyle(): React.CSSProperties {
-  return {
-    textAlign: 'center',
-    fontWeight: 700,
-    fontSize: 16,
-    marginBottom: 8,
-    color: '#0f172a',
-  }
-}
-
-/* =========================
-   Cricket-Teil mit neuen Subtabs
-   ========================= */
-
-type CricketInnerTab = 'mpd' | 'mpt' | 'nstr' | 'triple' | 'turn' | 'fastest'
-
-function CricketTabView({ data }: { data: CricketLeaderboardsUI }) {
-  const [subTab, setSubTab] = useState<CricketInnerTab>('mpd')
-
-  // Alle Matches laden und Effizienz berechnen (lokal)
-  const allMatches = getCricketMatches() as any[]
-  const efficiency = useMemo(
-    () => computeCricketEfficiencyFromMatches(allMatches, { minDarts: 30, minTurns: 10 }),
-    [allMatches]
-  )
-  const nameOf = useNameOf(allMatches)
-
-  const subTabBar = (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 8,
-        background: '#f8fafc',
-        borderRadius: 10,
-        padding: 4,
-        justifyContent: 'center',
-        marginBottom: 16,
-      }}
-    >
-      <button style={tabButtonStyle(subTab === 'mpd')} onClick={() => setSubTab('mpd')}>
-        Marks/Dart
-      </button>
-      <button style={tabButtonStyle(subTab === 'mpt')} onClick={() => setSubTab('mpt')}>
-        Marks/Turn
-      </button>
-      <button style={tabButtonStyle(subTab === 'nstr')} onClick={() => setSubTab('nstr')}>
-        No-Score-Rate
-      </button>
-      <button style={tabButtonStyle(subTab === 'triple')} onClick={() => setSubTab('triple')}>
-        Triple Hunter
-      </button>
-      <button style={tabButtonStyle(subTab === 'turn')} onClick={() => setSubTab('turn')}>
-        Best Turn
-      </button>
-      <button style={tabButtonStyle(subTab === 'fastest')} onClick={() => setSubTab('fastest')}>
-        Fastest Leg
-      </button>
-    </div>
-  )
-
-  let header = ''
-  let list: React.ReactNode = null
-  const rowsWrapKey = 'cric-' + subTab // erzwingt Remount beim Tab-Wechsel
-
-  if (subTab === 'mpd') {
-    header = 'Marks per Dart'
-    const rows = (efficiency.mpd ?? []).map((r: any, idx: number) => (
-      <div key={`mpd-${r.playerId ?? idx}`} style={rowStyle()}>
-        <div style={{ display: 'flex', alignItems: 'baseline', minWidth: 0 }}>
-          <div style={nameStyle()}>{idx + 1}. {nameOf(r.playerId)}</div>
-          <div style={metaStyle()}>Marks {r.marks} · Darts {r.darts}</div>
-        </div>
-        <div style={valueStyle()}>{fmtFixed2(r.mpd)}</div>
-      </div>
-    ))
-    list = rows.length ? rows : <div style={{ ...ui.sub, textAlign: 'center', padding: '16px 0' }}>Noch zu wenige Daten (mind. 30 Darts).</div>
-  }
-
-  if (subTab === 'mpt') {
-    header = 'Marks per Turn'
-    const rows = (efficiency.mpt ?? []).map((r: any, idx: number) => (
-      <div key={`mpt-${r.playerId ?? idx}`} style={rowStyle()}>
-        <div style={{ display: 'flex', alignItems: 'baseline', minWidth: 0 }}>
-          <div style={nameStyle()}>{idx + 1}. {nameOf(r.playerId)}</div>
-          <div style={metaStyle()}>Marks {r.marks} · Turns {r.turns}</div>
-        </div>
-        <div style={valueStyle()}>{fmtFixed2(r.mpt)}</div>
-      </div>
-    ))
-    list = rows.length ? rows : <div style={{ ...ui.sub, textAlign: 'center', padding: '16px 0' }}>Noch zu wenige Daten (mind. 10 Aufnahmen).</div>
-  }
-
-  if (subTab === 'nstr') {
-    header = 'No-Score-Turn-Rate'
-    const rows = (efficiency.nstr ?? []).map((r: any, idx: number) => (
-      <div key={`nstr-${r.playerId ?? idx}`} style={rowStyle()}>
-        <div style={{ display: 'flex', alignItems: 'baseline', minWidth: 0 }}>
-          <div style={nameStyle()}>{idx + 1}. {nameOf(r.playerId)}</div>
-          <div style={metaStyle()}>No-Score {r.noScoreTurns} · Turns {r.turns}</div>
-        </div>
-        <div style={valueStyle()}>{fmtPct(r.noScoreTurnRate)}</div>
-      </div>
-    ))
-    list = rows.length ? rows : <div style={{ ...ui.sub, textAlign: 'center', padding: '16px 0' }}>Noch zu wenige Daten (mind. 10 Aufnahmen).</div>
-  }
-
-  if (subTab === 'triple') {
-    header = 'Triple Hunter'
-    const rows = (data.tripleHunter ?? []).map((r: CricketTripleHunterRow, idx: number) => (
-      <div key={`triple-${r.playerId ?? idx}`} style={rowStyle()}>
-        <div style={nameStyle()}>{idx + 1}. {r.name ?? nameOf(r.playerId)}</div>
-        <div style={valueStyle()}>{r.triplesHit ?? 0}× T</div>
-      </div>
-    ))
-    list = rows.length ? rows : <div style={{ ...ui.sub, textAlign: 'center', padding: '16px 0' }}>Noch keine Triple-Daten.</div>
-  }
-
-  if (subTab === 'turn') {
-    header = 'Best Turn'
-    const rows = (data.bestTurn ?? []).map((r: CricketBestTurnRow, idx: number) => (
-      <div key={`turn-${r.playerId ?? idx}`} style={rowStyle()}>
-        <div style={nameStyle()}>{idx + 1}. {r.name ?? nameOf(r.playerId)}</div>
-        <div style={valueStyle()}>{(r.marks ?? 0)} Marks</div>
-      </div>
-    ))
-    list = rows.length ? rows : <div style={{ ...ui.sub, textAlign: 'center', padding: '16px 0' }}>Kein High-Turn gefunden.</div>
-  }
-
-  if (subTab === 'fastest') {
-    header = 'Fastest Leg'
-    const rows = (data.fastestLeg ?? []).map((r: CricketFastestLegRow, idx: number) => (
-      <div key={`fast-${r.playerId ?? idx}`} style={rowStyle()}>
-        <div style={nameStyle()}>{idx + 1}. {r.name ?? nameOf(r.playerId)}</div>
-        <div style={valueStyle()}>{r.dartsThrown ?? 0} Darts / {r.marksTotal ?? 0} Marks</div>
-      </div>
-    ))
-    list = rows.length ? rows : <div style={{ ...ui.sub, textAlign: 'center', padding: '16px 0' }}>Noch kein komplettes Cricket-Leg beendet.</div>
-  }
-
-  return (
-    <div style={{ ...ui.card, maxWidth: 560, margin: '12px auto' }}>
-      {subTabBar}
-      <div style={sectionHeaderStyle()}>{header}</div>
-      <div key={rowsWrapKey}>{list}</div>
-    </div>
-  )
-}
-
-/* =========================
-   X01-Teil (unverändert)
-   ========================= */
-
-type X01InnerTab = 'visits' | 'checkouts' | 'bestlegs' | 'worstlegs' | 'bestpct' | 'worstpct'
-
-function X01TabView({ data }: { data: X01LeaderboardsUI }) {
-  const [subTab, setSubTab] = useState<X01InnerTab>('visits')
-
-  const subTabBar = (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 8,
-        background: '#f8fafc',
-        borderRadius: 10,
-        padding: 4,
-        justifyContent: 'center',
-        marginBottom: 16,
-      }}
-    >
-      <button style={tabButtonStyle(subTab === 'visits')} onClick={() => setSubTab('visits')}>
-        High Visits
-      </button>
-      <button style={tabButtonStyle(subTab === 'checkouts')} onClick={() => setSubTab('checkouts')}>
-        High Checkouts
-      </button>
-      <button style={tabButtonStyle(subTab === 'bestlegs')} onClick={() => setSubTab('bestlegs')}>
-        Best Legs
-      </button>
-      <button style={tabButtonStyle(subTab === 'worstlegs')} onClick={() => setSubTab('worstlegs')}>
-        Worst Legs
-      </button>
-      <button style={tabButtonStyle(subTab === 'bestpct')} onClick={() => setSubTab('bestpct')}>
-        Best Checkout %
-      </button>
-      <button style={tabButtonStyle(subTab === 'worstpct')} onClick={() => setSubTab('worstpct')}>
-        Worst Checkout %
-      </button>
-    </div>
-  )
-
-  let header = ''
-  let rows: React.ReactNode[] = []
-
-  if (subTab === 'visits') {
-    header = 'High Visits'
-    rows = data.highVisits.map((r: X01HighVisitRow, idx: number) => (
-      <div key={idx} style={rowStyle()}>
-        <div style={nameStyle()}>
-          {idx + 1}. {r.playerName}
-        </div>
-        <div style={valueStyle()}>
-          {r.value}
-        </div>
-      </div>
-    ))
-  } else if (subTab === 'checkouts') {
-    header = 'High Checkouts'
-    rows = data.highCheckouts.map((r: X01HighCheckoutRow, idx: number) => (
-      <div key={idx} style={rowStyle()}>
-        <div style={nameStyle()}>
-          {idx + 1}. {r.playerName}
-        </div>
-        <div style={valueStyle()}>
-          {r.value}
-        </div>
-      </div>
-    ))
-  } else if (subTab === 'bestlegs') {
-    header = 'Best Legs'
-    rows = data.bestLegs.map((r: X01LegRow, idx: number) => (
-      <div key={idx} style={rowStyle()}>
-        <div style={nameStyle()}>
-          {idx + 1}. {r.playerName}
-        </div>
-        <div style={valueStyle()}>
-          {r.darts} Darts
-        </div>
-      </div>
-    ))
-  } else if (subTab === 'worstlegs') {
-    header = 'Worst Legs'
-    rows = data.worstLegs.map((r: X01LegRow, idx: number) => (
-      <div key={idx} style={rowStyle()}>
-        <div style={nameStyle()}>
-          {idx + 1}. {r.playerName}
-        </div>
-        <div style={valueStyle()}>
-          {r.darts} Darts
-        </div>
-      </div>
-    ))
-  } else if (subTab === 'bestpct') {
-    header = 'Best Checkout %'
-    rows = data.bestCheckoutPct.map((r: X01CheckoutPctRow, idx: number) => (
-      <div key={idx} style={rowStyle()}>
-        <div style={nameStyle()}>
-          {idx + 1}. {r.playerName}
-        </div>
-        <div style={valueStyle()}>
-          {r.value.toFixed(1)} %
-        </div>
-      </div>
-    ))
-  } else if (subTab === 'worstpct') {
-    header = 'Worst Checkout %'
-    rows = data.worstCheckoutPct.map((r: X01CheckoutPctRow, idx: number) => (
-      <div key={idx} style={rowStyle()}>
-        <div style={nameStyle()}>
-          {idx + 1}. {r.playerName}
-        </div>
-        <div style={valueStyle()}>
-          {r.value.toFixed(1)} %
-        </div>
-      </div>
-    ))
-  }
-
-  return (
-    <div style={{ ...ui.card, maxWidth: 560, margin: '12px auto' }}>
-      {subTabBar}
-      <div style={sectionHeaderStyle()}>{header}</div>
-      <div>{rows}</div>
-    </div>
-  )
-}
-
-/* =========================
-   Hauptkomponente
-   ========================= */
 
 export default function HallOfFame({ onBack }: Props) {
-  // Ober-Tab: X01 vs Cricket
-  const [modeTab, setModeTab] = useState<'x01' | 'cricket'>('x01')
+  const { isArcade, colors } = useTheme()
+  const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
-  // Cricket-Leaderboards (lokal)
-  const cricketData: CricketLeaderboardsUI = useMemo(() => {
-    try {
-      return getCricketLeaderboards()
-    } catch {
-      return {
-        // bullMaster entfällt -> Effizienz ersetzt das
-        tripleHunter: [],
-        bestTurn: [],
-        fastestLeg: [],
-      } as unknown as CricketLeaderboardsUI
-    }
+  const [activeTab, setActiveTab] = useState<HighscoreGameType>('all')
+  const [cursor, setCursor] = useState(0)
+
+  // Async SQL-Laden
+  const [allCategories, setAllCategories] = useState<HighscoreCategory[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getAllHighscoresSQL().then(cats => {
+      if (!cancelled) {
+        setAllCategories(cats)
+        setLoading(false)
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
   }, [])
 
-  // X01-Data (aus bestehendem loadLeaderboards normalisiert)
-  const x01Data: X01LeaderboardsUI = useMemo(() => {
-    const raw = loadLeaderboards()
-    return {
-      highVisits: raw.highVisits.map((v: any) => ({
-        playerId: v.playerId,
-        playerName: v.playerName,
-        matchId: v.matchId,
-        value: v.value,
-        ts: v.ts,
-      })),
-      highCheckouts: raw.highCheckouts.map((v: any) => ({
-        playerId: v.playerId,
-        playerName: v.playerName,
-        matchId: v.matchId,
-        value: v.value,
-        ts: v.ts,
-      })),
-      bestLegs: raw.bestLegs.map((l: any) => ({
-        playerId: l.playerId,
-        playerName: l.playerName,
-        matchId: l.matchId,
-        darts: l.darts,
-        ts: l.ts,
-      })),
-      worstLegs: raw.worstLegs.map((l: any) => ({
-        playerId: l.playerId,
-        playerName: l.playerName,
-        matchId: l.matchId,
-        darts: l.darts,
-        ts: l.ts,
-      })),
-      bestCheckoutPct: raw.bestCheckoutPct.map((p: any) => ({
-        playerId: p.playerId,
-        playerName: p.playerName,
-        value: p.value,
-        attempts: p.attempts,
-        made: p.made,
-      })),
-      worstCheckoutPct: raw.worstCheckoutPct.map((p: any) => ({
-        playerId: p.playerId,
-        playerName: p.playerName,
-        value: p.value,
-        attempts: p.attempts,
-        made: p.made,
-      })),
+  // Nach Tab filtern
+  const categories = useMemo(() => {
+    return allCategories.filter(c => c.gameType === activeTab)
+  }, [allCategories, activeTab])
+
+  // Cursor zurücksetzen wenn Tab wechselt
+  const handleTabChange = (tab: HighscoreGameType) => {
+    setActiveTab(tab)
+    setCursor(0)
+  }
+
+  const currentCategory: HighscoreCategory | undefined = categories[cursor]
+
+  // Navigation
+  const prevCategory = () => {
+    setCursor(c => (c - 1 + categories.length) % categories.length)
+  }
+
+  const nextCategory = () => {
+    setCursor(c => (c + 1) % categories.length)
+  }
+
+  // Wert formatieren
+  const formatValue = (value: number, format: string): string => {
+    switch (format) {
+      case 'percent':
+        return `${value.toFixed(1)}%`
+      case 'decimal':
+        return value.toFixed(2)
+      case 'darts':
+        return `${value} Pfeile`
+      case 'time': {
+        // Millisekunden in mm:ss.xx formatieren
+        const totalSecs = value / 1000
+        const mins = Math.floor(totalSecs / 60)
+        const secs = totalSecs % 60
+        return `${mins}:${secs.toFixed(2).padStart(5, '0')}`
+      }
+      default:
+        return value.toString()
     }
-  }, [])
+  }
+
+  // Medaillen für Top 3
+  const getMedal = (rank: number): string => {
+    if (rank === 1) return '🥇'
+    if (rank === 2) return '🥈'
+    if (rank === 3) return '🥉'
+    return ''
+  }
+
+  // Styles
+  const s = {
+    shell: {
+      maxWidth: 600,
+      margin: '0 auto',
+      padding: '16px 16px 40px',
+      background: 'transparent',
+    } as React.CSSProperties,
+
+    // Tab Bar
+    tabBar: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 16,
+    } as React.CSSProperties,
+    tab: (isActive: boolean) => ({
+      flex: 1,
+      padding: '10px 16px',
+      borderRadius: 8,
+      border: isActive ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
+      background: isActive ? (isArcade ? colors.accent : '#EFF6FF') : colors.bgCard,
+      color: isActive ? (isArcade ? '#fff' : colors.accent) : colors.fgMuted,
+      fontWeight: isActive ? 700 : 500,
+      fontSize: 14,
+      cursor: 'pointer',
+      textAlign: 'center',
+      transition: 'all .15s',
+    }) as React.CSSProperties,
+
+    // Navigation Header
+    navHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '16px 0',
+      marginBottom: 8,
+    } as React.CSSProperties,
+    navBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      border: `1px solid ${colors.border}`,
+      background: colors.bgCard,
+      color: colors.fg,
+      cursor: 'pointer',
+      fontSize: 18,
+      fontWeight: 600,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'background .12s, border-color .12s',
+    } as React.CSSProperties,
+    categoryInfo: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 4,
+      flex: 1,
+    } as React.CSSProperties,
+    categoryTitle: {
+      fontSize: 20,
+      fontWeight: 800,
+      textAlign: 'center',
+      color: colors.fg,
+    } as React.CSSProperties,
+    categorySubtitle: {
+      fontSize: 13,
+      color: colors.fgMuted,
+      textAlign: 'center',
+    } as React.CSSProperties,
+    categoryCounter: {
+      fontSize: 12,
+      color: colors.fgDim,
+    } as React.CSSProperties,
+
+    // Content Box
+    contentBox: {
+      background: colors.bgCard,
+      borderRadius: 8,
+      border: `1px solid ${colors.border}`,
+      overflow: 'hidden',
+    } as React.CSSProperties,
+
+    // Table Header
+    tableHeader: {
+      display: 'grid',
+      gridTemplateColumns: '40px 1fr 80px',
+      padding: '12px 16px',
+      background: colors.bgMuted,
+      borderBottom: `1px solid ${colors.border}`,
+      fontSize: 12,
+      fontWeight: 600,
+      color: colors.fgMuted,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+    } as React.CSSProperties,
+
+    // Table Row
+    tableRow: (isTop3: boolean) => ({
+      display: 'grid',
+      gridTemplateColumns: '40px 1fr 80px',
+      padding: '12px 16px',
+      borderBottom: `1px solid ${colors.border}`,
+      background: isTop3 ? colors.warningBg : colors.bgCard,
+      alignItems: 'center',
+    }) as React.CSSProperties,
+    tableRowLast: (isTop3: boolean) => ({
+      display: 'grid',
+      gridTemplateColumns: '40px 1fr 80px',
+      padding: '12px 16px',
+      background: isTop3 ? colors.warningBg : colors.bgCard,
+      alignItems: 'center',
+    }) as React.CSSProperties,
+
+    rank: {
+      fontSize: 14,
+      fontWeight: 700,
+      color: colors.fg,
+    } as React.CSSProperties,
+    rankMedal: {
+      fontSize: 18,
+    } as React.CSSProperties,
+
+    playerCell: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    } as React.CSSProperties,
+    playerDot: (color?: string) => ({
+      width: 10,
+      height: 10,
+      borderRadius: 9999,
+      background: color || colors.fgDim,
+      flexShrink: 0,
+    }) as React.CSSProperties,
+    playerName: {
+      fontSize: 14,
+      fontWeight: 500,
+      color: colors.fg,
+    } as React.CSSProperties,
+
+    value: {
+      fontSize: 14,
+      fontWeight: 700,
+      color: colors.fg,
+      textAlign: 'right',
+    } as React.CSSProperties,
+    valueHighlight: {
+      fontSize: 15,
+      fontWeight: 800,
+      color: colors.accent,
+      textAlign: 'right',
+    } as React.CSSProperties,
+
+    // Empty State
+    emptyState: {
+      padding: 40,
+      textAlign: 'center',
+      color: colors.fgDim,
+    } as React.CSSProperties,
+
+    // Requirement Note
+    requirement: {
+      padding: '8px 16px',
+      background: colors.bgMuted,
+      fontSize: 11,
+      color: colors.fgMuted,
+      textAlign: 'center',
+    } as React.CSSProperties,
+
+    // Back Button Area
+    backArea: {
+      display: 'flex',
+      justifyContent: 'center',
+      marginTop: 16,
+    } as React.CSSProperties,
+  }
+
+  // Loading State
+  if (loading) {
+    return (
+      <div style={styles.page}>
+        <div style={s.shell}>
+          <div style={s.contentBox}>
+            <div style={s.emptyState as React.CSSProperties}>
+              Lade Highscores…
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (categories.length === 0) {
+    return (
+      <div style={styles.page}>
+        <div style={s.shell}>
+          <div style={s.contentBox}>
+            <div style={s.emptyState as React.CSSProperties}>
+              Keine Highscore-Daten vorhanden.
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div style={ui.page}>
-      {/* Header */}
-      <div style={ui.headerRow}>
-        <div>
-          <h2 style={{ margin: 0 }}>Hall of Fame</h2>
-          <div style={ui.sub}>Bestleistungen aller Zeiten</div>
+    <div style={styles.page}>
+      <div style={s.shell}>
+        {/* Tab Bar */}
+        <div style={s.tabBar}>
+          {(['all', 'x01', 'cricket', 'atb'] as HighscoreGameType[]).map(tab => (
+            <button
+              key={tab}
+              style={s.tab(activeTab === tab)}
+              onClick={() => handleTabChange(tab)}
+            >
+              {GAME_TYPE_LABELS[tab]}
+            </button>
+          ))}
         </div>
-        <button style={ui.backBtn} onClick={onBack}>
-          ← Zurück
-        </button>
-      </div>
 
-      {/* Ober-Tab (X01 / Cricket) */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-          background: '#f8fafc',
-          borderRadius: 10,
-          padding: 4,
-          marginTop: 12,
-          justifyContent: 'center',
-        }}
-      >
-        <button
-          style={tabButtonStyle(modeTab === 'x01')}
-          onClick={() => setModeTab('x01')}
-        >
-          X01
-        </button>
-        <button
-          style={tabButtonStyle(modeTab === 'cricket')}
-          onClick={() => setModeTab('cricket')}
-        >
-          Cricket
-        </button>
-      </div>
+        {/* Navigation Header */}
+        <div style={s.navHeader}>
+          <button style={s.navBtn} onClick={prevCategory} aria-label="Vorherige Kategorie">
+            ←
+          </button>
 
-      {/* Inhalt */}
-      <div style={{ marginTop: 16 }}>
-        {modeTab === 'x01' ? (
-          <X01TabView data={x01Data} />
-        ) : (
-          <CricketTabView data={cricketData} />
-        )}
+          <div style={s.categoryInfo as React.CSSProperties}>
+            <div style={s.categoryTitle as React.CSSProperties}>
+              {currentCategory?.title ?? '—'}
+            </div>
+            {currentCategory?.subtitle && (
+              <div style={s.categorySubtitle as React.CSSProperties}>
+                {currentCategory.subtitle}
+              </div>
+            )}
+            <div style={s.categoryCounter}>
+              {cursor + 1} von {categories.length}
+            </div>
+          </div>
+
+          <button style={s.navBtn} onClick={nextCategory} aria-label="Nächste Kategorie">
+            →
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={s.contentBox}>
+          {/* Mindestanforderung */}
+          {currentCategory?.minRequirement && (
+            <div style={s.requirement as React.CSSProperties}>
+              {currentCategory.minRequirement}
+            </div>
+          )}
+
+          {/* Table Header */}
+          <div style={s.tableHeader as React.CSSProperties}>
+            <span>#</span>
+            <span>Spieler</span>
+            <span style={{ textAlign: 'right' }}>Wert</span>
+          </div>
+
+          {/* Entries */}
+          {currentCategory?.entries && currentCategory.entries.length > 0 ? (
+            currentCategory.entries.map((entry, i) => {
+              const isLast = i === currentCategory.entries.length - 1
+              const isTop3 = entry.rank <= 3
+              const rowStyle = isLast ? s.tableRowLast(isTop3) : s.tableRow(isTop3)
+              const medal = getMedal(entry.rank)
+
+              return (
+                <div key={entry.playerId} style={rowStyle}>
+                  {/* Rank */}
+                  <div style={medal ? s.rankMedal : s.rank}>
+                    {medal || entry.rank}
+                  </div>
+
+                  {/* Player */}
+                  <div style={s.playerCell}>
+                    <span style={s.playerDot(entry.playerColor)} />
+                    <span style={s.playerName}>{entry.playerName}</span>
+                  </div>
+
+                  {/* Value */}
+                  <div style={isTop3 ? s.valueHighlight as React.CSSProperties : s.value as React.CSSProperties}>
+                    {formatValue(entry.value, currentCategory.format)}
+                  </div>
+                </div>
+              )
+            })
+          ) : (
+            <div style={s.emptyState as React.CSSProperties}>
+              Noch keine Einträge in dieser Kategorie.
+            </div>
+          )}
+        </div>
+
+        {/* Back Button */}
+        <div style={s.backArea}>
+          <button style={styles.backBtn} onClick={onBack}>
+            ← Zurück
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -3,6 +3,7 @@
 // Styling komplett via game.css
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useTheme } from '../ThemeProvider'
 import {
   loadMatchById,
   persistEvents,
@@ -10,6 +11,15 @@ import {
   finishMatchUpload,
   updateLeaderboardsWithMatch,
   updateGlobalX01PlayerStatsFromMatch, // 🔥 NEU: langfristige Spieler-Stats aktualisieren
+  setMatchMetadata,
+  isMatchPaused,
+  setMatchPaused,
+  clearMatchPaused,
+  getMatchElapsedTime,
+  setMatchElapsedTime,
+  deleteX01Match,
+  getProfiles,
+  getPlayerColorBackgroundEnabled,
 } from '../storage'
 import {
   applyEvents,
@@ -20,10 +30,42 @@ import {
   type MatchStarted,
   type DerivedLegState,
   type Bed,
+  type LegStarted,
+  type LegFinished,
+  type VisitAdded,
+  type SetStarted,
+  type SetFinished,
   now,
   id,
+  // Type Guards
+  isMatchStarted,
+  isLegStarted,
+  isLegFinished,
+  isVisitAdded,
+  isSetStarted,
+  isSetFinished,
 } from '../darts501'
+import { getCheckoutRoute, isCheckout, getSetupShot } from '../checkoutTable'
 import Scoreboard from '../components/Scoreboard'
+import X01ArcadeView, { PlayerStatsList, VisitList, type VisitEntry } from '../components/X01ArcadeView'
+import ScoreProgressionChart, { PLAYER_COLORS } from '../components/ScoreProgressionChart'
+import LegStaircaseChart, { type LegVisit } from '../components/LegStaircaseChart'
+import GameControls, { PauseOverlay } from '../components/GameControls'
+import {
+  initSpeech,
+  setSpeechEnabled,
+  isSpeechEnabled,
+  announceGameStart,
+  announceNextPlayer,
+  announceScore,
+  announceCheckoutDouble,
+  announceLegDart,
+  announceSetDart,
+  announceMatchDart,
+  playTriple20Sound,
+  announceDouble,
+  announcePlayerFinishArea,
+} from '../speech'
 import './game.css'
 
 // ---- Helpers ----
@@ -40,7 +82,7 @@ function nextLegStarter(match: MatchStarted, totalLegsStarted: number) {
 }
 
 function getLegStarterId(events: DartsEvent[], legId: string): string | undefined {
-  const ls = events.find((e) => e.type === 'LegStarted' && (e as any).legId === legId) as any
+  const ls = events.find((e): e is LegStarted => isLegStarted(e) && e.legId === legId)
   return ls?.starterPlayerId
 }
 
@@ -65,10 +107,10 @@ function getLastVisitForPlayer(leg: DerivedLegState, playerId: string) {
 
 // Nur Punktscore (kein D/T-Text)
 function dartScore(d: Dart): number {
-  if ((d as any).bed === 'MISS') return 0
+  if (d.bed === 'MISS') return 0
   if (d.bed === 'DBULL') return 50
   if (d.bed === 'BULL') return 25
-  return (d.bed as number) * d.mult
+  return d.bed * d.mult
 }
 
 // Live-Preview: Rest nach bisherigen Darts (inkl. Bust-Logik)
@@ -78,17 +120,16 @@ function simulateLiveRemaining(startRemaining: number, darts: Dart[]) {
   for (let i = 0; i < darts.length && i < 3; i++) {
     const d = darts[i]
     const score =
-      (d as any).bed === 'MISS'
+      d.bed === 'MISS'
         ? 0
         : d.bed === 'DBULL'
           ? 50
           : d.bed === 'BULL'
             ? 25
-            : (d.bed as number) * d.mult
+            : d.bed * d.mult
     const after = tmp - score
     if (after === 0) {
-      const isDouble =
-        (d as any).bed === 'DBULL' || (typeof d.bed === 'number' && d.mult === 2)
+      const isDouble = d.bed === 'DBULL' || (typeof d.bed === 'number' && d.mult === 2)
       if (isDouble) {
         tmp = 0
         break
@@ -139,11 +180,9 @@ function computeLegsAndSetsScore(match: MatchStarted, state: ReturnType<typeof a
 function computePointsPerLegAvg(events: DartsEvent[], playerId: string): number {
   const byLeg = new Map<string, number>()
   for (const e of events) {
-    if (e.type !== 'VisitAdded') continue
-    const v = e as any
-    if (v.playerId !== playerId) continue
-    const legId = v.legId
-    byLeg.set(legId, (byLeg.get(legId) ?? 0) + (v.visitScore ?? 0))
+    if (!isVisitAdded(e)) continue
+    if (e.playerId !== playerId) continue
+    byLeg.set(e.legId, (byLeg.get(e.legId) ?? 0) + (e.visitScore ?? 0))
   }
   if (byLeg.size === 0) return 0
   const sum = Array.from(byLeg.values()).reduce((a, b) => a + b, 0)
@@ -153,13 +192,14 @@ function computePointsPerLegAvg(events: DartsEvent[], playerId: string): number 
 /* =========================
    NEU: PlayerTurnCard (inline)
    ========================= */
-type Visit = { darts: number[]; score: number; bust?: boolean }
+type Visit = { darts: number[]; dartLabels?: string[]; score: number; bust?: boolean }
 
 function PlayerTurnCard({
   name,
   color,
   remaining,
   currentDarts,
+  dartsRemaining,
   lastVisit,
   flashLabel,
   isActive,
@@ -172,6 +212,7 @@ function PlayerTurnCard({
   color?: string
   remaining: number
   currentDarts: number[]
+  dartsRemaining: number
   lastVisit?: Visit | null
   flashLabel?: string | null
   isActive: boolean
@@ -182,16 +223,23 @@ function PlayerTurnCard({
 }) {
   const isBustFlash = flashLabel === 'BUST'
 
+  // Spielerfarbe für aktiven Zustand (mit Fallback)
+  const activeColor = color || '#0ea5e9'
+
   const s: Record<string, React.CSSProperties> = {
     card: {
       position: 'relative',
-      border: '1px solid #e5e7eb',
+      border: isBustFlash ? '2px solid #dc2626' : isActive ? `2px solid ${activeColor}` : '1px solid #e5e7eb',
       background: '#fff',
       borderRadius: 14,
       padding: 14,
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 10px 20px rgba(0,0,0,0.03)',
-      borderColor: isBustFlash ? '#dc2626' : isActive ? '#0ea5e9' : '#e5e7eb',
-      animation: isBustFlash ? ('bustShake 420ms ease-in-out' as any) : undefined,
+      boxShadow: isBustFlash
+        ? '0 0 20px rgba(220, 38, 38, 0.4)'
+        : isActive
+          ? `0 0 20px ${activeColor}50, 0 0 40px ${activeColor}30`
+          : '0 1px 2px rgba(0,0,0,0.04), 0 10px 20px rgba(0,0,0,0.03)',
+      animation: isBustFlash ? 'bustShake 420ms ease-in-out' : undefined,
+      transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
     },
     header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
     name: { fontWeight: 800 },
@@ -204,9 +252,9 @@ function PlayerTurnCard({
     },
     meta: { marginLeft: 'auto', fontSize: 12, opacity: 0.7 },
     pill: {
-      border: '1px solid #0ea5e9',
-      color: '#0369a1',
-      background: '#e0f2fe',
+      border: `1px solid ${activeColor}`,
+      color: activeColor,
+      background: `${activeColor}15`,
       borderRadius: 999,
       padding: '4px 8px',
       fontSize: 12,
@@ -241,7 +289,7 @@ function PlayerTurnCard({
       boxShadow: isBustFlash
         ? '0 0 0 3px rgba(220,38,38,0.18), 0 10px 30px rgba(0,0,0,0.15)'
         : '0 10px 30px rgba(0,0,0,0.15)',
-      animation: flashLabel != null ? ('scoreFlash 1.1s ease-out forwards' as any) : undefined,
+      animation: flashLabel != null ? 'scoreFlash 1.1s ease-out forwards' : undefined,
     },
   }
 
@@ -286,11 +334,49 @@ function PlayerTurnCard({
               {v ?? '—'}
             </div>
           ))}
+          {/* Score + Average unter den Würfen */}
+          <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 }}>
+            <span style={{ color: '#6b7280' }}>
+              Score: <b style={{ color: '#0f172a' }}>{cur.filter(v => v !== null).reduce((a, b) => a + (b ?? 0), 0)}</b>
+            </span>
+            <span style={{ color: '#6b7280' }}>
+              Avg: <b style={{ color: '#0f172a' }}>{threeDartAvg.toFixed(1)}</b>
+            </span>
+          </div>
         </div>
 
         <div style={s.remainingWrap}>
           <div style={s.remainingLabel}>Verbleibend</div>
           <div style={s.remainingValue}>{remaining}</div>
+          {(() => {
+            // Checkout-Weg nur anzeigen wenn mit verbleibenden Darts machbar
+            const route = getCheckoutRoute(remaining, dartsRemaining)
+            if (route) {
+              return (
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', marginTop: 4 }}>
+                  {route}
+                </div>
+              )
+            }
+            // Setup-Shot in Gelb anzeigen wenn kein Checkout möglich
+            const setup = getSetupShot(remaining, dartsRemaining)
+            if (setup) {
+              return (
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#eab308', marginTop: 4 }}>
+                  {setup}
+                </div>
+              )
+            }
+            // "Kein Finish" anzeigen wenn im Finish-Bereich aber nicht genug Darts
+            if (remaining >= 2 && remaining <= 170 && dartsRemaining < 3) {
+              return (
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', marginTop: 4 }}>
+                  Kein Finish
+                </div>
+              )
+            }
+            return null
+          })()}
         </div>
 
         <div style={s.col}>
@@ -397,9 +483,27 @@ function dartLabelShort(d: any) {
   return '—'
 }
 
+function fmtDart(d: { bed: any; mult: 1 | 2 | 3 }) {
+  const prefix = d.mult === 3 ? 'T' : d.mult === 2 ? 'D' : ''
+  if (typeof d.bed === 'number') return `${prefix}${d.bed}`
+  if (d.bed === 'BULL') return d.mult === 2 ? 'Bull' : '25'
+  if (d.bed === 'DBULL') return 'Bull'
+  return 'Miss'
+}
+
+// Leg-Statistik berechnen für Intermission (wie in MatchDetails)
+function computeLegStats(allEvents: DartsEvent[], match: MatchStarted, legId: string) {
+  const legEvents = allEvents.filter((e) => {
+    if (isMatchStarted(e)) return true
+    if ('legId' in e) return e.legId === legId
+    return false
+  })
+  return computeStats(legEvents)
+}
+
 function buildLegSummary(allEvents: DartsEvent[], match: MatchStarted, legId: string): LegSummary {
-  const ls = allEvents.find((e) => e.type === 'LegStarted' && (e as any).legId === legId) as any
-  const lf = allEvents.find((e) => e.type === 'LegFinished' && (e as any).legId === legId) as any
+  const ls = allEvents.find((e): e is LegStarted => isLegStarted(e) && e.legId === legId)
+  const lf = allEvents.find((e): e is LegFinished => isLegFinished(e) && e.legId === legId)
 
   const startedAt = ls?.ts
   const finishedAt = lf?.ts
@@ -407,7 +511,7 @@ function buildLegSummary(allEvents: DartsEvent[], match: MatchStarted, legId: st
   const winnerPlayerId = lf?.winnerPlayerId
   const highestCheckout = lf?.highestCheckoutThisLeg ?? undefined
 
-  const visitsRaw = allEvents.filter((e) => e.type === 'VisitAdded' && (e as any).legId === legId) as any[]
+  const visitsRaw = allEvents.filter((e): e is VisitAdded => isVisitAdded(e) && e.legId === legId)
 
   const nameOf = (pid: string) => match.players.find((p) => p.playerId === pid)?.name ?? pid
 
@@ -509,15 +613,15 @@ function buildLegSummary(allEvents: DartsEvent[], match: MatchStarted, legId: st
 }
 
 function getLegIdsForSet(allEvents: DartsEvent[], setIndex: number): string[] {
-  const startIdx = allEvents.findIndex((e) => e.type === 'SetStarted' && (e as any).setIndex === setIndex)
+  const startIdx = allEvents.findIndex((e): e is SetStarted => isSetStarted(e) && e.setIndex === setIndex)
   if (startIdx < 0) return []
   const endIdx = allEvents.findIndex(
-    (e, i) => i > startIdx && e.type === 'SetFinished' && (e as any).setIndex === setIndex
+    (e, i): e is SetFinished => i > startIdx && isSetFinished(e) && e.setIndex === setIndex
   )
   const slice = allEvents.slice(startIdx, endIdx >= 0 ? endIdx + 1 : allEvents.length)
-  const legFinished = slice.filter((e) => e.type === 'LegFinished') as any[]
+  const legFinishedEvents = slice.filter(isLegFinished)
   const legIds: string[] = []
-  for (const lf of legFinished) {
+  for (const lf of legFinishedEvents) {
     if (lf.legId && !legIds.includes(lf.legId)) legIds.push(lf.legId)
   }
   return legIds
@@ -527,43 +631,71 @@ function getLegIdsForSet(allEvents: DartsEvent[], setIndex: number): string[] {
 type Props = { matchId: string; onExit: () => void; onNewGame?: () => void }
 
 export default function Game({ matchId, onExit }: Props) {
+  // Globales Theme System
+  const { isArcade, colors } = useTheme()
+
+  // Profile für Spielerfarben laden
+  const profiles = useMemo(() => getProfiles(), [])
+
   const [matchStored] = useState(() => loadMatchById(matchId))
 
-  if (!matchStored) {
-    return (
-      <div className="g-page">
-        <h3>Kein aktives Match gefunden.</h3>
-        <button className="g-btn" onClick={onExit}>
-          Zurück
-        </button>
-      </div>
-    )
-  }
-
-  const [events, setEvents] = useState<DartsEvent[]>(() => matchStored.events as DartsEvent[])
+  // WICHTIG: Alle Hooks MÜSSEN vor jedem early return aufgerufen werden!
+  // Daher: Events-State mit leeren Array initialisieren wenn matchStored fehlt
+  const [events, setEvents] = useState<DartsEvent[]>(() =>
+    matchStored ? (matchStored.events as DartsEvent[]) : []
+  )
   const state = useMemo(() => applyEvents(events), [events])
   const match = state.match as MatchStarted | undefined
 
-  if (!match) {
-    return (
-      <div className="g-page">
-        <h3>Match-Start-Events fehlen. Bitte neues Spiel starten.</h3>
-        <button className="g-btn" onClick={onExit}>
-          Zurück
-        </button>
-      </div>
-    )
-  }
-  if (state.legs.length === 0) {
-    return (
-      <div className="g-page">
-        <h3>Kein Leg gefunden – bitte neues Spiel starten.</h3>
-        <button className="g-btn" onClick={onExit}>
-          Zurück
-        </button>
-      </div>
-    )
-  }
+  // Spielerfarben aus Profilen (mit Fallback auf PLAYER_COLORS)
+  const playerColors = useMemo(() => {
+    const colors: Record<string, string> = {}
+    if (match) {
+      match.players.forEach((p, idx) => {
+        const profile = profiles.find(pr => pr.id === p.playerId)
+        colors[p.playerId] = profile?.color ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+      })
+    }
+    return colors
+  }, [match, profiles])
+
+  // Spielerfarben-Hintergrund Einstellung
+  const playerColorBgEnabled = getPlayerColorBackgroundEnabled()
+
+  // Early return Fehler-Screens - NACH allen Hooks definieren wir eine Hilfsvariable
+  const errorScreen = useMemo(() => {
+    if (!matchStored) {
+      return (
+        <div className="g-page">
+          <h3>Kein aktives Match gefunden.</h3>
+          <button className="g-btn" onClick={onExit}>
+            Zurück
+          </button>
+        </div>
+      )
+    }
+    if (!match) {
+      return (
+        <div className="g-page">
+          <h3>Match-Start-Events fehlen. Bitte neues Spiel starten.</h3>
+          <button className="g-btn" onClick={onExit}>
+            Zurück
+          </button>
+        </div>
+      )
+    }
+    if (state.legs.length === 0) {
+      return (
+        <div className="g-page">
+          <h3>Kein Leg gefunden – bitte neues Spiel starten.</h3>
+          <button className="g-btn" onClick={onExit}>
+            Zurück
+          </button>
+        </div>
+      )
+    }
+    return null
+  }, [matchStored, match, state.legs.length, onExit])
 
   // -------- helper to finalize match safely (TS-safe non-null args) --------
   function finalizeIfFinished(
@@ -614,16 +746,14 @@ export default function Game({ matchId, onExit }: Props) {
     let finalEvents = allEvents
     const alreadyFinished = finalEvents.some((e) => e.type === 'MatchFinished')
     if (!alreadyFinished) {
-      finalEvents = [
-        ...finalEvents,
-        {
-          eventId: id(),
-          type: 'MatchFinished',
-          ts: now(),
-          matchId: matchNonNull.matchId,
-          winnerPlayerId: winnerId,
-        } as any,
-      ]
+      const matchFinishedEvt: DartsEvent = {
+        eventId: id(),
+        type: 'MatchFinished',
+        ts: now(),
+        matchId: matchNonNull.matchId,
+        winnerPlayerId: winnerId,
+      }
+      finalEvents = [...finalEvents, matchFinishedEvt]
     }
 
     persistEvents(matchStoredNonNull.id, finalEvents)
@@ -651,25 +781,143 @@ export default function Game({ matchId, onExit }: Props) {
     return true
   }
 
-  const isSets = match.structure.kind === 'sets'
-  const leg = state.legs[state.legs.length - 1]!
+  // Sichere Variablen die undefined sein können (vor errorScreen check)
+  const isSets = match?.structure.kind === 'sets'
+  const leg = state.legs.length > 0 ? state.legs[state.legs.length - 1]! : null
 
   const [current, setCurrent] = useState<Dart[]>([])
-  const activePlayerId = getCurrentPlayerId(match, leg, events)
+  const activePlayerId = match && leg ? getCurrentPlayerId(match, leg, events) : ''
 
   useEffect(() => {
-    setCurrent([])
-  }, [leg.legId])
+    if (leg) setCurrent([])
+  }, [leg?.legId])
 
   // Flash + LastVisit States
   const [flashByPlayer, setFlashByPlayer] = useState<Record<string, string | null>>({})
   const flashTimerRef = useRef<Record<string, number>>({})
   const [lastVisitByPlayer, setLastVisitByPlayer] = useState<Record<string, Visit | null>>({})
 
+  // --- Pause-Modus ---
+  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'x01'))
+
+  // Beim Fortsetzen (Pause beenden) den Pause-Status löschen
+  useEffect(() => {
+    if (!gamePaused) {
+      clearMatchPaused(matchId, 'x01')
+    }
+  }, [gamePaused, matchId])
+
   // --- Intermission (Leg/Set Summary zwischen den Runden) ---
   const [intermission, setIntermission] = useState<Intermission | null>(null)
   const [showDetails, setShowDetails] = useState(false)
-  const isPaused = !!intermission
+  const [legChartMode, setLegChartMode] = useState<'progression' | 'staircase'>('staircase')
+  const isPaused = !!intermission || gamePaused
+
+  // --- Scroll-Ref für Legverlauf (Arcade) ---
+  const visitListScrollRef = useRef<HTMLDivElement | null>(null)
+
+  // --- Toggle Chart/VisitList ---
+  const [showChart, setShowChart] = useState(true)
+
+  // Auto-Scroll bei Dart-Eingabe (nach oben scrollen)
+  useEffect(() => {
+    if (current.length > 0 && visitListScrollRef.current) {
+      visitListScrollRef.current.scrollTop = 0
+    }
+  }, [current.length])
+
+  // --- Legdauer Timer (reine Spielzeit) ---
+  // Lade gespeicherte Zeit beim Start (für Fortsetzung nach Exit)
+  const [legDuration, setLegDuration] = useState(() => {
+    const savedMs = getMatchElapsedTime(matchId, 'x01')
+    return Math.floor(savedMs / 1000)
+  })
+
+  // Auto-Pause bei Tab-Wechsel/Fokusverlust
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setGamePaused(true)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  // Einfacher Timer: +1 Sekunde wenn nicht pausiert
+  useEffect(() => {
+    if (gamePaused) return // Pausiert = kein Timer
+
+    const timer = setInterval(() => {
+      setLegDuration(prev => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [gamePaused])
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // --- Sprachausgabe ---
+  const [speechEnabled, setSpeechEnabledState] = useState(true)
+
+  const gameOnAnnouncedRef = useRef(false)
+  // Verhindert doppelte Match/Leg/Set-Ansagen
+  const matchWonAnnouncedRef = useRef(false)
+  const legWonAnnouncedRef = useRef(false)
+  // Tracker: Letzte angesagte Checkout-Remaining pro Spieler (verhindert Wiederholungen)
+  const lastAnnouncedCheckout = useRef<Record<string, number>>({})
+  // Tracker: Letztes angesagtes Double (verhindert Duplikate bei React StrictMode)
+  const lastAnnouncedDouble = useRef<number | null>(null)
+  useEffect(() => {
+    initSpeech()
+  }, [])
+
+  // "[Name], throw first! Game on!" beim Spielstart ansagen + initiales Checkout-Double
+  useEffect(() => {
+    if (!match) return
+    if (gameOnAnnouncedRef.current) return
+    gameOnAnnouncedRef.current = true
+    const firstPlayerId = match.bullThrow.winnerPlayerId
+    const firstPlayerName = match.players.find((p) => p.playerId === firstPlayerId)?.name ?? firstPlayerId
+
+    setTimeout(() => {
+      announceGameStart(firstPlayerName)
+    }, 500)
+  }, [match])
+
+  // Keyboard Handler: P für Pause, Backspace für Undo
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea') return
+
+      // P = Pause umschalten
+      if (e.key === 'p' || e.key === 'P') {
+        setGamePaused(p => !p)
+        return
+      }
+
+      // Pause aktiv? Keine anderen Eingaben
+      if (gamePaused) return
+
+      // Backspace = nur aktuellen Dart löschen (nicht vorherige Aufnahmen!)
+      if (e.key === 'Backspace') {
+        if (current.length > 0) {
+          setCurrent((list) => list.slice(0, -1))
+        }
+        e.preventDefault()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [current, gamePaused])
 
   // ---------- ENDSCREEN ----------
   const finishedEvt = state.events.find((e) => e.type === 'MatchFinished') as
@@ -677,7 +925,17 @@ export default function Game({ matchId, onExit }: Props) {
     | undefined
   const [ended, setEnded] = useState<{ winnerName: string } | null>(null)
 
-  if (finishedEvt || ended) {
+  // Spielname + Bemerkungen Eingabe im Endscreen
+  const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
+  const [endscreenNotes, setEndscreenNotes] = useState(matchStored?.notes ?? '')
+  const [metadataSaved, setMetadataSaved] = useState(
+    matchStored?.matchName !== undefined || matchStored?.notes !== undefined
+  )
+
+  // Endscreen-Content wird hier berechnet, aber erst nach allen Hooks returned
+  let endScreenContent: React.ReactNode = null
+
+  if ((finishedEvt || ended) && match && matchStored) {
     const winnerId = finishedEvt?.winnerPlayerId
     const winnerName =
       ended?.winnerName ??
@@ -691,13 +949,27 @@ export default function Game({ matchId, onExit }: Props) {
     type Row = { label: string; values: React.ReactNode[] }
     const rows: Row[] = []
 
+    // Platzierung berechnen (nach Sets oder Legs sortiert)
+    const scoreForRank = isSets ? setsWon : legsWonCurrent
+    const sortedByScore = [...players].sort((a, b) => (scoreForRank[b.playerId] ?? 0) - (scoreForRank[a.playerId] ?? 0))
+    const getMedal = (playerId: string): string => {
+      const playerScore = scoreForRank[playerId] ?? 0
+      const rank1Score = scoreForRank[sortedByScore[0]?.playerId] ?? 0
+      const rank2Score = sortedByScore.length > 1 ? (scoreForRank[sortedByScore[1]?.playerId] ?? 0) : -1
+      const rank3Score = sortedByScore.length > 2 ? (scoreForRank[sortedByScore[2]?.playerId] ?? 0) : -1
+
+      if (playerScore === rank1Score) return '🥇'
+      if (playerScore === rank2Score) return '🥈'
+      if (sortedByScore.length > 2 && playerScore === rank3Score) return '🥉'
+      return '—'
+    }
+
     rows.push({
-      label: 'Sieger',
+      label: 'Platz',
       values: players.map((p) => {
-        const is = p.playerId === winnerId
         return (
-          <span key={p.playerId} className={is ? 'g-winner' : ''}>
-            {is ? '🏆 Sieger' : '—'}
+          <span key={p.playerId}>
+            {getMedal(p.playerId)}
           </span>
         )
       }),
@@ -749,10 +1021,27 @@ export default function Game({ matchId, onExit }: Props) {
       values: players.map((p) => <span key={p.playerId}>{computePointsPerLegAvg(events, p.playerId).toFixed(1)}</span>),
     })
 
-    return (
+    rows.push({
+      label: 'Bestes Leg',
+      values: players.map((p) => {
+        const best = statsByPlayer[p.playerId]?.bestLegDarts
+        return <span key={p.playerId}>{best ? `${best} Darts` : '—'}</span>
+      }),
+    })
+
+    const handleSaveMetadata = () => {
+      const success = setMatchMetadata(matchId, endscreenName, endscreenNotes)
+      if (success) {
+        setMetadataSaved(true)
+      }
+    }
+
+    endScreenContent = (
       <div className="g-page">
         <div className="g-header">
-          <h2 className="g-title">{matchStored.title} – beendet</h2>
+          <h2 className="g-title">
+            {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} – beendet
+          </h2>
           <button className="g-btn" onClick={onExit}>
             Zurück ins Menü
           </button>
@@ -787,7 +1076,81 @@ export default function Game({ matchId, onExit }: Props) {
           </table>
         </div>
 
-        <div style={{ textAlign: 'right' }}>
+        {/* Spielname + Bemerkungen */}
+        <div style={{ marginTop: 16, padding: '0 8px' }}>
+          {metadataSaved ? (
+            // Nach dem Speichern: nur Anzeige
+            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
+              {endscreenName && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Spielname</div>
+                  <div>{endscreenName}</div>
+                </div>
+              )}
+              {endscreenNotes && (
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Bemerkungen</div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{endscreenNotes}</div>
+                </div>
+              )}
+              {!endscreenName && !endscreenNotes && (
+                <div style={{ color: '#6b7280' }}>Keine Spielinfo gespeichert</div>
+              )}
+            </div>
+          ) : (
+            // Vor dem Speichern: Eingabefelder
+            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
+                  Spielname (optional)
+                </label>
+                <input
+                  type="text"
+                  value={endscreenName}
+                  onChange={(e) => setEndscreenName(e.target.value)}
+                  placeholder="z.B. Finale WM 2024"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    fontSize: 14,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
+                  Bemerkungen (optional)
+                </label>
+                <textarea
+                  value={endscreenNotes}
+                  onChange={(e) => setEndscreenNotes(e.target.value)}
+                  placeholder="Besonderheiten, Highlights, etc."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    fontSize: 14,
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <button
+                className="g-btn"
+                onClick={handleSaveMetadata}
+                style={{ width: '100%' }}
+              >
+                Speichern
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ textAlign: 'right', marginTop: 16 }}>
           <button className="g-btn" onClick={onExit}>
             Zurück ins Menü
           </button>
@@ -797,31 +1160,77 @@ export default function Game({ matchId, onExit }: Props) {
   }
   // ---------- ENDSCREEN Ende ----------
 
-  const handleThrow = (bed: Bed | 'MISS', mult: 1 | 2 | 3) => {
+  const handleThrow = (bed: Bed, mult: 1 | 2 | 3) => {
     if (isPaused) return
+    if (bed === 20 && mult === 3) playTriple20Sound()
     setCurrent((list) => {
       if (list.length >= 3) return list
       const next: Dart = {
         seq: (list.length + 1) as 1 | 2 | 3,
-        bed: bed as any,
+        bed,
         mult,
-        aim: { bed: bed as any, mult },
+        aim: { bed, mult },
       }
       const draft = [...list, next]
 
+      if (!leg) return list
       const { remaining, bust } = simulateLiveRemaining(leg.remainingByPlayer[activePlayerId], draft)
-      if (bust || remaining === 0) {
+      // Auto-Confirm bei Bust, Checkout oder 3 Darts
+      if (bust || remaining === 0 || draft.length === 3) {
         confirmVisit(draft)
         return []
       }
+
+      // 🔥 Double-Ansage wenn auf direktem Double-Finish (1-Dart Checkout)
+      if (remaining === 50 || (remaining >= 2 && remaining <= 40 && remaining % 2 === 0)) {
+        // Nur ansagen wenn es ein anderes Double ist (verhindert Duplikate)
+        if (lastAnnouncedDouble.current !== remaining) {
+          lastAnnouncedDouble.current = remaining
+          setTimeout(() => announceDouble(remaining), 300)
+        }
+      } else {
+        // Reset wenn nicht mehr auf Double
+        lastAnnouncedDouble.current = null
+      }
+
       return draft
     })
+  }
+
+  // Backspace: Letzten Dart in aktueller Aufnahme rückgängig machen
+  // Wenn aktuelle Aufnahme leer ist, letzte bestätigte Aufnahme rückgängig machen
+  const handleUndoLastDart = () => {
+    if (isPaused) return
+
+    // Wenn aktuelle Aufnahme Darts hat, letzten Dart entfernen
+    if (current.length > 0) {
+      setCurrent((list) => list.slice(0, -1))
+      return
+    }
+
+    // Wenn aktuelle Aufnahme leer ist, letzte bestätigte Aufnahme im aktuellen Leg rückgängig machen
+    if (!leg || !matchStored) return
+    const lastVisitIdx = events.map((e, i) => ({ e, i }))
+      .filter(({ e }) => isVisitAdded(e) && e.legId === leg.legId)
+      .pop()?.i
+
+    if (lastVisitIdx === undefined) return
+
+    // Entferne den letzten Visit
+    const newEvents = events.slice(0, lastVisitIdx)
+    persistEvents(matchStored.id, newEvents)
+    setEvents(newEvents)
+    setCurrent([])
+
+    // Flash und LastVisit zurücksetzen
+    setFlashByPlayer({})
+    setLastVisitByPlayer({})
   }
 
   const confirmVisit = (forcedDarts?: Dart[]) => {
     try {
       if (isPaused) return
-      if (!leg) return
+      if (!leg || !match || !matchStored) return
       const dartsToSave = forcedDarts && forcedDarts.length ? forcedDarts : current
       if (dartsToSave.length === 0) return
 
@@ -831,7 +1240,7 @@ export default function Game({ matchId, onExit }: Props) {
       let tmp1 = applyEvents(newEvents)
 
       const lastLegTmp = tmp1.legs[tmp1.legs.length - 1]
-      const firstVisitEvt = visitEvents.find((e) => e.type === 'VisitAdded') as any
+      const firstVisitEvt = visitEvents.find(isVisitAdded)
       const engineSetLegFinished = !!lastLegTmp?.winnerPlayerId && lastLegTmp.legId === leg.legId
       const activeIsZero = lastLegTmp?.remainingByPlayer?.[activePlayerId] === 0
 
@@ -848,7 +1257,7 @@ export default function Game({ matchId, onExit }: Props) {
             return undefined
           })()
 
-        newEvents.push({
+        const legFinishedEvt: LegFinished = {
           eventId: id(),
           type: 'LegFinished',
           ts: now(),
@@ -858,7 +1267,8 @@ export default function Game({ matchId, onExit }: Props) {
           finishingVisitId: firstVisitEvt.eventId,
           finishingDartSeq: (finishingDartSeq ?? 1) as 1 | 2 | 3,
           highestCheckoutThisLeg: firstVisitEvt.visitScore ?? 0,
-        } as any)
+        }
+        newEvents.push(legFinishedEvt)
 
         tmp1 = applyEvents(newEvents)
       }
@@ -877,13 +1287,22 @@ export default function Game({ matchId, onExit }: Props) {
         if (winnerId) {
           const mergedEvts = [...newEvents]
           if (!mergedEvts.some((e) => e.type === 'MatchFinished')) {
-            mergedEvts.push({
+            const matchFinishedEvt: DartsEvent = {
               eventId: id(),
               type: 'MatchFinished',
               ts: now(),
               matchId: match.matchId,
               winnerPlayerId: winnerId,
-            } as any)
+            }
+            mergedEvts.push(matchFinishedEvt)
+          }
+
+          // Sprachausgabe: Match gewonnen
+          if (speechEnabled && !matchWonAnnouncedRef.current) {
+            matchWonAnnouncedRef.current = true
+            const lastVisit = mergedEvts.slice().reverse().find(isVisitAdded)
+            announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
+            setTimeout(() => announceMatchDart(), 800)
           }
 
           finalizeIfFinished(
@@ -903,10 +1322,18 @@ export default function Game({ matchId, onExit }: Props) {
 
         // Leg fertig -> Leg Summary, nächstes Leg erst nach "Weiter"
         if (justFinishedLeg) {
+          // Sprachausgabe: Leg gewonnen
+          if (speechEnabled && !legWonAnnouncedRef.current) {
+            legWonAnnouncedRef.current = true
+            const lastVisit = newEvents.slice().reverse().find(isVisitAdded)
+            announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
+            setTimeout(() => announceLegDart(), 800)
+          }
+
           const totalLegsStarted = applyEvents(newEvents).legs.length
           const starter = nextLegStarter(match, totalLegsStarted)
 
-          const nextLegEvt: DartsEvent = {
+          const nextLegEvt: LegStarted = {
             eventId: id(),
             type: 'LegStarted',
             ts: now(),
@@ -914,17 +1341,21 @@ export default function Game({ matchId, onExit }: Props) {
             legId: id(),
             legIndex: totalLegsStarted + 1,
             starterPlayerId: starter,
-          } as any
+          }
 
           persistEvents(matchStored.id, newEvents)
           setEvents(newEvents)
           setCurrent([])
 
+          // Find legIndex from the corresponding LegStarted event
+          const currentLegStarted = newEvents.find((e): e is LegStarted => isLegStarted(e) && e.legId === leg.legId)
+          const currentLegIndex = currentLegStarted?.legIndex ?? totalLegsStarted
+
           setShowDetails(false)
           setIntermission({
             kind: 'leg',
             legId: leg.legId,
-            legIndex: (tmp1.legs[tmp1.legs.length - 1] as any)?.legIndex ?? totalLegsStarted,
+            legIndex: currentLegIndex,
             pendingNextEvents: [nextLegEvt],
           })
           return
@@ -939,8 +1370,8 @@ export default function Game({ matchId, onExit }: Props) {
           const needLegs = requiredToWinLocal(legsPerSet)
           const needSets = requiredToWinLocal(bestOfSets)
 
-          const tmpApplied2 = applyEvents(newEvents) as any
-          const tmpSets: any[] = tmpApplied2.sets || []
+          const tmpApplied2 = applyEvents(newEvents)
+          const tmpSets = tmpApplied2.sets
           const curSet = tmpSets[tmpSets.length - 1]
           const curSetIndex = curSet?.setIndex ?? tmpSets.length ?? 1
 
@@ -956,14 +1387,15 @@ export default function Game({ matchId, onExit }: Props) {
 
           // Set fertig -> SetFinished, dann Set Summary (inkl. Leg Summaries)
           if (setWinnerId) {
-            newEvents.push({
+            const setFinishedEvt: SetFinished = {
               eventId: id(),
               type: 'SetFinished',
               ts: now(),
               matchId: match.matchId,
               setIndex: curSetIndex,
               winnerPlayerId: setWinnerId,
-            } as any)
+            }
+            newEvents.push(setFinishedEvt)
 
             const afterSetsApplied: any = applyEvents(newEvents)
             const afterSets: any[] = afterSetsApplied.sets || []
@@ -974,13 +1406,22 @@ export default function Game({ matchId, onExit }: Props) {
             if (matchWinner) {
               const mergedEvts = [...newEvents]
               if (!mergedEvts.some((e) => e.type === 'MatchFinished')) {
-                mergedEvts.push({
+                const matchFinishedEvt: DartsEvent = {
                   eventId: id(),
                   type: 'MatchFinished',
                   ts: now(),
                   matchId: match.matchId,
                   winnerPlayerId: matchWinner,
-                } as any)
+                }
+                mergedEvts.push(matchFinishedEvt)
+              }
+
+              // Sprachausgabe: Match gewonnen (Sets Mode)
+              if (speechEnabled && !matchWonAnnouncedRef.current) {
+                matchWonAnnouncedRef.current = true
+                const lastVisit = mergedEvts.slice().reverse().find(isVisitAdded)
+                announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
+                setTimeout(() => announceMatchDart(), 800)
               }
 
               finalizeIfFinished(
@@ -1004,15 +1445,15 @@ export default function Game({ matchId, onExit }: Props) {
             const totalLegsStarted = applyEvents(newEvents).legs.length
             const starter = nextLegStarter(match, totalLegsStarted)
 
-            const nextSetEvt: DartsEvent = {
+            const nextSetEvt: SetStarted = {
               eventId: id(),
               type: 'SetStarted',
               ts: now(),
               matchId: match.matchId,
               setIndex: nextSetIdx,
-            } as any
+            }
 
-            const nextLegEvt: DartsEvent = {
+            const nextLegEvt: LegStarted = {
               eventId: id(),
               type: 'LegStarted',
               ts: now(),
@@ -1020,7 +1461,15 @@ export default function Game({ matchId, onExit }: Props) {
               legId: id(),
               legIndex: totalLegsStarted + 1,
               starterPlayerId: starter,
-            } as any
+            }
+
+            // Sprachausgabe: Set gewonnen
+            if (speechEnabled && !legWonAnnouncedRef.current) {
+              legWonAnnouncedRef.current = true
+              const lastVisit = newEvents.slice().reverse().find(isVisitAdded)
+              announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
+              setTimeout(() => announceSetDart(), 800)
+            }
 
             persistEvents(matchStored.id, newEvents)
             setEvents(newEvents)
@@ -1037,10 +1486,18 @@ export default function Game({ matchId, onExit }: Props) {
           }
 
           // Set nicht fertig -> nur Leg Summary (nächstes Leg erst nach "Weiter")
+          // Sprachausgabe: Leg gewonnen im Set
+          if (speechEnabled && !legWonAnnouncedRef.current) {
+            legWonAnnouncedRef.current = true
+            const lastVisit = newEvents.slice().reverse().find(isVisitAdded)
+            announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
+            setTimeout(() => announceLegDart(), 800)
+          }
+
           const totalLegsStarted = applyEvents(newEvents).legs.length
           const starter = nextLegStarter(match, totalLegsStarted)
 
-          const nextLegEvt: DartsEvent = {
+          const nextLegEvt: LegStarted = {
             eventId: id(),
             type: 'LegStarted',
             ts: now(),
@@ -1048,17 +1505,21 @@ export default function Game({ matchId, onExit }: Props) {
             legId: id(),
             legIndex: totalLegsStarted + 1,
             starterPlayerId: starter,
-          } as any
+          }
 
           persistEvents(matchStored.id, newEvents)
           setEvents(newEvents)
           setCurrent([])
 
+          // Find legIndex from the corresponding LegStarted event
+          const currentLegStartedSet = newEvents.find((e): e is LegStarted => isLegStarted(e) && e.legId === leg.legId)
+          const currentLegIndexSet = currentLegStartedSet?.legIndex ?? totalLegsStarted
+
           setShowDetails(false)
           setIntermission({
             kind: 'leg',
             legId: leg.legId,
-            legIndex: (tmp1.legs[tmp1.legs.length - 1] as any)?.legIndex ?? totalLegsStarted,
+            legIndex: currentLegIndexSet,
             setIndex: curSetIndex,
             pendingNextEvents: [nextLegEvt],
           })
@@ -1067,10 +1528,12 @@ export default function Game({ matchId, onExit }: Props) {
       }
 
       // ----- Flash + Letzte Aufnahme (mit BUST-Handling) -----
-      const latestVisitEvt = newEvents.slice().reverse().find((e) => e.type === 'VisitAdded') as any
+      const latestVisitEvt = newEvents.slice().reverse().find(isVisitAdded)
       const visitScore: number = latestVisitEvt?.visitScore ?? 0
       const isBust: boolean = !!latestVisitEvt?.bust
-      const dartsNums: number[] = (latestVisitEvt?.darts ?? []).map((d: any) => d?.score ?? 0)
+      const rawDarts = latestVisitEvt?.darts ?? []
+      const dartsNums: number[] = rawDarts.map((d) => d.score ?? 0)
+      const dartLabels: string[] = rawDarts.map((d) => dartLabelShort(d))
 
       const label = isBust ? 'BUST' : String(visitScore)
       setFlashByPlayer((prev) => ({ ...prev, [activePlayerId]: label }))
@@ -1079,7 +1542,46 @@ export default function Game({ matchId, onExit }: Props) {
         setFlashByPlayer((prev) => ({ ...prev, [activePlayerId]: null }))
       }, 1100)
 
-      setLastVisitByPlayer((prev) => ({ ...prev, [activePlayerId]: { darts: dartsNums, score: visitScore, bust: isBust } }))
+      setLastVisitByPlayer((prev) => ({ ...prev, [activePlayerId]: { darts: dartsNums, dartLabels, score: visitScore, bust: isBust } }))
+
+      // Sprachausgabe: Score ansagen + nächsten Spieler ansagen
+      if (speechEnabled) {
+        announceScore(visitScore, isBust)
+
+        // Nächsten Spieler ermitteln und ansagen
+        const tmpState = applyEvents(newEvents)
+        const tmpLeg = tmpState.legs[tmpState.legs.length - 1]
+        if (tmpLeg) {
+          const nextPlayerId = getCurrentPlayerId(match, tmpLeg, newEvents)
+          const nextPlayerName = match.players.find((p) => p.playerId === nextPlayerId)?.name ?? nextPlayerId
+          const nextRemaining = tmpLeg.remainingByPlayer[nextPlayerId]
+
+          // Nächsten Spieler ansagen (nur bei mehreren Spielern)
+          if (match.players.length > 1) {
+            // Im Finish-Bereich (≤170): Name + Rest-Score ansagen
+            if (nextRemaining <= 170) {
+              setTimeout(() => announcePlayerFinishArea(nextPlayerName, nextRemaining), 600)
+            } else {
+              // Sonst nur Name ansagen
+              setTimeout(() => announceNextPlayer(nextPlayerName), 600)
+            }
+          }
+
+          // Double ansagen nur bei 1-Dart-Finish (2-40 gerade oder 50/Bull)
+          const isOneDartFinish = nextRemaining === 50 || (nextRemaining >= 2 && nextRemaining <= 40 && nextRemaining % 2 === 0)
+          if (isOneDartFinish) {
+            // Nur ansagen wenn sich der Remaining-Wert geändert hat
+            if (lastAnnouncedCheckout.current[nextPlayerId] !== nextRemaining) {
+              lastAnnouncedCheckout.current[nextPlayerId] = nextRemaining
+              const finishDouble = nextRemaining === 50 ? 'BULL' : `D${nextRemaining / 2}`
+              setTimeout(() => announceCheckoutDouble(finishDouble), 1200)
+            }
+          } else {
+            // Nicht mehr auf 1-Dart-Finish -> Tracker zurücksetzen
+            delete lastAnnouncedCheckout.current[nextPlayerId]
+          }
+        }
+      }
 
       persistEvents(matchStored.id, newEvents)
       setEvents(newEvents)
@@ -1090,19 +1592,86 @@ export default function Game({ matchId, onExit }: Props) {
     }
   }
 
-  const { legsWonCurrent, setsWon, currentLegIndex, currentSetIndex } = computeLegsAndSetsScore(match, state)
-  const requiredLegs =
-    match.structure.kind === 'legs'
-      ? requiredToWinLocal(match.structure.bestOfLegs ?? 1)
-      : requiredToWinLocal(match.structure.legsPerSet)
-  const requiredSets = match.structure.kind === 'sets' ? requiredToWinLocal(match.structure.bestOfSets) : undefined
+  // Diese Berechnungen verwenden match und leg - mit Fallbacks für null-Fälle
+  const { legsWonCurrent, setsWon, currentLegIndex, currentSetIndex } = match
+    ? computeLegsAndSetsScore(match, state)
+    : { legsWonCurrent: {}, setsWon: {}, currentLegIndex: 0, currentSetIndex: 0 }
+  const requiredLegs = match
+    ? (match.structure.kind === 'legs'
+        ? requiredToWinLocal(match.structure.bestOfLegs ?? 1)
+        : requiredToWinLocal(match.structure.legsPerSet))
+    : 1
+  const requiredSets = match?.structure.kind === 'sets' ? requiredToWinLocal(match.structure.bestOfSets) : undefined
 
   const statsByPlayer = computeStats(events)
-  const remainingOfActive = leg.remainingByPlayer[activePlayerId]
+  const remainingOfActive = leg?.remainingByPlayer[activePlayerId] ?? 0
   const live = simulateLiveRemaining(remainingOfActive, current)
 
+  // Chart-Daten für Score Progression
+  const chartData = useMemo(() => {
+    if (!leg || !match) return null
+
+    const playerData = match.players.map((p, index) => {
+      const playerVisits = leg.visits
+        .filter(v => v.playerId === p.playerId)
+        .map((v, i) => ({
+          visitIndex: i + 1,
+          remainingBefore: v.remainingBefore,
+          remainingAfter: v.remainingAfter,
+          bust: v.bust,
+          // Einzelne Dart-Scores für jeden Visit
+          dartScores: v.darts.map(d => d.score),
+        }))
+
+      return {
+        id: p.playerId,
+        name: p.name ?? p.playerId,
+        color: playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length],
+        visits: playerVisits,
+      }
+    })
+
+    return {
+      startScore: match.startingScorePerLeg,
+      players: playerData,
+      liveRemaining: live.remaining,
+      activePlayerId: activePlayerId,
+      liveDartCount: current.length, // 0, 1, 2 oder 3 - wie viele Darts schon geworfen
+      liveDartScores: current.map(d => dartScore(d)), // Score pro Dart für Live-Anzeige
+    }
+  }, [leg, match, live.remaining, activePlayerId, current.length, current])
+
+  // Error-Screen anzeigen wenn nötig (nach allen Hooks!)
+  if (errorScreen) {
+    return errorScreen
+  }
+
+  // Endscreen anzeigen wenn Match beendet (nach allen Hooks!)
+  if (endScreenContent) {
+    return endScreenContent
+  }
+
+  // Ab hier sind match, leg und matchStored garantiert nicht-null
+  if (!match || !leg || !matchStored) {
+    return null // Sollte nie erreicht werden (durch errorScreen abgefangen)
+  }
+
+  // Type-safe aliases für den Rest der Komponente
+  const m = match
+  const l = leg
+  const ms = matchStored
+
+  // Dynamischer Hintergrund basierend auf aktivem Spieler
+  const activePlayerColor = playerColors[activePlayerId] ?? '#f97316'
+  const backgroundStyle = playerColorBgEnabled
+    ? {
+        background: `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`,
+        transition: 'background 0.5s ease',
+      }
+    : {}
+
   return (
-    <div className="g-page">
+    <div className="g-page" style={backgroundStyle}>
       {/* Intermission Overlay (Leg/Set Summary) */}
       {intermission && (
         <div className="g-overlay" role="dialog" aria-modal="true">
@@ -1130,6 +1699,8 @@ export default function Game({ matchId, onExit }: Props) {
                     setCurrent([])
                     setIntermission(null)
                     setShowDetails(false)
+                    // Ansagen-Refs zurücksetzen für nächstes Leg
+                    legWonAnnouncedRef.current = false
                   }}
                 >
                   Weiter →
@@ -1140,94 +1711,358 @@ export default function Game({ matchId, onExit }: Props) {
             {intermission.kind === 'leg' ? (
               (() => {
                 const sum = buildLegSummary(events, match, intermission.legId)
+                const legStats = computeLegStats(events, match, intermission.legId)
                 const winnerName = sum.winnerPlayerId
                   ? match.players.find((p) => p.playerId === sum.winnerPlayerId)?.name ?? sum.winnerPlayerId
                   : '—'
-                const starterName = sum.starterPlayerId
-                  ? match.players.find((p) => p.playerId === sum.starterPlayerId)?.name ?? sum.starterPlayerId
-                  : '—'
+
+                // Zwischenstand nach diesem Leg berechnen
+                const legWinsAfterThis: Record<string, number> = {}
+                match.players.forEach((p) => { legWinsAfterThis[p.playerId] = 0 })
+                // Alle LegFinished Events bis einschließlich dieses Legs zählen
+                for (const ev of events) {
+                  if (isLegFinished(ev)) {
+                    if (ev.winnerPlayerId) {
+                      legWinsAfterThis[ev.winnerPlayerId] = (legWinsAfterThis[ev.winnerPlayerId] ?? 0) + 1
+                    }
+                    if (ev.legId === intermission.legId) break
+                  }
+                }
+                const scoreAfterLeg = match.players.map((p) => legWinsAfterThis[p.playerId]).join(' : ')
+
+                // 61+ berechnen (nicht in bins)
+                const bins61plus: Record<string, number> = {}
+                match.players.forEach((p) => { bins61plus[p.playerId] = 0 })
+                sum.visits.forEach((v: any) => {
+                  if (v.visitScore >= 61 && v.visitScore < 100) {
+                    bins61plus[v.playerId] = (bins61plus[v.playerId] || 0) + 1
+                  }
+                })
+
+                // Höchste Aufnahme pro Spieler
+                const highestVisit: Record<string, number> = {}
+                match.players.forEach((p) => { highestVisit[p.playerId] = 0 })
+                sum.visits.forEach((v: any) => {
+                  if (!v.bust && v.visitScore > (highestVisit[v.playerId] ?? 0)) {
+                    highestVisit[v.playerId] = v.visitScore
+                  }
+                })
+
+                // Checkout-Info pro Spieler (aus Visit mit remainingAfter === 0)
+                const checkoutInfo: Record<string, { height: number; lastDart: string }> = {}
+                sum.visits.forEach((v: any) => {
+                  if (v.remainingAfter === 0 && !v.bust) {
+                    // Finde den letzten Dart der tatsächlich getroffen hat
+                    const dartsArr = v.dartsLabel?.split(' · ') ?? []
+                    const lastDart = dartsArr[dartsArr.length - 1] || '—'
+                    checkoutInfo[v.playerId] = {
+                      height: v.remainingBefore,
+                      lastDart: lastDart,
+                    }
+                  }
+                })
+
+                // Rest pro Spieler
+                const restByPlayer: Record<string, number> = {}
+                match.players.forEach((p) => { restByPlayer[p.playerId] = match.startingScorePerLeg })
+                sum.visits.forEach((v: any) => {
+                  restByPlayer[v.playerId] = v.remainingAfter
+                })
+
+                // Spielzeit
+                let legDuration = ''
+                if (sum.startedAt && sum.finishedAt) {
+                  const start = new Date(sum.startedAt).getTime()
+                  const end = new Date(sum.finishedAt).getTime()
+                  const diffMs = end - start
+                  const mins = Math.floor(diffMs / 60000)
+                  const secs = Math.floor((diffMs % 60000) / 1000)
+                  legDuration = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+                }
+
+                // Table Styles
+                const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#475569', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
+                const thRight: React.CSSProperties = { textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#0f172a', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
+                const tdLeft: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151' }
+                const tdRight: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }
 
                 return (
                   <>
-                    <div className="g-summaryGrid">
-                      <div className="g-summaryTile">
-                        <div className="g-k">Sieger</div>
-                        <div className="g-v">{winnerName}</div>
+                    {/* Zwischenstand groß oben */}
+                    <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>Zwischenstand nach Leg {intermission.legIndex ?? '?'}</div>
+                      <div style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: 2 }}>
+                        {scoreAfterLeg}
                       </div>
-                      <div className="g-summaryTile">
-                        <div className="g-k">Starter</div>
-                        <div className="g-v">{starterName}</div>
-                      </div>
-                      <div className="g-summaryTile">
-                        <div className="g-k">Zeit</div>
-                        <div className="g-v">
-                          {fmtClock(sum.startedAt)} → {fmtClock(sum.finishedAt)}
-                        </div>
-                      </div>
-                      <div className="g-summaryTile">
-                        <div className="g-k">Checkout</div>
-                        <div className="g-v">{sum.highestCheckout ?? 0}</div>
-                      </div>
-                      <div className="g-summaryTile">
-                        <div className="g-k">Darts</div>
-                        <div className="g-v">{sum.dartsThrownTotal}</div>
-                      </div>
-                      <div className="g-summaryTile">
-                        <div className="g-k">Best Visit</div>
-                        <div className="g-v">{sum.bestVisit}</div>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 4 }}>
+                        {match.players.map((p) => (
+                          <span key={p.playerId} style={{ fontSize: 13, color: '#6b7280' }}>{p.name}</span>
+                        ))}
                       </div>
                     </div>
 
-                    <div className="g-miniTableWrap">
-                      <table className="g-miniTable">
+                    {/* Sieger-Banner */}
+                    <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 800, fontSize: 16, color: '#16a34a' }}>
+                      Sieger: {winnerName}
+                      {checkoutInfo[sum.winnerPlayerId ?? ''] && (
+                        <span style={{ fontWeight: 500, fontSize: 13, color: '#6b7280', marginLeft: 8 }}>
+                          (Checkout: {checkoutInfo[sum.winnerPlayerId ?? ''].height})
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Statistik-Tabelle wie in MatchDetails */}
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr>
-                            <th>Spieler</th>
-                            <th style={{ textAlign: 'right' }}>Punkte</th>
-                            <th style={{ textAlign: 'right' }}>Darts</th>
-                            <th style={{ textAlign: 'right' }}>3-DA</th>
-                            <th style={{ textAlign: 'right' }}>Best</th>
-                            <th style={{ textAlign: 'right' }}>Busts</th>
+                            <th style={thLeft}></th>
+                            {match.players.map((p) => (
+                              <th key={p.playerId} style={thRight}>{p.name}</th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {sum.byPlayer.map((p) => (
-                            <tr key={p.playerId}>
-                              <td style={{ fontWeight: 800 }}>{p.name}</td>
-                              <td style={{ textAlign: 'right' }}>{p.points}</td>
-                              <td style={{ textAlign: 'right' }}>{p.darts}</td>
-                              <td style={{ textAlign: 'right' }}>{p.threeDA.toFixed(2)}</td>
-                              <td style={{ textAlign: 'right' }}>{p.bestVisit}</td>
-                              <td style={{ textAlign: 'right' }}>{p.busts}</td>
-                            </tr>
-                          ))}
+                          <tr>
+                            <td style={tdLeft}>Average</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>First Nine</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>180s</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>140+</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>100+</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>61+</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{bins61plus[p.playerId] ?? 0}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>Höchste Aufnahme</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{highestVisit[p.playerId] ?? 0}</td>
+                            ))}
+                          </tr>
+
+                          <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
+
+                          <tr>
+                            <td style={tdLeft}>Checkout Höhe</td>
+                            {match.players.map((p) => {
+                              const info = checkoutInfo[p.playerId]
+                              return <td key={p.playerId} style={tdRight}>{info ? `${info.height} (${info.lastDart})` : '–'}</td>
+                            })}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>Checkout Versuche</td>
+                            {match.players.map((p) => {
+                              const attempts = legStats[p.playerId]?.doubleAttemptsDart ?? 0
+                              const hits = legStats[p.playerId]?.doublesHitDart ?? 0
+                              return <td key={p.playerId} style={tdRight}>{attempts} / {hits}</td>
+                            })}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>Checkout Quote</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>Rest</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{restByPlayer[p.playerId]}</td>
+                            ))}
+                          </tr>
+
+                          <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
+
+                          <tr>
+                            <td style={tdLeft}>Spielzeit</td>
+                            <td colSpan={match.players.length} style={{ ...tdRight, textAlign: 'center' }}>{legDuration || '–'}</td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
 
+                    {/* Chart Toggle */}
+                    <div style={{
+                      display: 'flex',
+                      gap: 4,
+                      marginTop: 16,
+                      marginBottom: 8,
+                    }}>
+                      <button
+                        onClick={() => setLegChartMode('staircase')}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          border: legChartMode === 'staircase' ? '2px solid #f97316' : '1px solid #e5e7eb',
+                          background: legChartMode === 'staircase' ? '#fff7ed' : '#fff',
+                          color: legChartMode === 'staircase' ? '#ea580c' : '#6b7280',
+                          fontWeight: 600,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        📊 Staircase
+                      </button>
+                      <button
+                        onClick={() => setLegChartMode('progression')}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          border: legChartMode === 'progression' ? '2px solid #f97316' : '1px solid #e5e7eb',
+                          background: legChartMode === 'progression' ? '#fff7ed' : '#fff',
+                          color: legChartMode === 'progression' ? '#ea580c' : '#6b7280',
+                          fontWeight: 600,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        📈 Verlauf
+                      </button>
+                    </div>
+
+                    {/* Chart-Ansicht basierend auf Modus */}
+                    {legChartMode === 'staircase' ? (
+                      /* Staircase-Visualisierung für den Gewinner */
+                      (() => {
+                        const winnerId = sum.winnerPlayerId
+                        const winnerPlayer = match.players.find(p => p.playerId === winnerId)
+
+                        // Hole die rohen VisitAdded Events (haben darts Property)
+                        const rawVisits = events.filter((e): e is VisitAdded =>
+                          isVisitAdded(e) && e.legId === intermission.legId && e.playerId === winnerId
+                        )
+
+                        const totalDarts = rawVisits.reduce((acc, v) => acc + v.darts.length, 0)
+                        const lastVisit = rawVisits[rawVisits.length - 1]
+                        const checkoutHeight = lastVisit?.remainingBefore
+                        const lastDart = lastVisit?.darts?.[lastVisit.darts.length - 1]
+                        const finishingDart = lastDart ? fmtDart(lastDart) : undefined
+
+                        // Visits in LegVisit-Format konvertieren
+                        const legVisits: LegVisit[] = rawVisits.map((v) => ({
+                          visitScore: v.visitScore,
+                          remainingBefore: v.remainingBefore,
+                          remainingAfter: v.remainingAfter,
+                          bust: v.bust,
+                          darts: v.darts.map((d) => ({
+                            bed: d.bed,
+                            mult: d.mult,
+                            score: d.score ?? 0,
+                          })),
+                        }))
+
+                        return (
+                          <LegStaircaseChart
+                            startScore={match.startingScorePerLeg}
+                            visits={legVisits}
+                            playerName={winnerPlayer?.name ?? winnerId ?? 'Spieler'}
+                            playerColor={winnerId ? (playerColors[winnerId] ?? PLAYER_COLORS[match.players.findIndex(p => p.playerId === winnerId) % PLAYER_COLORS.length]) : PLAYER_COLORS[0]}
+                            totalDarts={totalDarts}
+                            checkoutHeight={checkoutHeight}
+                            finishingDart={finishingDart}
+                            showHeader={true}
+                          />
+                        )
+                      })()
+                    ) : (
+                      /* Klassischer Score Progression Chart */
+                      (() => {
+                        // Hole die rohen VisitAdded Events für alle Spieler
+                        const allRawVisits = events.filter((e): e is VisitAdded =>
+                          isVisitAdded(e) && e.legId === intermission.legId
+                        )
+
+                        return (
+                          <div style={{
+                            height: 270,
+                            background: isArcade ? '#0a0a0a' : '#f8fafc',
+                            borderRadius: 8,
+                            overflow: 'hidden',
+                          }}>
+                            <ScoreProgressionChart
+                              startScore={match.startingScorePerLeg}
+                              players={match.players.map((p, index) => ({
+                                id: p.playerId,
+                                name: p.name ?? p.playerId,
+                                color: playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length],
+                                visits: allRawVisits
+                                  .filter((v) => v.playerId === p.playerId)
+                                  .map((v, i) => ({
+                                    visitIndex: i + 1,
+                                    remainingBefore: v.remainingBefore,
+                                    remainingAfter: v.remainingAfter,
+                                    bust: v.bust,
+                                    dartScores: v.darts.map((d) => d.score ?? 0),
+                                  })),
+                              }))}
+                              winnerPlayerId={sum.winnerPlayerId}
+                              showCheckoutLine={true}
+                              showFinishLine={true}
+                            />
+                          </div>
+                        )
+                      })()
+                    )}
+
+                    {/* Wurfabfolge */}
                     {showDetails && (
-                      <div className="g-details">
-                        <div className="g-detailsTitle">Leg-Verlauf</div>
-                        <div className="g-visitList">
-                          {sum.visits.map((v) => (
-                            <div key={v.eventId} className={`g-visit ${v.bust ? 'is-bust' : ''}`}>
-                              <div className="g-visitTop">
-                                <div>
-                                  <b>{v.playerName}</b> · {v.dartsLabel}
-                                </div>
-                                <div className="g-dim">{fmtClock(v.ts)}</div>
+                      <div className="g-details" style={{ marginTop: 12 }}>
+                        <div className="g-detailsTitle">Wurfabfolge</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {sum.visits.map((v: any, idx: number) => {
+                            const color = '#6b7280'
+                            const darts = v.darts?.map(fmtDart) ?? []
+                            return (
+                              <div
+                                key={v.eventId || idx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '8px 12px',
+                                  background: v.bust ? '#fef2f2' : '#f8fafc',
+                                  borderLeft: `4px solid ${v.bust ? '#ef4444' : color}`,
+                                  borderRadius: '0 6px 6px 0',
+                                  fontSize: 14,
+                                }}
+                              >
+                                <span style={{ fontWeight: 700, minWidth: 80 }}>{v.playerName}</span>
+                                <span style={{ minWidth: 120, fontFamily: 'monospace' }}>
+                                  {darts[0] || '—'} · {darts[1] || '—'} · {darts[2] || '—'}
+                                </span>
+                                <span style={{ fontWeight: 600, minWidth: 50 }}>= {v.visitScore}</span>
+                                <span style={{ color: '#6b7280' }}>Rest: {v.remainingAfter}</span>
+                                {v.bust && <span style={{ color: '#ef4444', fontWeight: 600 }}>BUST</span>}
                               </div>
-                              <div className="g-visitBottom">
-                                <div>
-                                  Score: <b>{v.visitScore}</b>
-                                  {v.bust ? ' (BUST)' : ''}
-                                </div>
-                                <div className="g-dim">
-                                  Rest: {v.remainingBefore} → <b>{v.remainingAfter}</b>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -1337,116 +2172,554 @@ export default function Game({ matchId, onExit }: Props) {
         </div>
       )}
 
-      {/* Kopfzeile */}
-      <div className="g-header">
-        <h2 className="g-title">{matchStored.title}</h2>
-        <button className="g-btn" onClick={onExit}>
-          Menü
-        </button>
-      </div>
+      {/* Pause Overlay */}
+      {gamePaused && <PauseOverlay onResume={() => setGamePaused(false)} />}
+
+      {/* Kopfzeile mit Pause/Mute/Exit */}
+      <GameControls
+        isPaused={gamePaused}
+        onTogglePause={() => setGamePaused(p => !p)}
+        isMuted={!speechEnabled}
+        onToggleMute={() => {
+          const newVal = !speechEnabled
+          setSpeechEnabledState(newVal)
+          setSpeechEnabled(newVal)
+        }}
+        onExit={() => {
+          // Pause-Status und verstrichene Zeit speichern bevor wir verlassen
+          setMatchPaused(matchId, 'x01', true)
+          setMatchElapsedTime(matchId, 'x01', legDuration * 1000)
+          onExit()
+        }}
+        onCancel={() => {
+          // Match löschen und zum Menü
+          deleteX01Match(matchId)
+          onExit()
+        }}
+        title={matchStored.title}
+      />
 
       {/* Struktur-/Fortschritt-Chips */}
-      <div className="g-chipRow">
-        {match.structure.kind === 'legs' ? (
-          <>
-            <span className="g-chip">
-              Modus:
-              <b style={{ marginLeft: 6 }}>Best of {match.structure.bestOfLegs ?? 1} Legs</b>
-            </span>
-            <span className="g-chip">
-              Leg <b style={{ marginLeft: 6 }}>#{currentLegIndex}</b>
-            </span>
-            <span className="g-chip">
-              zum Gewinn:
-              <b style={{ marginLeft: 6 }}>{requiredLegs} Legs</b>
-            </span>
-            <span className="g-chip">
-              Modus:
-              <b style={{ marginLeft: 6 }}>{match.startingScorePerLeg} Double-Out</b>
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="g-chip">
-              Modus:
-              <b style={{ marginLeft: 6 }}>{match.startingScorePerLeg} Double-Out</b>
-            </span>
-            <span className="g-chip">
-              Modus:
-              <b style={{ marginLeft: 6 }}>Sets</b>
-            </span>
-            <span className="g-chip">
-              Set <b style={{ marginLeft: 6 }}>#{currentSetIndex || 1}</b>
-            </span>
-            <span className="g-chip">
-              pro Set:
-              <b style={{ marginLeft: 6 }}>Best of {match.structure.legsPerSet} Legs</b>
-            </span>
-            <span className="g-chip">
-              Matchgewinn:
-              <b style={{ marginLeft: 6 }}>{requiredSets} Sets</b>
-            </span>
-          </>
-        )}
-      </div>
+      {isArcade ? (
+        /* === ARCADE CHIPS === */
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          background: '#0f0f0f',
+          padding: '8px 16px',
+        }}>
+          <span style={{
+            background: '#1a1a1a',
+            border: '1px solid #333',
+            color: '#9ca3af',
+            borderRadius: 999,
+            padding: '4px 12px',
+            fontSize: 12,
+            fontWeight: 600,
+          }}>
+            <b style={{ color: '#f97316' }}>{match.startingScorePerLeg}</b> Double-Out
+          </span>
+          {match.structure.kind === 'legs' ? (
+            <>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                First to <b style={{ color: '#22c55e' }}>{requiredLegs}</b> Legs
+              </span>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                Leg <b style={{ color: '#fff' }}>#{currentLegIndex}</b>
+              </span>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                ⏱ <b style={{ color: '#60a5fa' }}>{formatDuration(legDuration)}</b>
+              </span>
+            </>
+          ) : (
+            <>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                First to <b style={{ color: '#22c55e' }}>{requiredSets}</b> Sets
+              </span>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                Set <b style={{ color: '#fff' }}>#{currentSetIndex || 1}</b>
+              </span>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                <b style={{ color: '#22c55e' }}>{requiredLegs}</b> Legs/Set
+              </span>
+              <span style={{
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                color: '#9ca3af',
+                borderRadius: 999,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                ⏱ <b style={{ color: '#60a5fa' }}>{formatDuration(legDuration)}</b>
+              </span>
+            </>
+          )}
+        </div>
+      ) : (
+        /* === CLASSIC CHIPS === */
+        <div className="g-chipRow" style={{ justifyContent: 'center' }}>
+          {match.structure.kind === 'legs' ? (
+            <>
+              <span className="g-chip">
+                Modus:
+                <b style={{ marginLeft: 6 }}>First to {requiredLegs} Legs</b>
+              </span>
+              <span className="g-chip">
+                Leg <b style={{ marginLeft: 6 }}>#{currentLegIndex}</b>
+              </span>
+              <span className="g-chip">
+                Modus:
+                <b style={{ marginLeft: 6 }}>{match.startingScorePerLeg} Double-Out</b>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="g-chip">
+                Modus:
+                <b style={{ marginLeft: 6 }}>{match.startingScorePerLeg} Double-Out</b>
+              </span>
+              <span className="g-chip">
+                <b>First to {requiredSets} Sets</b>
+              </span>
+              <span className="g-chip">
+                Set <b style={{ marginLeft: 6 }}>#{currentSetIndex || 1}</b>
+              </span>
+              <span className="g-chip">
+                pro Set:
+                <b style={{ marginLeft: 6 }}>First to {requiredLegs} Legs</b>
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
-      {/* Spieler-Karten */}
-      <div className="g-grid">
-        {match.players.map((p) => {
-          const isActive = p.playerId === activePlayerId
-          const avg = statsByPlayer[p.playerId]?.threeDartAvg ?? 0
-          const playerLegs = legsWonCurrent[p.playerId] ?? 0
-          const playerSets = setsWon[p.playerId] ?? 0
+      {/* Spieler-Karten / Arcade View */}
+      {!isArcade ? (
+        <>
+          <div className="g-grid">
+            {match.players.map((p) => {
+              const isActive = p.playerId === activePlayerId
+              const avg = statsByPlayer[p.playerId]?.threeDartAvg ?? 0
+              const playerLegs = legsWonCurrent[p.playerId] ?? 0
+              const playerSets = setsWon[p.playerId] ?? 0
 
-          const remaining = leg.remainingByPlayer[p.playerId]
-          const currentDarts = isActive ? current.map(dartScore) : []
+              const remaining = leg.remainingByPlayer[p.playerId]
+              const currentDarts = isActive ? current.map(dartScore) : []
+              const dartsRemaining = isActive ? 3 - current.length : 3
 
-          const derivedLast = getLastVisitForPlayer(leg, p.playerId)
-          const derivedVisit: Visit | null = derivedLast
-            ? {
-                darts: derivedLast.darts.map((d: any) => d?.score ?? 0),
-                score: (derivedLast as any).visitScore ?? 0,
-                bust: !!(derivedLast as any).bust,
+              const derivedLast = getLastVisitForPlayer(leg, p.playerId)
+              const derivedVisit: Visit | null = derivedLast
+                ? {
+                    darts: derivedLast.darts.map((d) => d.score ?? 0),
+                    score: derivedLast.visitScore ?? 0,
+                    bust: !!derivedLast.bust,
+                  }
+                : null
+              const lastVisit = lastVisitByPlayer[p.playerId] ?? derivedVisit
+
+              const flashLabel = flashByPlayer[p.playerId] ?? null
+
+              return (
+                <PlayerTurnCard
+                  key={p.playerId}
+                  name={p.name ?? p.playerId}
+                  color={p.color}
+                  remaining={isActive ? live.remaining : remaining}
+                  currentDarts={currentDarts}
+                  dartsRemaining={dartsRemaining}
+                  lastVisit={lastVisit}
+                  flashLabel={flashLabel}
+                  isActive={isActive}
+                  legs={playerLegs}
+                  sets={playerSets}
+                  showSets={isSets}
+                  threeDartAvg={avg}
+                />
+              )
+            })}
+          </div>
+
+          {/* Score Progression Chart */}
+          {chartData && (
+            <div style={{
+              marginTop: 12,
+              marginBottom: 12,
+              borderRadius: 12,
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              height: 160,
+            }}>
+              <ScoreProgressionChart
+                startScore={chartData.startScore}
+                players={chartData.players}
+                liveRemaining={chartData.liveRemaining}
+                activePlayerId={chartData.activePlayerId}
+                liveDartCount={chartData.liveDartCount}
+                liveDartScores={chartData.liveDartScores}
+              />
+            </div>
+          )}
+
+          {/* Eingabeblock */}
+          <Scoreboard onThrow={handleThrow} dartsThrown={current.length} onUndoLastDart={handleUndoLastDart} />
+        </>
+      ) : (
+        <>
+          {/* Arcade View */}
+          {(() => {
+            const arcadePlayers = match.players.map((p) => {
+              const isActive = p.playerId === activePlayerId
+              const avg = statsByPlayer[p.playerId]?.threeDartAvg ?? 0
+              const playerLegs = legsWonCurrent[p.playerId] ?? 0
+              const playerSets = setsWon[p.playerId] ?? 0
+              const remaining = isActive ? live.remaining : leg.remainingByPlayer[p.playerId]
+
+              const derivedLast = getLastVisitForPlayer(leg, p.playerId)
+              const lastVisitObj = lastVisitByPlayer[p.playerId]
+              const lastScore = lastVisitObj
+                ? lastVisitObj.score
+                : derivedLast
+                  ? (derivedLast.visitScore ?? 0)
+                  : null
+
+              // Dart-Labels für letzte Aufnahme
+              let lastDartLabels: string[] | null = null
+              if (lastVisitObj?.dartLabels) {
+                lastDartLabels = lastVisitObj.dartLabels
+              } else if (derivedLast) {
+                lastDartLabels = derivedLast.darts.map((d) => dartLabelShort(d))
               }
-            : null
-          const lastVisit = lastVisitByPlayer[p.playerId] ?? derivedVisit
 
-          const flashLabel = flashByPlayer[p.playerId] ?? null
+              // Checkout-Route nur wenn mit verbleibenden Darts möglich
+              const dartsLeft = isActive ? 3 - current.length : 3
+              const playerCheckout = getCheckoutRoute(remaining, dartsLeft)
+              const playerSetupShot = getSetupShot(remaining, dartsLeft)
 
-          return (
-            <PlayerTurnCard
-              key={p.playerId}
-              name={p.name ?? p.playerId}
-              color={(p as any).color}
-              remaining={isActive ? live.remaining : remaining}
-              currentDarts={currentDarts}
-              lastVisit={lastVisit}
-              flashLabel={flashLabel}
-              isActive={isActive}
-              legs={playerLegs}
-              sets={playerSets}
-              showSets={isSets}
-              threeDartAvg={avg}
-            />
-          )
-        })}
-      </div>
+              return {
+                id: p.playerId,
+                name: p.name ?? p.playerId,
+                remaining,
+                isActive,
+                lastVisitScore: lastScore,
+                lastVisitDarts: lastDartLabels,
+                threeDartAvg: avg,
+                legs: playerLegs,
+                sets: playerSets,
+                checkoutRoute: playerCheckout ?? null,
+                setupShot: playerSetupShot ?? null,
+                color: playerColors[p.playerId],
+              }
+            })
 
-      {/* Eingabeblock */}
-      <Scoreboard onThrow={handleThrow} />
+            const activePlayer = match.players.find((p) => p.playerId === activePlayerId)
+            const activePlayerName = activePlayer?.name ?? activePlayerId
+            const activeAvg = statsByPlayer[activePlayerId]?.threeDartAvg ?? 0
+            const currentScoreSum = current.reduce((sum, d) => sum + dartScore(d), 0)
+            const checkoutRoute = getCheckoutRoute(live.remaining, 3 - current.length)
+            const setupShot = getSetupShot(live.remaining, 3 - current.length)
 
-      {/* Manuelle Steuerung */}
-      <div className="g-toolbar">
-        <button className="g-btn" onClick={() => setCurrent((l) => l.slice(0, -1))} disabled={current.length === 0 || isPaused}>
-          ← Back
-        </button>
-        <button className="g-btn" onClick={() => setCurrent([])} disabled={current.length === 0 || isPaused}>
-          ✖ Clear
-        </button>
-        <button className="g-btn" onClick={() => confirmVisit(current)} disabled={current.length === 0 || isPaused}>
-          ✔ Visit bestätigen
-        </button>
-      </div>
+            // Aufnahmen-Liste: Letzte 8 Visits + Live (neuster oben)
+            const recentVisits: VisitEntry[] = []
+
+            // Alle VisitAdded Events im aktuellen Leg (für kumulative Average-Berechnung)
+            const allLegVisits = events.filter((e): e is VisitAdded => isVisitAdded(e) && e.legId === leg.legId)
+
+            // Kumulative Averages pro Spieler berechnen
+            const cumulativeStats: Record<string, { totalScore: number; visitCount: number }> = {}
+            const avgAtVisit: number[] = [] // Average nach jedem Visit
+
+            for (const ev of allLegVisits) {
+              const { playerId, visitScore } = ev
+              const score = visitScore ?? 0
+
+              if (!cumulativeStats[playerId]) {
+                cumulativeStats[playerId] = { totalScore: 0, visitCount: 0 }
+              }
+              cumulativeStats[playerId].totalScore += score
+              cumulativeStats[playerId].visitCount += 1
+
+              // Average für diesen Spieler nach diesem Visit
+              const playerAvg = cumulativeStats[playerId].totalScore / cumulativeStats[playerId].visitCount
+              avgAtVisit.push(playerAvg)
+            }
+
+            // Live-Wurf (aktueller Spieler, noch nicht bestätigt)
+            if (current.length > 0) {
+              // Berechne den Live-Average für den aktiven Spieler
+              const activeStats = cumulativeStats[activePlayerId] ?? { totalScore: 0, visitCount: 0 }
+              const liveAvg = activeStats.visitCount > 0
+                ? (activeStats.totalScore + currentScoreSum) / (activeStats.visitCount + 1)
+                : currentScoreSum
+
+              recentVisits.push({
+                playerName: activePlayerName,
+                darts: current.map(d => dartLabelShort(d)),
+                score: currentScoreSum,
+                remaining: live.remaining,
+                isLive: true,
+                avg: liveAvg,
+              })
+            }
+
+            // Letzte VisitAdded Events aus dem aktuellen Leg (max 8 - liveCount)
+            const visitEvents = allLegVisits.slice(-8).reverse() // Neuster oben
+
+            for (let i = 0; i < visitEvents.length; i++) {
+              if (recentVisits.length >= 8) break
+              const ev = visitEvents[i]
+              const { playerId, darts: evDarts, visitScore, remainingAfter } = ev
+              const player = match.players.find((p) => p.playerId === playerId)
+              const playerName = player?.name ?? playerId
+              const darts = evDarts.map((d) => dartLabelShort(d))
+              const score = visitScore ?? 0
+              const remaining = remainingAfter ?? 0
+
+              // Finde den Index dieses Events in allLegVisits
+              const originalIndex = allLegVisits.length - (visitEvents.length - i)
+              const avgForThisVisit = avgAtVisit[originalIndex] ?? 0
+
+              recentVisits.push({
+                playerName,
+                darts,
+                score,
+                remaining,
+                avg: avgForThisVisit,
+              })
+            }
+
+            // Arcade Action Button Style
+            const arcadeActionBtn = (disabled: boolean): React.CSSProperties => ({
+              width: 44,
+              height: 44,
+              borderRadius: 8,
+              border: 'none',
+              background: disabled ? '#1a1a1a' : '#292524',
+              color: disabled ? '#444' : '#f97316',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              fontWeight: 800,
+              fontSize: 18,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all .15s',
+              opacity: disabled ? 0.5 : 1,
+            })
+
+            return (
+              <div style={{
+                background: '#0f0f0f',
+                padding: '12px 16px 16px',
+                borderRadius: '0 0 12px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}>
+                {/* Spieler-Segmente oben */}
+                <X01ArcadeView
+                  players={arcadePlayers}
+                  currentScore={currentScoreSum}
+                  currentDart={current.length}
+                  currentDarts={current.map(d => dartLabelShort(d))}
+                  activePlayerName={activePlayerName}
+                  checkoutRoute={checkoutRoute ?? null}
+                  setupShot={setupShot ?? null}
+                  bust={live.bust}
+                  showSets={isSets}
+                />
+
+                {/* Chart/Legverlauf + Action Buttons + Tastenfeld nebeneinander */}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+                  {/* Chart oder Legverlauf links (mit Toggle) */}
+                  <div style={{ flex: 1, display: 'flex', position: 'relative', minHeight: 140 }}>
+                    {/* Toggle-Button */}
+                    <button
+                      onClick={() => setShowChart(v => !v)}
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        zIndex: 10,
+                        padding: '3px 6px',
+                        fontSize: 9,
+                        background: '#1a1a1a',
+                        border: '1px solid #333',
+                        borderRadius: 4,
+                        color: '#9ca3af',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {showChart ? '📋' : '📊'}
+                    </button>
+
+                    {/* Chart oder VisitList */}
+                    {showChart && chartData ? (
+                      <ScoreProgressionChart
+                        startScore={chartData.startScore}
+                        players={chartData.players}
+                        liveRemaining={chartData.liveRemaining}
+                        activePlayerId={chartData.activePlayerId}
+                        liveDartCount={chartData.liveDartCount}
+                        liveDartScores={chartData.liveDartScores}
+                      />
+                    ) : (
+                      <VisitList visits={recentVisits} scrollRef={visitListScrollRef} />
+                    )}
+                  </div>
+
+                  {/* Action Buttons (vertikal in der Mitte) */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    justifyContent: 'center',
+                  }}>
+                    <button
+                      onClick={() => setCurrent((l) => l.slice(0, -1))}
+                      disabled={current.length === 0 || isPaused}
+                      style={arcadeActionBtn(current.length === 0 || isPaused)}
+                      title="Letzten Dart löschen"
+                    >
+                      ⌫
+                    </button>
+                    <button
+                      onClick={() => setCurrent([])}
+                      disabled={current.length === 0 || isPaused}
+                      style={arcadeActionBtn(current.length === 0 || isPaused)}
+                      title="Alle Darts löschen"
+                    >
+                      ✕
+                    </button>
+                    <button
+                      onClick={() => confirmVisit(current)}
+                      disabled={current.length === 0 || isPaused}
+                      style={{
+                        ...arcadeActionBtn(current.length === 0 || isPaused),
+                        background: current.length > 0 && !isPaused ? '#166534' : '#1a1a1a',
+                        color: current.length > 0 && !isPaused ? '#22c55e' : '#444',
+                      }}
+                      title="Visit bestätigen"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => {
+                        const lastVisitIdx = events.map((e, i) => ({ e, i }))
+                          .filter(({ e }) => isVisitAdded(e) && e.legId === leg.legId)
+                          .pop()?.i
+                        if (lastVisitIdx === undefined) return
+                        const newEvents = events.slice(0, lastVisitIdx)
+                        persistEvents(matchStored.id, newEvents)
+                        setEvents(newEvents)
+                        setCurrent([])
+                        setFlashByPlayer({})
+                        setLastVisitByPlayer({})
+                      }}
+                      disabled={isPaused || leg.visits.length === 0}
+                      style={arcadeActionBtn(isPaused || leg.visits.length === 0)}
+                      title="Letzten Wurf rückgängig"
+                    >
+                      ↩
+                    </button>
+                  </div>
+
+                  {/* Tastenfeld rechts */}
+                  <Scoreboard onThrow={handleThrow} dartsThrown={current.length} theme="arcade" onUndoLastDart={handleUndoLastDart} compact={true} />
+                </div>
+              </div>
+            )
+          })()}
+        </>
+      )}
+
+      {/* Manuelle Steuerung - nur im Classic-Modus */}
+      {!isArcade && (
+        <div className="g-toolbar">
+          <button className="g-btn" onClick={() => setCurrent((l) => l.slice(0, -1))} disabled={current.length === 0 || isPaused}>
+            ← Back
+          </button>
+          <button className="g-btn" onClick={() => setCurrent([])} disabled={current.length === 0 || isPaused}>
+            ✖ Clear
+          </button>
+          <button className="g-btn" onClick={() => confirmVisit(current)} disabled={current.length === 0 || isPaused}>
+            ✔ Visit bestätigen
+          </button>
+          <button
+            className="g-btn"
+            onClick={() => {
+              // Finde den letzten VisitAdded Event im aktuellen Leg
+              const lastVisitIdx = events.map((e, i) => ({ e, i }))
+                .filter(({ e }) => isVisitAdded(e) && e.legId === leg.legId)
+                .pop()?.i
+
+              if (lastVisitIdx === undefined) return
+
+              // Entferne den letzten Visit
+              const newEvents = events.slice(0, lastVisitIdx)
+              persistEvents(matchStored.id, newEvents)
+              setEvents(newEvents)
+              setCurrent([])
+
+              // Flash und LastVisit zurücksetzen
+              setFlashByPlayer({})
+              setLastVisitByPlayer({})
+            }}
+            disabled={isPaused || leg.visits.length === 0}
+          >
+            ↩ Letzten Wurf rückgängig
+          </button>
+        </div>
+      )}
     </div>
   )
 }

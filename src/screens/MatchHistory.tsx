@@ -1,23 +1,38 @@
 // src/screens/MatchHistory.tsx
-import React, { useMemo, useState } from 'react'
-import { ui } from '../ui'
+import React, { useMemo, useState, useEffect } from 'react'
+import { ui, getThemedUI } from '../ui'
+import { useTheme } from '../ThemeProvider'
 import {
   getMatches,
+  getMatchesAsync,
   getCricketMatches,
+  getATBMatches,
+  getStrMatches,
+  getHighscoreMatches,
   type StoredMatch,
   type CricketStoredMatch,
 } from '../storage'
+import type { ATBStoredMatch } from '../types/aroundTheBlock'
+import type { StrStoredMatch } from '../types/straeusschen'
+import type { HighscoreStoredMatch } from '../types/highscore'
+import { getModeLabel, getDirectionLabel, formatDuration, DEFAULT_ATB_CONFIG } from '../dartsAroundTheBlock'
+import { formatDuration as formatStrDuration } from '../dartsStraeusschen'
+import { formatDuration as formatHsDuration } from '../dartsHighscore'
 
 type Props = {
   onBack: () => void
   onOpenX01Match: (matchId: string) => void
   onOpenCricketMatch: (matchId: string) => void
+  onOpenATBMatch?: (matchId: string) => void
+  onOpenStrMatch?: (matchId: string) => void
+  onOpenHighscoreMatch?: (matchId: string) => void
 }
 
-type Filter = 'all' | 'x01' | 'cricket'
+type Filter = 'all' | 'x01' | '121' | 'cricket' | 'atb' | 'str' | 'highscore'
 
-function fmtWhen(s?: string) {
-  return s ? new Date(s).toLocaleString() : '—'
+function fmtDate(s?: string) {
+  if (!s) return '—'
+  return new Date(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function safeTsFromMatch(m: { createdAt?: string; events?: any[] }) {
@@ -25,6 +40,83 @@ function safeTsFromMatch(m: { createdAt?: string; events?: any[] }) {
   if (ts) return ts
   const ev0 = Array.isArray(m.events) ? m.events[0] : undefined
   return ev0?.ts ?? ''
+}
+
+function getX01Info(m: StoredMatch) {
+  const startEv = m.events?.find((e: any) => e.type === 'MatchStarted') as any
+  const finishEv = m.events?.find((e: any) => e.type === 'MatchFinished') as any
+  const players = startEv?.players ?? []
+  const mode = startEv?.mode ?? ''
+  // Parse mode like '501-double-out' -> '501'
+  const baseScore = mode.split('-')[0] || '501'
+  const playerNames = players.map((p: any) => p.name)
+  const winnerId = finishEv?.winnerPlayerId
+  const winnerName = players.find((p: any) => p.playerId === winnerId)?.name
+
+  // Struktur: Sets/Legs
+  const structure = startEv?.structure
+  const isSets = structure?.kind === 'sets'
+
+  // Modus mit S/L Suffix
+  const score = `${baseScore} ${isSets ? 'S' : 'L'}`
+
+  // Ergebnis berechnen (Sets oder Legs) für beliebig viele Spieler
+  let result = ''
+  if (players.length >= 1 && finishEv) {
+    // Wins pro Spieler zählen
+    const winsPerPlayer: Record<string, number> = {}
+    for (const p of players) {
+      winsPerPlayer[p.playerId] = 0
+    }
+
+    if (isSets) {
+      const setEvents = (m.events || []).filter((e: any) => e.type === 'SetFinished')
+      for (const ev of setEvents) {
+        const wid = (ev as any).winnerPlayerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    } else {
+      const legEvents = (m.events || []).filter((e: any) => e.type === 'LegFinished')
+      for (const ev of legEvents) {
+        const wid = (ev as any).winnerPlayerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    }
+    const scores = players.map((p: any) => winsPerPlayer[p.playerId])
+    result = scores.join(':')
+  }
+
+  return { score, playerNames, winnerName, result }
+}
+
+function getCricketInfo(m: CricketStoredMatch) {
+  const startEv = m.events?.find((e: any) => e.type === 'CricketMatchStarted') as any
+  const finishEv = m.events?.find((e: any) => e.type === 'CricketMatchFinished') as any
+  const players = startEv?.players ?? []
+  const range = startEv?.range === 'long' ? 'Long' : 'Short'
+  const style = startEv?.style as string | undefined // 'standard' | 'cutthroat' | 'simple' | 'crazy'
+  const isCrazy = style === 'crazy'
+  const playerNames = players.map((p: any) => p.name)
+  const winnerId = finishEv?.winnerPlayerId
+  const winnerName = players.find((p: any) => p.playerId === winnerId)?.name
+
+  // Ergebnis berechnen (Legs) für beliebig viele Spieler
+  let result = ''
+  if (players.length >= 1 && finishEv) {
+    const winsPerPlayer: Record<string, number> = {}
+    for (const p of players) {
+      winsPerPlayer[p.playerId] = 0
+    }
+    const legEvents = (m.events || []).filter((e: any) => e.type === 'CricketLegFinished')
+    for (const ev of legEvents) {
+      const wid = (ev as any).winnerPlayerId
+      if (wid in winsPerPlayer) winsPerPlayer[wid]++
+    }
+    const scores = players.map((p: any) => winsPerPlayer[p.playerId])
+    result = scores.join(':')
+  }
+
+  return { range, playerNames, winnerName, result, isCrazy }
 }
 
 function isFinishedX01(m: StoredMatch) {
@@ -37,111 +129,474 @@ function isFinishedCricket(m: CricketStoredMatch) {
   return (m.events as any[])?.some((e) => e?.type === 'CricketMatchFinished')
 }
 
-export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatch }: Props) {
-  const [filter, setFilter] = useState<Filter>('all')
+function getATBInfo(m: ATBStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : undefined
 
-  const x01 = useMemo(() => getMatches(), [])
+  // Kurzes Format wie X01/Cricket: "ATB L" oder "ATB S"
+  const isSets = m.structure?.kind === 'sets'
+  const mode = `ATB ${isSets ? 'S' : 'L'}`
+
+  // Prüfe ob Piratenmodus - Fallback: config aus ATBMatchStarted Event holen
+  const startEvent = (m.events || []).find((e: any) => e.type === 'ATBMatchStarted') as any
+  const config = m.config ?? startEvent?.config ?? DEFAULT_ATB_CONFIG
+  const isPirate = config.gameMode === 'pirate'
+
+  // Ergebnis: Legs/Sets gewonnen statt Darts
+  let result = ''
+  if (m.finished && players.length >= 1) {
+    const winsPerPlayer: Record<string, number> = {}
+    for (const p of players) {
+      winsPerPlayer[p.playerId] = 0
+    }
+
+    if (isSets) {
+      const setEvents = (m.events || []).filter((e: any) => e.type === 'ATBSetFinished')
+      for (const ev of setEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    } else {
+      const legEvents = (m.events || []).filter((e: any) => e.type === 'ATBLegFinished')
+      for (const ev of legEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    }
+    const scores = players.map((p) => winsPerPlayer[p.playerId])
+    result = scores.join(':')
+  }
+
+  const duration = m.durationMs ? formatDuration(m.durationMs) : ''
+
+  return { mode, playerNames, winnerName, result, duration, isPirate }
+}
+
+function isFinishedATB(m: ATBStoredMatch) {
+  return !!m.finished
+}
+
+function getStrInfo(m: StrStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : undefined
+
+  const isSets = m.structure?.kind === 'sets'
+  const mode = `Str ${isSets ? 'S' : 'L'}`
+
+  let result = ''
+  if (m.finished && players.length >= 1) {
+    const winsPerPlayer: Record<string, number> = {}
+    for (const p of players) {
+      winsPerPlayer[p.playerId] = 0
+    }
+
+    if (isSets) {
+      const setEvents = (m.events || []).filter((e: any) => e.type === 'StrSetFinished')
+      for (const ev of setEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    } else {
+      const legEvents = (m.events || []).filter((e: any) => e.type === 'StrLegFinished')
+      for (const ev of legEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    }
+    const scores = players.map((p) => winsPerPlayer[p.playerId])
+    result = scores.join(':')
+  }
+
+  return { mode, playerNames, winnerName, result }
+}
+
+function getHighscoreInfo(m: HighscoreStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.id === m.winnerId)?.name
+    : undefined
+
+  const isSets = m.structure?.kind === 'sets'
+  const mode = `HS ${m.targetScore} ${isSets ? 'S' : 'L'}`
+
+  let result = ''
+  if (m.finished && players.length >= 1) {
+    const winsPerPlayer: Record<string, number> = {}
+    for (const p of players) {
+      winsPerPlayer[p.id] = 0
+    }
+
+    if (isSets) {
+      const setEvents = (m.events || []).filter((e: any) => e.type === 'HighscoreSetFinished')
+      for (const ev of setEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    } else {
+      const legEvents = (m.events || []).filter((e: any) => e.type === 'HighscoreLegFinished')
+      for (const ev of legEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    }
+    const scores = players.map((p) => winsPerPlayer[p.id])
+    result = scores.join(':')
+  }
+
+  const duration = m.durationMs ? formatHsDuration(m.durationMs) : ''
+
+  return { mode, playerNames, winnerName, result, duration }
+}
+
+function isFinishedHighscore(m: HighscoreStoredMatch) {
+  return !!m.finished
+}
+
+export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatch, onOpenATBMatch, onOpenStrMatch, onOpenHighscoreMatch }: Props) {
+  // Theme System
+  const { isArcade, colors } = useTheme()
+  const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
+  const [showUnfinished, setShowUnfinished] = useState(false)
+
+  // X01 Matches async laden (SQLite-aware)
+  const [x01, setX01] = useState<StoredMatch[]>(() => getMatches())
+  useEffect(() => {
+    // Zuerst synchron laden (LocalStorage Cache)
+    const syncMatches = getMatches()
+    console.log('[MatchHistory] Sync X01 matches:', syncMatches.length)
+    if (syncMatches.length > 0) {
+      setX01(syncMatches)
+    }
+
+    // Dann async aus SQLite laden
+    getMatchesAsync().then((asyncMatches) => {
+      console.log('[MatchHistory] Async X01 matches:', asyncMatches.length)
+      setX01(asyncMatches)
+    }).catch((err) => {
+      console.error('[MatchHistory] Async load failed:', err)
+    })
+  }, [])
+
   const cricket = useMemo(() => getCricketMatches(), [])
+  const atb = useMemo(() => getATBMatches(), [])
+  const str = useMemo(() => getStrMatches(), [])
+  const highscore = useMemo(() => getHighscoreMatches(), [])
 
   const items = useMemo(() => {
-    const x01Items = x01.map((m) => ({
-      kind: 'x01' as const,
-      id: m.id,
-      title: m.title,
-      createdAt: safeTsFromMatch(m),
-      finished: isFinishedX01(m),
-      raw: m,
-    }))
+    const x01Items = x01.map((m) => {
+      const info = getX01Info(m)
+      const startEv = (m.events as any[])?.find((e) => e?.type === 'MatchStarted')
+      const is121 = startEv?.startingScorePerLeg === 121
+      return {
+        kind: (is121 ? '121' : 'x01') as '121' | 'x01',
+        id: m.id,
+        createdAt: safeTsFromMatch(m),
+        finished: isFinishedX01(m),
+        mode: info.score,
+        matchName: m.matchName,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+      }
+    })
 
-    const cricketItems = cricket.map((m) => ({
-      kind: 'cricket' as const,
-      id: m.id,
-      title: m.title,
-      createdAt: safeTsFromMatch(m),
-      finished: isFinishedCricket(m),
-      raw: m,
-    }))
+    const cricketItems = cricket.map((m) => {
+      const info = getCricketInfo(m)
+      return {
+        kind: 'cricket' as const,
+        id: m.id,
+        createdAt: safeTsFromMatch(m),
+        finished: isFinishedCricket(m),
+        mode: `Cricket ${info.range} L`,
+        matchName: m.matchName,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        isCrazy: info.isCrazy,
+      }
+    })
 
-    let merged = [...x01Items, ...cricketItems]
+    const atbItems = atb.map((m) => {
+      const info = getATBInfo(m)
+      return {
+        kind: 'atb' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: isFinishedATB(m),
+        mode: info.mode,
+        matchName: undefined, // Nur mode anzeigen (ATB L/S)
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+        isPirate: info.isPirate,
+      }
+    })
+
+    const strItems = str.map((m) => {
+      const info = getStrInfo(m)
+      return {
+        kind: 'str' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: !!m.finished,
+        mode: info.mode,
+        matchName: undefined as string | undefined,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+      }
+    })
+
+    const highscoreItems = highscore.map((m) => {
+      const info = getHighscoreInfo(m)
+      return {
+        kind: 'highscore' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: isFinishedHighscore(m),
+        mode: `Highscore ${m.targetScore}`,
+        matchName: undefined,
+        playerNames: info.playerNames, // Spielernamen anzeigen (wie bei anderen Spielen)
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+      }
+    })
+
+    // Beendete/Unbeendete Matches anzeigen basierend auf Toggle
+    let merged = [...x01Items, ...cricketItems, ...atbItems, ...strItems, ...highscoreItems]
+    if (!showUnfinished) {
+      merged = merged.filter((m) => m.finished)
+    }
 
     if (filter === 'x01') merged = merged.filter((x) => x.kind === 'x01')
+    if (filter === '121') merged = merged.filter((x) => x.kind === '121')
     if (filter === 'cricket') merged = merged.filter((x) => x.kind === 'cricket')
+    if (filter === 'atb') merged = merged.filter((x) => x.kind === 'atb')
+    if (filter === 'str') merged = merged.filter((x) => x.kind === 'str')
+    if (filter === 'highscore') merged = merged.filter((x) => x.kind === 'highscore')
+
+    // Suchfilter: Name, Datum, Spielernamen
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      merged = merged.filter((m) => {
+        // Spielname
+        if (m.matchName?.toLowerCase().includes(q)) return true
+        // Mode (501 L, Cricket Short L, etc.)
+        if (m.mode.toLowerCase().includes(q)) return true
+        // Spielernamen
+        if (m.playerNames.some((name: string) => name.toLowerCase().includes(q))) return true
+        // Datum (formatiert)
+        const dateStr = fmtDate(m.createdAt).toLowerCase()
+        if (dateStr.includes(q)) return true
+        return false
+      })
+    }
 
     merged.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
     return merged
-  }, [x01, cricket, filter])
+  }, [x01, cricket, atb, str, highscore, filter, search, showUnfinished])
 
   return (
-    <div style={ui.page}>
-      <div style={ui.headerRow}>
+    <div style={styles.page}>
+      <div style={styles.headerRow}>
         <h2 style={{ margin: 0 }}>Matchhistorie</h2>
-        <button style={ui.backBtn} onClick={onBack}>
+        <button style={styles.backBtn} onClick={onBack}>
           ← Zurück
         </button>
       </div>
 
-      {/* Filter */}
-      <div style={ui.card}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontWeight: 700 }}>Filter:</span>
+      {/* Filter + Suche */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Filter Buttons */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 700, color: colors.fg }}>Filter:</span>
+            {(['all', 'x01', '121', 'cricket', 'atb', 'str', 'highscore'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                style={{
+                  height: 36,
+                  borderRadius: 999,
+                  border: `1px solid ${filter === f ? colors.accent : colors.border}`,
+                  background: filter === f
+                    ? (isArcade ? colors.accent : '#e0f2fe')
+                    : colors.bgCard,
+                  color: filter === f
+                    ? (isArcade ? '#fff' : '#0369a1')
+                    : colors.fg,
+                  padding: '0 12px',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                }}
+              >
+                {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : f === '121' ? '121' : f === 'cricket' ? 'Cricket' : f === 'atb' ? 'ATB' : f === 'str' ? 'Str' : 'HS'}
+              </button>
+            ))}
 
-          {(['all', 'x01', 'cricket'] as const).map((f) => (
+            {/* Toggle für unbeendete Spiele */}
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => setShowUnfinished(!showUnfinished)}
               style={{
                 height: 36,
                 borderRadius: 999,
-                border: '1px solid ' + (filter === f ? '#0ea5e9' : '#e5e7eb'),
-                background: filter === f ? '#e0f2fe' : '#fff',
-                color: filter === f ? '#0369a1' : '#0f172a',
+                border: `1px solid ${showUnfinished ? colors.accent : colors.border}`,
+                background: showUnfinished
+                  ? (isArcade ? colors.accent : '#fef3c7')
+                  : colors.bgCard,
+                color: showUnfinished
+                  ? (isArcade ? '#fff' : '#92400e')
+                  : colors.fgMuted,
                 padding: '0 12px',
                 cursor: 'pointer',
-                fontWeight: 800,
+                fontWeight: 600,
+                fontSize: 13,
               }}
             >
-              {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : 'Cricket'}
+              {showUnfinished ? '✓ Unbeendete' : 'Unbeendete'}
             </button>
-          ))}
+          </div>
+
+          {/* Suchfeld */}
+          <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 180 }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Suche: Name, Datum, Spieler..."
+                style={{
+                  width: '100%',
+                  height: 36,
+                  borderRadius: 999,
+                  border: `1px solid ${colors.border}`,
+                  background: colors.bgInput,
+                  color: colors.fg,
+                  padding: '0 36px 0 14px',
+                  fontSize: 14,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: colors.bgSoft,
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    color: colors.fgDim,
+                    fontWeight: 700,
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div style={{ ...ui.sub, marginTop: 8 }}>
+        <div style={{ ...styles.sub, marginTop: 8 }}>
           {items.length} Match{items.length === 1 ? '' : 'es'} gefunden.
         </div>
       </div>
 
       {/* Liste */}
-      <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {items.length === 0 ? (
-          <div style={ui.card}>
-            <div style={{ opacity: 0.75 }}>Keine Matches im aktuellen Filter.</div>
+          <div style={{ padding: '12px 16px', background: colors.bgCard, borderRadius: 8, opacity: 0.75, color: colors.fgMuted }}>
+            Keine Matches im aktuellen Filter.
           </div>
         ) : (
           items.map((m) => (
-            <div key={`${m.kind}:${m.id}`} style={ui.card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontWeight: 900 }}>
-                    {m.title}{' '}
-                    <span style={{ fontWeight: 800, opacity: 0.7 }}>
-                      · {m.kind === 'x01' ? 'X01' : 'Cricket'}
-                    </span>
-                  </div>
-                  <div style={ui.sub}>
-                    {fmtWhen(m.createdAt)} · {m.finished ? 'beendet' : 'offen'}
-                  </div>
-                </div>
-
-                <button
-                  style={ui.backBtn}
-                  onClick={() => {
-                    if (m.kind === 'x01') onOpenX01Match(m.id)
-                    else onOpenCricketMatch(m.id)
-                  }}
-                >
-                  Öffnen →
-                </button>
-              </div>
+            <div
+              key={`${m.kind}:${m.id}`}
+              onClick={() => {
+                if (m.kind === 'x01' || m.kind === '121') onOpenX01Match(m.id)
+                else if (m.kind === 'cricket') onOpenCricketMatch(m.id)
+                else if (m.kind === 'atb' && onOpenATBMatch) onOpenATBMatch(m.id)
+                else if (m.kind === 'str' && onOpenStrMatch) onOpenStrMatch(m.id)
+                else if (m.kind === 'highscore' && onOpenHighscoreMatch) onOpenHighscoreMatch(m.id)
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '8px 12px',
+                background: m.finished ? colors.bgCard : (isArcade ? 'rgba(251,191,36,0.15)' : '#fefce8'),
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+                boxShadow: isArcade ? 'none' : '0 1px 2px rgba(0,0,0,0.05)',
+                border: m.finished
+                  ? (isArcade ? `1px solid ${colors.border}` : 'none')
+                  : `1px solid ${isArcade ? '#fbbf24' : '#fcd34d'}`,
+                opacity: m.finished ? 1 : 0.85,
+              }}
+            >
+              {!m.finished && (
+                <span style={{
+                  background: isArcade ? '#fbbf24' : '#fbbf24',
+                  color: '#78350f',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  textTransform: 'uppercase',
+                }}>
+                  Abgebr.
+                </span>
+              )}
+              <span style={{ fontWeight: 700, minWidth: 70, color: colors.fg }}>
+                {m.matchName || m.mode}
+                {(m as any).isCrazy && ' 🤪'}
+              </span>
+              <span style={{ flex: 1, fontSize: 12, color: colors.fgMuted }}>
+                {m.playerNames.join(', ')}{(m as any).isPirate && ' 🏴‍☠️'}
+              </span>
+              {m.result && (
+                <span style={{
+                  fontWeight: 800,
+                  fontSize: 15,
+                  color: colors.fg,
+                  background: colors.bgMuted,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  minWidth: 45,
+                  textAlign: 'center',
+                }}>
+                  {m.result}
+                </span>
+              )}
+              {m.winnerName ? (
+                <span style={{ fontWeight: 600, color: colors.success, minWidth: 70 }}>{m.winnerName}</span>
+              ) : (
+                <span style={{ color: colors.warning, fontWeight: 500, minWidth: 70 }}>offen</span>
+              )}
+              <span style={{ color: colors.fgDim, fontSize: 12 }}>{fmtDate(m.createdAt)}</span>
             </div>
           ))
         )}

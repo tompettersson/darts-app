@@ -107,7 +107,7 @@ export interface Leaderboards {
 // ---------------------------------------------
 
 export type CricketRange = 'short' | 'long'
-export type CricketStyle = 'standard' | 'cutthroat'
+export type CricketStyle = 'standard' | 'cutthroat' | 'simple' | 'crazy'
 export type CricketTarget = number | 'BULL'
 
 // Was wir pro Spieler für EIN Cricket-Match berechnen
