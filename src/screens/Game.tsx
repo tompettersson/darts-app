@@ -66,6 +66,7 @@ import {
   announceDouble,
   announcePlayerFinishArea,
 } from '../speech'
+import ConnectionBadge from '../multiplayer/ConnectionBadge'
 import './game.css'
 
 // ---- Helpers ----
@@ -501,6 +502,38 @@ function computeLegStats(allEvents: DartsEvent[], match: MatchStarted, legId: st
   return computeStats(legEvents)
 }
 
+// Meistes Feld: Welches Segment (1-20, Bull) am häufigsten getroffen
+function computeMostHitField(allEvents: DartsEvent[], legId: string | null, playerId: string): string {
+  const hitCount: Record<string, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && (legId === null || e.legId === legId)
+  )
+  for (const v of visits) {
+    for (const d of v.darts) {
+      if (d.bed === 'MISS') continue
+      const key = d.bed === 'BULL' || d.bed === 'DBULL' ? 'Bull' : String(d.bed)
+      hitCount[key] = (hitCount[key] ?? 0) + 1
+    }
+  }
+  const sorted = Object.entries(hitCount).sort((a, b) => b[1] - a[1])
+  if (sorted.length === 0) return '–'
+  return `${sorted[0][0]} (${sorted[0][1]}×)`
+}
+
+// Häufigste Punktzahl: Welcher 3-Dart-Visit-Score am häufigsten geworfen
+function computeMostCommonScore(allEvents: DartsEvent[], legId: string | null, playerId: string): string {
+  const scoreCount: Record<number, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && !e.bust && (legId === null || e.legId === legId)
+  )
+  for (const v of visits) {
+    scoreCount[v.visitScore] = (scoreCount[v.visitScore] ?? 0) + 1
+  }
+  const sorted = Object.entries(scoreCount).sort((a, b) => Number(b[1]) - Number(a[1]))
+  if (sorted.length === 0) return '–'
+  return `${sorted[0][0]} (${sorted[0][1]}×)`
+}
+
 function buildLegSummary(allEvents: DartsEvent[], match: MatchStarted, legId: string): LegSummary {
   const ls = allEvents.find((e): e is LegStarted => isLegStarted(e) && e.legId === legId)
   const lf = allEvents.find((e): e is LegFinished => isLegFinished(e) && e.legId === legId)
@@ -628,22 +661,57 @@ function getLegIdsForSet(allEvents: DartsEvent[], setIndex: number): string[] {
 }
 
 // ------------------------------------------------------------
-type Props = { matchId: string; onExit: () => void; onNewGame?: () => void }
+type MultiplayerProps = {
+  enabled: true
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: DartsEvent[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: DartsEvent[] | null
+  connectionStatus: import('../multiplayer/useMultiplayerRoom').ConnectionStatus
+  playerCount: number
+}
 
-export default function Game({ matchId, onExit }: Props) {
+type Props = {
+  matchId: string
+  onExit: () => void
+  onNewGame?: () => void
+  multiplayer?: MultiplayerProps
+}
+
+export default function Game({ matchId, onExit, multiplayer }: Props) {
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 
   // Profile für Spielerfarben laden
   const profiles = useMemo(() => getProfiles(), [])
 
-  const [matchStored] = useState(() => loadMatchById(matchId))
+  const [matchStoredReal] = useState(() => loadMatchById(matchId))
+
+  // Multiplayer-Guest hat kein lokales Match — Stub erstellen damit alle matchStored-Referenzen funktionieren
+  const matchStored = useMemo(() => {
+    if (matchStoredReal) return matchStoredReal
+    if (!multiplayer?.enabled) return null
+    // Stub für Multiplayer-Guest: Events kommen vom Server
+    const remoteEvents = multiplayer.remoteEvents ?? []
+    const matchEvt = remoteEvents.find((e: any) => e.type === 'MatchStarted') as MatchStarted | undefined
+    return {
+      id: matchId,
+      title: matchEvt ? `${matchEvt.mode} – Multiplayer` : 'Multiplayer Match',
+      createdAt: matchEvt?.ts ?? new Date().toISOString(),
+      events: remoteEvents,
+      playerIds: matchEvt?.players.map(p => p.playerId) ?? [],
+      finished: false,
+    }
+  }, [matchStoredReal, multiplayer?.enabled, multiplayer?.remoteEvents, matchId])
 
   // WICHTIG: Alle Hooks MÜSSEN vor jedem early return aufgerufen werden!
-  // Daher: Events-State mit leeren Array initialisieren wenn matchStored fehlt
-  const [events, setEvents] = useState<DartsEvent[]>(() =>
-    matchStored ? (matchStored.events as DartsEvent[]) : []
-  )
+  // Multiplayer-Guest hat kein lokales Match — Events kommen vom Server
+  const [events, setEvents] = useState<DartsEvent[]>(() => {
+    if (matchStoredReal) return matchStoredReal.events as DartsEvent[]
+    if (multiplayer?.enabled && multiplayer.remoteEvents) return multiplayer.remoteEvents
+    return []
+  })
   const state = useMemo(() => applyEvents(events), [events])
   const match = state.match as MatchStarted | undefined
 
@@ -663,8 +731,10 @@ export default function Game({ matchId, onExit }: Props) {
   const playerColorBgEnabled = getPlayerColorBackgroundEnabled()
 
   // Early return Fehler-Screens - NACH allen Hooks definieren wir eine Hilfsvariable
+  const isMultiplayer = !!multiplayer?.enabled
   const errorScreen = useMemo(() => {
-    if (!matchStored) {
+    // Im Multiplayer-Modus: kein matchStored nötig (Events kommen vom Server)
+    if (!matchStored && !isMultiplayer) {
       return (
         <div className="g-page">
           <h3>Kein aktives Match gefunden.</h3>
@@ -675,6 +745,26 @@ export default function Game({ matchId, onExit }: Props) {
       )
     }
     if (!match) {
+      // Im Multiplayer warten wir auf Server-Sync
+      if (isMultiplayer) {
+        return (
+          <div className="g-page" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
+            <div style={{ textAlign: 'center' }}>
+              <h3>Warte auf Spielstand vom Server...</h3>
+              <div style={{
+                marginTop: 16, width: 32, height: 32,
+                border: '3px solid #e5e7eb', borderTopColor: '#0ea5e9',
+                borderRadius: '50%', animation: 'spin 1s linear infinite',
+                margin: '16px auto',
+              }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              <button className="g-btn" onClick={onExit} style={{ marginTop: 24 }}>
+                Zurück
+              </button>
+            </div>
+          </div>
+        )
+      }
       return (
         <div className="g-page">
           <h3>Match-Start-Events fehlen. Bitte neues Spiel starten.</h3>
@@ -695,7 +785,7 @@ export default function Game({ matchId, onExit }: Props) {
       )
     }
     return null
-  }, [matchStored, match, state.legs.length, onExit])
+  }, [matchStored, match, state.legs.length, onExit, isMultiplayer])
 
   // -------- helper to finalize match safely (TS-safe non-null args) --------
   function finalizeIfFinished(
@@ -756,8 +846,14 @@ export default function Game({ matchId, onExit }: Props) {
       finalEvents = [...finalEvents, matchFinishedEvt]
     }
 
-    persistEvents(matchStoredNonNull.id, finalEvents)
-    setEvents(finalEvents)
+    if (multiplayer?.enabled) {
+      // In multiplayer, the caller already sent the events via doPersist
+      // Just set local state optimistically
+      setEvents(finalEvents)
+    } else {
+      persistEvents(matchStoredNonNull.id, finalEvents)
+      setEvents(finalEvents)
+    }
     setCurrent([])
 
     finishMatch(matchStoredNonNull.id)
@@ -791,6 +887,10 @@ export default function Game({ matchId, onExit }: Props) {
   useEffect(() => {
     if (leg) setCurrent([])
   }, [leg?.legId])
+
+  // In multiplayer mode, track the event count before each visit
+  // so we know which events are "new" and need to be sent to the server
+  const eventsBeforeVisitRef = useRef(events.length)
 
   // Flash + LastVisit States
   const [flashByPlayer, setFlashByPlayer] = useState<Record<string, string | null>>({})
@@ -860,6 +960,16 @@ export default function Game({ matchId, onExit }: Props) {
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
+
+  // --- Multiplayer: Remote-Events synchronisieren ---
+  const prevRemoteEventsRef = useRef<DartsEvent[] | null>(null)
+  useEffect(() => {
+    if (!multiplayer?.enabled || !multiplayer.remoteEvents) return
+    // Only update if remote events actually changed (by reference)
+    if (multiplayer.remoteEvents === prevRemoteEventsRef.current) return
+    prevRemoteEventsRef.current = multiplayer.remoteEvents
+    setEvents(multiplayer.remoteEvents)
+  }, [multiplayer?.enabled, multiplayer?.remoteEvents])
 
   // --- Sprachausgabe ---
   const [speechEnabled, setSpeechEnabledState] = useState(true)
@@ -1021,12 +1131,43 @@ export default function Game({ matchId, onExit }: Props) {
       values: players.map((p) => <span key={p.playerId}>{computePointsPerLegAvg(events, p.playerId).toFixed(1)}</span>),
     })
 
+    // Höchste Aufnahme pro Spieler (über alle Legs)
+    const highestVisitMatch: Record<string, number> = {}
+    for (const p of players) highestVisitMatch[p.playerId] = 0
+    for (const ev of events) {
+      if (isVisitAdded(ev) && !ev.bust && ev.visitScore > (highestVisitMatch[ev.playerId] ?? 0)) {
+        highestVisitMatch[ev.playerId] = ev.visitScore
+      }
+    }
+
+    rows.push({
+      label: 'Höchste Aufnahme',
+      values: players.map((p) => {
+        const hv = highestVisitMatch[p.playerId] ?? 0
+        return <span key={p.playerId}>{hv > 0 ? hv : '—'}</span>
+      }),
+    })
+
     rows.push({
       label: 'Bestes Leg',
       values: players.map((p) => {
         const best = statsByPlayer[p.playerId]?.bestLegDarts
         return <span key={p.playerId}>{best ? `${best} Darts` : '—'}</span>
       }),
+    })
+
+    rows.push({
+      label: 'Meistes Feld',
+      values: players.map((p) => (
+        <span key={p.playerId}>{computeMostHitField(events, null, p.playerId)}</span>
+      )),
+    })
+
+    rows.push({
+      label: 'Häufigste Punktzahl',
+      values: players.map((p) => (
+        <span key={p.playerId}>{computeMostCommonScore(events, null, p.playerId)}</span>
+      )),
     })
 
     const handleSaveMetadata = () => {
@@ -1160,8 +1301,13 @@ export default function Game({ matchId, onExit }: Props) {
   }
   // ---------- ENDSCREEN Ende ----------
 
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const isMyTurn = !multiplayer?.enabled || activePlayerId === multiplayer.myPlayerId
+
   const handleThrow = (bed: Bed, mult: 1 | 2 | 3) => {
     if (isPaused) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     if (bed === 20 && mult === 3) playTriple20Sound()
     setCurrent((list) => {
       if (list.length >= 3) return list
@@ -1217,9 +1363,16 @@ export default function Game({ matchId, onExit }: Props) {
     if (lastVisitIdx === undefined) return
 
     // Entferne den letzten Visit
+    const removeCount = events.length - lastVisitIdx
     const newEvents = events.slice(0, lastVisitIdx)
-    persistEvents(matchStored.id, newEvents)
-    setEvents(newEvents)
+
+    if (multiplayer?.enabled) {
+      // Multiplayer: Send undo to server, wait for broadcast
+      multiplayer.undo(removeCount)
+    } else {
+      persistEvents(matchStored.id, newEvents)
+      setEvents(newEvents)
+    }
     setCurrent([])
 
     // Flash und LastVisit zurücksetzen
@@ -1230,9 +1383,29 @@ export default function Game({ matchId, onExit }: Props) {
   const confirmVisit = (forcedDarts?: Dart[]) => {
     try {
       if (isPaused) return
+      if (multiplayer?.enabled && !isMyTurn) return
       if (!leg || !match || !matchStored) return
       const dartsToSave = forcedDarts && forcedDarts.length ? forcedDarts : current
       if (dartsToSave.length === 0) return
+
+      // Multiplayer: track original event count to compute delta
+      const originalEventCount = events.length
+
+      // Helper: persist + optionally send to multiplayer
+      const doPersist = (allEvents: DartsEvent[]) => {
+        if (multiplayer?.enabled) {
+          // Send only the new events delta to server
+          const delta = allEvents.slice(originalEventCount)
+          if (delta.length > 0) {
+            multiplayer.submitEvents(delta)
+          }
+          // Optimistic local update
+          setEvents(allEvents)
+        } else {
+          persistEvents(matchStored.id, allEvents)
+          setEvents(allEvents)
+        }
+      }
 
       const { events: visitEvents } = recordVisit({ match, leg, playerId: activePlayerId, darts: dartsToSave })
       let newEvents: DartsEvent[] = [...events, ...visitEvents]
@@ -1343,8 +1516,7 @@ export default function Game({ matchId, onExit }: Props) {
             starterPlayerId: starter,
           }
 
-          persistEvents(matchStored.id, newEvents)
-          setEvents(newEvents)
+          doPersist(newEvents)
           setCurrent([])
 
           // Find legIndex from the corresponding LegStarted event
@@ -1471,8 +1643,7 @@ export default function Game({ matchId, onExit }: Props) {
               setTimeout(() => announceSetDart(), 800)
             }
 
-            persistEvents(matchStored.id, newEvents)
-            setEvents(newEvents)
+            doPersist(newEvents)
             setCurrent([])
 
             setShowDetails(false)
@@ -1507,8 +1678,7 @@ export default function Game({ matchId, onExit }: Props) {
             starterPlayerId: starter,
           }
 
-          persistEvents(matchStored.id, newEvents)
-          setEvents(newEvents)
+          doPersist(newEvents)
           setCurrent([])
 
           // Find legIndex from the corresponding LegStarted event
@@ -1583,8 +1753,7 @@ export default function Game({ matchId, onExit }: Props) {
         }
       }
 
-      persistEvents(matchStored.id, newEvents)
-      setEvents(newEvents)
+      doPersist(newEvents)
       setCurrent([])
     } catch (err) {
       console.error('Visit bestätigen fehlgeschlagen:', err)
@@ -1694,8 +1863,14 @@ export default function Game({ matchId, onExit }: Props) {
                   className="g-btn"
                   onClick={() => {
                     const next = [...events, ...(intermission.pendingNextEvents ?? [])]
-                    persistEvents(matchStored.id, next)
-                    setEvents(next)
+                    if (multiplayer?.enabled) {
+                      const delta = intermission.pendingNextEvents ?? []
+                      if (delta.length > 0) multiplayer.submitEvents(delta)
+                      setEvents(next)
+                    } else {
+                      persistEvents(matchStored.id, next)
+                      setEvents(next)
+                    }
                     setCurrent([])
                     setIntermission(null)
                     setShowDetails(false)
@@ -1863,6 +2038,18 @@ export default function Game({ matchId, onExit }: Props) {
                             <td style={tdLeft}>Höchste Aufnahme</td>
                             {match.players.map((p) => (
                               <td key={p.playerId} style={tdRight}>{highestVisit[p.playerId] ?? 0}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>Meistes Feld</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{computeMostHitField(events, intermission.legId, p.playerId)}</td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td style={tdLeft}>Häufigste Punktzahl</td>
+                            {match.players.map((p) => (
+                              <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, intermission.legId, p.playerId)}</td>
                             ))}
                           </tr>
 
@@ -2199,6 +2386,13 @@ export default function Game({ matchId, onExit }: Props) {
         title={matchStored.title}
       />
 
+      {/* Multiplayer Connection Badge */}
+      {multiplayer?.enabled && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+          <ConnectionBadge status={multiplayer.connectionStatus} playerCount={multiplayer.playerCount} />
+        </div>
+      )}
+
       {/* Struktur-/Fortschritt-Chips */}
       {isArcade ? (
         /* === ARCADE CHIPS === */
@@ -2412,6 +2606,15 @@ export default function Game({ matchId, onExit }: Props) {
           )}
 
           {/* Eingabeblock */}
+          {multiplayer?.enabled && !isMyTurn && (
+            <div style={{
+              textAlign: 'center', padding: '12px 16px',
+              background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12,
+              color: '#92400e', fontWeight: 700, fontSize: 14, marginBottom: 8,
+            }}>
+              {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug — warte...
+            </div>
+          )}
           <Scoreboard onThrow={handleThrow} dartsThrown={current.length} onUndoLastDart={handleUndoLastDart} />
         </>
       ) : (
@@ -2674,6 +2877,15 @@ export default function Game({ matchId, onExit }: Props) {
                   </div>
 
                   {/* Tastenfeld rechts */}
+                  {multiplayer?.enabled && !isMyTurn && (
+                    <div style={{
+                      textAlign: 'center', padding: '8px 12px',
+                      background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8,
+                      color: '#92400e', fontWeight: 700, fontSize: 13, marginBottom: 6,
+                    }}>
+                      {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                    </div>
+                  )}
                   <Scoreboard onThrow={handleThrow} dartsThrown={current.length} theme="arcade" onUndoLastDart={handleUndoLastDart} compact={true} />
                 </div>
               </div>

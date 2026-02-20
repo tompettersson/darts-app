@@ -1,5 +1,5 @@
-// src/components/ATBPirateScoreChart.tsx
-// Pseudo-3D Säulendiagramm für ATB Piratenmodus - zeigt Punkte pro Spieler pro Feld
+// src/components/ATBCaptureScoreChart.tsx
+// Pseudo-3D Säulendiagramm für ATB Capture the Field - zeigt Punkte pro Spieler pro Feld
 
 import React from 'react'
 import { useTheme } from '../ThemeProvider'
@@ -19,6 +19,10 @@ type PlayerInfo = {
 type Props = {
   rounds: RoundData[]
   players: PlayerInfo[]
+  width?: number
+  height?: number
+  /** Minimale Breite pro Feld-Gruppe (fuer wachsende Charts) */
+  minGroupWidth?: number
 }
 
 // Hilfsfunktionen für Farbanpassung (heller/dunkler für 3D-Effekt)
@@ -38,20 +42,21 @@ function darkenColor(hex: string, percent: number): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-export default function ATBPirateScoreChart({ rounds, players }: Props) {
+export default function ATBCaptureScoreChart({ rounds, players, width, height, minGroupWidth = 40 }: Props) {
   const { colors } = useTheme()
 
   if (rounds.length === 0 || players.length === 0) {
     return <div style={{ color: colors.fgMuted, padding: 16 }}>Keine Daten verfügbar</div>
   }
 
-  // Chart-Dimensionen
-  const chartWidth = 700
-  const chartHeight = 280
+  // Chart-Dimensionen (dynamisch bei width/height Props)
   const paddingLeft = 40
   const paddingRight = 20
   const paddingTop = 20
   const paddingBottom = 50
+  const chartHeight = height ?? 280
+  const minWidth = paddingLeft + paddingRight + rounds.length * minGroupWidth
+  const chartWidth = Math.max(width ?? 700, minWidth)
 
   const graphWidth = chartWidth - paddingLeft - paddingRight
   const graphHeight = chartHeight - paddingTop - paddingBottom

@@ -10,10 +10,8 @@ import {
   formatDuration,
   getModeLabel,
   getDirectionLabel,
-  DEFAULT_ATB_CONFIG,
 } from '../dartsAroundTheBlock'
 import { computeATBMatchStats } from '../stats/computeATBStats'
-import ATBDartboard from '../components/ATBDartboard'
 
 // Spielerfarben (satte Farben, konsistent mit GameATB)
 const PLAYER_COLORS = [
@@ -63,76 +61,12 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
   const winner = match.players.find(p => p.playerId === storedMatch.winnerId)
   const totalFields = match.sequence.length
   const matchStats = computeATBMatchStats(storedMatch)
-  const config = match.config ?? DEFAULT_ATB_CONFIG
-  const isPirate = config.gameMode === 'pirate'
-
   // Spieler nach Fortschritt sortieren (Gewinner zuerst)
   const sortedPlayers = [...match.players].sort((a, b) => {
     const progressA = state.currentIndexByPlayer[a.playerId] ?? 0
     const progressB = state.currentIndexByPlayer[b.playerId] ?? 0
     return progressB - progressA
   })
-
-  // Piratenmodus: Spieler nach gewonnenen Feldern sortieren
-  const pirateSortedPlayers = useMemo(() => {
-    if (!isPirate || !state.pirateState) return []
-
-    return [...match.players].sort((a, b) => {
-      const fieldsA = Object.values(state.pirateState!.fieldWinners).filter(w => w === a.playerId).length
-      const fieldsB = Object.values(state.pirateState!.fieldWinners).filter(w => w === b.playerId).length
-      if (fieldsB !== fieldsA) return fieldsB - fieldsA
-      // Tiebreaker: Gesamtpunkte
-      const pointsA = state.pirateState!.totalScoreByPlayer[a.playerId] ?? 0
-      const pointsB = state.pirateState!.totalScoreByPlayer[b.playerId] ?? 0
-      return pointsB - pointsA
-    })
-  }, [isPirate, state.pirateState, match.players])
-
-  // Piratenmodus: Feld-Besitzer für Dartboard
-  const fieldOwners = useMemo(() => {
-    if (!isPirate || !state.pirateState) return undefined
-
-    const owners: Record<string, { playerId: string; color: string } | 'tie'> = {}
-    const fieldWinners = state.pirateState.fieldWinners
-
-    for (const [fieldKey, winnerId] of Object.entries(fieldWinners)) {
-      if (winnerId === null) {
-        owners[fieldKey] = 'tie'
-      } else {
-        const playerIndex = match.players.findIndex(p => p.playerId === winnerId)
-        owners[fieldKey] = {
-          playerId: winnerId,
-          color: PLAYER_COLORS[playerIndex >= 0 ? playerIndex % PLAYER_COLORS.length : 0],
-        }
-      }
-    }
-
-    return owners
-  }, [isPirate, state.pirateState, match.players])
-
-  // Piratenmodus: Statistik pro Spieler
-  const pirateStats = useMemo(() => {
-    if (!isPirate || !state.pirateState) return []
-
-    return match.players.map(p => {
-      const fieldsWon = Object.values(state.pirateState!.fieldWinners).filter(w => w === p.playerId).length
-      const ties = Object.values(state.pirateState!.fieldWinners).filter(w => w === null).length
-      const totalScore = state.pirateState!.totalScoreByPlayer[p.playerId] ?? 0
-      const isWinner = p.playerId === storedMatch.winnerId
-
-      return {
-        ...p,
-        fieldsWon,
-        ties,
-        totalScore,
-        isWinner,
-        color: PLAYER_COLORS[match.players.findIndex(pl => pl.playerId === p.playerId) % PLAYER_COLORS.length],
-      }
-    }).sort((a, b) => {
-      if (b.fieldsWon !== a.fieldsWon) return b.fieldsWon - a.fieldsWon
-      return b.totalScore - a.totalScore
-    })
-  }, [isPirate, state.pirateState, match.players, storedMatch.winnerId])
 
   return (
     <div style={styles.page}>
@@ -151,23 +85,11 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
               <span style={{ fontWeight: 600 }}>
                 {getModeLabel(match.mode)} · {getDirectionLabel(match.direction)}
               </span>
-              {isPirate && (
-                <span style={{
-                  background: colors.accent,
-                  color: colors.bg,
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}>
-                  🏴‍☠️ Piratenmodus
-                </span>
-              )}
             </div>
           </div>
 
           {/* Gewinner */}
-          {winner && !isPirate && (
+          {winner && (
             <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 14, color: colors.fgMuted, marginBottom: 4 }}>
                 Gewinner
@@ -192,70 +114,8 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
             </div>
           )}
 
-          {/* Piratenmodus: Gewinner mit Feldern */}
-          {winner && isPirate && pirateStats.length > 0 && (
-            <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: colors.fgMuted, marginBottom: 4 }}>
-                🏴‍☠️ Piratenmodus - Gewinner
-              </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
-                {winner.name}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
-                <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
-                    {pirateStats.find(p => p.isWinner)?.fieldsWon ?? 0}
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Felder gewonnen</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.warning }}>
-                    {pirateStats.find(p => p.isWinner)?.totalScore ?? 0}
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Punkte</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.fgDim }}>
-                    {formatDuration(storedMatch.durationMs ?? 0)}
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Zeit</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Piratenmodus: Dartboard mit Feldfarben */}
-          {isPirate && fieldOwners && (
-            <div style={{ ...styles.card, marginBottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ ...styles.sub, marginBottom: 12 }}>Feldverteilung</div>
-              <ATBDartboard
-                currentTarget={null}
-                players={[]}
-                size={280}
-                fieldOwners={fieldOwners}
-              />
-              <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {pirateStats.map(p => (
-                  <div key={p.playerId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, background: p.color, opacity: 0.75 }} />
-                    <span style={{ color: p.color, fontWeight: 600 }}>{p.name}: {p.fieldsWon}</span>
-                  </div>
-                ))}
-                {(() => {
-                  const ties = Object.values(state.pirateState?.fieldWinners ?? {}).filter(w => w === null).length
-                  return ties > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      <div style={{ width: 12, height: 12, borderRadius: 2, background: '#888', opacity: 0.75 }} />
-                      <span style={{ color: '#888', fontWeight: 600 }}>Unentschieden: {ties}</span>
-                    </div>
-                  ) : null
-                })()}
-              </div>
-            </div>
-          )}
-
-          {/* Spieler-Übersicht (klassischer Modus) */}
-          {!isPirate && (
+          {/* Spieler-Übersicht */}
+          {(
             <div style={{ ...styles.card, marginBottom: 16 }}>
               <div style={{ ...styles.sub, marginBottom: 8 }}>Ergebnisse</div>
               <div style={{ display: 'grid', gap: 8 }}>
@@ -295,55 +155,6 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
                       </div>
                       <div style={{ fontSize: 11, color: colors.fgMuted, marginTop: 4 }}>
                         {progress} / {totalFields} Felder
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Spieler-Übersicht (Piratenmodus) */}
-          {isPirate && pirateStats.length > 0 && (
-            <div style={{ ...styles.card, marginBottom: 16 }}>
-              <div style={{ ...styles.sub, marginBottom: 8 }}>Rangliste</div>
-              <div style={{ display: 'grid', gap: 8 }}>
-                {pirateStats.map((p, i) => {
-                  const percent = (p.fieldsWon / totalFields) * 100
-
-                  return (
-                    <div
-                      key={p.playerId}
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: 8,
-                        background: p.isWinner ? colors.successBg : colors.bgMuted,
-                        border: p.isWinner ? `2px solid ${colors.success}` : `1px solid ${colors.border}`,
-                        borderLeft: `4px solid ${p.color}`,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontWeight: p.isWinner ? 700 : 500, color: p.isWinner ? colors.success : colors.fg }}>
-                          {i + 1}. {p.name} {p.isWinner && '🏆'}
-                        </span>
-                        <span style={{ fontSize: 12, color: colors.fgMuted }}>
-                          {p.totalScore} Punkte
-                        </span>
-                      </div>
-                      {/* Felder-Bar */}
-                      <div style={{ height: 6, background: colors.bgSoft, borderRadius: 3, overflow: 'hidden' }}>
-                        <div
-                          style={{
-                            height: '100%',
-                            width: `${percent}%`,
-                            background: p.color,
-                            opacity: 0.8,
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontSize: 11, color: colors.fgMuted, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{p.fieldsWon} von {totalFields} Feldern</span>
-                        <span>{(percent).toFixed(0)}%</span>
                       </div>
                     </div>
                   )

@@ -28,10 +28,28 @@ import {
   dbSaveATBMatch,
   dbUpdateATBEvents,
   dbFinishATBMatch,
+  dbSaveCTFMatch,
+  dbUpdateCTFEvents,
+  dbSaveStrMatch,
+  dbUpdateStrEvents,
+  dbFinishStrMatch,
+  dbSaveHighscoreMatch,
+  dbUpdateHighscoreEvents,
+  dbFinishHighscoreMatch,
+  dbSaveShanghaiMatch,
+  dbUpdateShanghaiEvents,
+  dbSaveKillerMatch,
+  dbUpdateKillerEvents,
+  dbFinishKillerMatch,
   type DBProfile,
   type DBX01Match,
   type DBCricketMatch,
   type DBATBMatch,
+  type DBCTFMatch,
+  type DBStrMatch,
+  type DBHighscoreMatch,
+  type DBShanghaiMatch,
+  type DBKillerMatch,
 } from './db/storage'
 
 import {
@@ -243,6 +261,9 @@ export function pruneAllOldMatches(): boolean {
   freed = pruneOldX01Matches(50) || freed
   freed = pruneOldCricketMatches(50) || freed
   freed = pruneOldHighscoreMatches(50) || freed
+  freed = pruneOldCTFMatches(20) || freed
+  freed = pruneOldShanghaiMatches(20) || freed
+  freed = pruneOldKillerMatches(20) || freed
   return freed
 }
 
@@ -279,15 +300,69 @@ export type Profile = {
 
 // Cache für synchrone Zugriffe
 let profilesCache: Profile[] | null = null
+let usageCountsCache: Record<string, number> | null = null
+
+/**
+ * Zaehlt wie oft jeder Spieler in Matches aller Spielmodi vorkommt.
+ * Ergebnis wird gecacht und bei saveProfiles() invalidiert.
+ */
+function getPlayerUsageCounts(): Record<string, number> {
+  if (usageCountsCache) return usageCountsCache
+  const counts: Record<string, number> = {}
+  const bump = (pid: string) => { counts[pid] = (counts[pid] ?? 0) + 1 }
+
+  try {
+    // X01
+    const x01 = readJSON<StoredMatch[]>(LS_KEYS.matches, [])
+    for (const m of x01) for (const pid of (m.playerIds ?? [])) bump(pid)
+
+    // Cricket
+    const cricket = readJSON<CricketStoredMatch[]>(LS_CRICKET.matches, [])
+    for (const m of cricket) for (const pid of (m.playerIds ?? [])) bump(pid)
+
+    // ATB
+    const atb = readJSON<ATBStoredMatch[]>(LS_ATB.matches, [])
+    for (const m of atb) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // CTF
+    const ctf = readJSON<{ players?: { playerId: string }[] }[]>(LS_CTF.matches, [])
+    for (const m of ctf) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // Sträußchen
+    const str = readJSON<{ players?: { playerId: string }[] }[]>(LS_STR.matches, [])
+    for (const m of str) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // Shanghai
+    const shanghai = readJSON<{ players?: { playerId: string }[] }[]>(LS_SHANGHAI.matches, [])
+    for (const m of shanghai) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // Killer
+    const killer = readJSON<{ players?: { playerId: string }[] }[]>(LS_KILLER_MATCHES, [])
+    for (const m of killer) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // Highscore
+    const highscore = readJSON<{ players?: { playerId: string }[] }[]>(LS_HIGHSCORE.matches, [])
+    for (const m of highscore) for (const p of (m.players ?? [])) bump(p.playerId)
+  } catch {
+    // Bei Fehler: leere Counts -> keine Sortierung
+  }
+
+  usageCountsCache = counts
+  return counts
+}
 
 export function getProfiles(): Profile[] {
   // Synchroner Zugriff: Cache oder LocalStorage
   if (profilesCache) return profilesCache
-  return readJSON<Profile[]>(LS_KEYS.profiles, [])
+  const profiles = readJSON<Profile[]>(LS_KEYS.profiles, [])
+  const counts = getPlayerUsageCounts()
+  profiles.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
+  return profiles
 }
 
 export function saveProfiles(list: Profile[]) {
-  profilesCache = list
+  profilesCache = null  // Cache invalidieren, damit neu sortiert wird
+  usageCountsCache = null
   // SQLite ist jetzt primary - LocalStorage nur noch als Cache mit Cleanup
   writeJSONSafe(LS_KEYS.profiles, list, () => pruneAllOldMatches())
 }
@@ -2596,13 +2671,13 @@ export function importBackupMerge(
    Last Activity (Start Menu → "Spiel fortsetzen")
 ------------------------------------------------- */
 type LastActivityInfo = {
-  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore'
+  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'
   matchId: string
   ts: string
 }
 
 export function setLastActivity(
-  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore',
+  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer',
   matchId: string
 ) {
   const data: LastActivityInfo = {
@@ -2673,9 +2748,73 @@ export function getLastActivity():
       matchExists: true,
       finished: !!m.finished,
     }
-  } else {
-    // Sträußchen
+  } else if (raw.kind === 'str') {
     const m = getStrMatches().find(
+      mm => mm.id === raw.matchId
+    )
+    if (!m) {
+      return {
+        ...raw,
+        matchExists: false,
+        finished: true,
+      }
+    }
+    return {
+      ...raw,
+      matchExists: true,
+      finished: !!m.finished,
+    }
+  } else if (raw.kind === 'highscore') {
+    const m = getHighscoreMatches().find(
+      mm => mm.id === raw.matchId
+    )
+    if (!m) {
+      return {
+        ...raw,
+        matchExists: false,
+        finished: true,
+      }
+    }
+    return {
+      ...raw,
+      matchExists: true,
+      finished: !!m.finished,
+    }
+  } else if (raw.kind === 'ctf') {
+    const m = getCTFMatches().find(
+      mm => mm.id === raw.matchId
+    )
+    if (!m) {
+      return {
+        ...raw,
+        matchExists: false,
+        finished: true,
+      }
+    }
+    return {
+      ...raw,
+      matchExists: true,
+      finished: !!m.finished,
+    }
+  } else if (raw.kind === 'shanghai') {
+    const m = getShanghaiMatches().find(
+      mm => mm.id === raw.matchId
+    )
+    if (!m) {
+      return {
+        ...raw,
+        matchExists: false,
+        finished: true,
+      }
+    }
+    return {
+      ...raw,
+      matchExists: true,
+      finished: !!m.finished,
+    }
+  } else {
+    // Killer
+    const m = getKillerMatches().find(
       mm => mm.id === raw.matchId
     )
     if (!m) {
@@ -3268,7 +3407,7 @@ function savePausedMatchesMap(map: PausedMatchesMap) {
 /**
  * Markiert ein Match als pausiert.
  */
-export function setMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore', paused: boolean) {
+export function setMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer', paused: boolean) {
   const key = `${gameType}:${matchId}`
   const map = getPausedMatchesMap()
   if (paused) {
@@ -3282,7 +3421,7 @@ export function setMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'a
 /**
  * Prüft ob ein Match als pausiert markiert ist.
  */
-export function isMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore'): boolean {
+export function isMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'): boolean {
   const key = `${gameType}:${matchId}`
   const map = getPausedMatchesMap()
   return !!map[key]
@@ -3291,7 +3430,7 @@ export function isMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'at
 /**
  * Löscht den Pause-Status für ein Match.
  */
-export function clearMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'highscore') {
+export function clearMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer') {
   setMatchPaused(matchId, gameType, false)
 }
 
@@ -3320,7 +3459,7 @@ function saveElapsedTimeMap(map: ElapsedTimeMap) {
 /**
  * Speichert die verstrichene Zeit für ein Match (in ms).
  */
-export function setMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore', elapsedMs: number) {
+export function setMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer', elapsedMs: number) {
   const key = `${gameType}:${matchId}`
   const map = getElapsedTimeMap()
   map[key] = elapsedMs
@@ -3331,7 +3470,7 @@ export function setMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket'
  * Holt die gespeicherte verstrichene Zeit für ein Match (in ms).
  * Gibt 0 zurück wenn keine Zeit gespeichert ist.
  */
-export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore'): number {
+export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'): number {
   const key = `${gameType}:${matchId}`
   const map = getElapsedTimeMap()
   return map[key] ?? 0
@@ -3340,7 +3479,7 @@ export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket'
 /**
  * Löscht die gespeicherte Zeit für ein Match.
  */
-export function clearMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore') {
+export function clearMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer') {
   const key = `${gameType}:${matchId}`
   const map = getElapsedTimeMap()
   delete map[key]
@@ -3517,6 +3656,30 @@ export function createStrMatchShell(args: {
   strMatchesCache = all
   writeJSONSafe(LS_STR.matches, all, () => pruneAllOldMatches())
 
+  // SQLite Dual-Write
+  const dbMatch: DBStrMatch = {
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    mode: stored.mode,
+    targetNumber: stored.targetNumber ?? null,
+    numberOrder: stored.numberOrder ?? null,
+    turnOrder: stored.turnOrder ?? null,
+    ringMode: stored.ringMode ?? null,
+    bullMode: stored.bullMode ?? null,
+    bullPosition: stored.bullPosition ?? null,
+    players: stored.players,
+    events: stored.events,
+    structure: stored.structure,
+    generatedOrder: stored.generatedOrder,
+  }
+  dbSaveStrMatch(dbMatch).catch(err => trackDBError('str-create', stored.id, err))
+
   return stored
 }
 
@@ -3528,6 +3691,9 @@ export function persistStrEvents(matchId: string, events: StrEvent[]) {
   all[idx].events = events
   strMatchesCache = all
   writeJSONSafe(LS_STR.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateStrEvents(matchId, events as any[]).catch(err => trackDBError('str-events', matchId, err))
 }
 
 export function finishStrMatch(
@@ -3547,6 +3713,9 @@ export function finishStrMatch(
   all[idx].durationMs = durationMs
   strMatchesCache = all
   writeJSONSafe(LS_STR.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('str-finish', matchId, err))
 }
 
 export function deleteStrMatch(matchId: string) {
@@ -3556,6 +3725,972 @@ export function deleteStrMatch(matchId: string) {
   writeJSONSafe(LS_STR.matches, filtered)
   clearMatchPaused(matchId, 'str')
   clearMatchElapsedTime(matchId, 'str')
+}
+
+/* -------------------------------------------------
+   Capture the Field (CTF) Storage
+------------------------------------------------- */
+import type { CTFStoredMatch, CTFEvent, CTFStructure, CTFMatchConfig, CTFTarget, CTFMultiplierMode } from './types/captureTheField'
+import type { CTFPlayer } from './types/captureTheField'
+import { id as ctfId, now as ctfNow, generateCTFSequence, calculateFieldPoints } from './dartsCaptureTheField'
+
+const LS_CTF = {
+  matches: 'ctf.matches.v1',
+  lastOpenMatchId: 'ctf.lastOpenMatchId.v1',
+} as const
+
+let ctfMatchesCache: CTFStoredMatch[] | null = null
+
+export function getCTFMatches(): CTFStoredMatch[] {
+  if (ctfMatchesCache) return ctfMatchesCache
+  return readJSON<CTFStoredMatch[]>(LS_CTF.matches, [])
+}
+
+export function getCTFMatchById(matchId: string): CTFStoredMatch | null {
+  const matches = getCTFMatches()
+  return matches.find(m => m.id === matchId) ?? null
+}
+
+export function getOpenCTFMatch(): CTFStoredMatch | undefined {
+  const lastId = localStorage.getItem(LS_CTF.lastOpenMatchId)
+  if (!lastId) return undefined
+  const matches = getCTFMatches()
+  return matches.find(m => m.id === lastId && !m.finished)
+}
+
+export function setLastOpenCTFMatchId(matchId: string) {
+  localStorage.setItem(LS_CTF.lastOpenMatchId, matchId)
+}
+
+export function createCTFMatchShell(args: {
+  players: CTFPlayer[]
+  structure?: CTFStructure
+  config: CTFMatchConfig
+}): CTFStoredMatch {
+  const matchId = ctfId()
+  const structure: CTFStructure = args.structure ?? { kind: 'legs', bestOfLegs: 1 }
+
+  // Titel
+  let structureLabel = ''
+  if (structure.kind === 'legs' && structure.bestOfLegs > 1) {
+    const target = Math.ceil(structure.bestOfLegs / 2)
+    structureLabel = ` (First to ${target})`
+  } else if (structure.kind === 'sets') {
+    const target = Math.ceil(structure.bestOfSets / 2)
+    structureLabel = ` (First to ${target} Sets)`
+  }
+  const title = `Capture the Field${structureLabel} – ${args.players.map(p => p.name).join(' vs ')}`
+
+  // Generiere Sequenz
+  const generatedSequence = generateCTFSequence(args.config.bullPosition, args.config.sequenceMode)
+
+  const startEvent: CTFEvent = {
+    type: 'CTFMatchStarted',
+    eventId: ctfId(),
+    matchId,
+    ts: ctfNow(),
+    players: args.players,
+    structure,
+    config: args.config,
+    generatedSequence,
+  }
+
+  const legStartEvent: CTFEvent = {
+    type: 'CTFLegStarted',
+    eventId: ctfId(),
+    matchId,
+    ts: ctfNow(),
+    legId: ctfId(),
+    legIndex: 1,
+    setIndex: structure.kind === 'sets' ? 1 : undefined,
+  }
+
+  const stored: CTFStoredMatch = {
+    id: matchId,
+    title,
+    createdAt: ctfNow(),
+    players: args.players,
+    structure,
+    config: args.config,
+    events: [startEvent, legStartEvent],
+    generatedSequence,
+  }
+
+  const all = getCTFMatches()
+  all.push(stored)
+  ctfMatchesCache = all
+  writeJSONSafe(LS_CTF.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbSaveCTFMatch({
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    players: stored.players,
+    events: stored.events,
+    structure: stored.structure,
+    config: stored.config,
+    generatedSequence: stored.generatedSequence,
+  }).catch(err => trackDBError('ctf-save', stored.id, err))
+
+  return stored
+}
+
+export function persistCTFEvents(matchId: string, events: CTFEvent[]) {
+  const all = getCTFMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].events = events
+  ctfMatchesCache = all
+  writeJSONSafe(LS_CTF.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateCTFEvents(matchId, events).catch(err => trackDBError('ctf-events', matchId, err))
+}
+
+export function finishCTFMatch(
+  matchId: string,
+  winnerId: string,
+  winnerDarts: number,
+  durationMs: number
+) {
+  const all = getCTFMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].finished = true
+  all[idx].finishedAt = ctfNow()
+  all[idx].winnerId = winnerId
+  all[idx].winnerDarts = winnerDarts
+  all[idx].durationMs = durationMs
+
+  // Feldpunkte aus Events berechnen und speichern
+  const captureFieldPoints: Record<string, number> = {}
+  for (const p of (all[idx].players ?? [])) {
+    captureFieldPoints[p.playerId] = 0
+  }
+  for (const ev of (all[idx].events ?? [])) {
+    if (ev.type === 'CTFRoundFinished') {
+      const rfEv = ev as any
+      // fieldPoints aus Event oder retroaktiv berechnen
+      let fp = rfEv.fieldPoints as Record<string, number> | undefined
+      if (!fp) {
+        fp = {}
+        const scores = rfEv.scoresByPlayer as Record<string, number>
+        if (rfEv.winnerId) {
+          for (const pid of Object.keys(scores)) {
+            fp[pid] = pid === rfEv.winnerId ? 3 : 0
+          }
+        } else {
+          const maxScore = Math.max(...Object.values(scores))
+          for (const [pid, score] of Object.entries(scores)) {
+            fp[pid] = (score === maxScore && maxScore > 0) ? 1 : 0
+          }
+        }
+      }
+      for (const [pid, pts] of Object.entries(fp)) {
+        captureFieldPoints[pid] = (captureFieldPoints[pid] ?? 0) + pts
+      }
+    }
+  }
+  all[idx].captureFieldPoints = captureFieldPoints
+
+  ctfMatchesCache = all
+  writeJSONSafe(LS_CTF.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write: finales Speichern mit allen Daten
+  const match = all[idx]
+  dbSaveCTFMatch({
+    id: match.id,
+    title: match.title,
+    createdAt: match.createdAt,
+    finished: true,
+    finishedAt: match.finishedAt ?? null,
+    durationMs,
+    winnerId,
+    winnerDarts,
+    players: match.players,
+    events: match.events,
+    structure: match.structure,
+    config: match.config,
+    generatedSequence: match.generatedSequence,
+    captureFieldWinners: match.captureFieldWinners,
+    captureTotalScores: match.captureTotalScores,
+    captureFieldPoints: match.captureFieldPoints,
+  }).catch(err => trackDBError('ctf-finish', matchId, err))
+}
+
+export function deleteCTFMatch(matchId: string) {
+  const all = getCTFMatches()
+  const filtered = all.filter(m => m.id !== matchId)
+  ctfMatchesCache = filtered
+  writeJSONSafe(LS_CTF.matches, filtered)
+  clearMatchPaused(matchId, 'ctf')
+  clearMatchElapsedTime(matchId, 'ctf')
+}
+
+export function pruneOldCTFMatches(keepCount: number = 20): boolean {
+  const all = getCTFMatches()
+  if (all.length <= keepCount) return false
+  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+  const toDelete = all.length - keepCount
+  const pruned = all.slice(toDelete)
+  console.log(`[Storage] Pruning ${toDelete} old CTF matches, keeping ${pruned.length}`)
+  writeJSON(LS_CTF.matches, pruned)
+  ctfMatchesCache = pruned
+  return true
+}
+
+/* -------------------------------------------------
+   Shanghai Storage
+------------------------------------------------- */
+import type { ShanghaiStoredMatch, ShanghaiEvent, ShanghaiStructure, ShanghaiMatchConfig } from './types/shanghai'
+import type { ShanghaiPlayer } from './types/shanghai'
+import { id as shanghaiId, now as shanghaiNow } from './dartsShanghai'
+
+const LS_SHANGHAI = {
+  matches: 'shanghai.matches.v1',
+  lastOpenMatchId: 'shanghai.lastOpenMatchId.v1',
+} as const
+
+let shanghaiMatchesCache: ShanghaiStoredMatch[] | null = null
+
+export function getShanghaiMatches(): ShanghaiStoredMatch[] {
+  if (shanghaiMatchesCache) return shanghaiMatchesCache
+  return readJSON<ShanghaiStoredMatch[]>(LS_SHANGHAI.matches, [])
+}
+
+export function getShanghaiMatchById(matchId: string): ShanghaiStoredMatch | null {
+  const matches = getShanghaiMatches()
+  return matches.find(m => m.id === matchId) ?? null
+}
+
+export function getOpenShanghaiMatch(): ShanghaiStoredMatch | undefined {
+  const lastId = localStorage.getItem(LS_SHANGHAI.lastOpenMatchId)
+  if (!lastId) return undefined
+  const matches = getShanghaiMatches()
+  return matches.find(m => m.id === lastId && !m.finished)
+}
+
+export function setLastOpenShanghaiMatchId(matchId: string) {
+  localStorage.setItem(LS_SHANGHAI.lastOpenMatchId, matchId)
+}
+
+export function createShanghaiMatchShell(args: {
+  players: ShanghaiPlayer[]
+  structure?: ShanghaiStructure
+  config?: ShanghaiMatchConfig
+}): ShanghaiStoredMatch {
+  const matchId = shanghaiId()
+  const structure: ShanghaiStructure = args.structure ?? { kind: 'legs', bestOfLegs: 1 }
+  const config: ShanghaiMatchConfig = args.config ?? {}
+
+  // Titel
+  let structureLabel = ''
+  if (structure.kind === 'legs' && structure.bestOfLegs > 1) {
+    const target = Math.ceil(structure.bestOfLegs / 2)
+    structureLabel = ` (First to ${target})`
+  } else if (structure.kind === 'sets') {
+    const target = Math.ceil(structure.bestOfSets / 2)
+    structureLabel = ` (First to ${target} Sets)`
+  }
+  const title = `Shanghai${structureLabel} – ${args.players.map(p => p.name).join(' vs ')}`
+
+  const startEvent: ShanghaiEvent = {
+    type: 'ShanghaiMatchStarted',
+    eventId: shanghaiId(),
+    matchId,
+    ts: shanghaiNow(),
+    players: args.players,
+    structure,
+    config,
+  }
+
+  const legStartEvent: ShanghaiEvent = {
+    type: 'ShanghaiLegStarted',
+    eventId: shanghaiId(),
+    matchId,
+    ts: shanghaiNow(),
+    legId: shanghaiId(),
+    legIndex: 1,
+    setIndex: structure.kind === 'sets' ? 1 : undefined,
+  }
+
+  const stored: ShanghaiStoredMatch = {
+    id: matchId,
+    title,
+    createdAt: shanghaiNow(),
+    players: args.players,
+    structure,
+    config,
+    events: [startEvent, legStartEvent],
+  }
+
+  const all = getShanghaiMatches()
+  all.push(stored)
+  shanghaiMatchesCache = all
+  writeJSONSafe(LS_SHANGHAI.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbSaveShanghaiMatch({
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    players: stored.players,
+    events: stored.events,
+    structure: stored.structure,
+    config: stored.config,
+  }).catch(err => trackDBError('shanghai-save', stored.id, err))
+
+  return stored
+}
+
+export function persistShanghaiEvents(matchId: string, events: ShanghaiEvent[]) {
+  const all = getShanghaiMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].events = events
+  shanghaiMatchesCache = all
+  writeJSONSafe(LS_SHANGHAI.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateShanghaiEvents(matchId, events).catch(err => trackDBError('shanghai-events', matchId, err))
+}
+
+export function finishShanghaiMatch(
+  matchId: string,
+  winnerId: string | null,
+  winnerDarts: number,
+  durationMs: number
+) {
+  const all = getShanghaiMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].finished = true
+  all[idx].finishedAt = shanghaiNow()
+  all[idx].winnerId = winnerId
+  all[idx].winnerDarts = winnerDarts
+  all[idx].durationMs = durationMs
+
+  // Final scores aus letztem LegFinished Event
+  const legFinished = all[idx].events.filter((e: any) => e.type === 'ShanghaiLegFinished')
+  const lastLeg = legFinished[legFinished.length - 1] as any
+  if (lastLeg?.finalScores) {
+    all[idx].finalScores = lastLeg.finalScores
+  }
+
+  shanghaiMatchesCache = all
+  writeJSONSafe(LS_SHANGHAI.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  const match = all[idx]
+  dbSaveShanghaiMatch({
+    id: match.id,
+    title: match.title,
+    createdAt: match.createdAt,
+    finished: true,
+    finishedAt: match.finishedAt ?? null,
+    durationMs,
+    winnerId,
+    winnerDarts,
+    players: match.players,
+    events: match.events,
+    structure: match.structure,
+    config: match.config,
+    finalScores: match.finalScores,
+    legWins: match.legWins,
+    setWins: match.setWins,
+  }).catch(err => trackDBError('shanghai-finish', matchId, err))
+}
+
+export function deleteShanghaiMatch(matchId: string) {
+  const all = getShanghaiMatches()
+  const filtered = all.filter(m => m.id !== matchId)
+  shanghaiMatchesCache = filtered
+  writeJSONSafe(LS_SHANGHAI.matches, filtered)
+  clearMatchPaused(matchId, 'shanghai')
+  clearMatchElapsedTime(matchId, 'shanghai')
+}
+
+export function pruneOldShanghaiMatches(keepCount: number = 20): boolean {
+  const all = getShanghaiMatches()
+  if (all.length <= keepCount) return false
+  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+  const toDelete = all.length - keepCount
+  const pruned = all.slice(toDelete)
+  console.log(`[Storage] Pruning ${toDelete} old Shanghai matches, keeping ${pruned.length}`)
+  writeJSON(LS_SHANGHAI.matches, pruned)
+  shanghaiMatchesCache = pruned
+  return true
+}
+
+/* -------------------------------------------------
+   Killer Storage
+------------------------------------------------- */
+import type {
+  KillerPlayer,
+  KillerMatchConfig,
+  KillerStructure,
+  KillerStoredMatch,
+  KillerEvent,
+  KillerMatchStartedEvent,
+  KillerTargetsAssignedEvent,
+  KillerLegStartedEvent,
+} from './types/killer'
+import { id as killerId, now as killerNow, defaultKillerStructure } from './dartsKiller'
+
+const LS_KILLER_MATCHES = 'killer.matches.v1'
+
+let killerMatchesCache: KillerStoredMatch[] | null = null
+
+export function getKillerMatches(): KillerStoredMatch[] {
+  if (killerMatchesCache) return killerMatchesCache
+  return readJSON<KillerStoredMatch[]>(LS_KILLER_MATCHES, [])
+}
+
+export function getKillerMatchById(matchId: string): KillerStoredMatch | undefined {
+  const matches = getKillerMatches()
+  return matches.find(m => m.id === matchId)
+}
+
+export function getOpenKillerMatch(): KillerStoredMatch | undefined {
+  const matches = getKillerMatches()
+  return matches.find(m => !m.finished)
+}
+
+export function createKillerMatchShell(
+  players: KillerPlayer[],
+  config: KillerMatchConfig,
+  assignments: { playerId: string; targetNumber: number }[],
+  structure?: KillerStructure
+): KillerStoredMatch {
+  const matchId = killerId()
+  const tsNow = killerNow()
+  const resolvedStructure = structure ?? defaultKillerStructure()
+
+  const title = `Killer \u00b7 ${players.map(p => p.name).join(', ')}`
+
+  const startEvent: KillerMatchStartedEvent = {
+    type: 'KillerMatchStarted',
+    eventId: killerId(),
+    matchId,
+    ts: tsNow,
+    players,
+    config,
+    structure: resolvedStructure,
+  }
+
+  const assignEvent: KillerTargetsAssignedEvent = {
+    type: 'KillerTargetsAssigned',
+    eventId: killerId(),
+    matchId,
+    ts: tsNow,
+    assignments,
+  }
+
+  const legStartEvent: KillerLegStartedEvent = {
+    type: 'KillerLegStarted',
+    eventId: killerId(),
+    matchId,
+    ts: tsNow,
+    legIndex: 0,
+    setIndex: 0,
+    startingPlayerIndex: 0,
+  }
+
+  const stored: KillerStoredMatch = {
+    id: matchId,
+    title,
+    createdAt: tsNow,
+    players,
+    config,
+    events: [startEvent, legStartEvent, assignEvent],
+    structure: resolvedStructure,
+  }
+
+  const all = getKillerMatches()
+  all.push(stored)
+  killerMatchesCache = all
+  writeJSONSafe(LS_KILLER_MATCHES, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbSaveKillerMatch({
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    players: stored.players,
+    events: stored.events,
+    config: stored.config,
+    structure: resolvedStructure,
+  }).catch(err => trackDBError('killer-save', stored.id, err))
+
+  return stored
+}
+
+export function persistKillerEvents(matchId: string, events: KillerEvent[]) {
+  const all = getKillerMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].events = events
+  killerMatchesCache = all
+  writeJSONSafe(LS_KILLER_MATCHES, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateKillerEvents(matchId, events).catch(err => trackDBError('killer-events', matchId, err))
+}
+
+export function finishKillerMatch(
+  matchId: string,
+  winnerId: string | null,
+  finalStandings: { playerId: string; position: number; lives: number }[],
+  winnerDarts: number,
+  durationMs: number,
+  legWins?: Record<string, number>,
+  setWins?: Record<string, number>
+) {
+  const all = getKillerMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].finished = true
+  all[idx].finishedAt = killerNow()
+  all[idx].winnerId = winnerId
+  all[idx].winnerDarts = winnerDarts
+  all[idx].durationMs = durationMs
+  all[idx].finalStandings = finalStandings
+  if (legWins) all[idx].legWins = legWins
+  if (setWins) all[idx].setWins = setWins
+
+  killerMatchesCache = all
+  writeJSONSafe(LS_KILLER_MATCHES, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins)
+    .catch(err => trackDBError('killer-finish', matchId, err))
+}
+
+export function deleteKillerMatch(matchId: string) {
+  const all = getKillerMatches()
+  const filtered = all.filter(m => m.id !== matchId)
+  killerMatchesCache = filtered
+  writeJSONSafe(LS_KILLER_MATCHES, filtered)
+}
+
+export function pruneOldKillerMatches(keepCount: number = 20): boolean {
+  const all = getKillerMatches()
+  if (all.length <= keepCount) return false
+  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+  const toDelete = all.length - keepCount
+  const pruned = all.slice(toDelete)
+  console.log(`[Storage] Pruning ${toDelete} old Killer matches, keeping ${pruned.length}`)
+  writeJSON(LS_KILLER_MATCHES, pruned)
+  killerMatchesCache = pruned
+  return true
+}
+
+export function getKillerInfo(match: KillerStoredMatch): { players: number; winner: string | null; rounds: number } {
+  const players = match.players?.length ?? 0
+  const winner = match.winnerId
+    ? match.players.find(p => p.playerId === match.winnerId)?.name ?? null
+    : null
+  const rounds = (match.events || []).filter((e: any) => e.type === 'KillerTurnAdded')
+    .reduce((max: number, e: any) => Math.max(max, e.roundNumber ?? 0), 0)
+  return { players, winner, rounds }
+}
+
+/* -------------------------------------------------
+   Migration: ATB Capture/Pirate → CTF
+------------------------------------------------- */
+
+/**
+ * Baut eine Map von ATBTurnAdded.eventId → captureScore auf,
+ * indem die scoresByPlayer aus dem nächsten ATBCaptureRoundFinished/ATBPirateRoundFinished
+ * Event für jeden pendenden Turn zugeordnet werden.
+ */
+function buildCaptureScoreMap(events: ATBEvent[]): Map<string, number> {
+  const scores = new Map<string, number>()
+  const pendingTurns: { eventId: string; playerId: string }[] = []
+
+  for (const ev of events) {
+    if (ev.type === 'ATBTurnAdded') {
+      pendingTurns.push({ eventId: ev.eventId, playerId: ev.playerId })
+    } else if (ev.type === 'ATBCaptureRoundFinished' || ev.type === 'ATBPirateRoundFinished') {
+      for (const turn of pendingTurns) {
+        scores.set(turn.eventId, ev.scoresByPlayer[turn.playerId] ?? 0)
+      }
+      pendingTurns.length = 0
+    }
+  }
+
+  return scores
+}
+
+function convertATBEventsToCTF(events: ATBEvent[]): CTFEvent[] {
+  const captureScores = buildCaptureScoreMap(events)
+  const ctfEvents: CTFEvent[] = []
+
+  for (const ev of events) {
+    switch (ev.type) {
+      case 'ATBMatchStarted': {
+        const cfg = ev.config
+        ctfEvents.push({
+          type: 'CTFMatchStarted',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          ts: ev.ts,
+          players: ev.players.map(p => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
+          structure: ev.structure.kind === 'legs'
+            ? { kind: 'legs', bestOfLegs: ev.structure.bestOfLegs }
+            : { kind: 'sets', bestOfSets: ev.structure.bestOfSets, legsPerSet: ev.structure.legsPerSet },
+          config: {
+            multiplierMode: (cfg?.multiplierMode ?? 'standard') as CTFMultiplierMode,
+            rotateOrder: true,
+            bullPosition: cfg?.bullPosition,
+          },
+          generatedSequence: ev.generatedSequence?.map(t => ({ number: t.number })) ?? [],
+        })
+        break
+      }
+
+      case 'ATBLegStarted':
+        ctfEvents.push({
+          type: 'CTFLegStarted',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          ts: ev.ts,
+          legId: ev.legId,
+          legIndex: ev.legIndex,
+          setIndex: ev.setIndex,
+          newSequence: ev.newExtendedSequence?.map(t => ({ number: t.number })),
+        })
+        break
+
+      case 'ATBTurnAdded':
+        ctfEvents.push({
+          type: 'CTFTurnAdded',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          legId: ev.legId,
+          ts: ev.ts,
+          playerId: ev.playerId,
+          darts: ev.darts.map(d => ({ target: d.target, mult: d.mult })),
+          captureScore: captureScores.get(ev.eventId) ?? 0,
+        })
+        break
+
+      case 'ATBCaptureRoundFinished':
+      case 'ATBPirateRoundFinished':
+        ctfEvents.push({
+          type: 'CTFRoundFinished',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          legId: ev.legId,
+          ts: ev.ts,
+          fieldIndex: ev.fieldIndex,
+          fieldNumber: ev.fieldNumber,
+          scoresByPlayer: ev.scoresByPlayer,
+          winnerId: ev.winnerId,
+          fieldPoints: calculateFieldPoints(ev.scoresByPlayer, ev.winnerId),
+        })
+        break
+
+      case 'ATBLegFinished':
+        ctfEvents.push({
+          type: 'CTFLegFinished',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          legId: ev.legId,
+          ts: ev.ts,
+          winnerId: ev.winnerId,
+          winnerDarts: ev.winnerDarts,
+        })
+        break
+
+      case 'ATBSetFinished':
+        ctfEvents.push({
+          type: 'CTFSetFinished',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          ts: ev.ts,
+          setIndex: ev.setIndex,
+          winnerId: ev.winnerId,
+        })
+        break
+
+      case 'ATBMatchFinished':
+        ctfEvents.push({
+          type: 'CTFMatchFinished',
+          eventId: ev.eventId,
+          matchId: ev.matchId,
+          ts: ev.ts,
+          winnerId: ev.winnerId,
+          totalDarts: ev.totalDarts,
+          durationMs: ev.durationMs,
+        })
+        break
+    }
+  }
+
+  return ctfEvents
+}
+
+function convertATBMatchToCTF(atbMatch: ATBStoredMatch): CTFStoredMatch {
+  // Config kann auf dem Match-Objekt ODER im ATBMatchStarted-Event stecken
+  const startEvent = (atbMatch.events || []).find((e: any) => e.type === 'ATBMatchStarted') as any
+  const cfg = atbMatch.config ?? startEvent?.config
+
+  const ctfConfig: CTFMatchConfig = {
+    multiplierMode: (cfg?.multiplierMode ?? 'standard') as CTFMultiplierMode,
+    rotateOrder: true,
+    bullPosition: cfg?.bullPosition,
+  }
+
+  const ctfStructure: CTFStructure = atbMatch.structure.kind === 'legs'
+    ? { kind: 'legs', bestOfLegs: atbMatch.structure.bestOfLegs }
+    : { kind: 'sets', bestOfSets: atbMatch.structure.bestOfSets, legsPerSet: atbMatch.structure.legsPerSet }
+
+  const ctfPlayers: CTFPlayer[] = atbMatch.players.map(p => ({
+    playerId: p.playerId,
+    name: p.name,
+    isGuest: p.isGuest,
+  }))
+
+  return {
+    id: atbMatch.id,
+    title: atbMatch.title,
+    createdAt: atbMatch.createdAt,
+    players: ctfPlayers,
+    structure: ctfStructure,
+    config: ctfConfig,
+    events: convertATBEventsToCTF(atbMatch.events),
+    generatedSequence: atbMatch.generatedSequence?.map(t => ({ number: t.number })),
+    finished: atbMatch.finished,
+    finishedAt: atbMatch.finishedAt,
+    durationMs: atbMatch.durationMs,
+    winnerId: atbMatch.winnerId,
+    winnerDarts: atbMatch.winnerDarts,
+    legWins: atbMatch.legWins,
+    setWins: atbMatch.setWins,
+    captureFieldWinners: atbMatch.captureFieldWinners,
+    captureTotalScores: atbMatch.captureTotalScores,
+  }
+}
+
+/**
+ * Migriert alle fertigen ATB Capture/Pirate Matches nach CTF-Storage.
+ * Wird einmal beim App-Start ausgeführt, dann per Flag übersprungen.
+ */
+export function migrateATBCaptureMatchesToCTF(): void {
+  if (localStorage.getItem('ctf.migrated.v2') === 'true') return
+
+  const atbMatches = getATBMatches()
+
+  // GameMode kann auf m.config ODER im ATBMatchStarted-Event stecken
+  function isCaptureMatch(m: ATBStoredMatch): boolean {
+    const gm = m.config?.gameMode
+    if (gm === 'capture' || gm === 'pirate') return true
+    // Fallback: ATBMatchStarted-Event prüfen
+    const startEvent = (m.events || []).find((e: any) => e.type === 'ATBMatchStarted') as any
+    const evGm = startEvent?.config?.gameMode
+    return evGm === 'capture' || evGm === 'pirate'
+  }
+
+  // Alle Capture/Pirate Matches (fertige + unbeendete)
+  const allCapture = atbMatches.filter(isCaptureMatch)
+  const finishedCapture = allCapture.filter(m => m.finished)
+  const unfinishedCapture = allCapture.filter(m => !m.finished)
+
+  if (allCapture.length === 0) {
+    localStorage.setItem('ctf.migrated.v2', 'true')
+    return
+  }
+
+  console.log(`[Migration v2] Found ${finishedCapture.length} finished + ${unfinishedCapture.length} unfinished Capture/Pirate matches`)
+
+  const ctfMatches = getCTFMatches()
+  const removeFromATB: string[] = []
+
+  // Fertige Matches nach CTF migrieren
+  for (const atbMatch of finishedCapture) {
+    try {
+      // Idempotent: Skip wenn bereits in CTF vorhanden
+      if (ctfMatches.some(m => m.id === atbMatch.id)) {
+        removeFromATB.push(atbMatch.id)
+        continue
+      }
+      const ctfStored = convertATBMatchToCTF(atbMatch)
+      ctfMatches.push(ctfStored)
+      removeFromATB.push(atbMatch.id)
+    } catch (err) {
+      console.error(`[Migration] Failed to migrate match ${atbMatch.id}:`, err)
+    }
+  }
+
+  // Unbeendete Capture/Pirate Matches löschen (können nicht fortgesetzt werden)
+  for (const m of unfinishedCapture) {
+    removeFromATB.push(m.id)
+  }
+
+  if (removeFromATB.length > 0) {
+    // CTF-Matches speichern
+    ctfMatchesCache = ctfMatches
+    writeJSONSafe(LS_CTF.matches, ctfMatches, () => pruneAllOldMatches())
+
+    // Migrierte + unbeendete Matches aus ATB-Storage entfernen
+    const remainingATB = atbMatches.filter(m => !removeFromATB.includes(m.id))
+    atbMatchesCache = remainingATB
+    writeJSON(LS_ATB.matches, remainingATB)
+
+    console.log(`[Migration v2] Migrated ${finishedCapture.length}, deleted ${unfinishedCapture.length} unfinished`)
+  }
+
+  localStorage.setItem('ctf.migrated.v2', 'true')
+}
+
+/* -------------------------------------------------
+   Cleanup: Unbeendete Spiele nach 100 Stunden löschen
+------------------------------------------------- */
+
+const STALE_MATCH_THRESHOLD_MS = 100 * 60 * 60 * 1000 // 100 Stunden
+
+/**
+ * Löscht unbeendete Spiele aller Spieltypen, die älter als 100 Stunden sind.
+ * Wird beim App-Start ausgeführt.
+ */
+export function cleanupStaleUnfinishedMatches(): void {
+  const cutoff = Date.now() - STALE_MATCH_THRESHOLD_MS
+  let totalDeleted = 0
+
+  function isStale(createdAt: string | undefined, finished: boolean | undefined): boolean {
+    if (finished) return false
+    if (!createdAt) return false
+    return new Date(createdAt).getTime() < cutoff
+  }
+
+  // X01
+  {
+    const all = getMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      saveMatches(filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale X01 matches`)
+    }
+  }
+
+  // Cricket
+  {
+    const all = getCricketMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      saveCricketMatches(filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Cricket matches`)
+    }
+  }
+
+  // ATB
+  {
+    const all = getATBMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      atbMatchesCache = filtered
+      writeJSON(LS_ATB.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale ATB matches`)
+    }
+  }
+
+  // Sträußchen
+  {
+    const all = getStrMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      strMatchesCache = filtered
+      writeJSON(LS_STR.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Sträußchen matches`)
+    }
+  }
+
+  // CTF
+  {
+    const all = getCTFMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      ctfMatchesCache = filtered
+      writeJSON(LS_CTF.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale CTF matches`)
+    }
+  }
+
+  // Highscore
+  {
+    const all = getHighscoreMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      highscoreMatchesCache = filtered
+      writeJSON(LS_HIGHSCORE.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Highscore matches`)
+    }
+  }
+
+  // Shanghai
+  {
+    const all = getShanghaiMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      shanghaiMatchesCache = filtered
+      writeJSON(LS_SHANGHAI.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Shanghai matches`)
+    }
+  }
+
+  // Killer
+  {
+    const all = getKillerMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      killerMatchesCache = filtered
+      writeJSON(LS_KILLER_MATCHES, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Killer matches`)
+    }
+  }
+
+  if (totalDeleted > 0) {
+    console.log(`[Cleanup] Total: ${totalDeleted} stale unfinished matches deleted`)
+  }
 }
 
 /* -------------------------------------------------
@@ -3637,6 +4772,23 @@ export function createHighscoreMatchShell(args: {
   highscoreMatchesCache = all
   writeJSONSafe(LS_HIGHSCORE.matches, all, () => pruneAllOldMatches())
 
+  // SQLite Dual-Write
+  const dbMatch: DBHighscoreMatch = {
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    targetScore: stored.targetScore,
+    players: stored.players,
+    events: stored.events as any[],
+    structure: stored.structure,
+  }
+  dbSaveHighscoreMatch(dbMatch).catch(err => trackDBError('highscore-create', stored.id, err))
+
   return stored
 }
 
@@ -3648,6 +4800,9 @@ export function persistHighscoreEvents(matchId: string, events: HighscoreEvent[]
   all[idx].events = events
   highscoreMatchesCache = all
   writeJSONSafe(LS_HIGHSCORE.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateHighscoreEvents(matchId, events as any[]).catch(err => trackDBError('highscore-events', matchId, err))
 }
 
 export function finishHighscoreMatch(
@@ -3671,6 +4826,10 @@ export function finishHighscoreMatch(
   if (setWins) all[idx].setWins = setWins
   highscoreMatchesCache = all
   writeJSONSafe(LS_HIGHSCORE.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins)
+    .catch(err => trackDBError('highscore-finish', matchId, err))
 }
 
 export function deleteHighscoreMatch(matchId: string) {

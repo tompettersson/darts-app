@@ -4,6 +4,9 @@
 
 import type { StoredMatch, CricketStoredMatch } from '../storage'
 import type { ATBStoredMatch } from '../types/aroundTheBlock'
+import type { CTFStoredMatch } from '../types/captureTheField'
+import type { ShanghaiStoredMatch, ShanghaiTurnAddedEvent } from '../types/shanghai'
+import type { KillerStoredMatch, KillerTurnAddedEvent } from '../types/killer'
 import { isCheckout } from '../checkoutTable'
 import type { MatchFinished, VisitAdded } from '../darts501'
 import type { CricketMatchFinished, CricketTurnAdded, CricketMatchStarted } from '../dartsCricket'
@@ -880,5 +883,427 @@ export function computeATBHeadToHead(
     player2Wins,
     player1Stats,
     player2Stats,
+  }
+}
+
+// ============================================================
+// CTF (CAPTURE THE FIELD) HEAD-TO-HEAD STATS
+// ============================================================
+
+export type CTFH2HStats = {
+  // Übersicht
+  matchesPlayed: number
+  matchesWon: number
+
+  // Darts
+  totalDarts: number
+  avgDartsPerMatch: number
+
+  // Treffer
+  totalTriples: number
+  totalDoubles: number
+  totalSingles: number
+  totalMisses: number
+  hitRate: number // Prozent
+
+  // Capture-spezifisch
+  totalFieldsWon: number
+  totalScore: number
+  avgFieldsPerMatch: number
+  avgScorePerMatch: number
+}
+
+export type CTFHeadToHeadResult = {
+  player1Id: string
+  player2Id: string
+  h2hMatches: CTFStoredMatch[]
+  matchesPlayed: number
+  player1Wins: number
+  player2Wins: number
+  player1Stats: CTFH2HStats
+  player2Stats: CTFH2HStats
+}
+
+/**
+ * Berechnet CTF Stats für einen Spieler aus gegebenen Matches
+ */
+function computeCTFStatsFromMatches(
+  playerId: string,
+  matches: CTFStoredMatch[]
+): CTFH2HStats {
+  const stats: CTFH2HStats = {
+    matchesPlayed: 0,
+    matchesWon: 0,
+    totalDarts: 0,
+    avgDartsPerMatch: 0,
+    totalTriples: 0,
+    totalDoubles: 0,
+    totalSingles: 0,
+    totalMisses: 0,
+    hitRate: 0,
+    totalFieldsWon: 0,
+    totalScore: 0,
+    avgFieldsPerMatch: 0,
+    avgScorePerMatch: 0,
+  }
+
+  for (const match of matches) {
+    if (!match.finished) continue
+    if (!match.players.some(p => p.playerId === playerId)) continue
+
+    stats.matchesPlayed++
+
+    if (match.winnerId === playerId) {
+      stats.matchesWon++
+    }
+
+    // Darts und Treffer durchgehen
+    for (const event of match.events) {
+      if (event.type === 'CTFTurnAdded' && event.playerId === playerId) {
+        for (const dart of event.darts) {
+          stats.totalDarts++
+          if (dart.target === 'MISS') {
+            stats.totalMisses++
+          } else if (dart.mult === 3) {
+            stats.totalTriples++
+          } else if (dart.mult === 2) {
+            stats.totalDoubles++
+          } else {
+            stats.totalSingles++
+          }
+        }
+      }
+
+      // Felder gewonnen und Punkte
+      if (event.type === 'CTFRoundFinished') {
+        if (event.winnerId === playerId) {
+          stats.totalFieldsWon++
+        }
+        stats.totalScore += event.scoresByPlayer[playerId] ?? 0
+      }
+    }
+  }
+
+  // Averages berechnen
+  const hits = stats.totalDarts - stats.totalMisses
+  if (stats.totalDarts > 0) {
+    stats.hitRate = (hits / stats.totalDarts) * 100
+  }
+  if (stats.matchesPlayed > 0) {
+    stats.avgDartsPerMatch = stats.totalDarts / stats.matchesPlayed
+    stats.avgFieldsPerMatch = stats.totalFieldsWon / stats.matchesPlayed
+    stats.avgScorePerMatch = stats.totalScore / stats.matchesPlayed
+  }
+
+  return stats
+}
+
+/**
+ * Berechnet CTF Head-to-Head Stats zwischen zwei Spielern
+ */
+export function computeCTFHeadToHead(
+  player1Id: string,
+  player2Id: string,
+  allMatches: CTFStoredMatch[]
+): CTFHeadToHeadResult {
+  // Matches filtern wo BEIDE dabei waren
+  const h2hMatches = allMatches.filter(m =>
+    m.finished &&
+    m.players.some(p => p.playerId === player1Id) &&
+    m.players.some(p => p.playerId === player2Id)
+  )
+
+  // Match-Siege zählen
+  let player1Wins = 0
+  let player2Wins = 0
+
+  for (const match of h2hMatches) {
+    if (match.winnerId === player1Id) player1Wins++
+    if (match.winnerId === player2Id) player2Wins++
+  }
+
+  // Stats für beide Spieler berechnen
+  const player1Stats = computeCTFStatsFromMatches(player1Id, h2hMatches)
+  const player2Stats = computeCTFStatsFromMatches(player2Id, h2hMatches)
+
+  return {
+    player1Id,
+    player2Id,
+    h2hMatches,
+    matchesPlayed: h2hMatches.length,
+    player1Wins,
+    player2Wins,
+    player1Stats,
+    player2Stats,
+  }
+}
+
+// ============================================================
+// SHANGHAI HEAD-TO-HEAD STATS
+// ============================================================
+
+export type ShanghaiH2HStats = {
+  matchesPlayed: number
+  matchesWon: number
+  totalScore: number
+  avgScore: number
+  avgPerRound: number
+  totalDarts: number
+  shanghaiCount: number
+  triples: number
+  doubles: number
+  singles: number
+  misses: number
+  hitRate: number
+  bestScore: number
+}
+
+export type ShanghaiHeadToHeadResult = {
+  player1Id: string
+  player2Id: string
+  h2hMatches: ShanghaiStoredMatch[]
+  matchesPlayed: number
+  player1Wins: number
+  player2Wins: number
+  player1Stats: ShanghaiH2HStats
+  player2Stats: ShanghaiH2HStats
+}
+
+function computeShanghaiStatsFromMatches(
+  playerId: string,
+  matches: ShanghaiStoredMatch[]
+): ShanghaiH2HStats {
+  const stats: ShanghaiH2HStats = {
+    matchesPlayed: 0,
+    matchesWon: 0,
+    totalScore: 0,
+    avgScore: 0,
+    avgPerRound: 0,
+    totalDarts: 0,
+    shanghaiCount: 0,
+    triples: 0,
+    doubles: 0,
+    singles: 0,
+    misses: 0,
+    hitRate: 0,
+    bestScore: 0,
+  }
+
+  let totalRounds = 0
+
+  for (const match of matches) {
+    if (!match.finished) continue
+    if (!match.players.some(p => p.playerId === playerId)) continue
+
+    stats.matchesPlayed++
+
+    if (match.winnerId === playerId) {
+      stats.matchesWon++
+    }
+
+    const matchScore = match.finalScores?.[playerId] ?? 0
+    stats.totalScore += matchScore
+    if (matchScore > stats.bestScore) stats.bestScore = matchScore
+
+    const turns = match.events.filter(
+      (e): e is ShanghaiTurnAddedEvent => e.type === 'ShanghaiTurnAdded' && (e as any).playerId === playerId
+    )
+
+    totalRounds += turns.length
+
+    for (const turn of turns) {
+      if (turn.isShanghai) stats.shanghaiCount++
+
+      for (const dart of turn.darts) {
+        stats.totalDarts++
+        if (dart.target === 'MISS') {
+          stats.misses++
+        } else if (dart.target === turn.targetNumber) {
+          if (dart.mult === 3) stats.triples++
+          else if (dart.mult === 2) stats.doubles++
+          else stats.singles++
+        } else {
+          stats.misses++
+        }
+      }
+    }
+  }
+
+  const hits = stats.totalDarts - stats.misses
+  if (stats.totalDarts > 0) stats.hitRate = (hits / stats.totalDarts) * 100
+  if (stats.matchesPlayed > 0) stats.avgScore = stats.totalScore / stats.matchesPlayed
+  if (totalRounds > 0) stats.avgPerRound = stats.totalScore / totalRounds
+
+  return stats
+}
+
+export function computeShanghaiHeadToHead(
+  player1Id: string,
+  player2Id: string,
+  allMatches: ShanghaiStoredMatch[]
+): ShanghaiHeadToHeadResult {
+  const h2hMatches = allMatches.filter(m =>
+    m.finished &&
+    m.players.some(p => p.playerId === player1Id) &&
+    m.players.some(p => p.playerId === player2Id)
+  )
+
+  let player1Wins = 0
+  let player2Wins = 0
+  for (const match of h2hMatches) {
+    if (match.winnerId === player1Id) player1Wins++
+    if (match.winnerId === player2Id) player2Wins++
+  }
+
+  return {
+    player1Id,
+    player2Id,
+    h2hMatches,
+    matchesPlayed: h2hMatches.length,
+    player1Wins,
+    player2Wins,
+    player1Stats: computeShanghaiStatsFromMatches(player1Id, h2hMatches),
+    player2Stats: computeShanghaiStatsFromMatches(player2Id, h2hMatches),
+  }
+}
+
+// ============================================================
+// KILLER HEAD-TO-HEAD STATS
+// ============================================================
+
+export type KillerH2HStats = {
+  matchesPlayed: number
+  matchesWon: number
+  totalKills: number
+  avgKillsPerMatch: number
+  totalDarts: number
+  avgSurvivedRounds: number
+  avgPosition: number
+  livesLost: number
+  livesHealed: number
+}
+
+export type KillerHeadToHeadResult = {
+  player1Id: string
+  player2Id: string
+  h2hMatches: KillerStoredMatch[]
+  matchesPlayed: number
+  player1Wins: number
+  player2Wins: number
+  player1Stats: KillerH2HStats
+  player2Stats: KillerH2HStats
+}
+
+function computeKillerStatsFromMatches(
+  playerId: string,
+  matches: KillerStoredMatch[]
+): KillerH2HStats {
+  const stats: KillerH2HStats = {
+    matchesPlayed: 0,
+    matchesWon: 0,
+    totalKills: 0,
+    avgKillsPerMatch: 0,
+    totalDarts: 0,
+    avgSurvivedRounds: 0,
+    avgPosition: 0,
+    livesLost: 0,
+    livesHealed: 0,
+  }
+
+  let totalSurvivedRounds = 0
+  let totalPosition = 0
+
+  for (const match of matches) {
+    if (!match.finished) continue
+    if (!match.players.some(p => p.playerId === playerId)) continue
+
+    stats.matchesPlayed++
+    if (match.winnerId === playerId) stats.matchesWon++
+
+    const turns = match.events.filter(
+      (e): e is KillerTurnAddedEvent => e.type === 'KillerTurnAdded' && e.playerId === playerId
+    )
+
+    for (const turn of turns) {
+      stats.totalDarts += turn.darts.length
+      stats.totalKills += turn.eliminations.length
+
+      for (const lc of turn.livesChanges) {
+        if (lc.playerId === playerId) {
+          if (lc.delta < 0) stats.livesLost += Math.abs(lc.delta)
+          if (lc.delta > 0) stats.livesHealed += lc.delta
+        }
+      }
+    }
+
+    // Leben verloren durch andere Spieler
+    const otherTurns = match.events.filter(
+      (e): e is KillerTurnAddedEvent => e.type === 'KillerTurnAdded' && e.playerId !== playerId
+    )
+    for (const turn of otherTurns) {
+      for (const lc of turn.livesChanges) {
+        if (lc.playerId === playerId && lc.delta < 0) {
+          stats.livesLost += Math.abs(lc.delta)
+        }
+      }
+    }
+
+    // Position
+    const finishEvt = match.events.find(e => e.type === 'KillerMatchFinished')
+    if (finishEvt?.type === 'KillerMatchFinished') {
+      const standing = finishEvt.finalStandings.find(s => s.playerId === playerId)
+      if (standing) totalPosition += standing.position
+    }
+
+    // Survived rounds
+    const elimEvt = match.events.find(
+      e => e.type === 'KillerPlayerEliminated' && (e as any).playerId === playerId
+    )
+    if (elimEvt && elimEvt.type === 'KillerPlayerEliminated') {
+      totalSurvivedRounds += elimEvt.roundNumber
+    } else {
+      const lastTurn = [...match.events].reverse().find(
+        (e): e is KillerTurnAddedEvent => e.type === 'KillerTurnAdded'
+      )
+      if (lastTurn) totalSurvivedRounds += lastTurn.roundNumber
+    }
+  }
+
+  if (stats.matchesPlayed > 0) {
+    stats.avgKillsPerMatch = stats.totalKills / stats.matchesPlayed
+    stats.avgSurvivedRounds = totalSurvivedRounds / stats.matchesPlayed
+    stats.avgPosition = totalPosition / stats.matchesPlayed
+  }
+
+  return stats
+}
+
+export function computeKillerHeadToHead(
+  player1Id: string,
+  player2Id: string,
+  allMatches: KillerStoredMatch[]
+): KillerHeadToHeadResult {
+  const h2hMatches = allMatches.filter(m =>
+    m.finished &&
+    m.players.some(p => p.playerId === player1Id) &&
+    m.players.some(p => p.playerId === player2Id)
+  )
+
+  let player1Wins = 0
+  let player2Wins = 0
+  for (const match of h2hMatches) {
+    if (match.winnerId === player1Id) player1Wins++
+    if (match.winnerId === player2Id) player2Wins++
+  }
+
+  return {
+    player1Id,
+    player2Id,
+    h2hMatches,
+    matchesPlayed: h2hMatches.length,
+    player1Wins,
+    player2Wins,
+    player1Stats: computeKillerStatsFromMatches(player1Id, h2hMatches),
+    player2Stats: computeKillerStatsFromMatches(player2Id, h2hMatches),
   }
 }

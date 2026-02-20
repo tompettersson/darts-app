@@ -20,8 +20,6 @@ import {
 import {
   applyATBEvents,
   recordATBTurn,
-  recordATBPirateTurn,
-  isPirateRoundComplete,
   getActivePlayerId,
   calculateAdvance,
   calculateAdvanceExtended,
@@ -32,7 +30,6 @@ import {
   type ATBDart,
   type ATBTarget,
   type ATBMatchConfig,
-  type ATBPirateRoundFinishedEvent,
   DEFAULT_ATB_CONFIG,
 } from '../dartsAroundTheBlock'
 import ATBDartboard from '../components/ATBDartboard'
@@ -49,17 +46,8 @@ import {
   announceATBEliminated,
   announceATBMissBack,
   playTriple20Sound,
-  // Piratenmodus-Ansagen
-  announceATBPiratePlayerTurn,
-  announceATBPirateNewRound,
-  announceATBPiratePlayerScore,
-  announceATBPirateRoundResult,
-  announceATBPirateLastRounds,
-  announceATBPirateWinner,
-  announceATBPirateMatchEndRankings,
 } from '../speech'
 import { computeATBDetailedStats, type ATBDetailedStats } from '../stats/computeATBStats'
-import ATBPirateScoreChart from '../components/ATBPirateScoreChart'
 
 // Intermission-Typ für Leg-Zusammenfassung
 type ATBIntermission = {
@@ -193,16 +181,12 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
 
-      const config = state.match.config ?? DEFAULT_ATB_CONFIG
-      const isPirateMode = config.gameMode === 'pirate'
       const extSeq = state.match.extendedSequence
 
       announceGameStart(activePlayer.name)
 
       // Erstes Ziel direkt nach Game-On ansagen (mit Verzögerung)
-      const startIndex = isPirateMode
-        ? (state.pirateState?.currentFieldIndex ?? 0)
-        : (state.currentIndexByPlayer[activePlayerId] ?? 0)
+      const startIndex = state.currentIndexByPlayer[activePlayerId] ?? 0
 
       const firstTarget = extSeq
         ? extSeq[startIndex]?.number
@@ -212,16 +196,11 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
         lastAnnouncedPlayerRef.current = activePlayerId
         lastAnnouncedTargetRef.current = firstTarget
         setTimeout(() => {
-          if (isPirateMode) {
-            // Piratenmodus: "Round 1, [Name], [Target]"
-            announceATBPirateNewRound(activePlayer.name, firstTarget, startIndex + 1)
-          } else {
-            announceATBPlayerTurn(activePlayer.name, firstTarget)
-          }
+          announceATBPlayerTurn(activePlayer.name, firstTarget)
         }, 1200)
       }
     }
-  }, [state.match, activePlayerId, activePlayer, state.pirateState, state.currentIndexByPlayer])
+  }, [state.match, activePlayerId, activePlayer, state.currentIndexByPlayer])
 
   // Auto-Pause bei Tab-Wechsel/Fokusverlust
   useEffect(() => {
@@ -257,14 +236,10 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
     // Nur nach Game-On und wenn sich der Spieler geändert hat
     if (!gameOnAnnouncedRef.current) return
 
-    const config = state.match?.config ?? DEFAULT_ATB_CONFIG
-    const isPirateMode = config.gameMode === 'pirate'
     const extSeq = state.match?.extendedSequence
 
     // Target für diese Runde berechnen
-    const playerIndex = isPirateMode
-      ? (state.pirateState?.currentFieldIndex ?? 0)
-      : (state.currentIndexByPlayer[activePlayerId] ?? 0)
+    const playerIndex = state.currentIndexByPlayer[activePlayerId] ?? 0
 
     const currentTarget = extSeq
       ? extSeq[playerIndex]?.number
@@ -279,14 +254,10 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
 
       // Kurze Verzögerung für natürlichen Fluss
       setTimeout(() => {
-        if (!isPirateMode) {
-          // Klassischer Modus: Spielername + Ziel
-          announceATBPlayerTurn(activePlayer.name, currentTarget)
-        }
-        // Piratenmodus: Keine "your turn" Ansage - das wird später mit Ziel angesagt
+        announceATBPlayerTurn(activePlayer.name, currentTarget)
       }, 300)
     }
-  }, [activePlayerId, activePlayer, state.finished, state.match?.config, state.match?.sequence, state.match?.extendedSequence, state.pirateState?.currentFieldIndex, state.currentIndexByPlayer])
+  }, [activePlayerId, activePlayer, state.finished, state.match?.sequence, state.match?.extendedSequence, state.currentIndexByPlayer])
 
   if (!storedMatch || !state.match) {
     return (
@@ -304,18 +275,8 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
   const extSeq = state.match.extendedSequence
   const totalFields = extSeq ? extSeq.length : state.match.sequence.length
 
-  // Piratenmodus: Prüfe ob aktiv
-  const isPirate = config.gameMode === 'pirate'
-
-  // Piratenmodus: Aktuelles Feld (für alle Spieler gleich)
-  const pirateCurrentFieldIndex = state.pirateState?.currentFieldIndex ?? 0
-
   // Preview-Index basierend auf aktuellen Würfen
   const getPreviewIndex = (playerId: string): number => {
-    // Piratenmodus: Alle sehen das gleiche Feld
-    if (isPirate) {
-      return pirateCurrentFieldIndex
-    }
     const baseIndex = state.currentIndexByPlayer[playerId] ?? 0
     if (playerId !== activePlayerId || current.length === 0) {
       return baseIndex
@@ -395,9 +356,8 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
       announceATBHit(currentMult)
     }
 
-    // Sprachansage: Nächstes Ziel (wenn es sich ändert) - NUR IM KLASSISCHEN MODUS
-    // Im Piratenmodus bleibt das Target gleich für die ganze Runde
-    if (!isPirate && nextTargetAfterHit && nextTargetAfterHit !== lastAnnouncedTargetRef.current) {
+    // Sprachansage: Nächstes Ziel (wenn es sich ändert)
+    if (nextTargetAfterHit && nextTargetAfterHit !== lastAnnouncedTargetRef.current) {
       setTimeout(() => {
         announceATBNextTarget(nextTargetAfterHit)
         lastAnnouncedTargetRef.current = nextTargetAfterHit
@@ -406,7 +366,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
 
     // Nach jedem Wurf zurück auf Single
     setMult(1)
-  }, [activePlayerId, current, state, isPirate])
+  }, [activePlayerId, current, state])
 
   // Miss hinzufügen
   const addMiss = useCallback(() => {
@@ -429,71 +389,12 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
       darts.push({ target: 'MISS', mult: 1 })
     }
 
-    // Piratenmodus verwendet andere Funktion
-    const isPirate = config.gameMode === 'pirate'
-
-    const result = isPirate
-      ? recordATBPirateTurn(state, activePlayerId, darts)
-      : recordATBTurn(state, activePlayerId, darts)
+    const result = recordATBTurn(state, activePlayerId, darts)
 
     const newEvents: ATBEvent[] = [...events, result.turnEvent]
 
-    // Piratenmodus: Runden-Event hinzufügen falls vorhanden
-    if (isPirate && 'roundFinished' in result && result.roundFinished) {
-      newEvents.push(result.roundFinished as ATBPirateRoundFinishedEvent)
-    }
-
-    // Piratenmodus-Ansagen
-    if (isPirate) {
-      // Score des Spielers nach seinem Wurf ansagen
-      const pirateScore = result.turnEvent.pirateScore ?? 0
-      const currentPlayer = state.match?.players.find(p => p.playerId === activePlayerId)
-      if (currentPlayer) {
-        announceATBPiratePlayerScore(currentPlayer.name, pirateScore)
-      }
-
-      // Wenn Runde beendet: Ergebnis ansagen und nächstes Ziel/Spieler
-      if ('roundFinished' in result && result.roundFinished) {
-        const roundEvent = result.roundFinished as ATBPirateRoundFinishedEvent
-        const winnerPlayer = roundEvent.winnerId
-          ? state.match?.players.find(p => p.playerId === roundEvent.winnerId)
-          : null
-
-        // Nach kurzer Pause das Rundenergebnis ansagen
-        setTimeout(() => {
-          announceATBPirateRoundResult(winnerPlayer?.name ?? null, roundEvent.fieldNumber)
-        }, 800)
-
-        // Nur bei den letzten 3 Runden die verbleibenden Runden ansagen
-        const nextRoundIndex = roundEvent.fieldIndex + 1
-        setTimeout(() => {
-          announceATBPirateLastRounds(nextRoundIndex, totalFields)
-        }, 1600)
-
-        // Wenn das Match noch nicht fertig ist: Nächsten Spieler + Ziel ansagen
-        if (!result.legFinished && !result.matchFinished) {
-          const newState = applyATBEvents(newEvents)
-          const newFieldIndex = newState.pirateState?.currentFieldIndex ?? 0
-          const nextTarget = extSeq
-            ? extSeq[newFieldIndex]?.number
-            : state.match?.sequence[newFieldIndex]
-          const nextPlayer = newState.match?.players.find(
-            p => p.playerId === getActivePlayerId(newState)
-          )
-
-          if (nextTarget && nextPlayer) {
-            lastAnnouncedTargetRef.current = nextTarget
-            lastAnnouncedPlayerRef.current = nextPlayer.playerId
-            setTimeout(() => {
-              announceATBPirateNewRound(nextPlayer.name, nextTarget, newFieldIndex + 1)
-            }, 2000)
-          }
-        }
-      }
-    }
-
-    // Spezialregel-Ansagen (nur im klassischen Modus)
-    if (!isPirate) {
+    // Spezialregel-Ansagen
+    {
       const effects = result.turnEvent.specialEffects
       if (effects) {
         // Sudden Death: Spieler eliminiert
@@ -530,15 +431,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
       // Leg-Sieger ansagen
       const legWinner = state.match?.players.find(p => p.playerId === result.legFinished!.winnerId)
       if (legWinner) {
-        if (isPirate) {
-          // Piratenmodus: Gewinner mit Feldern ansagen
-          const newState = applyATBEvents(newEvents)
-          const fieldsWon = Object.values(newState.pirateState?.fieldWinners ?? {})
-            .filter(w => w === result.legFinished!.winnerId).length
-          announceATBPirateWinner(legWinner.name, fieldsWon)
-        } else {
-          announceATBWinner(legWinner.name, result.legFinished.winnerDarts, '')
-        }
+        announceATBWinner(legWinner.name, result.legFinished.winnerDarts, '')
       }
 
       // Set beendet?
@@ -554,25 +447,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
         // Match-Gewinner-Ansage
         const winnerPlayer = state.match?.players.find(p => p.playerId === result.matchFinished!.winnerId)
         if (winnerPlayer) {
-          if (isPirate) {
-            // Piratenmodus: Endplatzierungen berechnen und ansagen
-            const newState = applyATBEvents(newEvents)
-            const fieldWinners = newState.pirateState?.fieldWinners ?? {}
-
-            // Alle Spieler mit ihren gewonnenen Feldern
-            const rankings = state.match!.players.map(p => ({
-              name: p.name,
-              fields: Object.values(fieldWinners).filter(w => w === p.playerId).length,
-            }))
-
-            // Nach Feldern absteigend sortieren
-            rankings.sort((a, b) => b.fields - a.fields)
-
-            // Endplatzierungen ansagen (1., 2., 3. Platz)
-            announceATBPirateMatchEndRankings(rankings)
-          } else {
-            announceATBWinner(winnerPlayer.name, result.matchFinished.totalDarts, formatDuration(result.matchFinished.durationMs))
-          }
+          announceATBWinner(winnerPlayer.name, result.matchFinished.totalDarts, formatDuration(result.matchFinished.durationMs))
         }
 
         // Events speichern und zur Summary
@@ -766,30 +641,6 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
   // Spielerfarben-Hintergrund Einstellung
   const playerColorBgEnabled = getPlayerColorBackgroundEnabled()
 
-  // Piratenmodus: Feld-Besitzer für Dartboard (gewonnene Felder einfärben)
-  const fieldOwners = useMemo(() => {
-    if (!isPirate || !state.pirateState) return undefined
-
-    const owners: Record<string, { playerId: string; color: string } | 'tie'> = {}
-    const fieldWinners = state.pirateState.fieldWinners
-
-    for (const [fieldKey, winnerId] of Object.entries(fieldWinners)) {
-      if (winnerId === null) {
-        // Gleichstand
-        owners[fieldKey] = 'tie'
-      } else {
-        // Spieler hat gewonnen - Farbe aus Profil oder Fallback
-        const playerIndex = state.match?.players.findIndex(p => p.playerId === winnerId) ?? 0
-        owners[fieldKey] = {
-          playerId: winnerId,
-          color: playerColors[winnerId] ?? PLAYER_COLORS[playerIndex % PLAYER_COLORS.length],
-        }
-      }
-    }
-
-    return owners
-  }, [isPirate, state.pirateState, state.match?.players, playerColors])
-
   // Berechne welche Multiplier für die aktuelle Zahl leuchten sollen
   const pendingMultipliers = useMemo(() => {
     if (!activePlayerId) return undefined
@@ -902,9 +753,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
           color: c.accent,
           fontWeight: 600,
         }}>
-          {isPirate
-            ? `🏴‍☠️ Round ${pirateCurrentFieldIndex + 1} of ${totalFields}`
-            : state.match.structure.kind === 'sets'
+          {state.match.structure.kind === 'sets'
             ? `FT${state.match.structure.bestOfSets} Sets (FT${state.match.structure.legsPerSet} Legs)`
             : state.match.structure.bestOfLegs > 1
               ? `FT${state.match.structure.bestOfLegs} Legs`
@@ -912,39 +761,8 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
           }
         </span>
 
-        {/* Piratenmodus: Fortschrittsbalken */}
-        {isPirate && (
-          <div style={{
-            flex: '0 1 150px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            <div style={{
-              flex: 1,
-              height: 4,
-              background: colors.bgMuted,
-              borderRadius: 2,
-              overflow: 'hidden'
-            }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${((pirateCurrentFieldIndex + 1) / totalFields) * 100}%`,
-                  background: c.ledOn,
-                  transition: 'width 0.3s',
-                  borderRadius: 2,
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 10, color: c.textDim, minWidth: 22, textAlign: 'right' }}>
-              {Math.round(((pirateCurrentFieldIndex + 1) / totalFields) * 100)}%
-            </span>
-          </div>
-        )}
-
-        {/* Zielfelder-Modus (nur klassischer Modus) */}
-        {!isPirate && (
+        {/* Zielfelder-Modus */}
+        {(
           <span style={{
             background: isArcade ? '#1e293b' : colors.bgMuted,
             padding: '3px 8px',
@@ -1048,7 +866,6 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
             size={420}
             activePlayerColor={activePlayerColor}
             pendingMultipliers={pendingMultipliers}
-            fieldOwners={fieldOwners}
           />
 
           {/* Aktuelles Ziel groß unter der Dartscheibe */}
@@ -1062,67 +879,34 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
                 textAlign: 'center',
               }}
             >
-              {isPirate ? (
-                <>
-                  <div style={{ fontSize: 13, color: c.textDim, marginBottom: 4 }}>
-                    🏴‍☠️ Runde {pirateCurrentFieldIndex + 1} von {totalFields} – {activePlayer.name} wirft
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 56,
-                      fontWeight: 700,
-                      color: c.ledOn,
-                      textShadow: `0 0 25px ${c.ledGlow}`,
-                    }}
-                  >
-                    {nextTargetLabel}
-                  </div>
-                  {/* Punkte in dieser Runde */}
-                  {state.pirateState && Object.keys(state.pirateState.currentRoundTurns).length > 0 && (
-                    <div style={{ fontSize: 12, color: c.textDim, marginTop: 8 }}>
-                      {Object.entries(state.pirateState.currentRoundTurns).map(([pid, turn]) => {
-                        const player = state.match?.players.find(p => p.playerId === pid)
-                        return (
-                          <span key={pid} style={{ marginRight: 8 }}>
-                            {player?.name}: {turn.score} Pkt
-                          </span>
-                        )
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 13, color: c.textDim, marginBottom: 4 }}>
-                    {activePlayer.name} - Ziel:
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 56,
-                      fontWeight: 700,
-                      color: c.ledOn,
-                      textShadow: `0 0 25px ${c.ledGlow}`,
-                    }}
-                  >
-                    {nextTargetLabel}
-                  </div>
-                  {/* Spezialregel-Status */}
-                  {activeSpecialState?.needsBull && (
-                    <div style={{ fontSize: 16, color: c.yellow, marginTop: 8, fontWeight: 600 }}>
-                      🎯 Bull benötigt!
-                    </div>
-                  )}
-                  {activeSpecialState?.mustUseDouble && (
-                    <div style={{ fontSize: 16, color: c.yellow, marginTop: 8, fontWeight: 600 }}>
-                      🎯 Double erforderlich!
-                    </div>
-                  )}
-                  {activeSpecialState?.consecutiveMisses !== undefined && activeSpecialState.consecutiveMisses > 0 && (
-                    <div style={{ fontSize: 14, color: c.red, marginTop: 8 }}>
-                      ⚠️ Misses: {activeSpecialState.consecutiveMisses}/3
-                    </div>
-                  )}
-                </>
+              <div style={{ fontSize: 13, color: c.textDim, marginBottom: 4 }}>
+                {activePlayer.name} - Ziel:
+              </div>
+              <div
+                style={{
+                  fontSize: 56,
+                  fontWeight: 700,
+                  color: c.ledOn,
+                  textShadow: `0 0 25px ${c.ledGlow}`,
+                }}
+              >
+                {nextTargetLabel}
+              </div>
+              {/* Spezialregel-Status */}
+              {activeSpecialState?.needsBull && (
+                <div style={{ fontSize: 16, color: c.yellow, marginTop: 8, fontWeight: 600 }}>
+                  🎯 Bull benötigt!
+                </div>
+              )}
+              {activeSpecialState?.mustUseDouble && (
+                <div style={{ fontSize: 16, color: c.yellow, marginTop: 8, fontWeight: 600 }}>
+                  🎯 Double erforderlich!
+                </div>
+              )}
+              {activeSpecialState?.consecutiveMisses !== undefined && activeSpecialState.consecutiveMisses > 0 && (
+                <div style={{ fontSize: 14, color: c.red, marginTop: 8 }}>
+                  ⚠️ Misses: {activeSpecialState.consecutiveMisses}/3
+                </div>
               )}
             </div>
           )}
@@ -1242,17 +1026,6 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
                 const color = playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length]
                 const playerSpecial = state.specialStateByPlayer[p.playerId]
 
-                // Piratenmodus: Gewonnene Felder und Punkte berechnen
-                const pirateFieldsWon = isPirate && state.pirateState
-                  ? Object.values(state.pirateState.fieldWinners).filter(w => w === p.playerId).length
-                  : 0
-                const pirateTotalScore = isPirate && state.pirateState
-                  ? state.pirateState.totalScoreByPlayer[p.playerId] ?? 0
-                  : 0
-                const pirateHasThrownThisRound = isPirate && state.pirateState
-                  ? state.pirateState.playersCompletedThisRound.includes(p.playerId)
-                  : false
-
                 return (
                   <div
                     key={p.playerId}
@@ -1282,41 +1055,29 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
                         </span>
                       </div>
                       <span style={{ fontSize: 12, color: c.textDim }}>
-                        {isPirate ? `${pirateFieldsWon} Felder` : `${darts} Darts`}
+                        {darts} Darts
                       </span>
                     </div>
 
-                    {isPirate ? (
-                      // Piratenmodus: Punkte und Status anzeigen
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textDim }}>
-                        <span>{pirateTotalScore} Punkte</span>
-                        <span style={{ color: pirateHasThrownThisRound ? c.green : color }}>
-                          {pirateHasThrownThisRound ? '✓ Geworfen' : 'Wartet...'}
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Progress Bar (klassischer Modus) */}
-                        <div style={{ height: 6, background: '#333', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
-                          <div
-                            style={{
-                              height: '100%',
-                              width: `${percent}%`,
-                              background: color,
-                              boxShadow: `0 0 6px ${color}`,
-                              transition: 'width 0.3s',
-                            }}
-                          />
-                        </div>
+                    {/* Progress Bar */}
+                    <div style={{ height: 6, background: '#333', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${percent}%`,
+                          background: color,
+                          boxShadow: `0 0 6px ${color}`,
+                          transition: 'width 0.3s',
+                        }}
+                      />
+                    </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textDim }}>
-                          <span>{progress} / {totalFields}</span>
-                          <span style={{ color }}>
-                            {playerSpecial?.eliminated ? 'Ausgeschieden' : targetLabel ?? '✓ Fertig'}
-                          </span>
-                        </div>
-                      </>
-                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textDim }}>
+                      <span>{progress} / {totalFields}</span>
+                      <span style={{ color }}>
+                        {playerSpecial?.eliminated ? 'Ausgeschieden' : targetLabel ?? '✓ Fertig'}
+                      </span>
+                    </div>
                   </div>
                 )
               })}
@@ -1363,38 +1124,6 @@ function LegIntermissionModal({
   config: ATBMatchConfig
   onContinue: () => void
 }) {
-  const isPirate = config.gameMode === 'pirate'
-
-  // Pirate-Runden für Chart sammeln
-  const pirateRounds = useMemo(() => {
-    if (!isPirate) return []
-
-    // Finde das aktuelle Leg anhand der LegStarted Events
-    const legStartEvents = events
-      .map((e, idx) => ({ e, idx }))
-      .filter(({ e }) => e.type === 'ATBLegStarted')
-
-    const currentLegIdx = intermission.legIndex - 1 // 0-based
-    const legStartInfo = legStartEvents[currentLegIdx]
-    if (!legStartInfo) return []
-
-    const startIdx = legStartInfo.idx
-    // Finde das Ende des Legs (LegFinished Event oder Ende der Events)
-    const endIdx = events.findIndex((e, idx) => idx > startIdx && e.type === 'ATBLegFinished')
-    const legEvents = endIdx >= 0
-      ? events.slice(startIdx, endIdx + 1)
-      : events.slice(startIdx)
-
-    // Sammle ATBPirateRoundFinished Events
-    return legEvents
-      .filter((e): e is ATBPirateRoundFinishedEvent => e.type === 'ATBPirateRoundFinished')
-      .map(e => ({
-        fieldNumber: e.fieldNumber,
-        scoresByPlayer: e.scoresByPlayer,
-        winnerId: e.winnerId,
-      }))
-  }, [events, isPirate, intermission.legIndex])
-
   // Stats für dieses Leg berechnen
   const legStats = useMemo(() => {
     // Erstelle ein temporäres Match-Objekt für die Stats-Berechnung
@@ -1573,23 +1302,6 @@ function LegIntermissionModal({
                 </tr>
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* Punkte pro Feld Chart (nur Piratenmodus) */}
-        {isPirate && pirateRounds.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#9ca3af', marginBottom: 12 }}>
-              Punkte pro Feld
-            </div>
-            <ATBPirateScoreChart
-              rounds={pirateRounds}
-              players={match.players.map((p: any, idx: number) => ({
-                playerId: p.playerId,
-                name: p.name,
-                color: playerColors[idx % playerColors.length],
-              }))}
-            />
           </div>
         )}
 

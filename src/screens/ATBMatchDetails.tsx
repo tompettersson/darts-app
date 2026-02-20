@@ -8,8 +8,6 @@ import { applyATBEvents, formatDuration, formatDart, formatTarget, getSequence, 
 import type { ATBTurnAddedEvent, ATBLegStartedEvent, ATBLegFinishedEvent, ATBEvent } from '../dartsAroundTheBlock'
 import { computeATBDetailedStats, type ATBDetailedStats } from '../stats/computeATBStats'
 import ATBFieldEfficiencyChart from '../components/ATBFieldEfficiencyChart'
-import ATBPirateFieldDistributionChart from '../components/ATBPirateFieldDistributionChart'
-import ATBPirateScoreChart from '../components/ATBPirateScoreChart'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
@@ -225,40 +223,6 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
     return computeATBDetailedStats(match)
   }, [match])
 
-  // Piratenmodus-Check (muss vor early return sein)
-  // Fallback: config aus ATBMatchStarted Event holen, falls nicht direkt im Match
-  const isPirate = useMemo(() => {
-    if (!match) return false
-    const startEvent = match.events.find((e: any) => e.type === 'ATBMatchStarted') as any
-    const config = match.config ?? startEvent?.config ?? DEFAULT_ATB_CONFIG
-    return config.gameMode === 'pirate'
-  }, [match])
-
-  // Piratenmodus-Rundendaten für das Score-Chart (muss vor early return sein)
-  const pirateRounds = useMemo(() => {
-    if (!match || !isPirate || selectedLegIndex < 0) return []
-    const selectedLeg = legs[selectedLegIndex]
-    if (!selectedLeg) return []
-
-    const rounds: Array<{
-      fieldNumber: number | 'BULL'
-      scoresByPlayer: Record<string, number>
-      winnerId: string | null
-    }> = []
-
-    for (const event of match.events) {
-      if (event.type === 'ATBPirateRoundFinished' && event.legId === selectedLeg.legId) {
-        rounds.push({
-          fieldNumber: event.fieldNumber,
-          scoresByPlayer: event.scoresByPlayer,
-          winnerId: event.winnerId ?? null,
-        })
-      }
-    }
-
-    return rounds
-  }, [match, isPirate, selectedLegIndex, legs])
-
   // ===== EARLY RETURN - nach allen Hooks =====
   if (!match) {
     return (
@@ -303,6 +267,15 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
   } else if (match.structure?.kind === 'sets') {
     formatLabel = `First to ${Math.ceil(match.structure.bestOfSets / 2)} Sets (Best of ${Math.ceil(match.structure.legsPerSet / 2)} Legs)`
   }
+
+  // Special Rule erkennen
+  const startEvent = match.events.find((e: any) => e.type === 'ATBMatchStarted') as any
+  const matchConfig = (match as any).config ?? startEvent?.config ?? DEFAULT_ATB_CONFIG
+  const specialRuleLabel = matchConfig.specialRule === 'suddenDeath' ? '☠️ Sudden Death'
+    : matchConfig.specialRule === 'bullHeavy' ? 'Bull Heavy'
+    : matchConfig.specialRule === 'noDoubleEscape' ? 'No Double Escape'
+    : matchConfig.specialRule === 'miss3Back' ? 'Miss 3 → Back'
+    : ''
 
   // ===== LEG DETAIL VIEW =====
   if (selectedLeg) {
@@ -424,64 +397,6 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                 </tbody>
               </table>
             </div>
-
-            {/* Piratenmodus: Feldverteilung */}
-            {(() => {
-              const isPirate = (match.config ?? DEFAULT_ATB_CONFIG).gameMode === 'pirate'
-              if (!isPirate) return null
-
-              // Berechne die Feldverteilung für dieses Leg
-              const pirateFieldWinners: Record<string, string | null> = {}
-
-              // Sammle alle ATBPirateRoundFinished Events für dieses Leg
-              for (const event of match.events) {
-                if (event.type === 'ATBPirateRoundFinished' && event.legId === selectedLeg?.legId) {
-                  const fieldKey = String(event.fieldNumber)
-                  pirateFieldWinners[fieldKey] = event.winnerId ?? null
-                }
-              }
-
-              // Berechne die Verteilung
-              const fieldDistribution: Record<string, number> = {}
-              match.players.forEach(p => { fieldDistribution[p.playerId] = 0 })
-              fieldDistribution['ties'] = 0
-
-              for (const winnerId of Object.values(pirateFieldWinners)) {
-                if (winnerId === null) {
-                  fieldDistribution['ties']++
-                } else {
-                  fieldDistribution[winnerId] = (fieldDistribution[winnerId] ?? 0) + 1
-                }
-              }
-
-              // Konvertiere zu Chart-Format
-              const chartData = match.players
-                .filter(p => fieldDistribution[p.playerId] > 0)
-                .map((p, idx) => ({
-                  label: p.name,
-                  count: fieldDistribution[p.playerId],
-                  color: Object.values(playerColors)[idx % Object.values(playerColors).length],
-                }))
-
-              if (fieldDistribution['ties'] > 0) {
-                chartData.push({
-                  label: 'Unentschieden',
-                  count: fieldDistribution['ties'],
-                  color: colors.fgMuted,
-                })
-              }
-
-              if (chartData.length === 0) return null
-
-              return (
-                <div style={styles.card}>
-                  <div style={{ fontWeight: 700, marginBottom: 16 }}>🏴‍☠️ Feldverteilung</div>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <ATBPirateFieldDistributionChart data={chartData} size={240} />
-                  </div>
-                </div>
-              )
-            })()}
 
             {/* Erweiterte Leg-Statistiken */}
             {legDetailedStats.length > 0 && (
@@ -630,34 +545,20 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                   </table>
                 </div>
 
-                {/* Feld-Effizienz Chart (klassisch) oder Punkte pro Feld (Piratenmodus) */}
-                {isPirate ? (
-                  <div style={styles.card}>
-                    <div style={{ fontWeight: 700, marginBottom: 12 }}>🏴‍☠️ Punkte pro Feld</div>
-                    <ATBPirateScoreChart
-                      rounds={pirateRounds}
-                      players={match.players.map((p, idx) => ({
-                        playerId: p.playerId,
-                        name: p.name,
-                        color: playerColors[p.playerId] || PLAYER_COLORS[idx % PLAYER_COLORS.length],
-                      }))}
-                    />
-                  </div>
-                ) : (
-                  <div style={styles.card}>
-                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Effizienz</div>
-                    <ATBFieldEfficiencyChart
-                      players={legDetailedStats.map((ps) => ({
-                        playerId: ps.playerId,
-                        name: ps.playerName,
-                        color: playerColors[ps.playerId],
-                        statsPerField: ps.statsPerField,
-                        isWinner: ps.isWinner,
-                      }))}
-                      sequence={sequence}
-                    />
-                  </div>
-                )}
+                {/* Feld-Effizienz Chart */}
+                <div style={styles.card}>
+                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Effizienz</div>
+                  <ATBFieldEfficiencyChart
+                    players={legDetailedStats.map((ps) => ({
+                      playerId: ps.playerId,
+                      name: ps.playerName,
+                      color: playerColors[ps.playerId],
+                      statsPerField: ps.statsPerField,
+                      isWinner: ps.isWinner,
+                    }))}
+                    sequence={sequence}
+                  />
+                </div>
               </>
             )}
 
@@ -771,6 +672,33 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
             playedAt={match.createdAt}
             onBack={onBack}
           />
+
+          {/* Match-Eigenschaften */}
+          <div style={{ ...styles.card, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: colors.fgMuted, background: colors.bgMuted, padding: '2px 8px', borderRadius: 4 }}>
+              {modeLabel}
+            </span>
+            <span style={{ fontSize: 12, color: colors.fgMuted, background: colors.bgMuted, padding: '2px 8px', borderRadius: 4 }}>
+              {directionLabel}
+            </span>
+            {formatLabel && (
+              <span style={{ fontSize: 12, color: colors.fgMuted, background: colors.bgMuted, padding: '2px 8px', borderRadius: 4 }}>
+                {formatLabel}
+              </span>
+            )}
+            {specialRuleLabel && (
+              <span style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: matchConfig.specialRule === 'suddenDeath' ? '#ef4444' : colors.fgMuted,
+                background: matchConfig.specialRule === 'suddenDeath' ? 'rgba(239, 68, 68, 0.15)' : colors.bgMuted,
+                padding: '2px 8px',
+                borderRadius: 4,
+              }}>
+                {specialRuleLabel}
+              </span>
+            )}
+          </div>
 
           {/* Match-Statistik */}
           <div style={styles.card}>

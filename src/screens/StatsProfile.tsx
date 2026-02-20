@@ -1,8 +1,9 @@
 // src/screens/StatsProfile.tsx
 import React, { useEffect, useMemo, useState } from 'react'
-import { getProfiles, getStrMatches, getHighscoreMatches, getGlobalX01PlayerStats, type Profile } from '../storage'
+import { getProfiles, getStrMatches, getHighscoreMatches, getCTFMatches, getGlobalX01PlayerStats, type Profile } from '../storage'
 import { useTheme } from '../ThemeProvider'
 import { computeStrMatchStats, type StrPlayerMatchStat } from '../stats/computeStraeusschenStats'
+import { computeCTFMatchStats } from '../stats/computeCTFStats'
 
 // Chart-Komponenten
 import { BarChart, GaugeChart, ProgressBar, CheckoutHeatmap } from '../components/charts'
@@ -13,7 +14,7 @@ import SQLStatsTab from './stats/SQLStatsTab'
 // SQL Stats Hook
 import { useSQLStats, formatDuration } from '../hooks/useSQLStats'
 
-type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'speziell' | 'trends'
+type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'speziell' | 'trends'
 
 export default function StatsProfile({
   onOpenMatch,
@@ -233,6 +234,7 @@ export default function StatsProfile({
     { key: '121', label: 'Trainingsspiele' },
     { key: 'cricket', label: 'Cricket' },
     { key: 'atb', label: 'ATB' },
+    { key: 'ctf', label: 'CTF' },
     { key: 'speziell', label: 'Speziell' },
     { key: 'trends', label: 'Trends' },
   ]
@@ -492,6 +494,43 @@ export default function StatsProfile({
                 </div>
               )}
             </div>
+
+            {/* CTF (Capture the Field) - aus LocalStorage */}
+            {(() => {
+              const ctfAll = getCTFMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
+              const ctfMulti = ctfAll.filter(m => m.players.length > 1)
+              const ctfSolo = ctfAll.filter(m => m.players.length <= 1)
+              const ctfWon = ctfMulti.filter(m => m.winnerId === selected.id).length
+              const ctfWinRate = ctfMulti.length > 0 ? Math.round(ctfWon / ctfMulti.length * 100) : 0
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Capture the Field</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches (gegen Gegner)</span>
+                    <span style={s.statsValue}>{ctfMulti.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{ctfWon}</span>
+                  </div>
+                  {ctfMulti.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar
+                        value={ctfWinRate}
+                        label="Quote"
+                        color="#f59e0b"
+                      />
+                    </div>
+                  )}
+                  {ctfSolo.length > 0 && (
+                    <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{ctfSolo.length}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Spielaktivität */}
             <div style={s.statsCard}>
@@ -781,6 +820,16 @@ export default function StatsProfile({
                 <span style={s.statsLabel}>Legs gewonnen</span>
                 <span style={s.statsValueGood}>{s121.legsWon}</span>
               </div>
+              {s121.matchesPlayed > 0 && (<>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Matches gespielt</span>
+                <span style={s.statsValue}>{s121.matchesPlayed}</span>
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Matches gewonnen</span>
+                <span style={s.statsValueGood}>{s121.matchesWon}</span>
+              </div>
+              </>)}
               <div style={s.statsRow}>
                 <span style={s.statsLabel}>Gewinnquote</span>
                 <span style={s.statsValueHighlight}>{formatPct(s121.winRate)}</span>
@@ -1441,6 +1490,149 @@ export default function StatsProfile({
             )}
           </>
         )})()}
+
+        {/* ============ CTF / Capture the Field (LocalStorage) ============ */}
+        {activeTab === 'ctf' && selected && (() => {
+          const allCtfMatches = getCTFMatches()
+          const playerMatches = allCtfMatches.filter(m =>
+            m.finished && m.players.some(p => p.playerId === selected.id)
+          )
+          if (playerMatches.length === 0) return (
+            <div style={s.noData as React.CSSProperties}>Keine CTF-Statistiken vorhanden.</div>
+          )
+
+          const multiMatches = playerMatches.filter(m => m.players.length > 1)
+          const soloMatches = playerMatches.filter(m => m.players.length <= 1)
+
+          let totalDarts = 0
+          let totalTriples = 0
+          let totalDoubles = 0
+          let totalSingles = 0
+          let totalMisses = 0
+          let totalFieldsWon = 0
+          let totalScore = 0
+          let multiWon = 0
+
+          for (const m of playerMatches) {
+            if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
+            const stats = computeCTFMatchStats(m)
+            const ps = stats.find(s => s.playerId === selected.id)
+            if (!ps) continue
+            totalDarts += ps.totalDarts
+            totalTriples += ps.triples
+            totalDoubles += ps.doubles
+            totalSingles += ps.singles
+            totalMisses += ps.misses
+            totalFieldsWon += ps.fieldsWon
+            totalScore += ps.totalScore
+          }
+
+          const hits = totalDarts - totalMisses
+          const hitRate = totalDarts > 0 ? (hits / totalDarts) * 100 : 0
+          const multiTotal = multiMatches.length
+          const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
+          const avgScorePerMatch = playerMatches.length > 0 ? totalScore / playerMatches.length : 0
+          const avgFieldsPerMatch = playerMatches.length > 0 ? totalFieldsWon / playerMatches.length : 0
+
+          return (
+          <>
+            {/* Übersicht */}
+            <div style={s.statsCard}>
+              <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Matches gesamt</span>
+                <span style={s.statsValueHighlight}>{playerMatches.length}</span>
+              </div>
+              {multiTotal > 0 && (
+                <>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
+                    <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewinnquote</span>
+                    <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
+                  </div>
+                </>
+              )}
+              {soloMatches.length > 0 && (
+                <div style={s.statsRow}>
+                  <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                  <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Leistung */}
+            <div style={s.statsCard}>
+              <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Darts gesamt</span>
+                <span style={s.statsValue}>{totalDarts.toLocaleString('de-DE')}</span>
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Felder gewonnen</span>
+                <span style={s.statsValueGood}>{totalFieldsWon}</span>
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Ø Felder pro Match</span>
+                <span style={s.statsValueHighlight}>{formatNum(avgFieldsPerMatch, 1)}</span>
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Gesamtpunkte</span>
+                <span style={s.statsValueHighlight}>{totalScore.toLocaleString('de-DE')}</span>
+              </div>
+              <div style={s.statsRowLast}>
+                <span style={s.statsLabel}>Ø Punkte pro Match</span>
+                <span style={s.statsValue}>{formatNum(avgScorePerMatch, 1)}</span>
+              </div>
+            </div>
+
+            {/* Treffer */}
+            <div style={s.statsCard}>
+              <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
+              <div style={{ marginBottom: 8 }}>
+                <ProgressBar
+                  value={hitRate}
+                  label="Trefferquote"
+                  color="#10b981"
+                  height={16}
+                />
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Triples</span>
+                <span style={s.statsValueHighlight}>{totalTriples}</span>
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Doubles</span>
+                <span style={s.statsValue}>{totalDoubles}</span>
+              </div>
+              <div style={s.statsRow}>
+                <span style={s.statsLabel}>Singles</span>
+                <span style={s.statsValue}>{totalSingles}</span>
+              </div>
+              <div style={s.statsRowLast}>
+                <span style={s.statsLabel}>Fehlwürfe</span>
+                <span style={s.statsValueBad}>{totalMisses}</span>
+              </div>
+
+              {/* Treffer-Verteilung Balkendiagramm */}
+              {totalTriples + totalDoubles > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <BarChart
+                    data={[
+                      { label: 'Triples', value: totalTriples, color: '#ef4444' },
+                      { label: 'Doubles', value: totalDoubles, color: '#f59e0b' },
+                      { label: 'Singles', value: totalSingles, color: '#6b7280' },
+                    ]}
+                    height={18}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+          )
+        })()}
 
         {/* ============ TRENDS (SQL-basiert) ============ */}
         {activeTab === 'trends' && selected && (

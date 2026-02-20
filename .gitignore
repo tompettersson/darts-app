@@ -20,10 +20,13 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Test coverage
 coverage/
@@ -33,3 +36,14 @@ coverage/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# PartyKit
+.partykit/
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# Vitest
+.vitest/

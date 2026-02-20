@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "dev:party": "npx partykit dev",
+    "dev:all": "npx concurrently \"vite\" \"npx partykit dev\"",
     "build": "tsc && vite build",
+    "deploy:party": "npx partykit deploy",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -24,6 +27,7 @@
     "@sqlite.org/sqlite-wasm": "^3.51.2-build6",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "partysocket": "^1.1.13",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

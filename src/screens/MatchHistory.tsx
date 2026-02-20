@@ -9,15 +9,24 @@ import {
   getATBMatches,
   getStrMatches,
   getHighscoreMatches,
+  getCTFMatches,
+  getShanghaiMatches,
+  getKillerMatches,
   type StoredMatch,
   type CricketStoredMatch,
 } from '../storage'
 import type { ATBStoredMatch } from '../types/aroundTheBlock'
 import type { StrStoredMatch } from '../types/straeusschen'
 import type { HighscoreStoredMatch } from '../types/highscore'
+import type { CTFStoredMatch } from '../types/captureTheField'
+import type { ShanghaiStoredMatch } from '../types/shanghai'
+import type { KillerStoredMatch } from '../types/killer'
 import { getModeLabel, getDirectionLabel, formatDuration, DEFAULT_ATB_CONFIG } from '../dartsAroundTheBlock'
 import { formatDuration as formatStrDuration } from '../dartsStraeusschen'
 import { formatDuration as formatHsDuration } from '../dartsHighscore'
+import { formatDuration as formatCTFDuration } from '../dartsCaptureTheField'
+import { formatDuration as formatShanghaiDuration } from '../dartsShanghai'
+import { formatDuration as formatKillerDuration } from '../dartsKiller'
 
 type Props = {
   onBack: () => void
@@ -26,9 +35,12 @@ type Props = {
   onOpenATBMatch?: (matchId: string) => void
   onOpenStrMatch?: (matchId: string) => void
   onOpenHighscoreMatch?: (matchId: string) => void
+  onOpenCTFMatch?: (matchId: string) => void
+  onOpenShanghaiMatch?: (matchId: string) => void
+  onOpenKillerMatch?: (matchId: string) => void
 }
 
-type Filter = 'all' | 'x01' | '121' | 'cricket' | 'atb' | 'str' | 'highscore'
+type Filter = 'all' | 'x01' | '121' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'
 
 function fmtDate(s?: string) {
   if (!s) return '—'
@@ -140,10 +152,10 @@ function getATBInfo(m: ATBStoredMatch) {
   const isSets = m.structure?.kind === 'sets'
   const mode = `ATB ${isSets ? 'S' : 'L'}`
 
-  // Prüfe ob Piratenmodus - Fallback: config aus ATBMatchStarted Event holen
+  // Prüfe ob Capture the Field - Fallback: config aus ATBMatchStarted Event holen
   const startEvent = (m.events || []).find((e: any) => e.type === 'ATBMatchStarted') as any
   const config = m.config ?? startEvent?.config ?? DEFAULT_ATB_CONFIG
-  const isPirate = config.gameMode === 'pirate'
+  const isCapture = config.gameMode === 'capture' || config.gameMode === 'pirate'
 
   // Ergebnis: Legs/Sets gewonnen statt Darts
   let result = ''
@@ -172,7 +184,9 @@ function getATBInfo(m: ATBStoredMatch) {
 
   const duration = m.durationMs ? formatDuration(m.durationMs) : ''
 
-  return { mode, playerNames, winnerName, result, duration, isPirate }
+  const isSuddenDeath = config.specialRule === 'suddenDeath'
+
+  return { mode, playerNames, winnerName, result, duration, isCapture, isSuddenDeath }
 }
 
 function isFinishedATB(m: ATBStoredMatch) {
@@ -259,7 +273,108 @@ function isFinishedHighscore(m: HighscoreStoredMatch) {
   return !!m.finished
 }
 
-export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatch, onOpenATBMatch, onOpenStrMatch, onOpenHighscoreMatch }: Props) {
+function getCTFInfo(m: CTFStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : undefined
+
+  const isSets = m.structure?.kind === 'sets'
+  const mode = `CTF ${isSets ? 'S' : 'L'}`
+
+  let result = ''
+  if (m.finished && players.length >= 1) {
+    const winsPerPlayer: Record<string, number> = {}
+    for (const p of players) {
+      winsPerPlayer[p.playerId] = 0
+    }
+
+    if (isSets) {
+      const setEvents = (m.events || []).filter((e: any) => e.type === 'CTFSetFinished')
+      for (const ev of setEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    } else {
+      const legEvents = (m.events || []).filter((e: any) => e.type === 'CTFLegFinished')
+      for (const ev of legEvents) {
+        const wid = (ev as any).winnerId
+        if (wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+    }
+    const scores = players.map((p) => winsPerPlayer[p.playerId])
+    result = scores.join(':')
+  }
+
+  const duration = m.durationMs ? formatCTFDuration(m.durationMs) : ''
+
+  return { mode, playerNames, winnerName, result, duration }
+}
+
+function getShanghaiInfo(m: ShanghaiStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : m.winnerId === null && m.finished ? undefined : undefined
+
+  const isSets = m.structure?.kind === 'sets'
+  const mode = `Shanghai ${isSets ? 'S' : 'L'}`
+
+  let result = ''
+  if (m.finished && players.length >= 1) {
+    // Show final scores instead of leg wins for Shanghai
+    if (m.finalScores) {
+      const scores = players.map((p) => m.finalScores![p.playerId] ?? 0)
+      result = scores.join(':')
+    } else {
+      const winsPerPlayer: Record<string, number> = {}
+      for (const p of players) {
+        winsPerPlayer[p.playerId] = 0
+      }
+      const legEvents = (m.events || []).filter((e: any) => e.type === 'ShanghaiLegFinished')
+      for (const ev of legEvents) {
+        const wid = (ev as any).winnerId
+        if (wid && wid in winsPerPlayer) winsPerPlayer[wid]++
+      }
+      const scores = players.map((p) => winsPerPlayer[p.playerId])
+      result = scores.join(':')
+    }
+  }
+
+  const duration = m.durationMs ? formatShanghaiDuration(m.durationMs) : ''
+  const isDraw = m.finished && m.winnerId === null
+
+  return { mode, playerNames, winnerName, result, duration, isDraw }
+}
+
+function getKillerInfo(m: KillerStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : undefined
+
+  const mode = 'Killer'
+
+  let result = ''
+  if (m.finished && m.finalStandings) {
+    // Show position ranking
+    const sorted = [...m.finalStandings].sort((a, b) => a.position - b.position)
+    const top = sorted.slice(0, 3)
+    result = top.map((s) => {
+      const name = players.find((p) => p.playerId === s.playerId)?.name ?? '?'
+      return `${s.position}. ${name}`
+    }).join(', ')
+  }
+
+  const duration = m.durationMs ? formatKillerDuration(m.durationMs) : ''
+
+  return { mode, playerNames, winnerName, result, duration }
+}
+
+export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatch, onOpenATBMatch, onOpenStrMatch, onOpenHighscoreMatch, onOpenCTFMatch, onOpenShanghaiMatch, onOpenKillerMatch }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -291,6 +406,9 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   const atb = useMemo(() => getATBMatches(), [])
   const str = useMemo(() => getStrMatches(), [])
   const highscore = useMemo(() => getHighscoreMatches(), [])
+  const ctf = useMemo(() => getCTFMatches(), [])
+  const shanghai = useMemo(() => getShanghaiMatches(), [])
+  const killer = useMemo(() => getKillerMatches(), [])
 
   const items = useMemo(() => {
     const x01Items = x01.map((m) => {
@@ -339,7 +457,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         winnerName: info.winnerName,
         result: info.result,
         duration: info.duration,
-        isPirate: info.isPirate,
+        isCapture: info.isCapture,
+        isSuddenDeath: info.isSuddenDeath,
       }
     })
 
@@ -374,8 +493,57 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       }
     })
 
+    const ctfItems = ctf.map((m) => {
+      const info = getCTFInfo(m)
+      return {
+        kind: 'ctf' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: !!m.finished,
+        mode: info.mode,
+        matchName: undefined as string | undefined,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+      }
+    })
+
+    const shanghaiItems = shanghai.map((m) => {
+      const info = getShanghaiInfo(m)
+      return {
+        kind: 'shanghai' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: !!m.finished,
+        mode: info.mode,
+        matchName: undefined as string | undefined,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+        isDraw: info.isDraw,
+      }
+    })
+
+    const killerItems = killer.map((m) => {
+      const info = getKillerInfo(m)
+      return {
+        kind: 'killer' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: !!m.finished,
+        mode: info.mode,
+        matchName: undefined as string | undefined,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+      }
+    })
+
     // Beendete/Unbeendete Matches anzeigen basierend auf Toggle
-    let merged = [...x01Items, ...cricketItems, ...atbItems, ...strItems, ...highscoreItems]
+    let merged = [...x01Items, ...cricketItems, ...atbItems, ...strItems, ...highscoreItems, ...ctfItems, ...shanghaiItems, ...killerItems]
     if (!showUnfinished) {
       merged = merged.filter((m) => m.finished)
     }
@@ -386,6 +554,9 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
     if (filter === 'atb') merged = merged.filter((x) => x.kind === 'atb')
     if (filter === 'str') merged = merged.filter((x) => x.kind === 'str')
     if (filter === 'highscore') merged = merged.filter((x) => x.kind === 'highscore')
+    if (filter === 'ctf') merged = merged.filter((x) => x.kind === 'ctf')
+    if (filter === 'shanghai') merged = merged.filter((x) => x.kind === 'shanghai')
+    if (filter === 'killer') merged = merged.filter((x) => x.kind === 'killer')
 
     // Suchfilter: Name, Datum, Spielernamen
     if (search.trim()) {
@@ -406,7 +577,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
 
     merged.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
     return merged
-  }, [x01, cricket, atb, str, highscore, filter, search, showUnfinished])
+  }, [x01, cricket, atb, str, highscore, ctf, shanghai, killer, filter, search, showUnfinished])
 
   return (
     <div style={styles.page}>
@@ -423,7 +594,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
           {/* Filter Buttons */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700, color: colors.fg }}>Filter:</span>
-            {(['all', 'x01', '121', 'cricket', 'atb', 'str', 'highscore'] as const).map((f) => (
+            {(['all', 'x01', '121', 'cricket', 'atb', 'ctf', 'shanghai', 'killer', 'str', 'highscore'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -442,7 +613,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                   fontWeight: 800,
                 }}
               >
-                {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : f === '121' ? '121' : f === 'cricket' ? 'Cricket' : f === 'atb' ? 'ATB' : f === 'str' ? 'Str' : 'HS'}
+                {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : f === '121' ? '121' : f === 'cricket' ? 'Cricket' : f === 'atb' ? 'ATB' : f === 'ctf' ? 'CTF' : f === 'shanghai' ? 'Shanghai' : f === 'killer' ? 'Killer' : f === 'str' ? 'Str' : 'HS'}
               </button>
             ))}
 
@@ -540,6 +711,9 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                 else if (m.kind === 'atb' && onOpenATBMatch) onOpenATBMatch(m.id)
                 else if (m.kind === 'str' && onOpenStrMatch) onOpenStrMatch(m.id)
                 else if (m.kind === 'highscore' && onOpenHighscoreMatch) onOpenHighscoreMatch(m.id)
+                else if (m.kind === 'ctf' && onOpenCTFMatch) onOpenCTFMatch(m.id)
+                else if (m.kind === 'shanghai' && onOpenShanghaiMatch) onOpenShanghaiMatch(m.id)
+                else if (m.kind === 'killer' && onOpenKillerMatch) onOpenKillerMatch(m.id)
               }}
               style={{
                 display: 'flex',
@@ -573,9 +747,11 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
               <span style={{ fontWeight: 700, minWidth: 70, color: colors.fg }}>
                 {m.matchName || m.mode}
                 {(m as any).isCrazy && ' 🤪'}
+                {(m as any).isCapture && ' 🚩'}
+                {(m as any).isSuddenDeath && ' ☠️'}
               </span>
               <span style={{ flex: 1, fontSize: 12, color: colors.fgMuted }}>
-                {m.playerNames.join(', ')}{(m as any).isPirate && ' 🏴‍☠️'}
+                {m.playerNames.join(', ')}
               </span>
               {m.result && (
                 <span style={{

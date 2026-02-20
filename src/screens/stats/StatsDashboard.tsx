@@ -1,19 +1,20 @@
 // src/screens/stats/StatsDashboard.tsx
 // "Vergleiche" - mit Kacheln-Navigation und Head-to-Head Feature
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { ui, getThemedUI } from '../../ui'
 import { useTheme } from '../../ThemeProvider'
-import { getProfiles, getFinishedNon121Matches, getFinished121Matches, getCricketMatches, getATBMatches, type Profile } from '../../storage'
-import { computeX01HeadToHead, computeCricketHeadToHead, computeATBHeadToHead } from '../../stats/computeHeadToHead'
-import type { X01HeadToHeadResult, CricketHeadToHeadResult, ATBHeadToHeadResult } from '../../stats/computeHeadToHead'
+import { getProfiles, getFinishedNon121Matches, getFinished121Matches, getCricketMatches, getATBMatches, getCTFMatches, getShanghaiMatches, getKillerMatches, type Profile } from '../../storage'
+import { computeX01HeadToHead, computeCricketHeadToHead, computeATBHeadToHead, computeCTFHeadToHead, computeShanghaiHeadToHead, computeKillerHeadToHead } from '../../stats/computeHeadToHead'
+import type { X01HeadToHeadResult, CricketHeadToHeadResult, ATBHeadToHeadResult, CTFHeadToHeadResult, ShanghaiHeadToHeadResult, KillerHeadToHeadResult } from '../../stats/computeHeadToHead'
 import { compute121HeadToHead } from '../../stats/compute121HeadToHead'
 import type { Stats121HeadToHead } from '../../types/stats121'
 import { AVAILABLE_METRICS, getTrendForMetric, type MetricId } from '../../stats/computeTrendData'
 import { formatDuration } from '../../dartsAroundTheBlock'
+import ArcadeScrollPicker, { type PickerItem } from '../../components/ArcadeScrollPicker'
 
 export type DashboardView = 'menu' | 'h2h' | 'compare'
-export type DashboardGameMode = 'x01' | '121' | 'cricket' | 'atb'
+export type DashboardGameMode = 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'shanghai' | 'killer'
 
 // H2H State der von außen gesteuert werden kann
 export type H2HState = {
@@ -74,10 +75,14 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
     return getProfiles().filter(p => !p.name.startsWith('Spieler '))
   }, [])
 
+  // Arcade Picker Index für Menü
+  const [menuPickerIndex, setMenuPickerIndex] = useState(0)
+
   // Vergleiche-Ansicht State
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([])
   const [selectedMetric, setSelectedMetric] = useState<MetricId>('tda')
   const [matchLimit, setMatchLimit] = useState<number>(20)
+  const [multiplayerOnly, setMultiplayerOnly] = useState(false)
   const MATCH_LIMIT_OPTIONS = [3, 5, 10, 20, 30, 50] as const
 
   // Matches laden
@@ -85,6 +90,9 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
   const matches121 = useMemo(() => getFinished121Matches(), [])
   const cricketMatches = useMemo(() => getCricketMatches().filter(m => m.finished), [])
   const atbMatches = useMemo(() => getATBMatches().filter(m => m.finished), [])
+  const ctfMatches = useMemo(() => getCTFMatches().filter(m => m.finished), [])
+  const shanghaiMatches = useMemo(() => getShanghaiMatches().filter(m => m.finished), [])
+  const killerMatches = useMemo(() => getKillerMatches().filter(m => m.finished), [])
 
   // Head-to-Head berechnen
   const x01H2H = useMemo<X01HeadToHeadResult | null>(() => {
@@ -102,6 +110,21 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
     return computeATBHeadToHead(player1Id, player2Id, atbMatches)
   }, [player1Id, player2Id, atbMatches])
 
+  const ctfH2H = useMemo<CTFHeadToHeadResult | null>(() => {
+    if (!player1Id || !player2Id || player1Id === player2Id) return null
+    return computeCTFHeadToHead(player1Id, player2Id, ctfMatches)
+  }, [player1Id, player2Id, ctfMatches])
+
+  const shanghaiH2H = useMemo<ShanghaiHeadToHeadResult | null>(() => {
+    if (!player1Id || !player2Id || player1Id === player2Id) return null
+    return computeShanghaiHeadToHead(player1Id, player2Id, shanghaiMatches)
+  }, [player1Id, player2Id, shanghaiMatches])
+
+  const killerH2H = useMemo<KillerHeadToHeadResult | null>(() => {
+    if (!player1Id || !player2Id || player1Id === player2Id) return null
+    return computeKillerHeadToHead(player1Id, player2Id, killerMatches)
+  }, [player1Id, player2Id, killerMatches])
+
   const h2h121 = useMemo<Stats121HeadToHead | null>(() => {
     if (!player1Id || !player2Id || player1Id === player2Id) return null
     const converted = matches121.map(m => ({ matchId: m.id, events: (m.events ?? []) as any[] }))
@@ -110,7 +133,11 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
 
   const currentH2H = gameMode === 'x01' ? x01H2H
     : gameMode === '121' ? (h2h121 ? { matchesPlayed: h2h121.legsPlayed, player1Wins: h2h121.player1Wins, player2Wins: h2h121.player2Wins } : null)
-    : gameMode === 'cricket' ? cricketH2H : atbH2H
+    : gameMode === 'cricket' ? cricketH2H
+    : gameMode === 'ctf' ? ctfH2H
+    : gameMode === 'shanghai' ? shanghaiH2H
+    : gameMode === 'killer' ? killerH2H
+    : atbH2H
   const player1 = profiles.find(p => p.id === player1Id)
   const player2 = profiles.find(p => p.id === player2Id)
 
@@ -129,7 +156,7 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
   // Trend-Daten für Vergleiche-Ansicht
   const trendData = useMemo(() => {
     if (selectedPlayerIds.length === 0) return []
-    const raw = getTrendForMetric(selectedMetric, selectedPlayerIds, matchLimit)
+    const raw = getTrendForMetric(selectedMetric, selectedPlayerIds, matchLimit, multiplayerOnly)
     return raw.map((r) => {
       // Index in profiles für konsistente Farbzuweisung
       const profileIdx = profiles.findIndex(p => p.id === r.playerId)
@@ -143,7 +170,30 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
         values: r.values,
       }
     })
-  }, [selectedMetric, selectedPlayerIds, profiles, matchLimit])
+  }, [selectedMetric, selectedPlayerIds, profiles, matchLimit, multiplayerOnly])
+
+  // Dynamische Breite für Trend-Chart (Callback-Ref damit ResizeObserver auch bei View-Wechsel greift)
+  const [trendChartWidth, setTrendChartWidth] = useState(600)
+  const trendObserverRef = useRef<ResizeObserver | null>(null)
+  const trendChartRef = useRef<HTMLDivElement | null>(null)
+  const trendChartCallbackRef = (node: HTMLDivElement | null) => {
+    // Alten Observer aufräumen
+    if (trendObserverRef.current) {
+      trendObserverRef.current.disconnect()
+      trendObserverRef.current = null
+    }
+    trendChartRef.current = node
+    if (!node) return
+    // Sofort messen
+    setTrendChartWidth(node.clientWidth)
+    // Observer für Resize
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width
+      if (w && w > 0) setTrendChartWidth(Math.floor(w))
+    })
+    ro.observe(node)
+    trendObserverRef.current = ro
+  }
 
   // Styles (Theme-aware)
   const s = useMemo(() => ({
@@ -151,6 +201,13 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
       maxWidth: 800,
       margin: '0 auto',
       padding: '16px 16px 40px',
+      background: colors.bg,
+      color: colors.fg,
+    } as React.CSSProperties,
+    shellWide: {
+      maxWidth: 800,
+      margin: '0 auto',
+      padding: '16px 4px 40px',
       background: colors.bg,
       color: colors.fg,
     } as React.CSSProperties,
@@ -1046,7 +1103,7 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
                   fontWeight: winnerId === player2Id ? 700 : 500,
                   color: winnerId === player2Id ? (player2?.color || '#EF4444') : '#9CA3AF',
                 }}>
-                  {player2?.name?.substring(0, 10)}{match.config?.gameMode === 'pirate' && ' 🏴‍☠️'}
+                  {player2?.name?.substring(0, 10)}{(match.config?.gameMode === 'capture' || match.config?.gameMode === 'pirate') && ' 🚩'}
                 </span>
               </div>
 
@@ -1056,6 +1113,418 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
                   {match.winnerDarts} Darts
                 </span>
               )}
+
+              {/* Sieger-Indikator */}
+              <span style={{
+                width: 10,
+                height: 10,
+                borderRadius: 9999,
+                background: winnerProfile?.color || '#9CA3AF',
+              }} />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // CTF Stats Rendering
+  const renderCTFStats = () => {
+    if (!ctfH2H || ctfH2H.matchesPlayed === 0) {
+      return (
+        <div style={s.emptyState as React.CSSProperties}>
+          <div style={s.emptyStateTitle}>Keine gemeinsamen CTF-Spiele</div>
+          <div style={s.emptyStateSub as React.CSSProperties}>
+            Die beiden Spieler haben noch keine Capture the Field-Spiele gegeneinander gespielt.
+          </div>
+        </div>
+      )
+    }
+
+    const p1 = ctfH2H.player1Stats
+    const p2 = ctfH2H.player2Stats
+
+    return (
+      <>
+        {/* Übersicht */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+          <VersusBar label="Spiele" value1={p1.matchesPlayed} value2={p2.matchesPlayed} />
+          <VersusBar label="Siege" value1={p1.matchesWon} value2={p2.matchesWon} isLast />
+        </div>
+
+        {/* Felder & Punkte */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Felder & Punkte</div>
+          <VersusBar label="Felder ges." value1={p1.totalFieldsWon} value2={p2.totalFieldsWon} />
+          <VersusBar label="Ø Felder" value1={p1.avgFieldsPerMatch} value2={p2.avgFieldsPerMatch} format="decimal" />
+          <VersusBar label="Punkte ges." value1={p1.totalScore} value2={p2.totalScore} />
+          <VersusBar label="Ø Punkte" value1={p1.avgScorePerMatch} value2={p2.avgScorePerMatch} format="decimal" isLast />
+        </div>
+
+        {/* Darts */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Darts</div>
+          <VersusBar label="Total" value1={p1.totalDarts} value2={p2.totalDarts} />
+          <VersusBar label="Ø pro Spiel" value1={p1.avgDartsPerMatch} value2={p2.avgDartsPerMatch} format="decimal" isLast />
+        </div>
+
+        {/* Treffer */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
+          <VersusBar label="Triples" value1={p1.totalTriples} value2={p2.totalTriples} />
+          <VersusBar label="Doubles" value1={p1.totalDoubles} value2={p2.totalDoubles} />
+          <VersusBar label="Singles" value1={p1.totalSingles} value2={p2.totalSingles} />
+          <VersusBar label="Misses" value1={p1.totalMisses} value2={p2.totalMisses} higherIsBetter={false} />
+          <VersusBar label="Trefferquote" value1={p1.hitRate} value2={p2.hitRate} format="percent" isLast />
+        </div>
+
+        {/* Letzte 5 Spiele */}
+        {renderLast5CTFMatches()}
+      </>
+    )
+  }
+
+  // Shanghai Stats Rendering
+  const renderShanghaiStats = () => {
+    if (!shanghaiH2H || shanghaiH2H.matchesPlayed === 0) {
+      return (
+        <div style={s.emptyState as React.CSSProperties}>
+          <div style={s.emptyStateTitle}>Keine gemeinsamen Shanghai-Spiele</div>
+          <div style={s.emptyStateSub as React.CSSProperties}>
+            Die beiden Spieler haben noch keine Shanghai-Spiele gegeneinander gespielt.
+          </div>
+        </div>
+      )
+    }
+
+    const p1 = shanghaiH2H.player1Stats
+    const p2 = shanghaiH2H.player2Stats
+
+    return (
+      <>
+        {/* Übersicht */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+          <VersusBar label="Spiele" value1={p1.matchesPlayed} value2={p2.matchesPlayed} />
+          <VersusBar label="Siege" value1={p1.matchesWon} value2={p2.matchesWon} />
+          <VersusBar label="Shanghai!" value1={p1.shanghaiCount} value2={p2.shanghaiCount} isLast />
+        </div>
+
+        {/* Punkte */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Punkte</div>
+          <VersusBar label="Punkte ges." value1={p1.totalScore} value2={p2.totalScore} />
+          <VersusBar label="Ø Punkte" value1={p1.avgScore} value2={p2.avgScore} format="decimal" />
+          <VersusBar label="Ø pro Runde" value1={p1.avgPerRound} value2={p2.avgPerRound} format="decimal" />
+          <VersusBar label="Best Score" value1={p1.bestScore} value2={p2.bestScore} isLast />
+        </div>
+
+        {/* Treffer */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
+          <VersusBar label="Triples" value1={p1.triples} value2={p2.triples} />
+          <VersusBar label="Doubles" value1={p1.doubles} value2={p2.doubles} />
+          <VersusBar label="Singles" value1={p1.singles} value2={p2.singles} />
+          <VersusBar label="Misses" value1={p1.misses} value2={p2.misses} higherIsBetter={false} />
+          <VersusBar label="Trefferquote" value1={p1.hitRate} value2={p2.hitRate} format="percent" isLast />
+        </div>
+
+        {/* Letzte 5 Spiele */}
+        {renderLast5ShanghaiMatches()}
+      </>
+    )
+  }
+
+  // Letzte 5 Shanghai H2H-Matches rendern
+  const renderLast5ShanghaiMatches = () => {
+    if (!shanghaiH2H || shanghaiH2H.matchesPlayed === 0) return null
+
+    const matches = shanghaiH2H.h2hMatches
+      .slice()
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return dateB - dateA
+      })
+      .slice(0, 5)
+
+    if (matches.length === 0) return null
+
+    return (
+      <div style={s.statsCardLast}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Letzte Spiele</div>
+        {matches.map((match, idx) => {
+          const winnerId = match.winnerId
+          const winnerProfile = winnerId === player1Id ? player1 : winnerId === player2Id ? player2 : null
+          const dateStr = match.createdAt
+            ? new Date(match.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '—'
+
+          const p1Score = match.finalScores?.[player1Id] ?? 0
+          const p2Score = match.finalScores?.[player2Id] ?? 0
+
+          return (
+            <div
+              key={match.id || idx}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 0',
+                borderBottom: idx < matches.length - 1 ? '1px solid #F3F4F6' : 'none',
+              }}
+            >
+              <span style={{ fontSize: 12, color: '#6B7280', minWidth: 80 }}>
+                {dateStr}
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: winnerId === player1Id ? 700 : 500,
+                  color: winnerId === player1Id ? (player1?.color || '#3B82F6') : '#9CA3AF',
+                }}>
+                  {player1?.name?.substring(0, 10)}
+                </span>
+                <span style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#111',
+                  padding: '2px 8px',
+                  background: '#F3F4F6',
+                  borderRadius: 4,
+                }}>
+                  {p1Score} : {p2Score}
+                </span>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: winnerId === player2Id ? 700 : 500,
+                  color: winnerId === player2Id ? (player2?.color || '#EF4444') : '#9CA3AF',
+                }}>
+                  {player2?.name?.substring(0, 10)}
+                </span>
+              </div>
+
+              <span style={{
+                width: 10,
+                height: 10,
+                borderRadius: 9999,
+                background: winnerProfile?.color || '#9CA3AF',
+              }} />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Killer Stats Rendering
+  const renderKillerStats = () => {
+    if (!killerH2H || killerH2H.matchesPlayed === 0) {
+      return (
+        <div style={s.emptyState as React.CSSProperties}>
+          <div style={s.emptyStateTitle}>Keine gemeinsamen Killer-Spiele</div>
+          <div style={s.emptyStateSub as React.CSSProperties}>
+            Die beiden Spieler haben noch keine Killer-Spiele gegeneinander gespielt.
+          </div>
+        </div>
+      )
+    }
+
+    const p1 = killerH2H.player1Stats
+    const p2 = killerH2H.player2Stats
+
+    return (
+      <>
+        {/* Übersicht */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+          <VersusBar label="Spiele" value1={p1.matchesPlayed} value2={p2.matchesPlayed} />
+          <VersusBar label="Siege" value1={p1.matchesWon} value2={p2.matchesWon} isLast />
+        </div>
+
+        {/* Kills & Überleben */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Kills & Überleben</div>
+          <VersusBar label="Kills ges." value1={p1.totalKills} value2={p2.totalKills} />
+          <VersusBar label="Ø Kills" value1={p1.avgKillsPerMatch} value2={p2.avgKillsPerMatch} format="decimal" />
+          <VersusBar label="Ø Runden überlebt" value1={p1.avgSurvivedRounds} value2={p2.avgSurvivedRounds} format="decimal" />
+          <VersusBar label="Ø Platzierung" value1={p1.avgPosition} value2={p2.avgPosition} format="decimal" higherIsBetter={false} isLast />
+        </div>
+
+        {/* Leben */}
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Leben</div>
+          <VersusBar label="Leben verloren" value1={p1.livesLost} value2={p2.livesLost} higherIsBetter={false} />
+          <VersusBar label="Leben geheilt" value1={p1.livesHealed} value2={p2.livesHealed} />
+          <VersusBar label="Darts ges." value1={p1.totalDarts} value2={p2.totalDarts} isLast />
+        </div>
+
+        {/* Letzte 5 Spiele */}
+        {renderLast5KillerMatches()}
+      </>
+    )
+  }
+
+  // Letzte 5 Killer H2H-Matches rendern
+  const renderLast5KillerMatches = () => {
+    if (!killerH2H || killerH2H.matchesPlayed === 0) return null
+
+    const matches = killerH2H.h2hMatches
+      .slice()
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return dateB - dateA
+      })
+      .slice(0, 5)
+
+    if (matches.length === 0) return null
+
+    return (
+      <div style={s.statsCardLast}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Letzte Spiele</div>
+        {matches.map((match, idx) => {
+          const winnerId = match.winnerId
+          const winnerProfile = winnerId === player1Id ? player1 : winnerId === player2Id ? player2 : null
+          const dateStr = match.createdAt
+            ? new Date(match.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '—'
+
+          // Platzierungen aus finalStandings
+          const p1Standing = match.finalStandings?.find(s => s.playerId === player1Id)
+          const p2Standing = match.finalStandings?.find(s => s.playerId === player2Id)
+
+          return (
+            <div
+              key={match.id || idx}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 0',
+                borderBottom: idx < matches.length - 1 ? '1px solid #F3F4F6' : 'none',
+              }}
+            >
+              <span style={{ fontSize: 12, color: '#6B7280', minWidth: 80 }}>
+                {dateStr}
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: winnerId === player1Id ? 700 : 500,
+                  color: winnerId === player1Id ? (player1?.color || '#3B82F6') : '#9CA3AF',
+                }}>
+                  {player1?.name?.substring(0, 10)} #{p1Standing?.position ?? '?'}
+                </span>
+                <span style={{
+                  fontSize: 14,
+                  color: '#6B7280',
+                }}>
+                  vs
+                </span>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: winnerId === player2Id ? 700 : 500,
+                  color: winnerId === player2Id ? (player2?.color || '#EF4444') : '#9CA3AF',
+                }}>
+                  {player2?.name?.substring(0, 10)} #{p2Standing?.position ?? '?'}
+                </span>
+              </div>
+
+              <span style={{
+                width: 10,
+                height: 10,
+                borderRadius: 9999,
+                background: winnerProfile?.color || '#9CA3AF',
+              }} />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Letzte 5 CTF H2H-Matches rendern
+  const renderLast5CTFMatches = () => {
+    if (!ctfH2H || ctfH2H.matchesPlayed === 0) return null
+
+    const matches = ctfH2H.h2hMatches
+      .slice()
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return dateB - dateA
+      })
+      .slice(0, 5)
+
+    if (matches.length === 0) return null
+
+    return (
+      <div style={s.statsCardLast}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Letzte Spiele</div>
+        {matches.map((match, idx) => {
+          const winnerId = match.winnerId
+          const winnerProfile = winnerId === player1Id ? player1 : winnerId === player2Id ? player2 : null
+          const dateStr = match.createdAt
+            ? new Date(match.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '—'
+
+          // Felder gewonnen
+          let p1Fields = 0
+          let p2Fields = 0
+          for (const ev of match.events) {
+            if (ev.type === 'CTFRoundFinished') {
+              if (ev.winnerId === player1Id) p1Fields++
+              if (ev.winnerId === player2Id) p2Fields++
+            }
+          }
+
+          return (
+            <div
+              key={match.id || idx}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 0',
+                borderBottom: idx < matches.length - 1 ? '1px solid #F3F4F6' : 'none',
+              }}
+            >
+              {/* Datum */}
+              <span style={{ fontSize: 12, color: '#6B7280', minWidth: 80 }}>
+                {dateStr}
+              </span>
+
+              {/* Ergebnis */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: winnerId === player1Id ? 700 : 500,
+                  color: winnerId === player1Id ? (player1?.color || '#3B82F6') : '#9CA3AF',
+                }}>
+                  {player1?.name?.substring(0, 10)}
+                </span>
+                <span style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#111',
+                  padding: '2px 8px',
+                  background: '#F3F4F6',
+                  borderRadius: 4,
+                }}>
+                  {p1Fields} : {p2Fields}
+                </span>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: winnerId === player2Id ? 700 : 500,
+                  color: winnerId === player2Id ? (player2?.color || '#EF4444') : '#9CA3AF',
+                }}>
+                  {player2?.name?.substring(0, 10)}
+                </span>
+              </div>
 
               {/* Sieger-Indikator */}
               <span style={{
@@ -1152,8 +1621,8 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
     const yLabels = Array.from({ length: 5 }, (_, i) => minVal + (span * i) / 4)
 
     return (
-      <div style={{ background: '#fafafa', borderRadius: 8, padding: '8px 4px' }}>
-        <svg width={width} height={height}>
+      <div style={{ background: '#fafafa', width: '100%', overflow: 'hidden' }}>
+        <svg width={width} height={height} style={{ display: 'block' }}>
           {/* Hintergrund-Gitter mit 5 Linien */}
           {yLabels.map((yVal, i) => {
             const y = padTop + innerH * (1 - (yVal - minVal) / span)
@@ -1362,30 +1831,52 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
 
   // ======== MENU VIEW ========
   if (view === 'menu') {
+    const menuItems: PickerItem[] = [
+      { id: 'h2h', label: 'Head-to-Head', sub: 'Direktvergleich zwischen zwei Spielern' },
+      { id: 'compare', label: 'Trend-Vergleich', sub: 'Spieler-Entwicklung über Zeit vergleichen' },
+    ]
+
+    const handleMenuConfirm = (index: number) => {
+      setView(menuItems[index].id as DashboardView)
+    }
+
     return (
-      <div style={s.shell}>
-        <div style={s.headerNav}>
-          <button style={s.backBtn} onClick={onBack}>← Zurück</button>
-          <div style={s.pageTitle as React.CSSProperties}>Vergleiche</div>
-          <div style={s.spacer} />
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ height: 60 }} />
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
+          {isArcade ? (
+            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Vergleiche</h1>
+              <ArcadeScrollPicker
+                items={menuItems}
+                selectedIndex={menuPickerIndex}
+                onChange={setMenuPickerIndex}
+                onConfirm={handleMenuConfirm}
+                colors={colors}
+              />
+            </div>
+          ) : (
+            <div style={styles.centerInner}>
+              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Vergleiche</h1>
+              <div style={styles.card}>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <button onClick={() => setView('h2h')} style={styles.tile}>
+                    <div style={styles.title}>Head-to-Head</div>
+                    <div style={styles.sub}>Direktvergleich zwischen zwei Spielern</div>
+                  </button>
+
+                  <button onClick={() => setView('compare')} style={styles.tile}>
+                    <div style={styles.title}>Trend-Vergleich</div>
+                    <div style={styles.sub}>Spieler-Entwicklung über Zeit vergleichen</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div style={s.contentBox}>
-          <button
-            style={s.menuTile as React.CSSProperties}
-            onClick={() => setView('h2h')}
-          >
-            <div style={s.menuTileTitle}>Head-to-Head</div>
-            <div style={s.menuTileSub}>Direktvergleich zwischen zwei Spielern</div>
-          </button>
-
-          <button
-            style={s.menuTileLast as React.CSSProperties}
-            onClick={() => setView('compare')}
-          >
-            <div style={s.menuTileTitle}>Trend-Vergleich</div>
-            <div style={s.menuTileSub}>Spieler-Entwicklung über Zeit vergleichen</div>
-          </button>
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
         </div>
       </div>
     )
@@ -1463,22 +1954,31 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
                   <button style={s.modeTab(gameMode === 'atb')} onClick={() => setGameMode('atb')}>
                     ATB
                   </button>
+                  <button style={s.modeTab(gameMode === 'ctf')} onClick={() => setGameMode('ctf')}>
+                    CTF
+                  </button>
+                  <button style={s.modeTab(gameMode === 'shanghai')} onClick={() => setGameMode('shanghai')}>
+                    Shanghai
+                  </button>
+                  <button style={s.modeTab(gameMode === 'killer')} onClick={() => setGameMode('killer')}>
+                    Killer
+                  </button>
                 </div>
               </div>
 
               {/* Bilanz */}
               {player1Id && player2Id && player1 && player2 && currentH2H && currentH2H.matchesPlayed > 0 && (
                 <div style={s.bilanzArea as React.CSSProperties}>
-                  <div style={s.bilanzLabel}>Bilanz ({gameMode === 'x01' ? 'X01' : gameMode === '121' ? '121' : gameMode === 'cricket' ? 'Cricket' : 'ATB'})</div>
+                  <div style={s.bilanzLabel}>Bilanz ({gameMode === 'x01' ? 'X01' : gameMode === '121' ? '121' : gameMode === 'cricket' ? 'Cricket' : gameMode === 'ctf' ? 'CTF' : gameMode === 'shanghai' ? 'Shanghai' : gameMode === 'killer' ? 'Killer' : 'ATB'})</div>
                   <div style={s.bilanzScore}>
                     <span style={s.bilanzDot(player1.color)} />
                     <span style={s.bilanzName}>{player1.name}</span>
                     <span style={s.bilanzNum}>
-                      {gameMode === 'x01' ? x01H2H?.player1Wins : gameMode === '121' ? h2h121?.player1Wins : gameMode === 'cricket' ? cricketH2H?.player1Wins : atbH2H?.player1Wins}
+                      {gameMode === 'x01' ? x01H2H?.player1Wins : gameMode === '121' ? h2h121?.player1Wins : gameMode === 'cricket' ? cricketH2H?.player1Wins : gameMode === 'ctf' ? ctfH2H?.player1Wins : gameMode === 'shanghai' ? shanghaiH2H?.player1Wins : gameMode === 'killer' ? killerH2H?.player1Wins : atbH2H?.player1Wins}
                     </span>
                     <span style={s.bilanzColon}>:</span>
                     <span style={s.bilanzNum}>
-                      {gameMode === 'x01' ? x01H2H?.player2Wins : gameMode === '121' ? h2h121?.player2Wins : gameMode === 'cricket' ? cricketH2H?.player2Wins : atbH2H?.player2Wins}
+                      {gameMode === 'x01' ? x01H2H?.player2Wins : gameMode === '121' ? h2h121?.player2Wins : gameMode === 'cricket' ? cricketH2H?.player2Wins : gameMode === 'ctf' ? ctfH2H?.player2Wins : gameMode === 'shanghai' ? shanghaiH2H?.player2Wins : gameMode === 'killer' ? killerH2H?.player2Wins : atbH2H?.player2Wins}
                     </span>
                     <span style={s.bilanzName}>{player2.name}</span>
                     <span style={s.bilanzDot(player2.color)} />
@@ -1488,7 +1988,7 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
 
               {/* Stats */}
               {player1Id && player2Id && (
-                gameMode === 'x01' ? renderX01Stats() : gameMode === '121' ? render121Stats() : gameMode === 'cricket' ? renderCricketStats() : renderATBStats()
+                gameMode === 'x01' ? renderX01Stats() : gameMode === '121' ? render121Stats() : gameMode === 'cricket' ? renderCricketStats() : gameMode === 'ctf' ? renderCTFStats() : gameMode === 'shanghai' ? renderShanghaiStats() : gameMode === 'killer' ? renderKillerStats() : renderATBStats()
               )}
 
               {/* Empty State */}
@@ -1511,14 +2011,14 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
   const currentMetric = AVAILABLE_METRICS.find(m => m.id === selectedMetric)
 
   return (
-    <div style={s.shell}>
+    <div style={s.shellWide}>
       <div style={s.headerNav}>
         <button style={s.backBtn} onClick={() => setView('menu')}>← Zurück</button>
         <div style={s.pageTitle as React.CSSProperties}>Trend-Vergleich</div>
         <div style={s.spacer} />
       </div>
 
-      <div style={s.contentBox}>
+      <div ref={trendChartCallbackRef} style={s.contentBox}>
         {/* Spieler-Auswahl mit Checkboxen */}
         <div style={s.sectionTitle as React.CSSProperties}>Spieler auswählen</div>
         <div style={{ padding: 16, borderBottom: '1px solid #E5E7EB' }}>
@@ -1597,6 +2097,36 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
                 <option key={m.id} value={m.id}>{m.label}</option>
               ))}
             </optgroup>
+            <optgroup label="Around the Block">
+              {AVAILABLE_METRICS.filter(m => m.mode === 'atb').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Capture the Field">
+              {AVAILABLE_METRICS.filter(m => m.mode === 'ctf').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Sträußchen">
+              {AVAILABLE_METRICS.filter(m => m.mode === 'str').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Highscore">
+              {AVAILABLE_METRICS.filter(m => m.mode === 'highscore').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Shanghai">
+              {AVAILABLE_METRICS.filter(m => m.mode === 'shanghai').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Killer">
+              {AVAILABLE_METRICS.filter(m => m.mode === 'killer').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </optgroup>
           </select>
         </div>
 
@@ -1626,22 +2156,63 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
           </div>
         </div>
 
+        {/* Filter: Nur Mehrspieler */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #E5E7EB' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: 'pointer',
+              fontSize: 14,
+              color: multiplayerOnly ? '#0369a1' : '#374151',
+              fontWeight: multiplayerOnly ? 600 : 500,
+            }}
+          >
+            <span style={{
+              width: 18,
+              height: 18,
+              borderRadius: 4,
+              border: multiplayerOnly ? '2px solid #0ea5e9' : '2px solid #D1D5DB',
+              background: multiplayerOnly ? '#0ea5e9' : '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}>
+              {multiplayerOnly && '\u2713'}
+            </span>
+            <input
+              type="checkbox"
+              checked={multiplayerOnly}
+              onChange={e => setMultiplayerOnly(e.target.checked)}
+              style={{ display: 'none' }}
+            />
+            Nur Mehrspieler-Partien
+          </label>
+        </div>
+
         {/* Diagramm */}
         <div style={s.sectionTitle as React.CSSProperties}>
-          {currentMetric?.label || 'Trend'} ({currentMetric?.mode === 'x01' ? 'X01' : 'Cricket'})
+          {currentMetric?.label || 'Trend'} ({{ x01: 'X01', cricket: 'Cricket', atb: 'ATB', ctf: 'CTF', str: 'Sträußchen', highscore: 'Highscore', shanghai: 'Shanghai', killer: 'Killer' }[currentMetric?.mode ?? 'x01']})
         </div>
-        <div style={{ padding: 20, display: 'flex', justifyContent: 'center' }}>
+        <div>
           {selectedPlayerIds.length === 0 ? (
-            <div style={s.emptyState as React.CSSProperties}>
-              <div style={s.emptyStateTitle}>Spieler auswählen</div>
-              <div style={s.emptyStateSub as React.CSSProperties}>
-                Wähle mindestens einen Spieler aus, um den Trend zu sehen.
+            <div style={{ padding: 20, display: 'flex', justifyContent: 'center' }}>
+              <div style={s.emptyState as React.CSSProperties}>
+                <div style={s.emptyStateTitle}>Spieler auswählen</div>
+                <div style={s.emptyStateSub as React.CSSProperties}>
+                  Wähle mindestens einen Spieler aus, um den Trend zu sehen.
+                </div>
               </div>
             </div>
           ) : (
             <MultiLineChart
               players={trendData}
-              width={340}
+              width={trendChartWidth - 2}
               height={200}
               format={currentMetric?.format || 'decimal'}
             />

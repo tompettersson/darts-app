@@ -31,6 +31,9 @@ const LS_KEYS = {
   atbMatches: 'atb.matches.v1',
   atbLastOpenMatchId: 'atb.lastOpenMatchId.v1',
   atbHighscores: 'atb.highscores.v1',
+  ctfMatches: 'ctf.matches.v1',
+  strMatches: 'str.matches.v1',
+  highscoreMatches: 'highscore.matches.v1',
 } as const
 
 // ============================================================================
@@ -435,6 +438,341 @@ async function migrateATBHighscores(): Promise<number> {
 }
 
 // ============================================================================
+// CTF (Capture The Field) Migration
+// ============================================================================
+
+type LSCTFMatch = {
+  id: string
+  title?: string
+  createdAt?: string
+  players: Array<{ playerId: string; name: string; isGuest?: boolean }>
+  structure?: any
+  config?: any
+  events: any[]
+  generatedSequence?: any[]
+  finished?: boolean
+  finishedAt?: string
+  durationMs?: number
+  winnerId?: string
+  winnerDarts?: number
+  captureFieldWinners?: Record<string, string>
+  captureTotalScores?: Record<string, number>
+}
+
+export async function migrateCTFMatches(): Promise<number> {
+  const matches = readLS<LSCTFMatch[]>(LS_KEYS.ctfMatches, [])
+  console.log(`[Migration] Gefundene CTF Matches im LocalStorage: ${matches.length}`)
+  if (matches.length === 0) return 0
+
+  let migrated = 0
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i]
+
+    try {
+      const startEvt = (m.events || []).find((e: any) => e.type === 'CTFMatchStarted')
+      const statements: Array<{ sql: string; params: unknown[] }> = []
+
+      statements.push({
+        sql: `INSERT OR REPLACE INTO ctf_matches (
+          id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+          multiplier_mode, rotate_order, bull_position,
+          structure_kind, best_of_legs, legs_per_set, best_of_sets,
+          generated_sequence, capture_field_winners, capture_total_scores
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [
+          m.id,
+          m.title ?? 'Unbenannt',
+          m.createdAt ?? nowISO(),
+          m.finished ? 1 : 0,
+          m.finishedAt ?? null,
+          m.durationMs ?? null,
+          m.winnerId ?? null,
+          m.winnerDarts ?? null,
+          m.config?.multiplierMode ?? startEvt?.config?.multiplierMode ?? 'standard',
+          m.config?.rotateOrder !== false ? 1 : 0,
+          m.config?.bullPosition ?? startEvt?.config?.bullPosition ?? null,
+          m.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+          m.structure?.bestOfLegs ?? startEvt?.structure?.bestOfLegs ?? null,
+          m.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+          m.structure?.bestOfSets ?? startEvt?.structure?.bestOfSets ?? null,
+          m.generatedSequence ? toJSON(m.generatedSequence) : null,
+          m.captureFieldWinners ? toJSON(m.captureFieldWinners) : null,
+          m.captureTotalScores ? toJSON(m.captureTotalScores) : null,
+        ],
+      })
+
+      // Spieler
+      const players = startEvt?.players ?? m.players ?? []
+      for (let pi = 0; pi < players.length; pi++) {
+        const p = players[pi]
+        statements.push({
+          sql: `INSERT OR REPLACE INTO ctf_match_players (match_id, player_id, position, is_guest)
+                VALUES (?, ?, ?, ?)`,
+          params: [m.id, p.playerId, pi, p.isGuest ? 1 : 0],
+        })
+      }
+
+      // Events (mit Enrichment für CTFTurnAdded)
+      const events = m.events ?? []
+      for (let seq = 0; seq < events.length; seq++) {
+        const ev = events[seq]
+        // Inline-Enrichment für CTFTurnAdded
+        let enriched = ev
+        if (ev.type === 'CTFTurnAdded' && ev.darts) {
+          let hits = 0, misses = 0, triples = 0, doubles = 0
+          for (const dart of ev.darts) {
+            if (dart.target === 'MISS') misses++
+            else {
+              hits++
+              if (dart.mult === 3) triples++
+              else if (dart.mult === 2) doubles++
+            }
+          }
+          enriched = { ...ev, hits, misses, triples, doubles, totalDarts: ev.darts.length, dartsArray: ev.darts }
+        }
+        statements.push({
+          sql: `INSERT OR REPLACE INTO ctf_events (id, match_id, type, ts, seq, data)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          params: [ev.eventId ?? generateId(), m.id, ev.type, ev.ts, seq, toJSON(enriched)],
+        })
+      }
+
+      await transaction(statements)
+      migrated++
+    } catch (err) {
+      console.error(`[Migration] Fehler bei CTF Match ${m.id}:`, err)
+    }
+  }
+
+  console.log(`[Migration] ${migrated}/${matches.length} CTF Matches migriert`)
+  return migrated
+}
+
+// ============================================================================
+// STR (Sträußchen) Match Migration
+// ============================================================================
+
+type LSStrMatch = {
+  id: string
+  title: string
+  createdAt: string
+  players: any[]
+  mode: string
+  targetNumber?: number
+  numberOrder?: string
+  turnOrder?: string
+  ringMode?: string
+  bullMode?: string
+  bullPosition?: string
+  structure?: any
+  events: any[]
+  generatedOrder?: number[]
+  finished?: boolean
+  finishedAt?: string
+  durationMs?: number
+  winnerId?: string
+  winnerDarts?: number
+  legWins?: Record<string, number>
+  setWins?: Record<string, number>
+}
+
+export async function migrateStrMatches(): Promise<number> {
+  const matches = readLS<LSStrMatch[]>(LS_KEYS.strMatches, [])
+  console.log(`[Migration] Gefundene STR Matches im LocalStorage: ${matches.length}`)
+  if (matches.length === 0) return 0
+
+  let migrated = 0
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i]
+
+    try {
+      const startEvt = (m.events || []).find((e: any) => e.type === 'StrMatchStarted')
+      const statements: Array<{ sql: string; params: unknown[] }> = []
+
+      statements.push({
+        sql: `INSERT OR REPLACE INTO str_matches (
+          id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+          mode, target_number, number_order, turn_order, ring_mode, bull_mode, bull_position,
+          structure_kind, best_of_legs, legs_per_set, best_of_sets,
+          generated_order, leg_wins, set_wins
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [
+          m.id,
+          m.title ?? 'Unbenannt',
+          m.createdAt ?? nowISO(),
+          m.finished ? 1 : 0,
+          m.finishedAt ?? null,
+          m.durationMs ?? null,
+          m.winnerId ?? null,
+          m.winnerDarts ?? null,
+          m.mode ?? startEvt?.mode ?? 'single',
+          m.targetNumber ?? startEvt?.targetNumber ?? null,
+          m.numberOrder ?? startEvt?.numberOrder ?? null,
+          m.turnOrder ?? startEvt?.turnOrder ?? null,
+          m.ringMode ?? startEvt?.ringMode ?? null,
+          m.bullMode ?? startEvt?.bullMode ?? null,
+          m.bullPosition ?? startEvt?.bullPosition ?? null,
+          m.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+          m.structure?.bestOfLegs ?? startEvt?.structure?.bestOfLegs ?? null,
+          m.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+          m.structure?.bestOfSets ?? startEvt?.structure?.bestOfSets ?? null,
+          m.generatedOrder ? toJSON(m.generatedOrder) : (startEvt?.generatedOrder ? toJSON(startEvt.generatedOrder) : null),
+          m.legWins ? toJSON(m.legWins) : null,
+          m.setWins ? toJSON(m.setWins) : null,
+        ],
+      })
+
+      // Spieler
+      const players = startEvt?.players ?? m.players ?? []
+      for (let pi = 0; pi < players.length; pi++) {
+        const p = players[pi]
+        statements.push({
+          sql: `INSERT OR REPLACE INTO str_match_players (match_id, player_id, position, is_guest)
+                VALUES (?, ?, ?, ?)`,
+          params: [m.id, p.playerId, pi, p.isGuest ? 1 : 0],
+        })
+      }
+
+      // Events (mit Enrichment für StrTurnAdded)
+      const events = m.events ?? []
+      for (let seq = 0; seq < events.length; seq++) {
+        const ev = events[seq]
+        let enriched = ev
+        if (ev.type === 'StrTurnAdded' && ev.darts) {
+          let hits = 0, misses = 0
+          for (const dart of ev.darts) {
+            if (dart === 'hit') hits++
+            else misses++
+          }
+          enriched = { ...ev, hits, misses, totalDarts: ev.darts.length }
+        }
+        statements.push({
+          sql: `INSERT OR REPLACE INTO str_events (id, match_id, type, ts, seq, data)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          params: [ev.eventId ?? generateId(), m.id, ev.type, ev.ts, seq, toJSON(enriched)],
+        })
+      }
+
+      await transaction(statements)
+      migrated++
+    } catch (err) {
+      console.error(`[Migration] Fehler bei STR Match ${m.id}:`, err)
+    }
+  }
+
+  console.log(`[Migration] ${migrated}/${matches.length} STR Matches migriert`)
+  return migrated
+}
+
+// ============================================================================
+// Highscore Match Migration
+// ============================================================================
+
+type LSHighscoreMatch = {
+  id: string
+  title: string
+  createdAt: string
+  players: any[]
+  targetScore: number
+  structure?: any
+  events: any[]
+  finished?: boolean
+  finishedAt?: string
+  durationMs?: number
+  winnerId?: string
+  winnerDarts?: number
+  legWins?: Record<string, number>
+  setWins?: Record<string, number>
+}
+
+export async function migrateHighscoreMatches(): Promise<number> {
+  const matches = readLS<LSHighscoreMatch[]>(LS_KEYS.highscoreMatches, [])
+  console.log(`[Migration] Gefundene Highscore Matches im LocalStorage: ${matches.length}`)
+  if (matches.length === 0) return 0
+
+  let migrated = 0
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i]
+
+    try {
+      const startEvt = (m.events || []).find((e: any) => e.type === 'HighscoreMatchStarted')
+      const statements: Array<{ sql: string; params: unknown[] }> = []
+
+      statements.push({
+        sql: `INSERT OR REPLACE INTO highscore_matches (
+          id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+          target_score, structure_kind, target_legs, legs_per_set, target_sets,
+          leg_wins, set_wins
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [
+          m.id,
+          m.title ?? 'Unbenannt',
+          m.createdAt ?? nowISO(),
+          m.finished ? 1 : 0,
+          m.finishedAt ?? null,
+          m.durationMs ?? null,
+          m.winnerId ?? null,
+          m.winnerDarts ?? null,
+          m.targetScore ?? startEvt?.targetScore ?? 300,
+          m.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+          m.structure?.targetLegs ?? startEvt?.structure?.targetLegs ?? null,
+          m.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+          m.structure?.targetSets ?? startEvt?.structure?.targetSets ?? null,
+          m.legWins ? toJSON(m.legWins) : null,
+          m.setWins ? toJSON(m.setWins) : null,
+        ],
+      })
+
+      // Spieler
+      const players = startEvt?.players ?? m.players ?? []
+      for (let pi = 0; pi < players.length; pi++) {
+        const p = players[pi]
+        statements.push({
+          sql: `INSERT OR REPLACE INTO highscore_match_players (match_id, player_id, position, is_guest)
+                VALUES (?, ?, ?, ?)`,
+          params: [m.id, p.id ?? p.playerId, pi, p.isGuest ? 1 : 0],
+        })
+      }
+
+      // Events (mit Enrichment für HighscoreTurnAdded)
+      const events = m.events ?? []
+      for (let seq = 0; seq < events.length; seq++) {
+        const ev = events[seq]
+        let enriched = ev
+        if (ev.type === 'HighscoreTurnAdded' && ev.darts) {
+          let triples = 0, doubles = 0, singles = 0, misses = 0
+          for (const dart of ev.darts) {
+            if (dart.target === 'MISS') misses++
+            else if (dart.mult === 3) triples++
+            else if (dart.mult === 2) doubles++
+            else singles++
+          }
+          enriched = { ...ev, triples, doubles, singles, misses, totalDarts: ev.darts.length }
+        }
+        // Highscore nutzt timestamp (number) statt ts (string)
+        const ts = ev.ts ?? (ev.timestamp ? new Date(ev.timestamp).toISOString() : nowISO())
+        statements.push({
+          sql: `INSERT OR REPLACE INTO highscore_events (id, match_id, type, ts, seq, data)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          params: [ev.eventId ?? generateId(), m.id, ev.type, ts, seq, toJSON(enriched)],
+        })
+      }
+
+      await transaction(statements)
+      migrated++
+    } catch (err) {
+      console.error(`[Migration] Fehler bei Highscore Match ${m.id}:`, err)
+    }
+  }
+
+  console.log(`[Migration] ${migrated}/${matches.length} Highscore Matches migriert`)
+  return migrated
+}
+
+// ============================================================================
 // System Meta Migration
 // ============================================================================
 
@@ -477,6 +815,9 @@ export async function migrateFromLocalStorage(): Promise<MigrationResult> {
   let cricketMatches = 0
   let atbMatches = 0
   let atbHighscores = 0
+  let ctfMatches = 0
+  let strMatches = 0
+  let highscoreMatches = 0
 
   try {
     // DB initialisieren
@@ -516,6 +857,24 @@ export async function migrateFromLocalStorage(): Promise<MigrationResult> {
     }
 
     try {
+      ctfMatches = await migrateCTFMatches()
+    } catch (e) {
+      console.error('[Migration] CTF Matches fehlgeschlagen:', e)
+    }
+
+    try {
+      strMatches = await migrateStrMatches()
+    } catch (e) {
+      console.error('[Migration] STR Matches fehlgeschlagen:', e)
+    }
+
+    try {
+      highscoreMatches = await migrateHighscoreMatches()
+    } catch (e) {
+      console.error('[Migration] Highscore Matches fehlgeschlagen:', e)
+    }
+
+    try {
       await migrateSystemMeta()
     } catch (e) {
       console.error('[Migration] System Meta fehlgeschlagen:', e)
@@ -527,7 +886,7 @@ export async function migrateFromLocalStorage(): Promise<MigrationResult> {
 
     const durationMs = Date.now() - startTime
     console.log(`[Migration] Abgeschlossen in ${durationMs}ms`)
-    console.log(`[Migration] Ergebnis: ${profiles} Profile, ${x01Matches} X01, ${cricketMatches} Cricket, ${atbMatches} ATB, ${atbHighscores} Highscores`)
+    console.log(`[Migration] Ergebnis: ${profiles} Profile, ${x01Matches} X01, ${cricketMatches} Cricket, ${atbMatches} ATB, ${ctfMatches} CTF, ${strMatches} STR, ${highscoreMatches} Highscore, ${atbHighscores} ATB-HS`)
 
     return {
       success: true,

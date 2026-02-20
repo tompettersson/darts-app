@@ -25,13 +25,8 @@ export type ATBMiss3BackVariant = 'previous' | 'start'
 /** Bull-Position in der Sequenz */
 export type ATBBullPosition = 'start' | 'end' | 'random'
 
-/** Spielmodus: Klassisch (jeder für sich) oder Piratenmodus (alle auf gleiches Feld) */
-export type ATBGameMode = 'individual' | 'pirate'
-
-/** Piratenmodus-spezifische Konfiguration */
-export type ATBPirateConfig = {
-  rotateOrder: boolean  // Wurfreihenfolge pro Feld rotieren?
-}
+/** Spielmodus: Klassisch (jeder für sich). 'capture'/'pirate' = Legacy für alte gespeicherte Matches */
+export type ATBGameMode = 'individual' | 'capture' | 'pirate'
 
 /** Ein einzelnes Ziel in der Sequenz */
 export type ATBTarget = {
@@ -47,9 +42,8 @@ export type ATBMatchConfig = {
   specialRule: ATBSpecialRule
   miss3BackVariant?: ATBMiss3BackVariant  // Nur wenn specialRule === 'miss3Back'
   bullPosition?: ATBBullPosition  // Position von Bull in der Sequenz (default: 'end')
-  // Piratenmodus
+  // Legacy: gameMode für alte gespeicherte Matches ('capture'/'pirate')
   gameMode?: ATBGameMode  // Default: 'individual'
-  pirateConfig?: ATBPirateConfig  // Nur wenn gameMode === 'pirate'
 }
 
 /** Spieler-spezifischer Spezialregel-Status */
@@ -90,9 +84,9 @@ export type ATBStoredMatch = {
   config?: ATBMatchConfig
   // NEU: Generierte Sequenz (für random/mixedRandom Modi)
   generatedSequence?: ATBTarget[]
-  // Piratenmodus: Feld-Gewinner pro Leg
-  pirateFieldWinners?: Record<string, string | null>  // "1" -> playerId | null (Gleichstand)
-  pirateTotalScores?: Record<string, number>  // playerId -> Gesamtpunkte (für Tiebreaker)
+  // Capture the Field: Feld-Gewinner pro Leg
+  captureFieldWinners?: Record<string, string | null>  // "1" -> playerId | null (Gleichstand)
+  captureTotalScores?: Record<string, number>  // playerId -> Gesamtpunkte (für Tiebreaker)
 }
 
 export type ATBHighscore = {

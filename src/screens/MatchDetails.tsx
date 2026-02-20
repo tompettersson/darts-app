@@ -15,6 +15,7 @@ import {
   isMatchStarted,
   isMatchFinished,
   isLegStarted,
+  isVisitAdded,
 } from '../darts501'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
@@ -43,6 +44,69 @@ function fmtDart(d: { bed: any; mult: 1 | 2 | 3 }) {
   if (d.bed === 'BULL') return d.mult === 2 ? 'Bull' : '25'
   if (d.bed === 'DBULL') return 'Bull'
   return 'Miss'
+}
+
+// Meistes Feld: Welches Segment (1-20, Bull) am häufigsten getroffen
+function computeMostHitField(allEvents: DartsEvent[], legId: string | null, playerId: string): string {
+  const hitCount: Record<string, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && (legId === null || e.legId === legId)
+  )
+  for (const v of visits) {
+    for (const d of v.darts) {
+      if (d.bed === 'MISS') continue
+      const key = d.bed === 'BULL' || d.bed === 'DBULL' ? 'Bull' : String(d.bed)
+      hitCount[key] = (hitCount[key] ?? 0) + 1
+    }
+  }
+  const sorted = Object.entries(hitCount).sort((a, b) => b[1] - a[1])
+  if (sorted.length === 0) return '–'
+  return `${sorted[0][0]} (${sorted[0][1]}×)`
+}
+
+// Häufigste Punktzahl: Welcher 3-Dart-Visit-Score am häufigsten geworfen
+function computeMostCommonScore(allEvents: DartsEvent[], legId: string | null, playerId: string): string {
+  const scoreCount: Record<number, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && !e.bust && (legId === null || e.legId === legId)
+  )
+  for (const v of visits) {
+    scoreCount[v.visitScore] = (scoreCount[v.visitScore] ?? 0) + 1
+  }
+  const sorted = Object.entries(scoreCount).sort((a, b) => Number(b[1]) - Number(a[1]))
+  if (sorted.length === 0) return '–'
+  return `${sorted[0][0]} (${sorted[0][1]}×)`
+}
+
+// Meistes Feld für eine Menge von Leg-IDs (z.B. ein Set)
+function computeMostHitFieldForLegs(allEvents: DartsEvent[], legIds: string[], playerId: string): string {
+  const hitCount: Record<string, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && legIds.includes(e.legId)
+  )
+  for (const v of visits) {
+    for (const d of v.darts) {
+      if (d.bed === 'MISS') continue
+      const key = d.bed === 'BULL' || d.bed === 'DBULL' ? 'Bull' : String(d.bed)
+      hitCount[key] = (hitCount[key] ?? 0) + 1
+    }
+  }
+  const sorted = Object.entries(hitCount).sort((a, b) => b[1] - a[1])
+  if (sorted.length === 0) return '–'
+  return `${sorted[0][0]} (${sorted[0][1]}×)`
+}
+
+function computeMostCommonScoreForLegs(allEvents: DartsEvent[], legIds: string[], playerId: string): string {
+  const scoreCount: Record<number, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && !e.bust && legIds.includes(e.legId)
+  )
+  for (const v of visits) {
+    scoreCount[v.visitScore] = (scoreCount[v.visitScore] ?? 0) + 1
+  }
+  const sorted = Object.entries(scoreCount).sort((a, b) => Number(b[1]) - Number(a[1]))
+  if (sorted.length === 0) return '–'
+  return `${sorted[0][0]} (${sorted[0][1]}×)`
 }
 
 export default function MatchDetails({ matchId, onBack }: Props) {
@@ -239,6 +303,9 @@ export default function MatchDetails({ matchId, onBack }: Props) {
       return best ? `${best} Darts` : '–'
     }},
     { label: 'Busts', getValue: (pid: string) => String(statsByPlayer[pid]?.busts ?? 0) },
+    // === Feld- & Score-Analyse ===
+    { label: 'Meistes Feld', getValue: (pid: string) => computeMostHitField(events, null, pid) },
+    { label: 'Häufigste Punktzahl', getValue: (pid: string) => computeMostCommonScore(events, null, pid) },
   ]
 
   if (isSets) {
@@ -482,6 +549,18 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     <td style={tdLeft}>Höchste Aufnahme</td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{setHighestVisit[p.playerId] || 0}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Meistes Feld</td>
+                    {match.players.map((p) => (
+                      <td key={p.playerId} style={tdRight}>{computeMostHitFieldForLegs(events, legIds, p.playerId)}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Häufigste Punktzahl</td>
+                    {match.players.map((p) => (
+                      <td key={p.playerId} style={tdRight}>{computeMostCommonScoreForLegs(events, legIds, p.playerId)}</td>
                     ))}
                   </tr>
                   <tr>
@@ -745,6 +824,18 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     <td style={tdLeft}>Höchste Aufnahme</td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{highestVisitInLeg[p.playerId] || 0}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Meistes Feld</td>
+                    {match.players.map((p) => (
+                      <td key={p.playerId} style={tdRight}>{computeMostHitField(events, selectedLegId, p.playerId)}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Häufigste Punktzahl</td>
+                    {match.players.map((p) => (
+                      <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, selectedLegId, p.playerId)}</td>
                     ))}
                   </tr>
                   <tr>

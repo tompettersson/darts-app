@@ -38,6 +38,18 @@ import {
   getHighscoreMatchById,
   getPlayerColorBackgroundEnabled,
   setPlayerColorBackgroundEnabled,
+  createCTFMatchShell,
+  migrateATBCaptureMatchesToCTF,
+  cleanupStaleUnfinishedMatches,
+  setLastOpenCTFMatchId,
+  getOpenCTFMatch,
+  getCTFMatchById,
+  createShanghaiMatchShell,
+  setLastOpenShanghaiMatchId,
+  getOpenShanghaiMatch,
+  getShanghaiMatchById,
+  getOpenKillerMatch,
+  getKillerMatchById,
   type StoredMatch,
 } from './storage'
 
@@ -80,9 +92,31 @@ import NewGameHighscore from './screens/NewGameHighscore'
 import GameHighscore from './screens/GameHighscore'
 import HighscoreSummary from './screens/HighscoreSummary'
 
+// Capture the Field
+import NewGameCTF from './screens/NewGameCTF'
+import GameCTF from './screens/GameCTF'
+import CTFSummary from './screens/CTFSummary'
+
+// Shanghai
+import NewGameShanghai from './screens/NewGameShanghai'
+import GameShanghai from './screens/GameShanghai'
+import ShanghaiSummary from './screens/ShanghaiSummary'
+
+// Killer
+import NewGameKiller from './screens/NewGameKiller'
+import GameKiller from './screens/GameKiller'
+import KillerSummary from './screens/KillerSummary'
+
 // Zufallsspiel
 import NewGameRandom from './screens/NewGameRandom'
 import { generateRandomGame, describeRandomGame } from './randomGame'
+
+// Multiplayer
+import { useMultiplayerRoom, MultiplayerLobby } from './multiplayer'
+import type { DartsEvent as DartsEventType } from './darts501'
+
+// Arcade Scroll Picker
+import ArcadeScrollPicker, { type PickerItem } from './components/ArcadeScrollPicker'
 
 // Speech (Einstellungen)
 import { getVoiceLang, setVoiceLang, type VoiceLang } from './speech'
@@ -111,6 +145,15 @@ type View =
   | 'new-highscore'
   | 'game-highscore'
   | 'summary-highscore'
+  | 'new-ctf'
+  | 'game-ctf'
+  | 'summary-ctf'
+  | 'new-shanghai'
+  | 'game-shanghai'
+  | 'summary-shanghai'
+  | 'new-killer'
+  | 'game-killer'
+  | 'summary-killer'
   | 'stats-area'
   // Profiles/Backup
   | 'create-profile'
@@ -118,6 +161,9 @@ type View =
   | 'profiles-menu'
   | 'profiles-backup'
   | 'settings'
+  | 'multiplayer-lobby-host'
+  | 'multiplayer-lobby-join'
+  | 'multiplayer-game'
 
 export default function App() {
   // Theme System
@@ -136,6 +182,20 @@ export default function App() {
       try {
         const result = await startupWithSQLite()
         if (!mounted) return
+
+        // One-time migration: ATB Capture/Pirate → CTF
+        try {
+          migrateATBCaptureMatchesToCTF()
+        } catch (e) {
+          console.error('[Migration] ATB→CTF migration failed:', e)
+        }
+
+        // Cleanup: Unbeendete Spiele älter als 100 Stunden löschen
+        try {
+          cleanupStaleUnfinishedMatches()
+        } catch (e) {
+          console.error('[Cleanup] Stale match cleanup failed:', e)
+        }
 
         if (!result.dbInit.success) {
           console.warn('[App] SQLite Init fehlgeschlagen, nutze LocalStorage:', result.dbInit.error)
@@ -172,6 +232,35 @@ export default function App() {
   // Spielerfarben-Hintergrund Einstellung
   const [playerColorBgEnabled, setPlayerColorBgEnabled] = useState(() => getPlayerColorBackgroundEnabled())
 
+  // Backspace-Navigation: einen Menüpunkt zurück
+  useEffect(() => {
+    const handleBackspace = (e: KeyboardEvent) => {
+      if (e.key !== 'Backspace') return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      const backMap: Partial<Record<View, View>> = {
+        'profiles-menu': 'menu',
+        'settings': 'profiles-menu',
+        'profiles': 'profiles-menu',
+        'create-profile': 'profiles-menu',
+        'profiles-backup': 'profiles-menu',
+      }
+
+      const target = backMap[view]
+      if (target) {
+        e.preventDefault()
+        setView(target)
+      }
+    }
+
+    window.addEventListener('keydown', handleBackspace)
+    return () => window.removeEventListener('keydown', handleBackspace)
+  }, [view])
+
+  // Arcade Picker Indices
+  const [menuPickerIndex, setMenuPickerIndex] = useState(0)
+  const [profilesPickerIndex, setProfilesPickerIndex] = useState(0)
+
   // Auswahl / Config
   const [preset, setPreset] = useState<Preset | null>(null)
   const [cricketCfg, setCricketCfg] = useState<CricketSetup | null>(null)
@@ -189,17 +278,57 @@ export default function App() {
   const [activeHighscoreId, setActiveHighscoreId] = useState<string | undefined>(() => getOpenHighscoreMatch()?.id)
   const [summaryHighscoreId, setSummaryHighscoreId] = useState<string | undefined>(undefined)
 
+  // CTF Match IDs
+  const [activeCTFId, setActiveCTFId] = useState<string | undefined>(() => getOpenCTFMatch()?.id)
+  const [summaryCTFId, setSummaryCTFId] = useState<string | undefined>(undefined)
+
+  // Shanghai Match IDs
+  const [activeShanghaiId, setActiveShanghaiId] = useState<string | undefined>(() => getOpenShanghaiMatch()?.id)
+  const [summaryShanghaiId, setSummaryShanghaiId] = useState<string | undefined>(undefined)
+
+  // Killer Match IDs
+  const [activeKillerId, setActiveKillerId] = useState<string | undefined>(() => getOpenKillerMatch()?.id)
+  const [summaryKillerId, setSummaryKillerId] = useState<string | undefined>(undefined)
+
+  // --- Multiplayer State ---
+  const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
+  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(null)
+  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(null)
+  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>('')
+  const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
+
+  const [mpState, mpActions] = useMultiplayerRoom(
+    multiplayerRoomCode,
+    // onRemoteEvents: sync remote events to local state
+    (evts, fromIndex) => {
+      if (fromIndex === 0) {
+        // Full sync
+        setMultiplayerRemoteEvents(evts)
+      } else {
+        // Incremental
+        setMultiplayerRemoteEvents(prev => prev ? [...prev, ...evts] : evts)
+      }
+    },
+    // onRemoteUndo: server sent truncated event log
+    (evts) => {
+      setMultiplayerRemoteEvents(evts)
+    },
+  )
+
   const openMatch = getOpenMatch()
   const openCricket = getOpenCricketMatch()
   const openATB = getOpenATBMatch()
   const openStr = getOpenStrMatch()
   const openHighscore = getOpenHighscoreMatch()
+  const openCTF = getOpenCTFMatch()
+  const openShanghai = getOpenShanghaiMatch()
+  const openKiller = getOpenKillerMatch()
 
   // Wer soll bei "Spiel fortsetzen" genommen werden?
   const continueInfo = useMemo(() => {
     const act = getLastActivity()
 
-    function buildResult(kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore') {
+    function buildResult(kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer') {
       if (kind === 'x01') {
         if (openMatch && !openMatch.finished) {
           return { kind: 'x01' as const, id: openMatch.id, title: openMatch.title }
@@ -220,13 +349,25 @@ export default function App() {
         if (openHighscore && !openHighscore.finished) {
           return { kind: 'highscore' as const, id: openHighscore.id, title: openHighscore.title }
         }
+      } else if (kind === 'ctf') {
+        if (openCTF && !openCTF.finished) {
+          return { kind: 'ctf' as const, id: openCTF.id, title: openCTF.title }
+        }
+      } else if (kind === 'shanghai') {
+        if (openShanghai && !openShanghai.finished) {
+          return { kind: 'shanghai' as const, id: openShanghai.id, title: openShanghai.title }
+        }
+      } else if (kind === 'killer') {
+        if (openKiller && !openKiller.finished) {
+          return { kind: 'killer' as const, id: openKiller.id, title: openKiller.title }
+        }
       }
       return null
     }
 
     // 1) bevorzugt das zuletzt aktive
     if (act && act.matchExists && !act.finished) {
-      const pref = buildResult(act.kind as 'x01' | 'cricket' | 'atb' | 'str' | 'highscore')
+      const pref = buildResult(act.kind as 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer')
       if (pref) return pref
     }
     // 2) fallback: X01
@@ -244,9 +385,18 @@ export default function App() {
     // 6) fallback: Highscore
     const hsRes = buildResult('highscore')
     if (hsRes) return hsRes
-    // 7) nix offen
+    // 7) fallback: CTF
+    const ctfRes = buildResult('ctf')
+    if (ctfRes) return ctfRes
+    // 8) fallback: Shanghai
+    const shanghaiRes = buildResult('shanghai')
+    if (shanghaiRes) return shanghaiRes
+    // 9) fallback: Killer
+    const killerRes = buildResult('killer')
+    if (killerRes) return killerRes
+    // 10) nix offen
     return null
-  }, [openMatch, openCricket, openATB, openStr, openHighscore])
+  }, [openMatch, openCricket, openATB, openStr, openHighscore, openCTF, openShanghai, openKiller])
 
   // ---------- Loading Screen ----------
   if (dbLoading) {
@@ -305,6 +455,15 @@ export default function App() {
         }}
         onSelectHighscore={() => {
           setView('new-highscore')
+        }}
+        onSelectCTF={() => {
+          setView('new-ctf')
+        }}
+        onSelectShanghai={() => {
+          setView('new-shanghai')
+        }}
+        onSelectKiller={() => {
+          setView('new-killer')
         }}
       />
     )
@@ -460,11 +619,27 @@ export default function App() {
     return (
       <NewGame
         preset={preset}
-        onCancel={() => setView('new-start')}
+        onCancel={() => {
+          setIsMultiplayerSetup(false)
+          setView('new-start')
+        }}
         onStarted={(matchId) => {
-          setActiveMatchId(matchId)
-          setLastActivity('x01', matchId)
-          setView('game')
+          if (isMultiplayerSetup) {
+            // Multiplayer: Load match events and go to lobby
+            setIsMultiplayerSetup(false)
+            const stored = getMatches().find((m: any) => m.id === matchId)
+            if (stored) {
+              setMultiplayerMatchId(matchId)
+              setMultiplayerRemoteEvents(stored.events as DartsEventType[])
+              setView('multiplayer-lobby-host')
+            } else {
+              setView('menu')
+            }
+          } else {
+            setActiveMatchId(matchId)
+            setLastActivity('x01', matchId)
+            setView('game')
+          }
         }}
       />
     )
@@ -753,6 +928,323 @@ export default function App() {
     )
   }
 
+  // CAPTURE THE FIELD KONFIG
+  if (view === 'new-ctf') {
+    return (
+      <NewGameCTF
+        onCancel={() => setView('new-start')}
+        onStart={({ players, structure, config }) => {
+          const stored = createCTFMatchShell({
+            players: players.map((p) => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
+            structure,
+            config,
+          })
+
+          setLastOpenCTFMatchId(stored.id)
+          setActiveCTFId(stored.id)
+          setLastActivity('ctf', stored.id)
+          setView('game-ctf')
+        }}
+      />
+    )
+  }
+
+  // CAPTURE THE FIELD LIVE GAME
+  if (view === 'game-ctf' && activeCTFId) {
+    return (
+      <GameCTF
+        matchId={activeCTFId}
+        onExit={() => {
+          setView('menu')
+          setActiveCTFId(undefined)
+        }}
+        onShowSummary={(id) => {
+          setSummaryCTFId(id)
+          setView('summary-ctf')
+        }}
+      />
+    )
+  }
+
+  // CAPTURE THE FIELD SUMMARY
+  if (view === 'summary-ctf' && summaryCTFId) {
+    return (
+      <CTFSummary
+        matchId={summaryCTFId}
+        onBackToMenu={() => {
+          setView('menu')
+          setSummaryCTFId(undefined)
+        }}
+        onRematch={(oldMatchId: string) => {
+          const oldData = getCTFMatchById(oldMatchId)
+          if (!oldData) {
+            setView('menu')
+            return
+          }
+
+          const prevPlayers = oldData.players
+          if (prevPlayers.length === 0) {
+            setView('menu')
+            return
+          }
+          const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
+
+          const newStored = createCTFMatchShell({
+            players: rotatedPlayers.map((p) => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
+            structure: oldData.structure,
+            config: oldData.config,
+          })
+
+          setLastOpenCTFMatchId(newStored.id)
+          setActiveCTFId(newStored.id)
+          setLastActivity('ctf', newStored.id)
+          setSummaryCTFId(undefined)
+          setView('game-ctf')
+        }}
+      />
+    )
+  }
+
+  // SHANGHAI KONFIG
+  if (view === 'new-shanghai') {
+    return (
+      <NewGameShanghai
+        onCancel={() => setView('new-start')}
+        onStart={({ players, structure }) => {
+          const stored = createShanghaiMatchShell({
+            players: players.map((p) => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
+            structure,
+          })
+
+          setLastOpenShanghaiMatchId(stored.id)
+          setActiveShanghaiId(stored.id)
+          setLastActivity('shanghai', stored.id)
+          setView('game-shanghai')
+        }}
+      />
+    )
+  }
+
+  // SHANGHAI LIVE GAME
+  if (view === 'game-shanghai' && activeShanghaiId) {
+    return (
+      <GameShanghai
+        matchId={activeShanghaiId}
+        onExit={() => {
+          setView('menu')
+          setActiveShanghaiId(undefined)
+        }}
+        onShowSummary={(id) => {
+          setSummaryShanghaiId(id)
+          setView('summary-shanghai')
+        }}
+      />
+    )
+  }
+
+  // SHANGHAI SUMMARY
+  if (view === 'summary-shanghai' && summaryShanghaiId) {
+    return (
+      <ShanghaiSummary
+        matchId={summaryShanghaiId}
+        onBackToMenu={() => {
+          setView('menu')
+          setSummaryShanghaiId(undefined)
+        }}
+        onRematch={(oldMatchId: string) => {
+          const oldData = getShanghaiMatchById(oldMatchId)
+          if (!oldData) {
+            setView('menu')
+            return
+          }
+
+          const prevPlayers = oldData.players
+          if (prevPlayers.length === 0) {
+            setView('menu')
+            return
+          }
+          const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
+
+          const newStored = createShanghaiMatchShell({
+            players: rotatedPlayers.map((p) => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
+            structure: oldData.structure,
+          })
+
+          setLastOpenShanghaiMatchId(newStored.id)
+          setActiveShanghaiId(newStored.id)
+          setLastActivity('shanghai', newStored.id)
+          setSummaryShanghaiId(undefined)
+          setView('game-shanghai')
+        }}
+      />
+    )
+  }
+
+  // KILLER KONFIG
+  if (view === 'new-killer') {
+    return (
+      <NewGameKiller
+        profiles={getProfiles()}
+        onStart={(matchId) => {
+          setActiveKillerId(matchId)
+          setLastActivity('killer', matchId)
+          setView('game-killer')
+        }}
+        onBack={() => setView('new-start')}
+      />
+    )
+  }
+
+  // KILLER LIVE GAME
+  if (view === 'game-killer' && activeKillerId) {
+    return (
+      <GameKiller
+        matchId={activeKillerId}
+        onFinish={(id) => {
+          setSummaryKillerId(id)
+          setView('summary-killer')
+        }}
+        onAbort={() => {
+          setView('menu')
+          setActiveKillerId(undefined)
+        }}
+      />
+    )
+  }
+
+  // KILLER SUMMARY
+  if (view === 'summary-killer' && summaryKillerId) {
+    return (
+      <KillerSummary
+        matchId={summaryKillerId}
+        onBack={() => {
+          setView('menu')
+          setSummaryKillerId(undefined)
+        }}
+        onRematch={() => {
+          const oldData = getKillerMatchById(summaryKillerId)
+          if (!oldData) {
+            setView('menu')
+            return
+          }
+          setSummaryKillerId(undefined)
+          setView('new-killer')
+        }}
+      />
+    )
+  }
+
+  // MULTIPLAYER LOBBY (Host)
+  if (view === 'multiplayer-lobby-host' && multiplayerMatchId) {
+    return (
+      <MultiplayerLobby
+        mode="host"
+        status={mpState.status}
+        players={mpState.players}
+        phase={mpState.phase}
+        error={mpState.error}
+        myPlayerId={multiplayerMyPlayerId}
+        roomCode={multiplayerRoomCode ?? ''}
+        onCreateRoom={(code) => {
+          setMultiplayerRoomCode(code)
+          // Message will be queued until socket is open
+          const profiles = getProfiles()
+          const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
+          mpActions.createRoom(multiplayerMatchId!, {
+            playerId: multiplayerMyPlayerId,
+            name: myProfile?.name ?? multiplayerMyPlayerId,
+            color: myProfile?.color,
+          }, multiplayerRemoteEvents ?? [])
+        }}
+        onJoinRoom={() => {}}
+        onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
+        onGameStart={() => {
+          setActiveMatchId(multiplayerMatchId!)
+          setView('multiplayer-game')
+        }}
+        onBack={() => {
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
+          setView('menu')
+        }}
+      />
+    )
+  }
+
+  // MULTIPLAYER LOBBY (Join)
+  if (view === 'multiplayer-lobby-join') {
+    return (
+      <MultiplayerLobby
+        mode="join"
+        status={mpState.status}
+        players={mpState.players}
+        phase={mpState.phase}
+        error={mpState.error}
+        myPlayerId={multiplayerMyPlayerId}
+        roomCode={multiplayerRoomCode ?? ''}
+        onCreateRoom={() => {}}
+        onJoinRoom={(code) => {
+          setMultiplayerRoomCode(code)
+          // Message will be queued until socket is open
+          const profiles = getProfiles()
+          const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
+          mpActions.joinRoom(code, {
+            playerId: multiplayerMyPlayerId,
+            name: myProfile?.name ?? multiplayerMyPlayerId,
+            color: myProfile?.color,
+          })
+        }}
+        onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
+        onGameStart={() => {
+          // Extract matchId from synced events
+          const matchStarted = mpState.events.find((e: any) => e.type === 'MatchStarted') as any
+          if (matchStarted) {
+            setMultiplayerMatchId(matchStarted.matchId)
+            setActiveMatchId(matchStarted.matchId)
+          }
+          setView('multiplayer-game')
+        }}
+        onBack={() => {
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
+          setView('menu')
+        }}
+      />
+    )
+  }
+
+  // MULTIPLAYER GAME (X01 with multiplayer props)
+  if (view === 'multiplayer-game' && multiplayerMatchId) {
+    return (
+      <Game
+        matchId={multiplayerMatchId}
+        onExit={() => {
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
+          setActiveMatchId(undefined)
+          setView('menu')
+        }}
+        onNewGame={() => setView('new-start')}
+        multiplayer={{
+          enabled: true,
+          roomCode: multiplayerRoomCode ?? '',
+          myPlayerId: multiplayerMyPlayerId,
+          submitEvents: mpActions.submitEvents,
+          undo: mpActions.undo,
+          remoteEvents: multiplayerRemoteEvents,
+          connectionStatus: mpState.status,
+          playerCount: mpState.players.filter(p => p.connected).length,
+        }}
+      />
+    )
+  }
+
   // X01 LIVE GAME
   if (view === 'game' && activeMatchId) {
     return (
@@ -892,14 +1384,10 @@ export default function App() {
     ]
 
     return (
-      <div style={styles.page}>
-        <div style={styles.headerRow}>
-          <h2 style={styles.pageHeadline}>Einstellungen</h2>
-          <button style={styles.backBtn} onClick={() => setView('profiles-menu')}>
-            ← Zurück
-          </button>
-        </div>
-        <div style={styles.centerPage}>
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
+
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           <div style={styles.centerInner}>
             {/* Theme Selection */}
             <div style={styles.card}>
@@ -984,55 +1472,168 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <button style={styles.backBtn} onClick={() => setView('profiles-menu')}>← Zurück</button>
+        </div>
       </div>
     )
   }
 
   if (view === 'profiles-menu') {
+    const profilesItems: PickerItem[] = [
+      { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen' },
+      { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen' },
+      { id: 'profiles-backup', label: 'Backup & Restore', sub: 'Speichern oder importieren' },
+      { id: 'settings', label: 'Einstellungen', sub: 'Theme, Stimme' },
+    ]
+
+    const handleProfilesConfirm = (index: number) => {
+      setView(profilesItems[index].id as View)
+    }
+
     return (
-      <div style={styles.page}>
-        <div style={styles.headerRow}>
-          <h2 style={styles.pageHeadline}>Einstellungen</h2>
-          <button style={styles.backBtn} onClick={() => setView('menu')}>
-            ← Menü
-          </button>
-        </div>
-        <div style={styles.centerPage}>
-          <div style={styles.centerInner}>
-            <div style={styles.card}>
-              <div style={{ display: 'grid', gap: 8 }}>
-                <button onClick={() => setView('profiles')} style={styles.tile}>
-                  <div style={styles.title}>Profil bearbeiten</div>
-                  <div style={styles.sub}>Umbenennen & löschen</div>
-                </button>
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ height: 60 }} />
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
+          {isArcade ? (
+            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
+              <ArcadeScrollPicker
+                items={profilesItems}
+                selectedIndex={profilesPickerIndex}
+                onChange={setProfilesPickerIndex}
+                onConfirm={handleProfilesConfirm}
+                colors={colors}
+              />
+            </div>
+          ) : (
+            <div style={styles.centerInner}>
+              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
+              <div style={styles.card}>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <button onClick={() => setView('profiles')} style={styles.tile}>
+                    <div style={styles.title}>Profil bearbeiten</div>
+                    <div style={styles.sub}>Umbenennen & löschen</div>
+                  </button>
 
-                <button onClick={() => setView('create-profile')} style={styles.tile}>
-                  <div style={styles.title}>Neues Profil</div>
-                  <div style={styles.sub}>Spieler anlegen</div>
-                </button>
+                  <button onClick={() => setView('create-profile')} style={styles.tile}>
+                    <div style={styles.title}>Neues Profil</div>
+                    <div style={styles.sub}>Spieler anlegen</div>
+                  </button>
 
-                <button onClick={() => setView('profiles-backup')} style={styles.tile}>
-                  <div style={styles.title}>Backup & Restore</div>
-                  <div style={styles.sub}>Speichern oder importieren</div>
-                </button>
+                  <button onClick={() => setView('profiles-backup')} style={styles.tile}>
+                    <div style={styles.title}>Backup & Restore</div>
+                    <div style={styles.sub}>Speichern oder importieren</div>
+                  </button>
 
-                <button onClick={() => setView('settings')} style={styles.tile}>
-                  <div style={styles.title}>Einstellungen</div>
-                  <div style={styles.sub}>Theme, Stimme</div>
-                </button>
+                  <button onClick={() => setView('settings')} style={styles.tile}>
+                    <div style={styles.title}>Einstellungen</div>
+                    <div style={styles.sub}>Theme, Stimme</div>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ ...styles.sub, textAlign: 'center', marginTop: 8 }}>
+                Gäste fügst du direkt beim Spielstart hinzu.
               </div>
             </div>
+          )}
+        </div>
 
-            <div style={{ ...styles.sub, textAlign: 'center', marginTop: 8 }}>
-              Gäste fügst du direkt beim Spielstart hinzu.
-            </div>
-          </div>
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <button style={styles.backBtn} onClick={() => setView('menu')}>← Zurück</button>
         </div>
       </div>
     )
   }
 
   // ---------- HAUPTMENÜ ----------
+
+  const handleContinueGame = () => {
+    if (!continueInfo) return
+    if (continueInfo.kind === 'x01') {
+      setActiveMatchId(continueInfo.id)
+      setLastActivity('x01', continueInfo.id)
+      setView('game')
+    } else if (continueInfo.kind === 'cricket') {
+      setActiveCricketId(continueInfo.id)
+      setLastActivity('cricket', continueInfo.id)
+      setView('game-cricket')
+    } else if (continueInfo.kind === 'atb') {
+      setActiveATBId(continueInfo.id)
+      setLastActivity('atb', continueInfo.id)
+      setView('game-atb')
+    } else if (continueInfo.kind === 'str') {
+      setActiveStrId(continueInfo.id)
+      setLastActivity('str', continueInfo.id)
+      setView('game-str')
+    } else if (continueInfo.kind === 'highscore') {
+      setActiveHighscoreId(continueInfo.id)
+      setLastActivity('highscore', continueInfo.id)
+      setView('game-highscore')
+    } else if (continueInfo.kind === 'ctf') {
+      setActiveCTFId(continueInfo.id)
+      setLastActivity('ctf', continueInfo.id)
+      setView('game-ctf')
+    } else if (continueInfo.kind === 'shanghai') {
+      setActiveShanghaiId(continueInfo.id)
+      setLastActivity('shanghai', continueInfo.id)
+      setView('game-shanghai')
+    } else if (continueInfo.kind === 'killer') {
+      setActiveKillerId(continueInfo.id)
+      setLastActivity('killer', continueInfo.id)
+      setView('game-killer')
+    }
+  }
+
+  const menuItems: PickerItem[] = [
+    { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : '—' },
+    { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket' },
+    { id: 'multiplayer-host', label: 'Match hosten', sub: 'Remote-Spiel erstellen' },
+    { id: 'multiplayer-join', label: 'Match beitreten', sub: 'Code eingeben' },
+    { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores' },
+    { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Backup, Theme' },
+  ]
+
+  const handleMenuConfirm = (index: number) => {
+    const itemId = menuItems[index].id
+    if (itemId === 'continue') handleContinueGame()
+    else if (itemId === 'multiplayer-host') {
+      const profiles = getProfiles()
+      if (profiles.length === 0) return
+      setMultiplayerMyPlayerId(profiles[0].id)
+      setIsMultiplayerSetup(true)
+      setView('new-start')
+    } else if (itemId === 'multiplayer-join') {
+      const profiles = getProfiles()
+      if (profiles.length === 0) return
+      setMultiplayerMyPlayerId(profiles[0].id)
+      setView('multiplayer-lobby-join')
+    } else {
+      setView(itemId as View)
+    }
+  }
+
+  if (isArcade) {
+    return (
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
+          <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+            <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Darts</h1>
+            <ArcadeScrollPicker
+              items={menuItems}
+              selectedIndex={menuPickerIndex}
+              onChange={setMenuPickerIndex}
+              onConfirm={handleMenuConfirm}
+              colors={colors}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
@@ -1044,30 +1645,7 @@ export default function App() {
               <div style={{ display: 'grid', gap: 8 }}>
                 {/* SPIEL FORTSETZEN */}
                 <button
-                  onClick={() => {
-                    if (!continueInfo) return
-                    if (continueInfo.kind === 'x01') {
-                      setActiveMatchId(continueInfo.id)
-                      setLastActivity('x01', continueInfo.id)
-                      setView('game')
-                    } else if (continueInfo.kind === 'cricket') {
-                      setActiveCricketId(continueInfo.id)
-                      setLastActivity('cricket', continueInfo.id)
-                      setView('game-cricket')
-                    } else if (continueInfo.kind === 'atb') {
-                      setActiveATBId(continueInfo.id)
-                      setLastActivity('atb', continueInfo.id)
-                      setView('game-atb')
-                    } else if (continueInfo.kind === 'str') {
-                      setActiveStrId(continueInfo.id)
-                      setLastActivity('str', continueInfo.id)
-                      setView('game-str')
-                    } else if (continueInfo.kind === 'highscore') {
-                      setActiveHighscoreId(continueInfo.id)
-                      setLastActivity('highscore', continueInfo.id)
-                      setView('game-highscore')
-                    }
-                  }}
+                  onClick={handleContinueGame}
                   disabled={!continueInfo}
                   style={{
                     ...styles.tile,
@@ -1084,6 +1662,41 @@ export default function App() {
                   <div style={styles.title}>Neues Spiel</div>
                   <div style={styles.sub}>X01 oder Cricket</div>
                 </button>
+
+                {/* MULTIPLAYER */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    onClick={() => {
+                      const profiles = getProfiles()
+                      if (profiles.length === 0) {
+                        alert('Erstelle zuerst ein Profil unter Einstellungen')
+                        return
+                      }
+                      setMultiplayerMyPlayerId(profiles[0].id)
+                      setIsMultiplayerSetup(true)
+                      setView('new-start')
+                    }}
+                    style={{ ...styles.tile, textAlign: 'center' }}
+                  >
+                    <div style={styles.title}>Match hosten</div>
+                    <div style={styles.sub}>Remote-Spiel erstellen</div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const profiles = getProfiles()
+                      if (profiles.length === 0) {
+                        alert('Erstelle zuerst ein Profil unter Einstellungen')
+                        return
+                      }
+                      setMultiplayerMyPlayerId(profiles[0].id)
+                      setView('multiplayer-lobby-join')
+                    }}
+                    style={{ ...styles.tile, textAlign: 'center' }}
+                  >
+                    <div style={styles.title}>Match beitreten</div>
+                    <div style={styles.sub}>Code eingeben</div>
+                  </button>
+                </div>
 
                 {/* STATISTIKEN (ausgelagert) */}
                 <button onClick={() => setView('stats-area')} style={styles.tile}>

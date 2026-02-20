@@ -1,5 +1,5 @@
-// src/components/ATBPirateFieldDistributionChart.tsx
-// Kreisdiagramm für Feldverteilung im ATB Piratenmodus
+// src/components/ATBCaptureFieldDistributionChart.tsx
+// Kreisdiagramm für Feldverteilung im ATB Capture the Field Modus
 
 import React, { useMemo } from 'react'
 import { useTheme } from '../ThemeProvider'
@@ -15,7 +15,7 @@ type Props = {
   size?: number
 }
 
-export default function ATBPirateFieldDistributionChart({ data, size = 200 }: Props) {
+export default function ATBCaptureFieldDistributionChart({ data, size = 200 }: Props) {
   const { colors } = useTheme()
 
   const chartData = useMemo(() => {

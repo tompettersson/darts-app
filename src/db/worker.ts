@@ -3,7 +3,7 @@
 // Läuft in separatem Thread um UI nicht zu blockieren
 
 import sqlite3InitModule, { type Database, type Sqlite3Static, type BindingSpec } from '@sqlite.org/sqlite-wasm'
-import { ALL_SCHEMA_STATEMENTS, CURRENT_DB_VERSION } from './schema'
+import { ALL_SCHEMA_STATEMENTS, CURRENT_DB_VERSION, MIGRATIONS } from './schema'
 
 const DB_NAME = '/darts.sqlite'
 
@@ -84,16 +84,41 @@ async function runMigrations(): Promise<void> {
 
   const currentVersion = getCurrentVersion()
 
-  if (currentVersion < CURRENT_DB_VERSION) {
-    console.log(`[SQLite Worker] Migrating from v${currentVersion} to v${CURRENT_DB_VERSION}`)
+  // Immer alle Schema-Statements ausführen — sie sind alle CREATE IF NOT EXISTS
+  // und damit idempotent. Das verhindert Probleme wenn die Version schon hochgesetzt
+  // wurde, aber Tabellen (z.B. durch Hot-Reload oder DB-Reset) fehlen.
+  console.log(`[SQLite Worker] Ensuring schema (current v${currentVersion}, target v${CURRENT_DB_VERSION})`)
 
-    // Run all schema statements
-    for (const sql of ALL_SCHEMA_STATEMENTS) {
-      try {
-        db.exec(sql)
-      } catch (e) {
-        console.error('[SQLite Worker] Migration error:', sql, e)
-        throw e
+  for (const sql of ALL_SCHEMA_STATEMENTS) {
+    try {
+      db.exec(sql)
+    } catch (e) {
+      console.error('[SQLite Worker] Schema error:', sql, e)
+      throw e
+    }
+  }
+
+  // Pending Migrationen ausführen (ALTER TABLE, etc.)
+  // CREATE IF NOT EXISTS deckt nur neue Tabellen ab — für Spalten-Änderungen
+  // an bestehenden Tabellen brauchen wir die MIGRATIONS-Array.
+  if (currentVersion < CURRENT_DB_VERSION) {
+    const pendingMigrations = MIGRATIONS.filter(m => m.version > currentVersion && m.version > 1)
+    for (const migration of pendingMigrations) {
+      console.log(`[SQLite Worker] Running migration v${migration.version}: ${migration.name}`)
+      for (const sql of migration.up) {
+        try {
+          db.exec(sql)
+        } catch (e) {
+          // ALTER TABLE ADD COLUMN schlägt fehl wenn Spalte schon existiert
+          // (z.B. frische DB wo CREATE TABLE sie schon angelegt hat) — ignorieren
+          const msg = e instanceof Error ? e.message : String(e)
+          if (msg.includes('duplicate column') || msg.includes('already exists')) {
+            console.log(`[SQLite Worker] Column already exists, skipping: ${sql}`)
+          } else {
+            console.error(`[SQLite Worker] Migration v${migration.version} error:`, sql, e)
+            throw e
+          }
+        }
       }
     }
 
@@ -104,7 +129,7 @@ async function runMigrations(): Promise<void> {
       { bind: toBindSpec([CURRENT_DB_VERSION.toString()]) }
     )
 
-    console.log('[SQLite Worker] Migration complete')
+    console.log(`[SQLite Worker] Version updated from v${currentVersion} to v${CURRENT_DB_VERSION}`)
   }
 }
 

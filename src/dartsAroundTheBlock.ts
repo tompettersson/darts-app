@@ -13,7 +13,6 @@ import type {
   ATBMatchConfig,
   ATBPlayerSpecialState,
   ATBGameMode,
-  ATBPirateConfig,
 } from './types/aroundTheBlock'
 import { DEFAULT_ATB_CONFIG } from './types/aroundTheBlock'
 
@@ -28,7 +27,6 @@ export type {
   ATBMatchConfig,
   ATBPlayerSpecialState,
   ATBGameMode,
-  ATBPirateConfig,
 }
 
 export { DEFAULT_ATB_CONFIG }
@@ -284,8 +282,6 @@ export type ATBTurnAddedEvent = {
     missCount?: number            // Miss3Back: Aktuelle Fehlwurf-Zählung
     usedDouble?: boolean          // No Double Escape: Double verwendet
   }
-  // Piratenmodus: Score für diesen Turn
-  pirateScore?: number
 }
 
 export type ATBLegFinishedEvent = {
@@ -317,17 +313,17 @@ export type ATBMatchFinishedEvent = {
   durationMs: number
 }
 
-// Piratenmodus: Runde abgeschlossen (alle haben auf ein Feld geworfen)
-export type ATBPirateRoundFinishedEvent = {
-  type: 'ATBPirateRoundFinished'
+// Legacy: Capture the Field Runden-Event (nur für Deserialisierung alter Matches)
+type ATBCaptureRoundFinishedEvent = {
+  type: 'ATBCaptureRoundFinished' | 'ATBPirateRoundFinished'
   eventId: string
   matchId: string
   legId: string
   ts: string
   fieldIndex: number
   fieldNumber: number | 'BULL'
-  scoresByPlayer: Record<string, number>  // playerId -> Punkte in dieser Runde
-  winnerId: string | null  // null = Gleichstand
+  scoresByPlayer: Record<string, number>
+  winnerId: string | null
 }
 
 export type ATBEvent =
@@ -337,7 +333,7 @@ export type ATBEvent =
   | ATBLegFinishedEvent
   | ATBSetFinishedEvent
   | ATBMatchFinishedEvent
-  | ATBPirateRoundFinishedEvent
+  | ATBCaptureRoundFinishedEvent
 
 // Derived State
 export type ATBState = {
@@ -375,14 +371,6 @@ export type ATBState = {
   events: ATBEvent[]
   // NEU: Spezialregel-Status pro Spieler
   specialStateByPlayer: Record<string, ATBPlayerSpecialState>
-  // Piratenmodus-State
-  pirateState?: {
-    currentFieldIndex: number  // Welches Feld ist gerade dran (0-20)
-    fieldWinners: Record<string, string | null>  // "1", "2", ..., "BULL" -> playerId | null
-    totalScoreByPlayer: Record<string, number>  // playerId -> Gesamtpunkte (Tiebreaker)
-    currentRoundTurns: Record<string, { darts: ATBDart[]; score: number }>  // Würfe dieser Runde
-    playersCompletedThisRound: string[]  // Wer hat in dieser Runde schon geworfen
-  }
 }
 
 // ===== Hilfsfunktionen =====
@@ -455,21 +443,6 @@ export function applyATBEvents(events: ATBEvent[]): ATBState {
           state.specialStateByPlayer[p.playerId] = {}
         }
         state.startTime = new Date(event.ts).getTime()
-
-        // Piratenmodus initialisieren
-        if (event.config?.gameMode === 'pirate') {
-          const totalScoreByPlayer: Record<string, number> = {}
-          for (const p of event.players) {
-            totalScoreByPlayer[p.playerId] = 0
-          }
-          state.pirateState = {
-            currentFieldIndex: 0,
-            fieldWinners: {},
-            totalScoreByPlayer,
-            currentRoundTurns: {},
-            playersCompletedThisRound: [],
-          }
-        }
         break
       }
 
@@ -500,20 +473,6 @@ export function applyATBEvents(events: ATBEvent[]): ATBState {
             state.match.extendedSequence = event.newExtendedSequence
           }
         }
-        // Piratenmodus: State für neues Leg zurücksetzen
-        if (state.pirateState && state.match) {
-          const totalScoreByPlayer: Record<string, number> = {}
-          for (const p of state.match.players) {
-            totalScoreByPlayer[p.playerId] = 0
-          }
-          state.pirateState = {
-            currentFieldIndex: 0,
-            fieldWinners: {},
-            totalScoreByPlayer,
-            currentRoundTurns: {},
-            playersCompletedThisRound: [],
-          }
-        }
         break
       }
 
@@ -521,18 +480,6 @@ export function applyATBEvents(events: ATBEvent[]): ATBState {
         state.dartsUsedByPlayer[event.playerId] += event.darts.length
         state.dartsUsedTotalByPlayer[event.playerId] += event.darts.length
         state.currentIndexByPlayer[event.playerId] = event.newIndex
-
-        // Piratenmodus: Turn in currentRoundTurns speichern
-        if (state.pirateState) {
-          const score = (event as any).pirateScore ?? 0  // Score wird im Event mitgeliefert
-          state.pirateState.currentRoundTurns[event.playerId] = {
-            darts: event.darts,
-            score,
-          }
-          if (!state.pirateState.playersCompletedThisRound.includes(event.playerId)) {
-            state.pirateState.playersCompletedThisRound.push(event.playerId)
-          }
-        }
 
         // Spezialregel-Effekte verarbeiten
         if (event.specialEffects) {
@@ -603,30 +550,10 @@ export function applyATBEvents(events: ATBEvent[]): ATBState {
         break
       }
 
-      case 'ATBPirateRoundFinished': {
-        if (state.pirateState) {
-          // Feld-Gewinner speichern
-          const fieldKey = String(event.fieldNumber)
-          state.pirateState.fieldWinners[fieldKey] = event.winnerId
-
-          // Gesamtpunkte aktualisieren
-          for (const [playerId, score] of Object.entries(event.scoresByPlayer)) {
-            state.pirateState.totalScoreByPlayer[playerId] =
-              (state.pirateState.totalScoreByPlayer[playerId] ?? 0) + score
-          }
-
-          // Nächstes Feld
-          state.pirateState.currentFieldIndex = event.fieldIndex + 1
-          state.pirateState.currentRoundTurns = {}
-          state.pirateState.playersCompletedThisRound = []
-
-          // turnIndex zurücksetzen (ggf. mit Rotation)
-          if (state.match?.config?.pirateConfig?.rotateOrder) {
-            state.turnIndex = (state.startPlayerIndex + event.fieldIndex + 1) % state.match.players.length
-          } else {
-            state.turnIndex = 0
-          }
-        }
+      case 'ATBPirateRoundFinished': // Legacy: No-op für alte Matches
+      case 'ATBCaptureRoundFinished': {
+        // Legacy: Diese Events kommen aus alten Capture-the-Field-Matches.
+        // Sie werden nur noch für die Deserialisierung alter Event-Logs behalten.
         break
       }
     }
@@ -848,7 +775,7 @@ export function createATBLegStartEvent(
       config.targetMode === 'mixed' ||
       config.targetMode === 'mixedRandom' ||
       config.bullPosition === 'random' ||
-      config.gameMode === 'pirate'
+      config.gameMode === 'capture' || config.gameMode === 'pirate'
 
     if (needsNewSequence) {
       newExtendedSequence = generateATBSequence(config, direction)
@@ -1169,285 +1096,6 @@ export function recordATBTurn(
           state.match.direction
         )
       }
-    }
-  }
-
-  return result
-}
-
-// ===== Piratenmodus Funktionen =====
-
-/**
- * Berechnet den Score für einen Piratenmodus-Turn.
- * Nur Treffer auf das aktuelle Ziel zählen.
- */
-export function calculatePirateScore(
-  darts: ATBDart[],
-  targetNumber: number | 'BULL',
-  multiplierMode: ATBMultiplierMode
-): number {
-  let score = 0
-  for (const dart of darts) {
-    if (dart.target === 'MISS') continue
-    if (dart.target !== targetNumber) continue  // Nur Treffer auf Ziel zählen
-
-    switch (multiplierMode) {
-      case 'standard':
-        score += dart.mult  // T=3, D=2, S=1
-        break
-      case 'standard2':
-        score += dart.mult === 1 ? 1 : 2  // T=2, D=2, S=1
-        break
-      case 'single':
-        score += 1  // Alle = 1
-        break
-    }
-  }
-  return score
-}
-
-/**
- * Prüft ob eine Piratenmodus-Runde abgeschlossen ist (alle haben geworfen)
- */
-export function isPirateRoundComplete(state: ATBState): boolean {
-  if (!state.pirateState || !state.match) return false
-  return state.pirateState.playersCompletedThisRound.length >= state.match.players.length
-}
-
-/**
- * Ermittelt den Gewinner einer Piratenmodus-Runde
- */
-export function determinePirateRoundWinner(
-  scoresByPlayer: Record<string, number>
-): string | null {
-  const entries = Object.entries(scoresByPlayer)
-  if (entries.length === 0) return null
-
-  // Höchsten Score finden
-  const maxScore = Math.max(...entries.map(([_, score]) => score))
-  const winners = entries.filter(([_, score]) => score === maxScore)
-
-  // Bei Gleichstand: null (keiner gewinnt)
-  if (winners.length !== 1) return null
-
-  return winners[0][0]
-}
-
-/**
- * Ermittelt den Gesamtgewinner eines Piratenmodus-Legs
- * Primär: Anzahl gewonnener Felder
- * Sekundär (Tiebreaker): Gesamtpunkte
- */
-export function determinePirateLegWinner(state: ATBState): string | null {
-  if (!state.pirateState || !state.match) return null
-
-  const fieldWins: Record<string, number> = {}
-  for (const p of state.match.players) {
-    fieldWins[p.playerId] = 0
-  }
-
-  // Felder zählen
-  for (const winnerId of Object.values(state.pirateState.fieldWinners)) {
-    if (winnerId) {
-      fieldWins[winnerId] = (fieldWins[winnerId] ?? 0) + 1
-    }
-  }
-
-  // Höchste Anzahl Felder
-  const maxFields = Math.max(...Object.values(fieldWins))
-  const topPlayers = Object.entries(fieldWins).filter(([_, wins]) => wins === maxFields)
-
-  // Eindeutiger Gewinner
-  if (topPlayers.length === 1) {
-    return topPlayers[0][0]
-  }
-
-  // Tiebreaker: Gesamtpunkte
-  let highestScore = -1
-  let winner: string | null = null
-  for (const [playerId] of topPlayers) {
-    const score = state.pirateState.totalScoreByPlayer[playerId] ?? 0
-    if (score > highestScore) {
-      highestScore = score
-      winner = playerId
-    } else if (score === highestScore) {
-      // Auch bei Punktegleichstand: Unentschieden (null)
-      winner = null
-    }
-  }
-
-  return winner
-}
-
-export type ATBPirateTurnResult = {
-  turnEvent: ATBTurnAddedEvent
-  roundFinished?: ATBPirateRoundFinishedEvent
-  legFinished?: ATBLegFinishedEvent
-  setFinished?: ATBSetFinishedEvent
-  matchFinished?: ATBMatchFinishedEvent
-  nextLegStart?: ATBLegStartedEvent
-}
-
-/**
- * Nimmt einen Turn im Piratenmodus auf.
- */
-export function recordATBPirateTurn(
-  state: ATBState,
-  playerId: string,
-  darts: ATBDart[]
-): ATBPirateTurnResult {
-  if (!state.match) throw new Error('No match started')
-  if (!state.currentLegId) throw new Error('No leg started')
-  if (!state.pirateState) throw new Error('Not in pirate mode')
-
-  const config = state.match.config
-  if (!config || config.gameMode !== 'pirate') {
-    throw new Error('Not in pirate mode')
-  }
-
-  const currentFieldIndex = state.pirateState.currentFieldIndex
-  const sequence = state.match.extendedSequence ?? state.match.sequence.map(n => ({ number: n }))
-
-  if (currentFieldIndex >= sequence.length) {
-    throw new Error('All fields completed')
-  }
-
-  const currentTarget = sequence[currentFieldIndex]
-  const targetNumber = typeof currentTarget === 'object' ? currentTarget.number : currentTarget
-
-  // Score berechnen
-  const pirateScore = calculatePirateScore(darts, targetNumber, config.multiplierMode)
-
-  // Turn-Event erstellen
-  const turnEvent: ATBTurnAddedEvent = {
-    type: 'ATBTurnAdded',
-    eventId: id(),
-    matchId: state.match.matchId,
-    legId: state.currentLegId,
-    ts: now(),
-    playerId,
-    darts,
-    fieldsAdvanced: 0,  // Im Piratenmodus kein individueller Fortschritt
-    newIndex: 0,
-    pirateScore,
-  }
-
-  const result: ATBPirateTurnResult = { turnEvent }
-
-  // State temporär aktualisieren für Prüfungen
-  const tempPlayersCompleted = [...state.pirateState.playersCompletedThisRound, playerId]
-  const tempRoundTurns = {
-    ...state.pirateState.currentRoundTurns,
-    [playerId]: { darts, score: pirateScore },
-  }
-
-  // Prüfe ob Runde komplett
-  if (tempPlayersCompleted.length >= state.match.players.length) {
-    // Scores sammeln
-    const scoresByPlayer: Record<string, number> = {}
-    for (const [pid, turnData] of Object.entries(tempRoundTurns)) {
-      scoresByPlayer[pid] = turnData.score
-    }
-
-    // Gewinner ermitteln
-    const roundWinnerId = determinePirateRoundWinner(scoresByPlayer)
-
-    result.roundFinished = {
-      type: 'ATBPirateRoundFinished',
-      eventId: id(),
-      matchId: state.match.matchId,
-      legId: state.currentLegId,
-      ts: now(),
-      fieldIndex: currentFieldIndex,
-      fieldNumber: targetNumber,
-      scoresByPlayer,
-      winnerId: roundWinnerId,
-    }
-
-    // Prüfe ob Leg fertig (alle Felder gespielt)
-    if (currentFieldIndex + 1 >= sequence.length) {
-      // Leg-Gewinner ermitteln (mit temporärem State-Update)
-      const tempFieldWinners = { ...state.pirateState.fieldWinners }
-      tempFieldWinners[String(targetNumber)] = roundWinnerId
-
-      const tempTotalScores = { ...state.pirateState.totalScoreByPlayer }
-      for (const [pid, score] of Object.entries(scoresByPlayer)) {
-        tempTotalScores[pid] = (tempTotalScores[pid] ?? 0) + score
-      }
-
-      // Gewinner berechnen
-      const fieldWins: Record<string, number> = {}
-      for (const p of state.match.players) {
-        fieldWins[p.playerId] = 0
-      }
-      for (const wid of Object.values(tempFieldWinners)) {
-        if (wid) fieldWins[wid]++
-      }
-
-      const maxFields = Math.max(...Object.values(fieldWins))
-      const topPlayers = Object.entries(fieldWins).filter(([_, w]) => w === maxFields)
-
-      let legWinnerId: string
-      if (topPlayers.length === 1) {
-        legWinnerId = topPlayers[0][0]
-      } else {
-        // Tiebreaker: Gesamtpunkte
-        let highestScore = -1
-        let winner = topPlayers[0][0]
-        for (const [pid] of topPlayers) {
-          const score = tempTotalScores[pid] ?? 0
-          if (score > highestScore) {
-            highestScore = score
-            winner = pid
-          }
-        }
-        legWinnerId = winner
-      }
-
-      // Darts zählen für den Gewinner
-      const winnerDarts = (state.dartsUsedTotalByPlayer[legWinnerId] ?? 0) +
-        (state.dartsUsedByPlayer[legWinnerId] ?? 0) + darts.length
-
-      result.legFinished = {
-        type: 'ATBLegFinished',
-        eventId: id(),
-        matchId: state.match.matchId,
-        legId: state.currentLegId,
-        ts: now(),
-        winnerId: legWinnerId,
-        winnerDarts,
-      }
-
-      // Prüfe Match-Ende
-      const structure = state.match.structure
-      const newLegWins = (state.totalLegWinsByPlayer[legWinnerId] ?? 0) + 1
-
-      if (structure.kind === 'legs') {
-        const targetLegs = Math.ceil(structure.bestOfLegs / 2)
-        if (newLegWins >= targetLegs) {
-          const totalDarts = Object.values(state.dartsUsedTotalByPlayer).reduce((a, b) => a + b, 0) + darts.length
-          const durationMs = Date.now() - state.startTime
-
-          result.matchFinished = {
-            type: 'ATBMatchFinished',
-            eventId: id(),
-            matchId: state.match.matchId,
-            ts: now(),
-            winnerId: legWinnerId,
-            totalDarts,
-            durationMs,
-          }
-        } else {
-          result.nextLegStart = createATBLegStartEvent(
-            state.match.matchId,
-            state.currentLegIndex + 1,
-            undefined,
-            state.match.config,
-            state.match.direction
-          )
-        }
-      }
-      // TODO: Sets-Modus für Piratenmodus (falls benötigt)
     }
   }
 

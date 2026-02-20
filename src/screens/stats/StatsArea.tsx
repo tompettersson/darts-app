@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { ui, getThemedUI } from '../../ui'
 import { useTheme } from '../../ThemeProvider'
+import ArcadeScrollPicker, { type PickerItem } from '../../components/ArcadeScrollPicker'
 
 // Screens (bestehend)
 import StatsDashboard, { type H2HState } from './StatsDashboard'
@@ -14,6 +15,9 @@ import MatchDetails from '../MatchDetails'
 import ATBMatchDetails from '../ATBMatchDetails'
 import StrMatchDetails from '../StrMatchDetails'
 import HighscoreMatchDetails from '../HighscoreMatchDetails'
+import CTFMatchDetails from '../CTFMatchDetails'
+import ShanghaiMatchDetails from '../ShanghaiMatchDetails'
+import KillerSummary from '../KillerSummary'
 import HallOfFame from '../HallOfFame'
 
 // Match History (bei dir liegt es unter /screens)
@@ -29,6 +33,9 @@ type View =
   | 'atb-match-details'
   | 'str-match-details'
   | 'highscore-match-details'
+  | 'ctf-match-details'
+  | 'shanghai-match-details'
+  | 'killer-match-details'
   | 'hall-of-fame'
 
 type Props = {
@@ -44,11 +51,15 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
   const [view, setView] = useState<View>(initialView || 'stats-menu')
+  const [statsPickerIndex, setStatsPickerIndex] = useState(0)
 
   const [detailMatchId, setDetailMatchId] = useState<string | undefined>(undefined)
   const [atbDetailMatchId, setAtbDetailMatchId] = useState<string | undefined>(undefined)
   const [strDetailMatchId, setStrDetailMatchId] = useState<string | undefined>(undefined)
   const [highscoreDetailMatchId, setHighscoreDetailMatchId] = useState<string | undefined>(undefined)
+  const [ctfDetailMatchId, setCtfDetailMatchId] = useState<string | undefined>(undefined)
+  const [shanghaiDetailMatchId, setShanghaiDetailMatchId] = useState<string | undefined>(undefined)
+  const [killerDetailMatchId, setKillerDetailMatchId] = useState<string | undefined>(undefined)
   const [playerProfileId, setPlayerProfileId] = useState<string | undefined>(undefined)
 
   // Speichert wohin "Zurück" bei Match-Details führen soll
@@ -62,6 +73,26 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
     player2Id: '',
   })
 
+  // Backspace-Navigation: einen Menüpunkt zurück
+  useEffect(() => {
+    const handleBackspace = (e: KeyboardEvent) => {
+      if (e.key !== 'Backspace') return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      e.preventDefault()
+      if (view === 'stats-menu') {
+        onBackToMenu()
+      } else if (view === 'match-details' || view === 'atb-match-details' || view === 'str-match-details' || view === 'highscore-match-details' || view === 'ctf-match-details' || view === 'shanghai-match-details' || view === 'killer-match-details') {
+        setView(returnFromMatchDetails)
+      } else {
+        setView('stats-menu')
+      }
+    }
+
+    window.addEventListener('keydown', handleBackspace)
+    return () => window.removeEventListener('keydown', handleBackspace)
+  }, [view, onBackToMenu, returnFromMatchDetails])
+
   // Wenn initialView sich ändert (z.B. bei Rückkehr aus Cricket-Summary), View aktualisieren
   useEffect(() => {
     if (initialView) {
@@ -73,45 +104,68 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
 
   // ---------- STATS UNTERMENÜ ----------
   if (view === 'stats-menu') {
+    const statsItems: PickerItem[] = [
+      { id: 'stats-dashboard', label: 'Vergleiche', sub: 'Head-to-Head, Spielervergleich' },
+      { id: 'match-history', label: 'Matchhistorie', sub: 'Matchauswahl → Details' },
+      { id: 'player-profile', label: 'Spieler', sub: 'Statistiken pro Spieler' },
+      { id: 'hall-of-fame', label: 'Highscores', sub: 'Hall of Fame / Leaderboards' },
+    ]
+
+    const handleStatsConfirm = (index: number) => {
+      setView(statsItems[index].id as View)
+    }
+
     return (
-      <div style={styles.page}>
-        <div style={styles.headerRow}>
-          <h2 style={{ margin: 0, color: colors.fg }}>Statistiken</h2>
-          <button style={styles.backBtn} onClick={onBackToMenu}>
-            ← Menü
-          </button>
-        </div>
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ height: 60 }} />
+        <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
+          {isArcade ? (
+            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Statistiken</h1>
+              <ArcadeScrollPicker
+                items={statsItems}
+                selectedIndex={statsPickerIndex}
+                onChange={setStatsPickerIndex}
+                onConfirm={handleStatsConfirm}
+                colors={colors}
+              />
+            </div>
+          ) : (
+            <div style={styles.centerInner}>
+              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Statistiken</h1>
+              <div style={styles.card}>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <button onClick={() => setView('stats-dashboard')} style={styles.tile}>
+                    <div style={styles.title}>Vergleiche</div>
+                    <div style={styles.sub}>Head-to-Head, Spielervergleich</div>
+                  </button>
 
-        <div style={styles.centerPage}>
-          <div style={styles.centerInner}>
-            <div style={styles.card}>
-              <div style={{ display: 'grid', gap: 8 }}>
-                <button onClick={() => setView('stats-dashboard')} style={styles.tile}>
-                  <div style={styles.title}>Vergleiche</div>
-                  <div style={styles.sub}>Head-to-Head, Spielervergleich</div>
-                </button>
+                  <button onClick={() => setView('match-history')} style={styles.tile}>
+                    <div style={styles.title}>Matchhistorie</div>
+                    <div style={styles.sub}>Matchauswahl → Details</div>
+                  </button>
 
-                <button onClick={() => setView('match-history')} style={styles.tile}>
-                  <div style={styles.title}>Matchhistorie</div>
-                  <div style={styles.sub}>Matchauswahl → Details</div>
-                </button>
+                  <button onClick={() => setView('player-profile')} style={styles.tile}>
+                    <div style={styles.title}>Spieler</div>
+                    <div style={styles.sub}>Statistiken pro Spieler</div>
+                  </button>
 
-                <button onClick={() => setView('player-profile')} style={styles.tile}>
-                  <div style={styles.title}>Spieler</div>
-                  <div style={styles.sub}>Statistiken pro Spieler</div>
-                </button>
+                  <button onClick={() => setView('hall-of-fame')} style={styles.tile}>
+                    <div style={styles.title}>Highscores</div>
+                    <div style={styles.sub}>Hall of Fame / Leaderboards</div>
+                  </button>
+                </div>
+              </div>
 
-                <button onClick={() => setView('hall-of-fame')} style={styles.tile}>
-                  <div style={styles.title}>Highscores</div>
-                  <div style={styles.sub}>Hall of Fame / Leaderboards</div>
-                </button>
+              <div style={{ ...styles.sub, textAlign: 'center', marginTop: 8 }}>
+                Profile & Backup findest du im Hauptmenü.
               </div>
             </div>
+          )}
+        </div>
 
-            <div style={{ ...styles.sub, textAlign: 'center', marginTop: 8 }}>
-              Profile & Backup findest du im Hauptmenü.
-            </div>
-          </div>
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <button style={styles.backBtn} onClick={onBackToMenu}>← Zurück</button>
         </div>
       </div>
     )
@@ -120,32 +174,26 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   // ---------- DASHBOARD ----------
   if (view === 'stats-dashboard') {
     return (
-      <div style={styles.page}>
-        <div style={styles.centerPage}>
-          <div style={styles.centerInnerWide}>
-            <StatsDashboard
-              onBack={() => setView('stats-menu')}
-              onShowPlayer={(pid: string) => {
-                setPlayerProfileId(pid)
-                setView('player-profile')
-              }}
-              onOpenMatch={(id: string) => {
-                setDetailMatchId(id)
-                setReturnFromMatchDetails('stats-dashboard')
-                setView('match-details')
-              }}
-              onOpenCricketMatch={(id: string) => {
-                onOpenCricketMatch(id, 'stats-dashboard')
-              }}
-              onOpenHallOfFame={() => {
-                setView('hall-of-fame')
-              }}
-              h2hState={h2hState}
-              onH2HStateChange={setH2HState}
-            />
-          </div>
-        </div>
-      </div>
+      <StatsDashboard
+        onBack={() => setView('stats-menu')}
+        onShowPlayer={(pid: string) => {
+          setPlayerProfileId(pid)
+          setView('player-profile')
+        }}
+        onOpenMatch={(id: string) => {
+          setDetailMatchId(id)
+          setReturnFromMatchDetails('stats-dashboard')
+          setView('match-details')
+        }}
+        onOpenCricketMatch={(id: string) => {
+          onOpenCricketMatch(id, 'stats-dashboard')
+        }}
+        onOpenHallOfFame={() => {
+          setView('hall-of-fame')
+        }}
+        h2hState={h2hState}
+        onH2HStateChange={setH2HState}
+      />
     )
   }
 
@@ -179,6 +227,21 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
                 setHighscoreDetailMatchId(id)
                 setReturnFromMatchDetails('match-history')
                 setView('highscore-match-details')
+              }}
+              onOpenCTFMatch={(id: string) => {
+                setCtfDetailMatchId(id)
+                setReturnFromMatchDetails('match-history')
+                setView('ctf-match-details')
+              }}
+              onOpenShanghaiMatch={(id: string) => {
+                setShanghaiDetailMatchId(id)
+                setReturnFromMatchDetails('match-history')
+                setView('shanghai-match-details')
+              }}
+              onOpenKillerMatch={(id: string) => {
+                setKillerDetailMatchId(id)
+                setReturnFromMatchDetails('match-history')
+                setView('killer-match-details')
               }}
             />
           </div>
@@ -261,6 +324,21 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   // ---------- HIGHSCORE MATCH DETAILS ----------
   if (view === 'highscore-match-details' && highscoreDetailMatchId) {
     return <HighscoreMatchDetails matchId={highscoreDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+  }
+
+  // ---------- CTF MATCH DETAILS ----------
+  if (view === 'ctf-match-details' && ctfDetailMatchId) {
+    return <CTFMatchDetails matchId={ctfDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+  }
+
+  // ---------- SHANGHAI MATCH DETAILS ----------
+  if (view === 'shanghai-match-details' && shanghaiDetailMatchId) {
+    return <ShanghaiMatchDetails matchId={shanghaiDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+  }
+
+  // ---------- KILLER MATCH DETAILS ----------
+  if (view === 'killer-match-details' && killerDetailMatchId) {
+    return <KillerSummary matchId={killerDetailMatchId} onBack={() => setView(returnFromMatchDetails)} readOnly />
   }
 
   // Fallback

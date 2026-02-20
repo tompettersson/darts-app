@@ -61,7 +61,7 @@ type PendingMultipliers = {
   triple?: boolean
 }
 
-// NEU: Feld-Besitzer für Piratenmodus
+// NEU: Feld-Besitzer für Capture the Field
 type FieldOwner = {
   playerId: string
   color: string
@@ -73,7 +73,7 @@ type Props = {
   size?: number
   activePlayerColor?: string // Farbe des aktiven Spielers für Zielfeld-Highlight
   pendingMultipliers?: PendingMultipliers // NEU: Welche Ringe leuchten sollen
-  fieldOwners?: Record<string, FieldOwner> // NEU: Piratenmodus - wer hat welches Feld gewonnen
+  fieldOwners?: Record<string, FieldOwner> // NEU: Capture the Field - wer hat welches Feld gewonnen
 }
 
 export default function ATBDartboard({ currentTarget, players, size = 300, activePlayerColor, pendingMultipliers, fieldOwners }: Props) {
@@ -231,6 +231,13 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
           .target-segment {
             animation: pulse-glow 0.8s ease-in-out infinite;
           }
+          @keyframes target-overlay-pulse {
+            0%, 100% { opacity: 0.15; }
+            50% { opacity: 0.45; }
+          }
+          .target-overlay {
+            animation: target-overlay-pulse 1.5s ease-in-out infinite;
+          }
         `}</style>
       </defs>
 
@@ -297,32 +304,41 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
               strokeWidth={0.5}
             />
 
-            {/* NEU: Piratenmodus - Feld-Besitzer Overlay */}
+            {/* NEU: Capture the Field - Feld-Besitzer Overlay (abgedunkelt) */}
             {(() => {
               const fieldKey = String(num)
               const owner = fieldOwners?.[fieldKey]
               if (!owner) return null
 
               if (owner === 'tie') {
-                // Gleichstand: Graues Overlay
+                // Gleichstand: Dunkles graues Overlay
                 return (
                   <path
                     d={createArcPath(singleInner3Radius, doubleOuter, startAngle, endAngle)}
-                    fill="#888888"
-                    opacity={0.75}
+                    fill={darkenColor('#888888', 0.4)}
+                    opacity={0.9}
                   />
                 )
               }
 
-              // Gewinner: Spielerfarbe mit Opacity
+              // Gewinner: Abgedunkelte Spielerfarbe
               return (
                 <path
                   d={createArcPath(singleInner3Radius, doubleOuter, startAngle, endAngle)}
-                  fill={owner.color}
-                  opacity={0.75}
+                  fill={darkenColor(owner.color, 0.4)}
+                  opacity={0.9}
                 />
               )
             })()}
+
+            {/* Pulsierendes Overlay auf dem aktuellen Zielfeld */}
+            {showFullHighlight && (
+              <path
+                d={createArcPath(singleInner3Radius, doubleOuter, startAngle, endAngle)}
+                fill={activePlayerDisplayColor}
+                className="target-overlay"
+              />
+            )}
 
             {/* Spieler-Overlays: Segment aufteilen bei mehreren Spielern */}
             {/* Bei Ring-Highlight: Keine Overlays für aktiven Spieler (sonst überdeckt es das Highlight) */}
@@ -474,7 +490,7 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
               strokeWidth={0.5}
             />
 
-            {/* NEU: Piratenmodus - Bull-Besitzer Overlay */}
+            {/* NEU: Capture the Field - Bull-Besitzer Overlay (abgedunkelt) */}
             {(() => {
               const owner = fieldOwners?.['BULL']
               if (!owner) return null
@@ -485,8 +501,8 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
                     cx={cx}
                     cy={cy}
                     r={bullOuterRadius}
-                    fill="#888888"
-                    opacity={0.75}
+                    fill={darkenColor('#888888', 0.4)}
+                    opacity={0.9}
                   />
                 )
               }
@@ -496,11 +512,22 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
                   cx={cx}
                   cy={cy}
                   r={bullOuterRadius}
-                  fill={owner.color}
-                  opacity={0.75}
+                  fill={darkenColor(owner.color, 0.4)}
+                  opacity={0.9}
                 />
               )
             })()}
+
+            {/* Pulsierendes Overlay auf Bull wenn es das Ziel ist */}
+            {isBullTarget && activeBullPlayer && (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={bullOuterRadius}
+                fill={activeBullPlayer.color}
+                className="target-overlay"
+              />
+            )}
 
             {/* Spieler-Overlays auf Bull: Tortendiagramm-Segmente */}
             {hasBullPlayers && bullPlayers.map((player, pIdx) => {

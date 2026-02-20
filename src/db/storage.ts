@@ -97,12 +97,176 @@ function enrichATBEvent(ev: any): any {
 }
 
 /**
+ * Bereichert CTFTurnAdded Events mit berechneten Stats für SQL-Queries
+ */
+function enrichCTFEvent(ev: any): any {
+  if (ev.type === 'CTFRoundFinished' && !ev.fieldPoints) {
+    // Retroaktiv fieldPoints berechnen fuer alte Events
+    const scores = ev.scoresByPlayer as Record<string, number> | undefined
+    if (scores) {
+      const fieldPoints: Record<string, number> = {}
+      if (ev.winnerId) {
+        for (const pid of Object.keys(scores)) {
+          fieldPoints[pid] = pid === ev.winnerId ? 3 : 0
+        }
+      } else {
+        const maxScore = Math.max(...Object.values(scores))
+        for (const [pid, score] of Object.entries(scores)) {
+          fieldPoints[pid] = ((score as number) === maxScore && maxScore > 0) ? 1 : 0
+        }
+      }
+      return { ...ev, fieldPoints }
+    }
+    return ev
+  }
+
+  if (ev.type !== 'CTFTurnAdded' || !ev.darts) return ev
+
+  let hits = 0
+  let misses = 0
+  let triples = 0
+  let doubles = 0
+
+  for (const dart of ev.darts) {
+    if (dart.target === 'MISS') {
+      misses++
+    } else {
+      hits++
+      if (dart.mult === 3) triples++
+      else if (dart.mult === 2) doubles++
+    }
+  }
+
+  return {
+    ...ev,
+    hits,
+    misses,
+    triples,
+    doubles,
+    totalDarts: ev.darts.length,
+    dartsArray: ev.darts,
+  }
+}
+
+/**
+ * Bereichert StrTurnAdded Events mit berechneten Stats für SQL-Queries
+ */
+function enrichStrEvent(ev: any): any {
+  if (ev.type !== 'StrTurnAdded' || !ev.darts) return ev
+
+  let hits = 0
+  let misses = 0
+  for (const dart of ev.darts) {
+    if (dart === 'hit') hits++
+    else misses++
+  }
+
+  return {
+    ...ev,
+    hits,
+    misses,
+    totalDarts: ev.darts.length,
+  }
+}
+
+/**
+ * Bereichert HighscoreTurnAdded Events mit berechneten Stats für SQL-Queries
+ */
+function enrichHighscoreEvent(ev: any): any {
+  if (ev.type !== 'HighscoreTurnAdded' || !ev.darts) return ev
+
+  let triples = 0
+  let doubles = 0
+  let singles = 0
+  let misses = 0
+
+  for (const dart of ev.darts) {
+    if (dart.target === 'MISS') misses++
+    else if (dart.mult === 3) triples++
+    else if (dart.mult === 2) doubles++
+    else singles++
+  }
+
+  return {
+    ...ev,
+    triples,
+    doubles,
+    singles,
+    misses,
+    totalDarts: ev.darts.length,
+  }
+}
+
+/**
+ * Bereichert ShanghaiTurnAdded Events mit berechneten Stats für SQL-Queries
+ */
+function enrichShanghaiEvent(ev: any): any {
+  if (ev.type !== 'ShanghaiTurnAdded' || !ev.darts) return ev
+
+  let hits = 0
+  let misses = 0
+  let triples = 0
+  let doubles = 0
+  let singles = 0
+
+  for (const dart of ev.darts) {
+    if (dart.target === 'MISS') {
+      misses++
+    } else if (dart.target === ev.targetNumber) {
+      hits++
+      if (dart.mult === 3) triples++
+      else if (dart.mult === 2) doubles++
+      else singles++
+    } else {
+      misses++ // Falsche Zahl
+    }
+  }
+
+  return {
+    ...ev,
+    hits,
+    misses,
+    triples,
+    doubles,
+    singles,
+    totalDarts: ev.darts.length,
+  }
+}
+
+/**
  * Bereichert ein Event basierend auf seinem Typ
  */
 function enrichEvent(ev: any): any {
   if (ev.type === 'CricketTurnAdded') return enrichCricketEvent(ev)
   if (ev.type === 'ATBTurnAdded') return enrichATBEvent(ev)
+  if (ev.type === 'CTFTurnAdded') return enrichCTFEvent(ev)
+  if (ev.type === 'StrTurnAdded') return enrichStrEvent(ev)
+  if (ev.type === 'HighscoreTurnAdded') return enrichHighscoreEvent(ev)
+  if (ev.type === 'ShanghaiTurnAdded') return enrichShanghaiEvent(ev)
+  if (ev.type === 'KillerTurnAdded') return enrichKillerEvent(ev)
   return ev
+}
+
+/**
+ * Bereichert KillerTurnAdded Events mit berechneten Stats für SQL-Queries
+ */
+function enrichKillerEvent(ev: any): any {
+  if (ev.type !== 'KillerTurnAdded' || !ev.darts) return ev
+
+  let hits = 0
+  let misses = 0
+  for (const dart of ev.darts) {
+    if (dart.target === 'MISS') misses++
+    else hits++
+  }
+
+  return {
+    ...ev,
+    hits,
+    misses,
+    totalDarts: ev.darts.length,
+    killCount: ev.eliminations?.length ?? 0,
+  }
 }
 
 // ============================================================================
@@ -841,6 +1005,1177 @@ export async function dbFinishATBMatch(
      SET finished = 1, finished_at = ?, winner_id = ?, winner_darts = ?, duration_ms = ?
      WHERE id = ?`,
     [nowISO(), winnerId, winnerDarts, durationMs, matchId]
+  )
+}
+
+// ============================================================================
+// CTF (Capture The Field) Match Functions
+// ============================================================================
+
+export type DBCTFMatch = {
+  id: string
+  title: string
+  createdAt: string
+  finished: boolean
+  finishedAt: string | null
+  durationMs: number | null
+  winnerId: string | null
+  winnerDarts: number | null
+  players: any[]
+  events: any[]
+  structure?: any
+  config?: any
+  generatedSequence?: any[]
+  captureFieldWinners?: Record<string, string | null>
+  captureTotalScores?: Record<string, number>
+  captureFieldPoints?: Record<string, number>
+}
+
+export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
+  await ensureDB()
+
+  const matches = await query<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    multiplier_mode: string | null
+    rotate_order: number
+    bull_position: string | null
+    structure_kind: string | null
+    best_of_legs: number | null
+    legs_per_set: number | null
+    best_of_sets: number | null
+    generated_sequence: string | null
+    capture_field_winners: string | null
+    capture_total_scores: string | null
+  }>('SELECT * FROM ctf_matches ORDER BY created_at DESC')
+
+  const result: DBCTFMatch[] = []
+
+  for (const m of matches) {
+    const events = await query<{ data: string }>(
+      'SELECT data FROM ctf_events WHERE match_id = ? ORDER BY seq',
+      [m.id]
+    )
+
+    const players = await query<{ player_id: string; is_guest: number }>(
+      'SELECT player_id, is_guest FROM ctf_match_players WHERE match_id = ? ORDER BY position',
+      [m.id]
+    )
+
+    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const playerDetails = startEvt?.players ?? players.map((p) => ({
+      playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+    }))
+
+    result.push({
+      id: m.id,
+      title: m.title,
+      createdAt: m.created_at,
+      finished: m.finished === 1,
+      finishedAt: m.finished_at,
+      durationMs: m.duration_ms,
+      winnerId: m.winner_id,
+      winnerDarts: m.winner_darts,
+      players: playerDetails,
+      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      structure: m.structure_kind
+        ? m.structure_kind === 'legs'
+          ? { kind: 'legs', bestOfLegs: m.best_of_legs }
+          : { kind: 'sets', bestOfSets: m.best_of_sets, legsPerSet: m.legs_per_set }
+        : undefined,
+      config: {
+        multiplierMode: m.multiplier_mode ?? 'standard',
+        rotateOrder: m.rotate_order === 1,
+        bullPosition: m.bull_position,
+      },
+      generatedSequence: m.generated_sequence ? (fromJSON<any[]>(m.generated_sequence) ?? undefined) : undefined,
+      captureFieldWinners: m.capture_field_winners ? (fromJSON<any>(m.capture_field_winners) ?? undefined) : undefined,
+      captureTotalScores: m.capture_total_scores ? (fromJSON<any>(m.capture_total_scores) ?? undefined) : undefined,
+    })
+  }
+
+  return result
+}
+
+export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) {
+    console.warn('[DB] dbSaveCTFMatch: DB not ready, skipping SQLite save for', match.id)
+    return
+  }
+
+  const startEvt = match.events.find((e: any) => e.type === 'CTFMatchStarted')
+  const finishEvt = match.events.find((e: any) => e.type === 'CTFMatchFinished')
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({
+    sql: `INSERT OR REPLACE INTO ctf_matches (
+      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      multiplier_mode, rotate_order, bull_position,
+      structure_kind, best_of_legs, legs_per_set, best_of_sets,
+      generated_sequence, capture_field_winners, capture_total_scores
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      match.id,
+      match.title,
+      match.createdAt,
+      match.finished ? 1 : 0,
+      match.finishedAt ?? finishEvt?.ts ?? null,
+      match.durationMs ?? finishEvt?.durationMs ?? null,
+      match.winnerId ?? finishEvt?.winnerId ?? null,
+      match.winnerDarts ?? finishEvt?.totalDarts ?? null,
+      match.config?.multiplierMode ?? startEvt?.config?.multiplierMode ?? 'standard',
+      match.config?.rotateOrder !== false ? 1 : 0,
+      match.config?.bullPosition ?? startEvt?.config?.bullPosition ?? null,
+      match.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+      match.structure?.bestOfLegs ?? startEvt?.structure?.bestOfLegs ?? null,
+      match.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+      match.structure?.bestOfSets ?? startEvt?.structure?.bestOfSets ?? null,
+      match.generatedSequence ? toJSON(match.generatedSequence) : null,
+      match.captureFieldWinners ? toJSON(match.captureFieldWinners) : null,
+      match.captureTotalScores ? toJSON(match.captureTotalScores) : null,
+    ],
+  })
+
+  statements.push({ sql: 'DELETE FROM ctf_events WHERE match_id = ?', params: [match.id] })
+  statements.push({ sql: 'DELETE FROM ctf_match_players WHERE match_id = ?', params: [match.id] })
+
+  const players = startEvt?.players ?? match.players ?? []
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i]
+    statements.push({
+      sql: `INSERT INTO ctf_match_players (match_id, player_id, position, is_guest)
+            VALUES (?, ?, ?, ?)`,
+      params: [match.id, p.playerId, i, p.isGuest ? 1 : 0],
+    })
+  }
+
+  for (let seq = 0; seq < match.events.length; seq++) {
+    const ev = match.events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO ctf_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbUpdateCTFEvents(matchId: string, events: any[]): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({ sql: 'DELETE FROM ctf_events WHERE match_id = ?', params: [matchId] })
+
+  for (let seq = 0; seq < events.length; seq++) {
+    const ev = events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO ctf_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  const finishEvt = events.find((e: any) => e.type === 'CTFMatchFinished')
+  if (finishEvt) {
+    statements.push({
+      sql: `UPDATE ctf_matches SET finished = 1, finished_at = ?,
+            winner_id = ?, winner_darts = ?, duration_ms = ? WHERE id = ?`,
+      params: [finishEvt.ts, finishEvt.winnerId, finishEvt.totalDarts, finishEvt.durationMs, matchId],
+    })
+  }
+
+  await transaction(statements)
+}
+
+// ============================================================================
+// STR (Sträußchen) Match Functions
+// ============================================================================
+
+export type DBStrMatch = {
+  id: string
+  title: string
+  createdAt: string
+  finished: boolean
+  finishedAt: string | null
+  durationMs: number | null
+  winnerId: string | null
+  winnerDarts: number | null
+  mode: string
+  targetNumber: number | null
+  numberOrder: string | null
+  turnOrder: string | null
+  ringMode: string | null
+  bullMode: string | null
+  bullPosition: string | null
+  players: any[]
+  events: any[]
+  structure?: any
+  generatedOrder?: number[]
+  legWins?: Record<string, number>
+  setWins?: Record<string, number>
+}
+
+export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
+  await ensureDB()
+
+  const matches = await query<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    mode: string
+    target_number: number | null
+    number_order: string | null
+    turn_order: string | null
+    ring_mode: string | null
+    bull_mode: string | null
+    bull_position: string | null
+    structure_kind: string | null
+    best_of_legs: number | null
+    legs_per_set: number | null
+    best_of_sets: number | null
+    generated_order: string | null
+    leg_wins: string | null
+    set_wins: string | null
+  }>('SELECT * FROM str_matches ORDER BY created_at DESC')
+
+  const result: DBStrMatch[] = []
+
+  for (const m of matches) {
+    const events = await query<{ data: string }>(
+      'SELECT data FROM str_events WHERE match_id = ? ORDER BY seq',
+      [m.id]
+    )
+
+    const players = await query<{ player_id: string; is_guest: number }>(
+      'SELECT player_id, is_guest FROM str_match_players WHERE match_id = ? ORDER BY position',
+      [m.id]
+    )
+
+    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const playerDetails = startEvt?.players ?? players.map((p: any) => ({
+      playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+    }))
+
+    result.push({
+      id: m.id,
+      title: m.title,
+      createdAt: m.created_at,
+      finished: m.finished === 1,
+      finishedAt: m.finished_at,
+      durationMs: m.duration_ms,
+      winnerId: m.winner_id,
+      winnerDarts: m.winner_darts,
+      mode: m.mode,
+      targetNumber: m.target_number,
+      numberOrder: m.number_order,
+      turnOrder: m.turn_order,
+      ringMode: m.ring_mode,
+      bullMode: m.bull_mode,
+      bullPosition: m.bull_position,
+      players: playerDetails,
+      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      structure: m.structure_kind
+        ? m.structure_kind === 'legs'
+          ? { kind: 'legs', bestOfLegs: m.best_of_legs }
+          : { kind: 'sets', bestOfSets: m.best_of_sets, legsPerSet: m.legs_per_set }
+        : undefined,
+      generatedOrder: m.generated_order ? (fromJSON<number[]>(m.generated_order) ?? undefined) : undefined,
+      legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
+      setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
+    })
+  }
+
+  return result
+}
+
+export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) {
+    console.warn('[DB] dbSaveStrMatch: DB not ready, skipping SQLite save for', match.id)
+    return
+  }
+
+  const startEvt = match.events.find((e: any) => e.type === 'StrMatchStarted')
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({
+    sql: `INSERT OR REPLACE INTO str_matches (
+      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      mode, target_number, number_order, turn_order, ring_mode, bull_mode, bull_position,
+      structure_kind, best_of_legs, legs_per_set, best_of_sets,
+      generated_order, leg_wins, set_wins
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      match.id,
+      match.title,
+      match.createdAt,
+      match.finished ? 1 : 0,
+      match.finishedAt,
+      match.durationMs,
+      match.winnerId,
+      match.winnerDarts,
+      match.mode ?? startEvt?.mode ?? 'single',
+      match.targetNumber ?? startEvt?.targetNumber ?? null,
+      match.numberOrder ?? startEvt?.numberOrder ?? null,
+      match.turnOrder ?? startEvt?.turnOrder ?? null,
+      match.ringMode ?? startEvt?.ringMode ?? null,
+      match.bullMode ?? startEvt?.bullMode ?? null,
+      match.bullPosition ?? startEvt?.bullPosition ?? null,
+      match.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+      match.structure?.bestOfLegs ?? startEvt?.structure?.bestOfLegs ?? null,
+      match.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+      match.structure?.bestOfSets ?? startEvt?.structure?.bestOfSets ?? null,
+      match.generatedOrder ? toJSON(match.generatedOrder) : (startEvt?.generatedOrder ? toJSON(startEvt.generatedOrder) : null),
+      match.legWins ? toJSON(match.legWins) : null,
+      match.setWins ? toJSON(match.setWins) : null,
+    ],
+  })
+
+  statements.push({ sql: 'DELETE FROM str_events WHERE match_id = ?', params: [match.id] })
+  statements.push({ sql: 'DELETE FROM str_match_players WHERE match_id = ?', params: [match.id] })
+
+  const players = startEvt?.players ?? match.players ?? []
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i]
+    statements.push({
+      sql: `INSERT INTO str_match_players (match_id, player_id, position, is_guest)
+            VALUES (?, ?, ?, ?)`,
+      params: [match.id, p.playerId, i, p.isGuest ? 1 : 0],
+    })
+  }
+
+  for (let seq = 0; seq < match.events.length; seq++) {
+    const ev = match.events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO str_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbUpdateStrEvents(matchId: string, events: any[]): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({ sql: 'DELETE FROM str_events WHERE match_id = ?', params: [matchId] })
+
+  for (let seq = 0; seq < events.length; seq++) {
+    const ev = events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO str_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  const finishEvt = events.find((e: any) => e.type === 'StrMatchFinished')
+  if (finishEvt) {
+    statements.push({
+      sql: `UPDATE str_matches SET finished = 1, finished_at = ?,
+            winner_id = ?, winner_darts = ?, duration_ms = ? WHERE id = ?`,
+      params: [finishEvt.ts, finishEvt.winnerId, finishEvt.totalDarts, finishEvt.durationMs, matchId],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbFinishStrMatch(
+  matchId: string,
+  winnerId: string,
+  winnerDarts: number,
+  durationMs: number,
+  legWins?: Record<string, number>,
+  setWins?: Record<string, number>
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(
+    `UPDATE str_matches
+     SET finished = 1, finished_at = ?, winner_id = ?, winner_darts = ?, duration_ms = ?,
+         leg_wins = ?, set_wins = ?
+     WHERE id = ?`,
+    [nowISO(), winnerId, winnerDarts, durationMs,
+     legWins ? toJSON(legWins) : null, setWins ? toJSON(setWins) : null, matchId]
+  )
+}
+
+// ============================================================================
+// Highscore Match Functions
+// ============================================================================
+
+export type DBHighscoreMatch = {
+  id: string
+  title: string
+  createdAt: string
+  finished: boolean
+  finishedAt: string | null
+  durationMs: number | null
+  winnerId: string | null
+  winnerDarts: number | null
+  targetScore: number
+  players: any[]
+  events: any[]
+  structure?: any
+  legWins?: Record<string, number>
+  setWins?: Record<string, number>
+}
+
+export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
+  await ensureDB()
+
+  const matches = await query<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    target_score: number
+    structure_kind: string | null
+    target_legs: number | null
+    legs_per_set: number | null
+    target_sets: number | null
+    leg_wins: string | null
+    set_wins: string | null
+  }>('SELECT * FROM highscore_matches ORDER BY created_at DESC')
+
+  const result: DBHighscoreMatch[] = []
+
+  for (const m of matches) {
+    const events = await query<{ data: string }>(
+      'SELECT data FROM highscore_events WHERE match_id = ? ORDER BY seq',
+      [m.id]
+    )
+
+    const players = await query<{ player_id: string; is_guest: number }>(
+      'SELECT player_id, is_guest FROM highscore_match_players WHERE match_id = ? ORDER BY position',
+      [m.id]
+    )
+
+    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const playerDetails = startEvt?.players ?? players.map((p: any) => ({
+      id: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+    }))
+
+    result.push({
+      id: m.id,
+      title: m.title,
+      createdAt: m.created_at,
+      finished: m.finished === 1,
+      finishedAt: m.finished_at,
+      durationMs: m.duration_ms,
+      winnerId: m.winner_id,
+      winnerDarts: m.winner_darts,
+      targetScore: m.target_score,
+      players: playerDetails,
+      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      structure: m.structure_kind
+        ? m.structure_kind === 'legs'
+          ? { kind: 'legs', targetLegs: m.target_legs }
+          : { kind: 'sets', targetSets: m.target_sets, legsPerSet: m.legs_per_set }
+        : undefined,
+      legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
+      setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
+    })
+  }
+
+  return result
+}
+
+export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) {
+    console.warn('[DB] dbSaveHighscoreMatch: DB not ready, skipping SQLite save for', match.id)
+    return
+  }
+
+  const startEvt = match.events.find((e: any) => e.type === 'HighscoreMatchStarted')
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({
+    sql: `INSERT OR REPLACE INTO highscore_matches (
+      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      target_score, structure_kind, target_legs, legs_per_set, target_sets,
+      leg_wins, set_wins
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      match.id,
+      match.title,
+      match.createdAt,
+      match.finished ? 1 : 0,
+      match.finishedAt,
+      match.durationMs,
+      match.winnerId,
+      match.winnerDarts,
+      match.targetScore ?? startEvt?.targetScore ?? 300,
+      match.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+      match.structure?.targetLegs ?? startEvt?.structure?.targetLegs ?? null,
+      match.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+      match.structure?.targetSets ?? startEvt?.structure?.targetSets ?? null,
+      match.legWins ? toJSON(match.legWins) : null,
+      match.setWins ? toJSON(match.setWins) : null,
+    ],
+  })
+
+  statements.push({ sql: 'DELETE FROM highscore_events WHERE match_id = ?', params: [match.id] })
+  statements.push({ sql: 'DELETE FROM highscore_match_players WHERE match_id = ?', params: [match.id] })
+
+  const players = startEvt?.players ?? match.players ?? []
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i]
+    statements.push({
+      sql: `INSERT INTO highscore_match_players (match_id, player_id, position, is_guest)
+            VALUES (?, ?, ?, ?)`,
+      params: [match.id, p.id ?? p.playerId, i, p.isGuest ? 1 : 0],
+    })
+  }
+
+  for (let seq = 0; seq < match.events.length; seq++) {
+    const ev = match.events[seq]
+    const enrichedEv = enrichEvent(ev)
+    // Highscore nutzt timestamp (number) statt ts (string)
+    const ts = ev.ts ?? (ev.timestamp ? new Date(ev.timestamp).toISOString() : nowISO())
+    statements.push({
+      sql: `INSERT INTO highscore_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), match.id, ev.type, ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbUpdateHighscoreEvents(matchId: string, events: any[]): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({ sql: 'DELETE FROM highscore_events WHERE match_id = ?', params: [matchId] })
+
+  for (let seq = 0; seq < events.length; seq++) {
+    const ev = events[seq]
+    const enrichedEv = enrichEvent(ev)
+    const ts = ev.ts ?? (ev.timestamp ? new Date(ev.timestamp).toISOString() : nowISO())
+    statements.push({
+      sql: `INSERT INTO highscore_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), matchId, ev.type, ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  const finishEvt = events.find((e: any) => e.type === 'HighscoreMatchFinished')
+  if (finishEvt) {
+    const finishedAt = finishEvt.ts ?? (finishEvt.timestamp ? new Date(finishEvt.timestamp).toISOString() : nowISO())
+    statements.push({
+      sql: `UPDATE highscore_matches SET finished = 1, finished_at = ?,
+            winner_id = ?, winner_darts = ?, duration_ms = ?,
+            leg_wins = ?, set_wins = ? WHERE id = ?`,
+      params: [
+        finishedAt, finishEvt.winnerId, finishEvt.totalDarts, finishEvt.durationMs,
+        finishEvt.legWins ? toJSON(finishEvt.legWins) : null,
+        finishEvt.setWins ? toJSON(finishEvt.setWins) : null,
+        matchId,
+      ],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbFinishHighscoreMatch(
+  matchId: string,
+  winnerId: string,
+  winnerDarts: number,
+  durationMs: number,
+  legWins?: Record<string, number>,
+  setWins?: Record<string, number>
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(
+    `UPDATE highscore_matches
+     SET finished = 1, finished_at = ?, winner_id = ?, winner_darts = ?, duration_ms = ?,
+         leg_wins = ?, set_wins = ?
+     WHERE id = ?`,
+    [nowISO(), winnerId, winnerDarts, durationMs,
+     legWins ? toJSON(legWins) : null, setWins ? toJSON(setWins) : null, matchId]
+  )
+}
+
+// ============================================================================
+// Shanghai Match Functions
+// ============================================================================
+
+export type DBShanghaiMatch = {
+  id: string
+  title: string
+  createdAt: string
+  finished: boolean
+  finishedAt: string | null
+  durationMs: number | null
+  winnerId: string | null
+  winnerDarts: number | null
+  players: any[]
+  events: any[]
+  structure?: any
+  config?: any
+  legWins?: Record<string, number>
+  setWins?: Record<string, number>
+  finalScores?: Record<string, number>
+}
+
+export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
+  await ensureDB()
+
+  const matches = await query<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    structure_kind: string | null
+    best_of_legs: number | null
+    legs_per_set: number | null
+    best_of_sets: number | null
+    final_scores: string | null
+    leg_wins: string | null
+    set_wins: string | null
+  }>('SELECT * FROM shanghai_matches ORDER BY created_at DESC')
+
+  const result: DBShanghaiMatch[] = []
+
+  for (const m of matches) {
+    const events = await query<{ data: string }>(
+      'SELECT data FROM shanghai_events WHERE match_id = ? ORDER BY seq',
+      [m.id]
+    )
+
+    const players = await query<{ player_id: string; is_guest: number }>(
+      'SELECT player_id, is_guest FROM shanghai_match_players WHERE match_id = ? ORDER BY position',
+      [m.id]
+    )
+
+    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const playerDetails = startEvt?.players ?? players.map((p: any) => ({
+      playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+    }))
+
+    result.push({
+      id: m.id,
+      title: m.title,
+      createdAt: m.created_at,
+      finished: m.finished === 1,
+      finishedAt: m.finished_at,
+      durationMs: m.duration_ms,
+      winnerId: m.winner_id,
+      winnerDarts: m.winner_darts,
+      players: playerDetails,
+      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      structure: m.structure_kind
+        ? m.structure_kind === 'legs'
+          ? { kind: 'legs', bestOfLegs: m.best_of_legs }
+          : { kind: 'sets', bestOfSets: m.best_of_sets, legsPerSet: m.legs_per_set }
+        : undefined,
+      finalScores: m.final_scores ? (fromJSON<Record<string, number>>(m.final_scores) ?? undefined) : undefined,
+      legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
+      setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
+    })
+  }
+
+  return result
+}
+
+export async function dbGetShanghaiMatchById(matchId: string): Promise<DBShanghaiMatch | null> {
+  await ensureDB()
+
+  const m = await queryOne<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    structure_kind: string | null
+    best_of_legs: number | null
+    legs_per_set: number | null
+    best_of_sets: number | null
+    final_scores: string | null
+    leg_wins: string | null
+    set_wins: string | null
+  }>('SELECT * FROM shanghai_matches WHERE id = ?', [matchId])
+
+  if (!m) return null
+
+  const events = await query<{ data: string }>(
+    'SELECT data FROM shanghai_events WHERE match_id = ? ORDER BY seq',
+    [matchId]
+  )
+
+  const players = await query<{ player_id: string; is_guest: number }>(
+    'SELECT player_id, is_guest FROM shanghai_match_players WHERE match_id = ? ORDER BY position',
+    [matchId]
+  )
+
+  const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+  const playerDetails = startEvt?.players ?? players.map((p: any) => ({
+    playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+  }))
+
+  return {
+    id: m.id,
+    title: m.title,
+    createdAt: m.created_at,
+    finished: m.finished === 1,
+    finishedAt: m.finished_at,
+    durationMs: m.duration_ms,
+    winnerId: m.winner_id,
+    winnerDarts: m.winner_darts,
+    players: playerDetails,
+    events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+    structure: m.structure_kind
+      ? m.structure_kind === 'legs'
+        ? { kind: 'legs', bestOfLegs: m.best_of_legs }
+        : { kind: 'sets', bestOfSets: m.best_of_sets, legsPerSet: m.legs_per_set }
+      : undefined,
+    finalScores: m.final_scores ? (fromJSON<Record<string, number>>(m.final_scores) ?? undefined) : undefined,
+    legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
+    setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
+  }
+}
+
+export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) {
+    console.warn('[DB] dbSaveShanghaiMatch: DB not ready, skipping SQLite save for', match.id)
+    return
+  }
+
+  const startEvt = match.events.find((e: any) => e.type === 'ShanghaiMatchStarted')
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({
+    sql: `INSERT OR REPLACE INTO shanghai_matches (
+      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      structure_kind, best_of_legs, legs_per_set, best_of_sets,
+      final_scores, leg_wins, set_wins
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      match.id,
+      match.title,
+      match.createdAt,
+      match.finished ? 1 : 0,
+      match.finishedAt,
+      match.durationMs,
+      match.winnerId,
+      match.winnerDarts,
+      match.structure?.kind ?? startEvt?.structure?.kind ?? 'legs',
+      match.structure?.bestOfLegs ?? startEvt?.structure?.bestOfLegs ?? null,
+      match.structure?.legsPerSet ?? startEvt?.structure?.legsPerSet ?? null,
+      match.structure?.bestOfSets ?? startEvt?.structure?.bestOfSets ?? null,
+      match.finalScores ? toJSON(match.finalScores) : null,
+      match.legWins ? toJSON(match.legWins) : null,
+      match.setWins ? toJSON(match.setWins) : null,
+    ],
+  })
+
+  statements.push({ sql: 'DELETE FROM shanghai_events WHERE match_id = ?', params: [match.id] })
+  statements.push({ sql: 'DELETE FROM shanghai_match_players WHERE match_id = ?', params: [match.id] })
+
+  const players = startEvt?.players ?? match.players ?? []
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i]
+    statements.push({
+      sql: `INSERT INTO shanghai_match_players (match_id, player_id, position, is_guest)
+            VALUES (?, ?, ?, ?)`,
+      params: [match.id, p.playerId, i, p.isGuest ? 1 : 0],
+    })
+  }
+
+  for (let seq = 0; seq < match.events.length; seq++) {
+    const ev = match.events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO shanghai_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbUpdateShanghaiEvents(matchId: string, events: any[]): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({ sql: 'DELETE FROM shanghai_events WHERE match_id = ?', params: [matchId] })
+
+  for (let seq = 0; seq < events.length; seq++) {
+    const ev = events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO shanghai_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  const finishEvt = events.find((e: any) => e.type === 'ShanghaiMatchFinished')
+  if (finishEvt) {
+    statements.push({
+      sql: `UPDATE shanghai_matches SET finished = 1, finished_at = ?,
+            winner_id = ?, winner_darts = ?, duration_ms = ? WHERE id = ?`,
+      params: [finishEvt.ts, finishEvt.winnerId, finishEvt.totalDarts, finishEvt.durationMs, matchId],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbFinishShanghaiMatch(
+  matchId: string,
+  winnerId: string | null,
+  winnerDarts: number,
+  durationMs: number,
+  finalScores?: Record<string, number>,
+  legWins?: Record<string, number>,
+  setWins?: Record<string, number>
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(
+    `UPDATE shanghai_matches
+     SET finished = 1, finished_at = ?, winner_id = ?, winner_darts = ?, duration_ms = ?,
+         final_scores = ?, leg_wins = ?, set_wins = ?
+     WHERE id = ?`,
+    [nowISO(), winnerId, winnerDarts, durationMs,
+     finalScores ? toJSON(finalScores) : null,
+     legWins ? toJSON(legWins) : null, setWins ? toJSON(setWins) : null, matchId]
+  )
+}
+
+// ============================================================================
+// Killer Match Functions
+// ============================================================================
+
+export type DBKillerMatch = {
+  id: string
+  title: string
+  createdAt: string
+  finished: boolean
+  finishedAt: string | null
+  durationMs: number | null
+  winnerId: string | null
+  winnerDarts: number | null
+  players: any[]
+  events: any[]
+  config?: any
+  finalStandings?: any[]
+  structure?: any
+  legWins?: Record<string, number>
+  setWins?: Record<string, number>
+}
+
+export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
+  await ensureDB()
+
+  const matches = await query<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    final_standings: string | null
+    structure_kind: string | null
+    best_of_legs: number | null
+    legs_per_set: number | null
+    best_of_sets: number | null
+    leg_wins: string | null
+    set_wins: string | null
+  }>('SELECT * FROM killer_matches ORDER BY created_at DESC')
+
+  const result: DBKillerMatch[] = []
+
+  for (const m of matches) {
+    const events = await query<{ data: string }>(
+      'SELECT data FROM killer_events WHERE match_id = ? ORDER BY seq',
+      [m.id]
+    )
+
+    const players = await query<{ player_id: string; is_guest: number }>(
+      'SELECT player_id, is_guest FROM killer_match_players WHERE match_id = ? ORDER BY position',
+      [m.id]
+    )
+
+    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const playerDetails = startEvt?.players ?? players.map((p: any) => ({
+      playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+    }))
+
+    // Structure aus DB oder Event rekonstruieren
+    const structure = startEvt?.structure ?? (m.structure_kind === 'sets'
+      ? { kind: 'sets', bestOfSets: m.best_of_sets ?? 3, legsPerSet: m.legs_per_set ?? 3 }
+      : m.structure_kind === 'legs' && m.best_of_legs && m.best_of_legs > 1
+        ? { kind: 'legs', bestOfLegs: m.best_of_legs }
+        : undefined)
+
+    result.push({
+      id: m.id,
+      title: m.title,
+      createdAt: m.created_at,
+      finished: m.finished === 1,
+      finishedAt: m.finished_at,
+      durationMs: m.duration_ms,
+      winnerId: m.winner_id,
+      winnerDarts: m.winner_darts,
+      players: playerDetails,
+      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      config: startEvt?.config,
+      finalStandings: m.final_standings ? (fromJSON<any[]>(m.final_standings) ?? undefined) : undefined,
+      structure,
+      legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
+      setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
+    })
+  }
+
+  return result
+}
+
+export async function dbGetKillerMatchById(matchId: string): Promise<DBKillerMatch | null> {
+  await ensureDB()
+
+  const m = await queryOne<{
+    id: string
+    title: string
+    created_at: string
+    finished: number
+    finished_at: string | null
+    duration_ms: number | null
+    winner_id: string | null
+    winner_darts: number | null
+    final_standings: string | null
+    structure_kind: string | null
+    best_of_legs: number | null
+    legs_per_set: number | null
+    best_of_sets: number | null
+    leg_wins: string | null
+    set_wins: string | null
+  }>('SELECT * FROM killer_matches WHERE id = ?', [matchId])
+
+  if (!m) return null
+
+  const events = await query<{ data: string }>(
+    'SELECT data FROM killer_events WHERE match_id = ? ORDER BY seq',
+    [matchId]
+  )
+
+  const players = await query<{ player_id: string; is_guest: number }>(
+    'SELECT player_id, is_guest FROM killer_match_players WHERE match_id = ? ORDER BY position',
+    [matchId]
+  )
+
+  const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+  const playerDetails = startEvt?.players ?? players.map((p: any) => ({
+    playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
+  }))
+
+  const structure = startEvt?.structure ?? (m.structure_kind === 'sets'
+    ? { kind: 'sets', bestOfSets: m.best_of_sets ?? 3, legsPerSet: m.legs_per_set ?? 3 }
+    : m.structure_kind === 'legs' && m.best_of_legs && m.best_of_legs > 1
+      ? { kind: 'legs', bestOfLegs: m.best_of_legs }
+      : undefined)
+
+  return {
+    id: m.id,
+    title: m.title,
+    createdAt: m.created_at,
+    finished: m.finished === 1,
+    finishedAt: m.finished_at,
+    durationMs: m.duration_ms,
+    winnerId: m.winner_id,
+    winnerDarts: m.winner_darts,
+    players: playerDetails,
+    events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+    config: startEvt?.config,
+    finalStandings: m.final_standings ? (fromJSON<any[]>(m.final_standings) ?? undefined) : undefined,
+    structure,
+    legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
+    setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
+  }
+}
+
+export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) {
+    console.warn('[DB] dbSaveKillerMatch: DB not ready, skipping SQLite save for', match.id)
+    return
+  }
+
+  const startEvt = match.events.find((e: any) => e.type === 'KillerMatchStarted')
+  const config = match.config ?? startEvt?.config
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  const structure = match.structure ?? startEvt?.structure
+
+  statements.push({
+    sql: `INSERT OR REPLACE INTO killer_matches (
+      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      hits_to_become_killer, qualifying_ring, starting_lives,
+      friendly_fire, self_heal, no_negative_lives, secret_numbers, target_assignment,
+      final_standings, structure_kind, best_of_legs, legs_per_set, best_of_sets, leg_wins, set_wins
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      match.id,
+      match.title,
+      match.createdAt,
+      match.finished ? 1 : 0,
+      match.finishedAt,
+      match.durationMs,
+      match.winnerId,
+      match.winnerDarts,
+      config?.hitsToBecomeKiller ?? 1,
+      config?.qualifyingRing ?? 'DOUBLE',
+      config?.startingLives ?? 3,
+      config?.friendlyFire !== false ? 1 : 0,
+      config?.selfHeal ? 1 : 0,
+      config?.noNegativeLives !== false ? 1 : 0,
+      config?.secretNumbers ? 1 : 0,
+      config?.targetAssignment ?? 'auto',
+      match.finalStandings ? toJSON(match.finalStandings) : null,
+      structure?.kind ?? 'legs',
+      structure?.kind === 'legs' ? structure.bestOfLegs : (structure?.kind === 'sets' ? null : 1),
+      structure?.kind === 'sets' ? structure.legsPerSet : null,
+      structure?.kind === 'sets' ? structure.bestOfSets : null,
+      match.legWins ? toJSON(match.legWins) : null,
+      match.setWins ? toJSON(match.setWins) : null,
+    ],
+  })
+
+  statements.push({ sql: 'DELETE FROM killer_events WHERE match_id = ?', params: [match.id] })
+  statements.push({ sql: 'DELETE FROM killer_match_players WHERE match_id = ?', params: [match.id] })
+
+  const players = startEvt?.players ?? match.players ?? []
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i]
+    statements.push({
+      sql: `INSERT INTO killer_match_players (match_id, player_id, position, is_guest)
+            VALUES (?, ?, ?, ?)`,
+      params: [match.id, p.playerId, i, p.isGuest ? 1 : 0],
+    })
+  }
+
+  for (let seq = 0; seq < match.events.length; seq++) {
+    const ev = match.events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO killer_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbUpdateKillerEvents(matchId: string, events: any[]): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+
+  statements.push({ sql: 'DELETE FROM killer_events WHERE match_id = ?', params: [matchId] })
+
+  for (let seq = 0; seq < events.length; seq++) {
+    const ev = events[seq]
+    const enrichedEv = enrichEvent(ev)
+    statements.push({
+      sql: `INSERT INTO killer_events (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
+    })
+  }
+
+  const finishEvt = events.find((e: any) => e.type === 'KillerMatchFinished')
+  if (finishEvt) {
+    statements.push({
+      sql: `UPDATE killer_matches SET finished = 1, finished_at = ?,
+            winner_id = ?, winner_darts = ?, duration_ms = ?,
+            final_standings = ? WHERE id = ?`,
+      params: [
+        finishEvt.ts, finishEvt.winnerId, finishEvt.totalDarts, finishEvt.durationMs,
+        finishEvt.finalStandings ? toJSON(finishEvt.finalStandings) : null,
+        matchId,
+      ],
+    })
+  }
+
+  await transaction(statements)
+}
+
+export async function dbFinishKillerMatch(
+  matchId: string,
+  winnerId: string | null,
+  winnerDarts: number,
+  durationMs: number,
+  finalStandings?: any[],
+  legWins?: Record<string, number>,
+  setWins?: Record<string, number>
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(
+    `UPDATE killer_matches
+     SET finished = 1, finished_at = ?, winner_id = ?, winner_darts = ?, duration_ms = ?,
+         final_standings = ?, leg_wins = ?, set_wins = ?
+     WHERE id = ?`,
+    [nowISO(), winnerId, winnerDarts, durationMs,
+     finalStandings ? toJSON(finalStandings) : null,
+     legWins ? toJSON(legWins) : null,
+     setWins ? toJSON(setWins) : null,
+     matchId]
   )
 }
 

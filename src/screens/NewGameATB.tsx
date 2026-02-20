@@ -15,7 +15,6 @@ import type {
   ATBMiss3BackVariant,
   ATBBullPosition,
   ATBMatchConfig,
-  ATBGameMode,
 } from '../types/aroundTheBlock'
 import type { ATBMode } from '../dartsAroundTheBlock'
 
@@ -65,10 +64,6 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
   const [bestOfLegs, setBestOfLegs] = useState(1)
   const [bestOfSets, setBestOfSets] = useState(3)
   const [legsPerSet, setLegsPerSet] = useState(3)
-
-  // Spielmodus (Klassisch oder Piratenmodus)
-  const [gameMode, setGameMode] = useState<ATBGameMode>('individual')
-  const [rotateOrder, setRotateOrder] = useState(true)
 
   // Erweiterte Konfiguration
   const [sequenceMode, setSequenceMode] = useState<ATBSequenceMode>('ascending')
@@ -199,13 +194,11 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
 
     const config: ATBMatchConfig = {
       sequenceMode,
-      targetMode: gameMode === 'pirate' ? 'any' : targetMode,  // Piratenmodus: immer 'any'
+      targetMode,
       multiplierMode,
-      specialRule: gameMode === 'pirate' ? 'none' : specialRule,  // Piratenmodus: keine Spezialregeln
+      specialRule,
       miss3BackVariant: specialRule === 'miss3Back' ? miss3BackVariant : undefined,
       bullPosition,
-      gameMode,
-      pirateConfig: gameMode === 'pirate' ? { rotateOrder } : undefined,
     }
 
     onStart?.({ mode, direction, players: orderedPlayers, structure, config })
@@ -224,35 +217,6 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
 
       <div style={styles.centerPage}>
         <div style={styles.centerInner}>
-          {/* Spielmodus */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Spielmodus</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button style={pill(gameMode === 'individual')} onClick={() => setGameMode('individual')}>
-                Klassisch
-              </button>
-              <button style={pill(gameMode === 'pirate')} onClick={() => setGameMode('pirate')}>
-                🏴‍☠️ Piratenmodus
-              </button>
-            </div>
-            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
-              {gameMode === 'individual' && 'Jeder Spieler arbeitet sich durch die Felder'}
-              {gameMode === 'pirate' && 'Alle werfen auf das gleiche Feld - wer am meisten trifft, gewinnt das Feld!'}
-            </div>
-            {gameMode === 'pirate' && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}` }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={rotateOrder}
-                    onChange={(e) => setRotateOrder(e.target.checked)}
-                  />
-                  <span style={{ fontSize: 12 }}>Wurfreihenfolge pro Feld rotieren</span>
-                </label>
-              </div>
-            )}
-          </div>
-
           {/* Reihenfolge */}
           <div style={styles.card}>
             <div style={{ ...styles.title, marginBottom: 8 }}>Reihenfolge</div>
@@ -311,43 +275,41 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
             </div>
           </div>
 
-          {/* Ziele (nur bei klassischem Modus) */}
-          {gameMode === 'individual' && (
-            <div style={styles.card}>
-              <div style={{ ...styles.title, marginBottom: 8 }}>Ziele</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button style={pill(targetMode === 'any')} onClick={() => setTargetMode('any')}>
-                  Alle (S/D/T)
-                </button>
-                <button style={pill(targetMode === 'single')} onClick={() => setTargetMode('single')}>
-                  Nur Single
-                </button>
-                <button style={pill(targetMode === 'double')} onClick={() => setTargetMode('double')}>
-                  Nur Double
-                </button>
-                <button style={pill(targetMode === 'triple')} onClick={() => setTargetMode('triple')}>
-                  Nur Triple
-                </button>
-                <button style={pill(targetMode === 'mixed')} onClick={() => setTargetMode('mixed')}>
-                  Mixed (S→D→T)
-                </button>
-                <button style={pill(targetMode === 'mixedRandom')} onClick={() => setTargetMode('mixedRandom')}>
-                  Mixed Zufall
-                </button>
-              </div>
-              <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
-                {targetMode === 'any' && 'Jeder Treffer auf die Zahl zählt'}
-                {targetMode === 'single' && 'Nur Single-Felder zählen'}
-                {targetMode === 'double' && 'Nur Double-Felder zählen'}
-                {targetMode === 'triple' && 'Nur Triple-Felder zählen (Bull = Single)'}
-                {targetMode === 'mixed' && 'Für jede Zahl: erst Single, dann Double, dann Triple'}
-                {targetMode === 'mixedRandom' && 'Zufälliger Multiplier pro Zahl'}
-              </div>
+          {/* Ziele */}
+          <div style={styles.card}>
+            <div style={{ ...styles.title, marginBottom: 8 }}>Ziele</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button style={pill(targetMode === 'any')} onClick={() => setTargetMode('any')}>
+                Alle (S/D/T)
+              </button>
+              <button style={pill(targetMode === 'single')} onClick={() => setTargetMode('single')}>
+                Nur Single
+              </button>
+              <button style={pill(targetMode === 'double')} onClick={() => setTargetMode('double')}>
+                Nur Double
+              </button>
+              <button style={pill(targetMode === 'triple')} onClick={() => setTargetMode('triple')}>
+                Nur Triple
+              </button>
+              <button style={pill(targetMode === 'mixed')} onClick={() => setTargetMode('mixed')}>
+                Mixed (S→D→T)
+              </button>
+              <button style={pill(targetMode === 'mixedRandom')} onClick={() => setTargetMode('mixedRandom')}>
+                Mixed Zufall
+              </button>
             </div>
-          )}
+            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
+              {targetMode === 'any' && 'Jeder Treffer auf die Zahl zählt'}
+              {targetMode === 'single' && 'Nur Single-Felder zählen'}
+              {targetMode === 'double' && 'Nur Double-Felder zählen'}
+              {targetMode === 'triple' && 'Nur Triple-Felder zählen (Bull = Single)'}
+              {targetMode === 'mixed' && 'Für jede Zahl: erst Single, dann Double, dann Triple'}
+              {targetMode === 'mixedRandom' && 'Zufälliger Multiplier pro Zahl'}
+            </div>
+          </div>
 
-          {/* Multiplier/Punkteberechnung (bei 'any' oder Piratenmodus) */}
-          {(targetMode === 'any' || gameMode === 'pirate') && (
+          {/* Multiplier/Punkteberechnung (bei 'any') */}
+          {targetMode === 'any' && (
             <div style={styles.card}>
               <div style={{ ...styles.title, marginBottom: 8 }}>Multiplier</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -362,18 +324,14 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
                 </button>
               </div>
               <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
-                {gameMode === 'individual' && multiplierMode === 'standard' && 'Double springt 2 Felder, Triple springt 3 Felder'}
-                {gameMode === 'individual' && multiplierMode === 'standard2' && 'Double und Triple springen beide 2 Felder'}
-                {gameMode === 'individual' && multiplierMode === 'single' && 'Jeder Treffer springt nur 1 Feld'}
-                {gameMode === 'pirate' && multiplierMode === 'standard' && 'Single=1, Double=2, Triple=3 Punkte pro Treffer'}
-                {gameMode === 'pirate' && multiplierMode === 'standard2' && 'Single=1, Double/Triple=2 Punkte pro Treffer'}
-                {gameMode === 'pirate' && multiplierMode === 'single' && 'Jeder Treffer zählt 1 Punkt'}
+                {multiplierMode === 'standard' && 'Double springt 2 Felder, Triple springt 3 Felder'}
+                {multiplierMode === 'standard2' && 'Double und Triple springen beide 2 Felder'}
+                {multiplierMode === 'single' && 'Jeder Treffer springt nur 1 Feld'}
               </div>
             </div>
           )}
 
-          {/* Spezialregeln (nur bei klassischem Modus) */}
-          {gameMode === 'individual' && (
+          {/* Spezialregeln */}
           <div style={styles.card}>
             <div style={{ ...styles.title, marginBottom: 8 }}>Spezialregeln</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -426,7 +384,6 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
               </div>
             )}
           </div>
-          )}
 
           {/* Legs / Sets Auswahl */}
           <div style={styles.card}>

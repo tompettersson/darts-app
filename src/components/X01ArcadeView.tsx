@@ -554,10 +554,10 @@ function PlayerDisplay({
   return (
     <div
       style={{
-        background: isActive ? `${activeColor}15` : '#1a1a1a',
+        background: isActive ? `${activeColor}15` : `${activeColor}08`,
         borderRadius: compact ? 8 : 10,
         padding: compact ? '6px 10px 5px' : '10px 14px 8px',
-        border: isActive ? `2px solid ${activeColor}` : `1px solid #2a2a2a`,
+        border: isActive ? `2px solid ${activeColor}` : `1px solid ${activeColor}40`,
         boxShadow: isActive ? `0 0 15px ${activeColor}40, 0 0 30px ${activeColor}20` : 'none',
         transition: 'all 0.3s ease',
         minWidth: 0,
@@ -572,7 +572,7 @@ function PlayerDisplay({
         style={{
           fontSize: compact ? 9 : 11,
           fontWeight: 700,
-          color: isActive ? activeColor : c.textDim,
+          color: isActive ? activeColor : `${activeColor}99`,
           textTransform: 'uppercase',
           letterSpacing: compact ? 1 : 2,
           textAlign: 'center',

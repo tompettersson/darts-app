@@ -1381,6 +1381,8 @@ export type Stats121Full = {
   totalLegs: number
   legsWon: number
   winRate: number
+  matchesPlayed: number
+  matchesWon: number
   checkoutAttempts: number
   checkoutsMade: number
   checkoutPct: number
@@ -1467,9 +1469,26 @@ export async function get121FullStats(playerId: string): Promise<Stats121Full> {
       AND json_extract(e.data, '$.playerId') = ?
   `, [playerId, playerId])
 
+  // Match Stats (nur Mehrspieler-Matches, keine Einzelspiele)
+  const matchStats = await queryOne<{
+    matches_played: number
+    matches_won: number
+  }>(`
+    SELECT
+      COUNT(*) as matches_played,
+      SUM(CASE WHEN e.data IS NOT NULL AND json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as matches_won
+    FROM x01_matches m
+    JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+    LEFT JOIN x01_events e ON e.match_id = m.id AND e.type = 'MatchFinished'
+    WHERE m.finished = 1 AND m.starting_score = 121
+      AND (SELECT COUNT(*) FROM x01_match_players mp2 WHERE mp2.match_id = m.id) > 1
+  `, [playerId, playerId])
+
   const totalLegs = legStats?.total_legs ?? 0
   const legsWon = legStats?.legs_won ?? 0
   const totalDarts = legStats?.total_darts ?? 0
+  const matchesPlayed = matchStats?.matches_played ?? 0
+  const matchesWon = matchStats?.matches_won ?? 0
   const checkoutAttempts = checkoutStats?.checkout_attempts ?? 0
   const checkoutsMade = checkoutStats?.checkouts_made ?? 0
   const bustCount = bustStats?.bust_count ?? 0
@@ -1489,6 +1508,8 @@ export async function get121FullStats(playerId: string): Promise<Stats121Full> {
     totalLegs,
     legsWon,
     winRate: totalLegs > 0 ? Math.round((legsWon / totalLegs) * 100) : 0,
+    matchesPlayed,
+    matchesWon,
     checkoutAttempts,
     checkoutsMade,
     checkoutPct: Math.round(checkoutPct * 10) / 10,
@@ -2373,6 +2394,226 @@ export async function getPlayerAchievements(playerId: string): Promise<{
 }
 
 // ============================================================================
+// ATB Monthly Trends (from SQLite)
+// ============================================================================
+
+/**
+ * ATB Trefferquote pro Monat
+ * Nutzt enriched fields: $.hits, $.misses, $.totalDarts
+ */
+export async function getATBMonthlyHitRate(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      avg_hit_rate: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        CAST(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)) AS REAL) /
+          NULLIF(SUM(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER)), 0) * 100
+          as avg_hit_rate,
+        COUNT(DISTINCT m.id) as match_count
+      FROM atb_matches m
+      JOIN atb_events e ON e.match_id = m.id
+      JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE e.type = 'ATBTurnAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+        AND m.finished = 1
+      GROUP BY strftime('%Y-%m', m.created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.avg_hit_rate || 0) * 100) / 100,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getATBMonthlyHitRate failed:', e)
+    return []
+  }
+}
+
+// ============================================================================
+// CTF Monthly Trends (from SQLite)
+// ============================================================================
+
+/**
+ * CTF Trefferquote pro Monat
+ * Nutzt enriched fields: $.hits, $.misses, $.totalDarts
+ */
+export async function getCTFMonthlyHitRate(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      avg_hit_rate: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        CAST(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)) AS REAL) /
+          NULLIF(SUM(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER)), 0) * 100
+          as avg_hit_rate,
+        COUNT(DISTINCT m.id) as match_count
+      FROM ctf_matches m
+      JOIN ctf_events e ON e.match_id = m.id
+      JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE e.type = 'CTFTurnAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+        AND m.finished = 1
+      GROUP BY strftime('%Y-%m', m.created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.avg_hit_rate || 0) * 100) / 100,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getCTFMonthlyHitRate failed:', e)
+    return []
+  }
+}
+
+/**
+ * CTF Durchschnittlicher Score pro Match pro Monat
+ * captureScore wird im enriched CTFTurnAdded Event gespeichert
+ */
+export async function getCTFMonthlyAvgScore(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      avg_score: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        AVG(match_score) as avg_score,
+        COUNT(*) as match_count
+      FROM (
+        SELECT
+          m.id,
+          m.created_at,
+          SUM(CAST(json_extract(e.data, '$.captureScore') AS REAL)) as match_score
+        FROM ctf_matches m
+        JOIN ctf_events e ON e.match_id = m.id
+        JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE e.type = 'CTFTurnAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+          AND m.finished = 1
+        GROUP BY m.id, m.created_at
+      )
+      GROUP BY strftime('%Y-%m', created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.avg_score || 0) * 100) / 100,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getCTFMonthlyAvgScore failed:', e)
+    return []
+  }
+}
+
+// ============================================================================
+// STR Monthly Trends (from SQLite)
+// ============================================================================
+
+/**
+ * STR Trefferquote pro Monat
+ * Nutzt enriched fields: $.hits, $.misses, $.totalDarts
+ */
+export async function getStrMonthlyHitRate(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      avg_hit_rate: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        CAST(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)) AS REAL) /
+          NULLIF(SUM(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER)), 0) * 100
+          as avg_hit_rate,
+        COUNT(DISTINCT m.id) as match_count
+      FROM str_matches m
+      JOIN str_events e ON e.match_id = m.id
+      JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE e.type = 'StrTurnAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+        AND m.finished = 1
+      GROUP BY strftime('%Y-%m', m.created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.avg_hit_rate || 0) * 100) / 100,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getStrMonthlyHitRate failed:', e)
+    return []
+  }
+}
+
+// ============================================================================
+// Highscore Monthly Trends (from SQLite)
+// ============================================================================
+
+/**
+ * Highscore Durchschnittlicher Score pro Monat
+ */
+export async function getHighscoreMonthlyAvgScore(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      avg_score: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        AVG(match_score) as avg_score,
+        COUNT(*) as match_count
+      FROM (
+        SELECT
+          m.id,
+          m.created_at,
+          SUM(CAST(json_extract(e.data, '$.turnScore') AS REAL)) as match_score
+        FROM highscore_matches m
+        JOIN highscore_events e ON e.match_id = m.id
+        JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE e.type = 'HighscoreTurnAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+          AND m.finished = 1
+        GROUP BY m.id, m.created_at
+      )
+      GROUP BY strftime('%Y-%m', created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.avg_score || 0) * 100) / 100,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getHighscoreMonthlyAvgScore failed:', e)
+    return []
+  }
+}
+
+// ============================================================================
 // Dev Helpers
 // ============================================================================
 
@@ -2417,5 +2658,10 @@ if (typeof window !== 'undefined') {
     getHighscoreATBMostWins,
     getAllHighscoresSQL,
     getPlayerAchievements,
+    getATBMonthlyHitRate,
+    getCTFMonthlyHitRate,
+    getCTFMonthlyAvgScore,
+    getStrMonthlyHitRate,
+    getHighscoreMonthlyAvgScore,
   }
 }

@@ -689,21 +689,21 @@ export function announceATBProgress(current: number, total: number) {
   }
 }
 
-// ===== ATB Piratenmodus Ansagen =====
+// ===== Capture the Field (CTF) Ansagen =====
 
 /**
- * Sagt den Spieler an, der im Piratenmodus dran ist
+ * Sagt den Spieler an, der im Capture the Field (CTF) dran ist
  * z.B. "David, your turn"
  */
-export function announceATBPiratePlayerTurn(playerName: string) {
+export function announceCTFPlayerTurn(playerName: string) {
   speak(`${playerName}, your turn`)
 }
 
 /**
- * Sagt das aktuelle Ziel im Piratenmodus an
+ * Sagt das aktuelle Ziel im CTF an
  * z.B. "Target: 15" oder "Target: Bull"
  */
-export function announceATBPirateTarget(target: number | 'BULL') {
+export function announceCTFTarget(target: number | 'BULL') {
   const name = target === 'BULL' ? 'Bull' : String(target)
   speak(`Target: ${name}`)
 }
@@ -712,7 +712,7 @@ export function announceATBPirateTarget(target: number | 'BULL') {
  * Sagt Spieler + Ziel zusammen an (wenn sich das Ziel geändert hat)
  * z.B. "David, target 15" oder "Round 5, Tim, 18"
  */
-export function announceATBPirateNewRound(playerName: string, target: number | 'BULL', roundNumber?: number) {
+export function announceCTFNewRound(playerName: string, target: number | 'BULL', roundNumber?: number) {
   const targetName = target === 'BULL' ? 'Bull' : String(target)
   if (roundNumber) {
     speak(`Round ${roundNumber}, ${playerName}, ${targetName}`)
@@ -722,10 +722,10 @@ export function announceATBPirateNewRound(playerName: string, target: number | '
 }
 
 /**
- * Sagt den Score eines Spielers nach seinem Wurf im Piratenmodus an
+ * Sagt den Score eines Spielers nach seinem Wurf im CTF an
  * z.B. "5 points" (ohne Namen, da dieser gerade schon gesagt wurde)
  */
-export function announceATBPiratePlayerScore(playerName: string, score: number) {
+export function announceCTFPlayerScore(playerName: string, score: number) {
   if (score === 0) {
     speak('no score')
   } else if (score === 1) {
@@ -736,10 +736,10 @@ export function announceATBPiratePlayerScore(playerName: string, score: number) 
 }
 
 /**
- * Sagt das Ergebnis einer Piratenmodus-Runde an
+ * Sagt das Ergebnis einer CTF-Runde an
  * z.B. "David wins 15!" oder "15 is tied!"
  */
-export function announceATBPirateRoundResult(winnerName: string | null, target: number | 'BULL') {
+export function announceCTFRoundResult(winnerName: string | null, target: number | 'BULL') {
   const targetName = target === 'BULL' ? 'Bull' : String(target)
   if (winnerName) {
     speak(`${winnerName} wins ${targetName}!`)
@@ -749,54 +749,45 @@ export function announceATBPirateRoundResult(winnerName: string | null, target: 
 }
 
 /**
- * Sagt die aktuelle Rundennummer im Piratenmodus an
- * z.B. "Round 5 of 21"
- * @deprecated Verwende announceATBPirateLastRounds stattdessen
- */
-export function announceATBPirateRoundNumber(roundNumber: number, totalRounds: number = 21) {
-  speak(`Round ${roundNumber} of ${totalRounds}`)
-}
-
-/**
- * Sagt die letzten 3 Runden im Piratenmodus an
+ * Sagt die letzten 3 Runden im CTF an
  * Nur bei Drittletzte, Zweitletzte, Letzte Runde
  */
-export function announceATBPirateLastRounds(roundNumber: number, totalRounds: number) {
+export function announceCTFLastRounds(roundNumber: number, totalRounds: number) {
   const roundsRemaining = totalRounds - roundNumber
 
-  if (roundsRemaining === 2) {
+  if (roundsRemaining === 3) {
     speak('Third to last round!')
-  } else if (roundsRemaining === 1) {
+  } else if (roundsRemaining === 2) {
     speak('Second to last round!')
-  } else if (roundsRemaining === 0) {
+  } else if (roundsRemaining === 1) {
     speak('Final round!')
   }
   // Bei mehr als 3 verbleibenden Runden: keine Ansage
 }
 
 /**
- * Sagt den Spielstand im Piratenmodus an
+ * Sagt den Spielstand im CTF an
  * z.B. "Score: David 5, Tim 3"
  */
-export function announceATBPirateScore(scores: { name: string; fields: number }[]) {
+export function announceCTFScore(scores: { name: string; fields: number }[]) {
   const parts = scores.map(s => `${s.name} ${s.fields}`)
   speak(`Score: ${parts.join(', ')}`)
 }
 
 /**
- * Sagt den Gewinner des Piratenmodus-Matches an
- * z.B. "David wins with 12 fields!"
+ * Sagt den Gewinner des CTF-Matches an
+ * z.B. "David wins the match with 12 fields!"
  */
-export function announceATBPirateWinner(playerName: string, fieldsWon: number) {
+export function announceCTFWinner(playerName: string, fieldsWon: number) {
   speak(`${playerName} wins the match with ${fieldsWon} fields!`)
 }
 
 /**
- * Sagt die Endplatzierungen im Piratenmodus an
+ * Sagt die Endplatzierungen im CTF an
  * 1. Platz, 2. Platz, 3. Platz mit jeweiligen Feldanzahlen
  * Wird am Ende des Matches aufgerufen
  */
-export function announceATBPirateMatchEndRankings(rankings: Array<{ name: string; fields: number }>) {
+export function announceCTFMatchEndRankings(rankings: Array<{ name: string; fields: number }>) {
   if (rankings.length === 0) return
 
   // 1. Platz sofort ansagen
@@ -867,6 +858,218 @@ export function announceStrMatchWinner(playerName: string) {
  */
 export function announceStrGameOn() {
   speak('Sträußchen, Game on!')
+}
+
+// ===== Shanghai Ansagen =====
+
+/**
+ * Sagt die Zielzahl an und den Spielernamen
+ * z.B. "15! David" (am Anfang der Runde)
+ */
+export function announceShanghaiRoundAndPlayer(targetNumber: number, playerName: string) {
+  speak(`${targetNumber}! ${playerName}`)
+}
+
+/**
+ * Sagt den Spielernamen an, der im Shanghai dran ist (Spielerwechsel innerhalb Runde)
+ * z.B. "David"
+ */
+export function announceShanghaiPlayerTurn(playerName: string) {
+  speak(playerName)
+}
+
+/**
+ * Sagt die Treffer-Anzahl nach einem Wurf an
+ * z.B. "2 hits" oder "no hits"
+ */
+export function announceShanghaiHits(hits: number) {
+  if (hits === 0) {
+    speak('no hits')
+  } else if (hits === 1) {
+    speak('1 hit')
+  } else {
+    speak(`${hits} hits`)
+  }
+}
+
+/**
+ * Sagt den Score eines Spielers nach seinem Wurf im Shanghai an
+ * z.B. "David, 15 points" oder "no score"
+ */
+export function announceShanghaiScore(playerName: string, score: number) {
+  if (score === 0) {
+    speak('no score')
+  } else {
+    speak(`${score} points`)
+  }
+}
+
+/**
+ * Sagt "SHANGHAI!" bei einem Shanghai-Treffer (S+D+T auf aktuelle Zahl)
+ */
+export function announceShanghai() {
+  speak('SHANGHAI!')
+}
+
+/**
+ * Sagt den Gewinner eines Shanghai-Matches an
+ */
+export function announceShanghaiWinner(playerName: string, totalScore: number) {
+  speak(`${playerName} wins with ${totalScore} points!`)
+}
+
+/**
+ * Sagt "Draw!" bei Unentschieden im Shanghai an
+ */
+export function announceShanghaiDraw() {
+  speak('Draw!')
+}
+
+// ===== Killer Announcements =====
+
+export function announceKillerPlayerTurn(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName}, du bist dran`)
+  } else {
+    speak(`${playerName}, your turn`)
+  }
+}
+
+export function announceKillerQualifyingTurn(playerName: string, targetNumber: number, ring: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName}, triff die ${ring} ${targetNumber}!`)
+  } else {
+    speak(`${playerName}, hit the ${ring} ${targetNumber}!`)
+  }
+}
+
+export function announceKillerQualified(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName} ist jetzt ein Killer!`)
+  } else {
+    speak(`${playerName} is now a Killer!`)
+  }
+}
+
+export function announceKillerHit(attackerName: string, victimName: string, livesLeft: number) {
+  if (voiceLang === 'de') {
+    speak(`${attackerName} trifft ${victimName}! Noch ${livesLeft} ${livesLeft === 1 ? 'Leben' : 'Leben'}`)
+  } else {
+    speak(`${attackerName} hits ${victimName}! ${livesLeft} ${livesLeft === 1 ? 'life' : 'lives'} left`)
+  }
+}
+
+export function announceKillerEliminated(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName} ist raus!`)
+  } else {
+    speak(`${playerName} is eliminated!`)
+  }
+}
+
+export function announceKillerWinner(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName} gewinnt! Letzter Ueberlebender!`)
+  } else {
+    speak(`${playerName} wins! Last one standing!`)
+  }
+}
+
+export function announceKillerSelfHeal(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName} heilt sich!`)
+  } else {
+    speak(`${playerName} heals!`)
+  }
+}
+
+export function announceKillerLegWin(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName} gewinnt das Leg!`)
+  } else {
+    speak(`${playerName} wins the Leg!`)
+  }
+}
+
+export function announceKillerSetWin(playerName: string) {
+  if (voiceLang === 'de') {
+    speak(`${playerName} gewinnt das Set!`)
+  } else {
+    speak(`${playerName} wins the Set!`)
+  }
+}
+
+// ===== Killer SFX (Web Audio API - synthetisch) =====
+
+let killerAudioCtx: AudioContext | null = null
+
+function getKillerAudioCtx(): AudioContext {
+  if (!killerAudioCtx) {
+    killerAudioCtx = new AudioContext()
+  }
+  return killerAudioCtx
+}
+
+/**
+ * Kurzer Punch/Impact SFX: Frequenz-Sweep 300Hz->80Hz in 100ms
+ */
+export function playKillerHitSound() {
+  if (!enabled) return
+  try {
+    const ctx = getKillerAudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(300, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.1)
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.15)
+  } catch { /* ignore */ }
+}
+
+/**
+ * Dramatischer Eliminated-SFX: tiefer Ton 150Hz->40Hz in 400ms + Noise-Burst
+ */
+export function playKillerEliminatedSound() {
+  if (!enabled) return
+  try {
+    const ctx = getKillerAudioCtx()
+    const t = ctx.currentTime
+
+    // Tiefer Sweep-Ton
+    const osc = ctx.createOscillator()
+    const oscGain = ctx.createGain()
+    osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(150, t)
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.4)
+    oscGain.gain.setValueAtTime(0.3, t)
+    oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.45)
+    osc.connect(oscGain)
+    oscGain.connect(ctx.destination)
+    osc.start(t)
+    osc.stop(t + 0.5)
+
+    // Noise-Burst
+    const bufferSize = ctx.sampleRate * 0.1
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.3
+    }
+    const noise = ctx.createBufferSource()
+    noise.buffer = buffer
+    const noiseGain = ctx.createGain()
+    noiseGain.gain.setValueAtTime(0.2, t)
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1)
+    noise.connect(noiseGain)
+    noiseGain.connect(ctx.destination)
+    noise.start(t)
+    noise.stop(t + 0.12)
+  } catch { /* ignore */ }
 }
 
 // ===== Sound-Effekte =====
