@@ -174,7 +174,7 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
   const activePlayerDisplayColor = activePlayer ? activePlayer.color : '#f97316'
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Dartscheibe mit Spielerpositionen">
       <defs>
         {/* Pulsierender Glow-Filter für aktives Ziel */}
         <filter id="target-glow" x="-150%" y="-150%" width="400%" height="400%">

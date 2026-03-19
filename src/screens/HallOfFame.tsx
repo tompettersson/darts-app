@@ -390,12 +390,14 @@ export default function HallOfFame({ onBack }: Props) {
         {heroTitle}
 
         {/* Tab Bar */}
-        <div style={s.tabBar}>
+        <div style={s.tabBar} role="tablist" aria-label="Spielmodus-Filter">
           {(['all', 'x01', 'cricket', 'atb', 'bobs27', 'operation'] as HighscoreGameType[]).map(tab => (
             <button
               key={tab}
               style={s.tab(activeTab === tab)}
               onClick={() => handleTabChange(tab)}
+              role="tab"
+              aria-selected={activeTab === tab}
             >
               {GAME_TYPE_LABELS[tab]}
             </button>

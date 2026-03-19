@@ -100,6 +100,8 @@ export default function DartboardInput({ onThrow }: Props) {
         viewBox="0 0 400 400"
         width="320"
         height="320"
+        role="img"
+        aria-label="Interaktive Dartscheibe zur Wurf-Eingabe"
         style={{
           cursor: 'pointer',
           filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
@@ -115,6 +117,8 @@ export default function DartboardInput({ onThrow }: Props) {
           onMouseEnter={() => setHovered('miss')}
           onMouseLeave={() => setHovered(null)}
           style={{ cursor: 'pointer' }}
+          aria-label="Miss"
+          role="button"
         />
 
         {/* Äußerer Ring (Rahmen) */}
@@ -165,6 +169,7 @@ export default function DartboardInput({ onThrow }: Props) {
             const isHovered = hovered === seg.id
             const fillColor = isHovered ? getHoverColor(baseColor) : baseColor
 
+            const multLabel = seg.mult === 3 ? 'Triple' : seg.mult === 2 ? 'Double' : 'Single'
             return (
               <path
                 key={seg.id}
@@ -176,6 +181,8 @@ export default function DartboardInput({ onThrow }: Props) {
                 onMouseEnter={() => setHovered(seg.id)}
                 onMouseLeave={() => setHovered(null)}
                 style={{ cursor: 'pointer', transition: 'fill 0.1s' }}
+                aria-label={`${multLabel} ${num}`}
+                role="button"
               />
             )
           })
@@ -193,6 +200,8 @@ export default function DartboardInput({ onThrow }: Props) {
           onMouseEnter={() => setHovered('bull')}
           onMouseLeave={() => setHovered(null)}
           style={{ cursor: 'pointer', transition: 'fill 0.1s' }}
+          aria-label="Single Bull (25)"
+          role="button"
         />
 
         {/* Double Bull (rot, 50) */}
@@ -207,6 +216,8 @@ export default function DartboardInput({ onThrow }: Props) {
           onMouseEnter={() => setHovered('dbull')}
           onMouseLeave={() => setHovered(null)}
           style={{ cursor: 'pointer', transition: 'fill 0.1s' }}
+          aria-label="Double Bull (50)"
+          role="button"
         />
 
         {/* Zahlen außen herum */}

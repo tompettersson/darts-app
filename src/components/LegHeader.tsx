@@ -87,6 +87,7 @@ export default function LegHeader({
           <button
             onClick={onPrevLeg}
             disabled={!hasPrev}
+            aria-label="Vorheriges Leg"
             style={{
               background: 'none',
               border: 'none',
@@ -107,6 +108,7 @@ export default function LegHeader({
           <button
             onClick={onNextLeg}
             disabled={!hasNext}
+            aria-label="Nächstes Leg"
             style={{
               background: 'none',
               border: 'none',

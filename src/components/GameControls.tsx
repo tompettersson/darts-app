@@ -91,6 +91,7 @@ export default function GameControls({
               fontSize: 14,
             }}
             title="Spiel abbrechen"
+            aria-label="Spiel abbrechen"
           >
             ✕
           </button>
@@ -120,6 +121,7 @@ export default function GameControls({
           onClick={onTogglePause}
           style={pauseBtnStyle}
           title={isPaused ? 'Fortsetzen' : 'Pause'}
+          aria-label={isPaused ? 'Spiel fortsetzen' : 'Spiel pausieren'}
         >
           {isPaused ? '▶' : '⏸'}
         </button>
@@ -132,12 +134,13 @@ export default function GameControls({
             fontSize: 16,
           }}
           title={isMuted ? 'Ton an' : 'Ton aus'}
+          aria-label={isMuted ? 'Ton einschalten' : 'Ton ausschalten'}
         >
           {isMuted ? '🔇' : '🔊'}
         </button>
 
         {/* Menü Button */}
-        <button onClick={onExit} style={btnStyle}>
+        <button onClick={onExit} style={btnStyle} aria-label="Zurück zum Menü">
           Menü
         </button>
       </div>
@@ -162,6 +165,9 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
   return (
     <div
       onClick={onResume}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Spiel pausiert"
       style={{
         position: 'fixed',
         inset: 0,

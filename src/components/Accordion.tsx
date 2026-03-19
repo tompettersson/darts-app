@@ -48,9 +48,17 @@ export default function Accordion({ title, defaultOpen = false, children }: Acco
 
   return (
     <div style={{ borderBottom: `1px solid ${colors.bgMuted}` }}>
-      <div style={headerStyle} onClick={() => setOpen(o => !o)}>
+      <div
+        style={headerStyle}
+        onClick={() => setOpen(o => !o)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label={`${title} ${open ? 'einklappen' : 'ausklappen'}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o) } }}
+      >
         <span style={titleStyle}>{title}</span>
-        <span style={chevronStyle}>▼</span>
+        <span style={chevronStyle} aria-hidden="true">▼</span>
       </div>
       <div style={bodyStyle}>
         {children}

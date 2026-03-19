@@ -300,6 +300,7 @@ export default function ProfileList({ onBack }: { onBack: () => void }) {
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Suche nach Namen…"
                 style={s.input}
+                aria-label="Profile durchsuchen"
               />
             </div>
           </div>
@@ -312,6 +313,7 @@ export default function ProfileList({ onBack }: { onBack: () => void }) {
                 onChange={e => setNewName(e.target.value)}
                 placeholder="Neues Profil anlegen…"
                 style={s.input}
+                aria-label="Name für neues Profil"
               />
               <button
                 disabled={busy === 'create'}
@@ -340,6 +342,7 @@ export default function ProfileList({ onBack }: { onBack: () => void }) {
                           value={editingName}
                           onChange={e => setEditingName(e.target.value)}
                           style={s.input}
+                          aria-label="Profilname bearbeiten"
                         />
                         <button
                           disabled={busy === p.id}

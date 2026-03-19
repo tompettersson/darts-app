@@ -234,6 +234,7 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
             value={customTarget}
             onChange={handleCustomTargetChange}
             placeholder="300-999"
+            aria-label="Eigener Zielwert"
             style={{
               ...styles.input,
               width: 100,
@@ -260,6 +261,7 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
               setCustomTarget('')
             }}
             style={{ width: '100%' }}
+            aria-label="Zielwert-Slider"
           />
           <div style={{
             display: 'flex',

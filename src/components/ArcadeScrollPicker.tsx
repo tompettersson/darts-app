@@ -24,22 +24,24 @@ export default function ArcadeScrollPicker({ items, selectedIndex, onChange, onC
 
   const clamp = (idx: number) => Math.max(0, Math.min(items.length - 1, idx))
 
-  // Keyboard navigation
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        onChange(clamp(selectedIndex - 1))
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        onChange(clamp(selectedIndex + 1))
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        onConfirm(selectedIndex)
-      }
+  // Keyboard navigation — scoped to the focused container, not window
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      onChange(clamp(selectedIndex - 1))
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      onChange(clamp(selectedIndex + 1))
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onConfirm(selectedIndex)
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      onChange(0)
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      onChange(items.length - 1)
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
   }, [selectedIndex, onChange, onConfirm, items.length])
 
   // Wheel scroll (native listener mit { passive: false } um preventDefault zu erlauben)
@@ -150,19 +152,30 @@ export default function ArcadeScrollPicker({ items, selectedIndex, onChange, onC
     pointerEvents: 'none',
   }
 
+  const selectedItemId = items[selectedIndex] ? `arcade-picker-item-${items[selectedIndex].id}` : undefined
+
   return (
     <div
       ref={containerRef}
       style={containerStyle}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onKeyDown={handleKeyDown}
+      role="listbox"
+      aria-label="Spielmodus auswählen"
+      aria-activedescendant={selectedItemId}
+      tabIndex={0}
     >
       <div style={gradientTop} />
       {items.map((item, i) => (
         <div
           key={item.id}
+          id={`arcade-picker-item-${item.id}`}
           style={getItemStyle(i)}
           onClick={() => handleItemClick(i)}
+          role="option"
+          aria-selected={i === selectedIndex}
+          aria-label={`${item.label}: ${item.sub}`}
         >
           <div style={{
             fontWeight: 700,

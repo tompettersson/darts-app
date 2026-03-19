@@ -441,13 +441,13 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
           gap: 8,
           padding: '2px 0',
         }}>
-          <button type="button" onClick={toggleInputMode} style={toggleBtnStyle} title="Zur anderen Eingabemethode wechseln">
+          <button type="button" onClick={toggleInputMode} style={toggleBtnStyle} title="Zur anderen Eingabemethode wechseln" aria-label="Zur anderen Eingabemethode wechseln">
             ←
           </button>
           <div style={toggleLabelStyle}>
             {inputMode === 'keyboard' ? 'Tastatur' : 'Dartscheibe'}
           </div>
-          <button type="button" onClick={toggleInputMode} style={toggleBtnStyle} title="Zur anderen Eingabemethode wechseln">
+          <button type="button" onClick={toggleInputMode} style={toggleBtnStyle} title="Zur anderen Eingabemethode wechseln" aria-label="Zur anderen Eingabemethode wechseln">
             →
           </button>
         </div>
@@ -460,7 +460,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
           {/* Im Arcade-Modus: kleiner runder Toggle unter der Dartscheibe */}
           {dark && (
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
-              <button type="button" onClick={toggleInputMode} style={arcadeToggleBtnStyle} title="Zur Tastatur wechseln">
+              <button type="button" onClick={toggleInputMode} style={arcadeToggleBtnStyle} title="Zur Tastatur wechseln" aria-label="Zur Tastatur wechseln">
                 ⌨
               </button>
             </div>
@@ -523,17 +523,17 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
 
               {/* Rechte Seite: S/D/T vertikal + Toggle-Button */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingTop: 2 }}>
-                <button type="button" style={arcadeSdtStyle(isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }}>
+                <button type="button" style={arcadeSdtStyle(isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }} aria-label="Single" aria-pressed={isSelected(1)}>
                   S
                 </button>
-                <button type="button" style={arcadeSdtStyle(isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }}>
+                <button type="button" style={arcadeSdtStyle(isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }} aria-label="Double" aria-pressed={isSelected(2)}>
                   D
                 </button>
-                <button type="button" style={arcadeSdtStyle(isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }}>
+                <button type="button" style={arcadeSdtStyle(isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }} aria-label="Triple" aria-pressed={isSelected(3)}>
                   T
                 </button>
                 {/* Runder Toggle-Button für Dartscheibe/Tastatur */}
-                <button type="button" onClick={toggleInputMode} style={arcadeToggleBtnStyle} title="Zur Dartscheibe wechseln">
+                <button type="button" onClick={toggleInputMode} style={arcadeToggleBtnStyle} title="Zur Dartscheibe wechseln" aria-label="Zur Dartscheibe wechseln">
                   🎯
                 </button>
               </div>
@@ -542,14 +542,14 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
             /* === LIGHT LAYOUT: Original-Layout === */
             <>
               {/* Moduswahl S/D/T */}
-              <div style={{ display: 'flex', gap: 3, justifyContent: 'center', alignItems: 'center' }}>
-                <button type="button" style={modeButtonStyle(isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }}>
+              <div style={{ display: 'flex', gap: 3, justifyContent: 'center', alignItems: 'center' }} role="group" aria-label="Multiplikator auswählen">
+                <button type="button" style={modeButtonStyle(isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }} aria-label="Single" aria-pressed={isSelected(1)}>
                   S
                 </button>
-                <button type="button" style={modeButtonStyle(isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }}>
+                <button type="button" style={modeButtonStyle(isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }} aria-label="Double" aria-pressed={isSelected(2)}>
                   D
                 </button>
-                <button type="button" style={modeButtonStyle(isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }}>
+                <button type="button" style={modeButtonStyle(isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }} aria-label="Triple" aria-pressed={isSelected(3)}>
                   T
                 </button>
                 <span style={{ fontSize: 9, color: '#9ca3af', marginLeft: 4 }}>Bull=fix</span>
@@ -617,6 +617,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
                       onClick={() => voiceState === 'idle' ? startVoiceInput(1) : voiceMode === 1 ? cancelVoiceInput() : null}
                       disabled={voiceState !== 'idle' && voiceMode !== 1}
                       title="Spracheingabe: 1 Dart"
+                      aria-label="Spracheingabe: 1 Dart"
                     >
                       <DartIcon size={18} />
                     </button>
@@ -639,6 +640,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
                       onClick={() => canUseThreeDartVoice && voiceState === 'idle' ? startVoiceInput(3) : voiceMode === 3 ? cancelVoiceInput() : null}
                       disabled={!canUseThreeDartVoice || (voiceState !== 'idle' && voiceMode !== 3)}
                       title={canUseThreeDartVoice ? "Spracheingabe: 3 Darts" : "Nicht verfügbar - bereits Darts geworfen"}
+                      aria-label={canUseThreeDartVoice ? "Spracheingabe: 3 Darts" : "Nicht verfügbar - bereits Darts geworfen"}
                     >
                       <DartIcon size={16} />
                       <DartIcon size={16} />

@@ -308,12 +308,14 @@ export default function StatsProfile({
       </div>
 
       {/* Tabs */}
-      <div style={s.tabBar}>
+      <div style={s.tabBar} role="tablist" aria-label="Statistik-Kategorien">
         {tabs.map(tab => (
           <button
             key={tab.key}
             style={s.tab(activeTab === tab.key)}
             onClick={() => setActiveTab(tab.key)}
+            role="tab"
+            aria-selected={activeTab === tab.key}
           >
             {tab.label}
           </button>

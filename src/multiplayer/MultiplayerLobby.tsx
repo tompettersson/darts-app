@@ -289,6 +289,7 @@ export default function MultiplayerLobby({
               placeholder="CODE"
               maxLength={6}
               autoFocus
+              aria-label="Raum-Code eingeben"
             />
             <button
               type="submit"

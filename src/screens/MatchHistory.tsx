@@ -678,12 +678,14 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       <div style={styles.card}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Filter Buttons */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }} role="tablist" aria-label="Spielmodus-Filter">
             <span style={{ fontWeight: 700, color: colors.fg }}>Filter:</span>
             {(['all', 'x01', '121', 'cricket', 'atb', 'ctf', 'shanghai', 'killer', 'bobs27', 'operation', 'str', 'highscore'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
+                role="tab"
+                aria-selected={filter === f}
                 style={{
                   height: 36,
                   borderRadius: 999,
@@ -734,6 +736,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Suche: Name, Datum, Spieler..."
+                aria-label="Matches durchsuchen"
                 style={{
                   width: '100%',
                   height: 36,
