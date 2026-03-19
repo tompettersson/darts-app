@@ -4,6 +4,9 @@ import App from './App'
 import { ThemeProvider } from './ThemeProvider'
 import ErrorBoundary from './components/ErrorBoundary'
 
+// Global styles (viewport, theme tokens, animations)
+import './screens/game.css'
+
 // SQLite DB Module laden (registriert Console Helpers)
 import './db/init'
 

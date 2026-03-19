@@ -1,4 +1,26 @@
 /* src/screens/game.css */
+
+/* ===== Full-viewport layout: no scrollbars ===== */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height for mobile browsers */
+  overflow: hidden;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+#root > * {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Design Tokens - mapped to global theme variables */
 :root {
   /* Map to theme variables from ThemeProvider */
