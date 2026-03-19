@@ -15,7 +15,7 @@ import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
 import { PLAYER_COLORS } from '../playerColors'
 
-// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+// Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
   numericValues: number[],
   playerIds: string[],
@@ -146,6 +146,154 @@ function computeStatsFromTurns(
   })
 }
 
+// Hilfsfunktion: Standardabweichung berechnen
+function computeStdDev(values: number[]): number {
+  if (values.length === 0) return 0
+  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length
+  return Math.sqrt(variance)
+}
+
+// Feld-Breakdown-Daten pro Spieler
+type FieldBreakdownRow = {
+  fieldNumber: number | 'BULL'
+  fieldLabel: string
+  scoresByPlayer: Record<string, number>
+  winnerId: string | null
+}
+
+// Inline SVG Bar Chart fuer Feld-Effizienz
+function FieldEfficiencyChart({
+  rounds,
+  players,
+  playerColors,
+}: {
+  rounds: FieldBreakdownRow[]
+  players: { playerId: string; name: string }[]
+  playerColors: Record<string, string>
+}) {
+  const { colors } = useTheme()
+
+  if (rounds.length === 0) return null
+
+  const paddingLeft = 40
+  const paddingRight = 16
+  const paddingTop = 16
+  const paddingBottom = 40
+  const barHeight = 14
+  const groupGap = 6
+  const playerGap = 2
+  const numPlayers = players.length
+  const groupHeight = numPlayers * (barHeight + playerGap) + groupGap
+  const chartHeight = paddingTop + rounds.length * groupHeight + paddingBottom
+  const chartWidth = 600
+
+  const graphWidth = chartWidth - paddingLeft - paddingRight
+  const maxScore = Math.max(1, ...rounds.flatMap(r => Object.values(r.scoresByPlayer)))
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg width={chartWidth} height={chartHeight} style={{ display: 'block' }}>
+        {/* Y-Achsen Labels (Feldnummern) */}
+        {rounds.map((round, i) => {
+          const groupY = paddingTop + i * groupHeight + groupHeight / 2
+          return (
+            <text
+              key={i}
+              x={paddingLeft - 8}
+              y={groupY + 4}
+              textAnchor="end"
+              fontSize={11}
+              fill={colors.fgMuted}
+              fontWeight={600}
+            >
+              {round.fieldLabel}
+            </text>
+          )
+        })}
+
+        {/* Bars */}
+        {rounds.map((round, roundIdx) => {
+          const groupY = paddingTop + roundIdx * groupHeight
+
+          return (
+            <g key={roundIdx}>
+              {players.map((player, pIdx) => {
+                const score = round.scoresByPlayer[player.playerId] ?? 0
+                const barW = (score / maxScore) * graphWidth
+                const y = groupY + pIdx * (barHeight + playerGap)
+                const isWinner = round.winnerId === player.playerId
+                const color = playerColors[player.playerId] || PLAYER_COLORS[pIdx % PLAYER_COLORS.length]
+
+                return (
+                  <g key={player.playerId}>
+                    {/* Background bar */}
+                    <rect
+                      x={paddingLeft}
+                      y={y}
+                      width={graphWidth}
+                      height={barHeight}
+                      fill={colors.bgMuted}
+                      rx={3}
+                    />
+                    {/* Score bar */}
+                    {score > 0 && (
+                      <rect
+                        x={paddingLeft}
+                        y={y}
+                        width={barW}
+                        height={barHeight}
+                        fill={color}
+                        rx={3}
+                        opacity={isWinner ? 1 : 0.6}
+                      />
+                    )}
+                    {/* Score label */}
+                    <text
+                      x={paddingLeft + Math.max(barW, 0) + 6}
+                      y={y + barHeight / 2 + 4}
+                      fontSize={10}
+                      fill={isWinner ? color : colors.fgMuted}
+                      fontWeight={isWinner ? 700 : 400}
+                    >
+                      {score}{isWinner ? ' \u2605' : ''}
+                    </text>
+                  </g>
+                )
+              })}
+              {/* Separator line */}
+              {roundIdx < rounds.length - 1 && (
+                <line
+                  x1={paddingLeft}
+                  y1={groupY + groupHeight - groupGap / 2}
+                  x2={chartWidth - paddingRight}
+                  y2={groupY + groupHeight - groupGap / 2}
+                  stroke={colors.border}
+                  strokeWidth={0.5}
+                  opacity={0.4}
+                />
+              )}
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* Legende */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 4, flexWrap: 'wrap' }}>
+        {players.map((p, idx) => (
+          <div key={p.playerId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <div style={{
+              width: 12, height: 12, borderRadius: 2,
+              background: playerColors[p.playerId] || PLAYER_COLORS[idx % PLAYER_COLORS.length],
+            }} />
+            <span style={{ color: colors.fg }}>{p.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function CTFMatchDetails({ matchId, onBack }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -260,7 +408,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             <div style={styles.card}>
               <h2 style={{ margin: 0 }}>Match nicht gefunden</h2>
               <div style={{ marginTop: 10 }}>
-                <button style={styles.backBtn} onClick={onBack}>← Zurueck</button>
+                <button style={styles.backBtn} onClick={onBack}>{'\u2190'} Zurueck</button>
               </div>
             </div>
           </div>
@@ -297,6 +445,69 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
     formatLabel = `First to ${Math.ceil(match.structure.bestOfLegs / 2)} Legs`
   } else if (match.structure?.kind === 'sets') {
     formatLabel = `First to ${Math.ceil(match.structure.bestOfSets / 2)} Sets (Best of ${Math.ceil(match.structure.legsPerSet / 2)} Legs)`
+  }
+
+  // Helper: Feld-Breakdown-Daten aus Round-Events
+  function buildFieldBreakdown(roundEvents: CTFRoundFinishedEvent[]): FieldBreakdownRow[] {
+    return roundEvents.map(r => ({
+      fieldNumber: r.fieldNumber,
+      fieldLabel: r.fieldNumber === 'BULL' ? 'Bull' : String(r.fieldNumber),
+      scoresByPlayer: r.scoresByPlayer,
+      winnerId: r.winnerId,
+    }))
+  }
+
+  // Helper: Konsistenz-Stats (Std Dev der Feld-Scores pro Spieler)
+  function buildConsistencyStats(roundEvents: CTFRoundFinishedEvent[]): Record<string, number> {
+    if (!match) return {}
+    const result: Record<string, number> = {}
+    for (const p of match.players) {
+      const scores = roundEvents.map(r => r.scoresByPlayer[p.playerId] ?? 0)
+      result[p.playerId] = computeStdDev(scores)
+    }
+    return result
+  }
+
+  // Helper: Head-to-Head Vergleich (wer hat mehr Felder gewonnen, nur bei 2+ Spielern)
+  function buildHeadToHead(roundEvents: CTFRoundFinishedEvent[]): {
+    fieldsWonBy: Record<string, number>
+    tiedFields: number
+  } | null {
+    if (!match || match.players.length < 2) return null
+
+    const fieldsWonBy: Record<string, number> = {}
+    match.players.forEach(p => { fieldsWonBy[p.playerId] = 0 })
+    let tiedFields = 0
+
+    for (const round of roundEvents) {
+      if (round.winnerId === null) {
+        tiedFields++
+      } else {
+        fieldsWonBy[round.winnerId] = (fieldsWonBy[round.winnerId] ?? 0) + 1
+      }
+    }
+
+    return { fieldsWonBy, tiedFields }
+  }
+
+  // Helper: Streaks berechnen (laengste Gewinnserie)
+  function buildStreaks(roundEvents: CTFRoundFinishedEvent[]): Record<string, { current: number; longest: number }> {
+    if (!match) return {}
+    const result: Record<string, { current: number; longest: number }> = {}
+    match.players.forEach(p => { result[p.playerId] = { current: 0, longest: 0 } })
+
+    for (const round of roundEvents) {
+      for (const p of match.players) {
+        if (round.winnerId === p.playerId) {
+          result[p.playerId].current++
+          result[p.playerId].longest = Math.max(result[p.playerId].longest, result[p.playerId].current)
+        } else {
+          result[p.playerId].current = 0
+        }
+      }
+    }
+
+    return result
   }
 
   // ===== LEG DETAIL VIEW =====
@@ -369,6 +580,12 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
         color: colors.fgMuted,
       })
     }
+
+    // Leg-spezifische erweiterte Daten
+    const legFieldBreakdown = buildFieldBreakdown(selectedLeg.roundFinished)
+    const legConsistency = buildConsistencyStats(selectedLeg.roundFinished)
+    const legHeadToHead = buildHeadToHead(selectedLeg.roundFinished)
+    const legStreaks = buildStreaks(selectedLeg.roundFinished)
 
     return (
       <div style={styles.page}>
@@ -484,11 +701,15 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             {/* Erweiterte Leg-Statistiken */}
             {legDetailedStats.length > 0 && (
               <>
-                {/* Detailstatistiken */}
+                {/* Detailstatistiken mit Konsistenz */}
                 {(() => {
                   const ldPids = legDetailedStats.map(ps => ps.playerId)
                   const ldPerfWin = getStatWinnerColors(legDetailedStats.map(ps => ps.perfectTurns), ldPids, 'high', playerColors)
                   const ldAvgWin = getStatWinnerColors(legDetailedStats.map(ps => ps.avgScorePerField), ldPids, 'high', playerColors)
+                  const consistencyValues = ldPids.map(pid => legConsistency[pid] ?? 0)
+                  const ldConsWin = getStatWinnerColors(consistencyValues, ldPids, 'low', playerColors)
+                  const streakValues = ldPids.map(pid => legStreaks[pid]?.longest ?? 0)
+                  const ldStreakWin = getStatWinnerColors(streakValues, ldPids, 'high', playerColors)
                   return (
                   <div style={styles.card}>
                     <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
@@ -532,6 +753,18 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                             <td key={ps.playerId} style={tdWin(ldAvgWin[i])}>{ps.avgScorePerField.toFixed(2)}</td>
                           ))}
                         </tr>
+                        <tr>
+                          <td style={tdLeft}>Konsistenz ({'\u03C3'})</td>
+                          {legDetailedStats.map((ps, i) => (
+                            <td key={ps.playerId} style={tdWin(ldConsWin[i])}>{(legConsistency[ps.playerId] ?? 0).toFixed(2)}</td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Beste Serie</td>
+                          {legDetailedStats.map((ps, i) => (
+                            <td key={ps.playerId} style={tdWin(ldStreakWin[i])}>{legStreaks[ps.playerId]?.longest ?? 0} Felder</td>
+                          ))}
+                        </tr>
                       </tbody>
                     </table>
                   </div>
@@ -550,6 +783,139 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                     }))}
                   />
                 </div>
+
+                {/* Feld-Effizienz Chart (horizontale Bars) */}
+                {legFieldBreakdown.length > 0 && (
+                  <div style={styles.card}>
+                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Effizienz</div>
+                    <FieldEfficiencyChart
+                      rounds={legFieldBreakdown}
+                      players={match.players}
+                      playerColors={playerColors}
+                    />
+                  </div>
+                )}
+
+                {/* Head-to-Head Vergleich */}
+                {legHeadToHead && match.players.length >= 2 && (
+                  <div style={styles.card}>
+                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Head-to-Head</div>
+                    {(() => {
+                      const totalFields = selectedLeg.roundFinished.length
+                      const barWidth = 100
+                      return (
+                        <div>
+                          {/* Balkenvisualisierung */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            {match.players.map((p, idx) => {
+                              const won = legHeadToHead.fieldsWonBy[p.playerId] ?? 0
+                              const pct = totalFields > 0 ? (won / totalFields) * barWidth : 0
+                              return (
+                                <div key={p.playerId} style={{ flex: 1, textAlign: idx === 0 ? 'right' : 'left' }}>
+                                  <div style={{ fontWeight: 700, fontSize: 20, color: playerColors[p.playerId] }}>
+                                    {won}
+                                  </div>
+                                  <div style={{ fontSize: 12, color: colors.fgMuted }}>{p.name}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {/* Stacked bar */}
+                          <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: colors.bgMuted }}>
+                            {match.players.map((p, idx) => {
+                              const won = legHeadToHead.fieldsWonBy[p.playerId] ?? 0
+                              const pct = totalFields > 0 ? (won / totalFields) * 100 : 0
+                              return (
+                                <div
+                                  key={p.playerId}
+                                  style={{
+                                    width: `${pct}%`,
+                                    background: playerColors[p.playerId],
+                                    transition: 'width 0.3s',
+                                  }}
+                                />
+                              )
+                            })}
+                            {legHeadToHead.tiedFields > 0 && (
+                              <div style={{
+                                width: `${totalFields > 0 ? (legHeadToHead.tiedFields / totalFields) * 100 : 0}%`,
+                                background: '#888',
+                              }} />
+                            )}
+                          </div>
+                          {legHeadToHead.tiedFields > 0 && (
+                            <div style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 4 }}>
+                              {legHeadToHead.tiedFields} Unentschieden
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* Feld-Breakdown Tabelle */}
+                {legFieldBreakdown.length > 0 && (
+                  <div style={styles.card}>
+                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Breakdown</div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ ...thLeft, fontSize: 12 }}>Feld</th>
+                            {match.players.map((p) => (
+                              <th key={p.playerId} style={{ ...thRight, fontSize: 12, color: playerColors[p.playerId] }}>
+                                {p.name}
+                              </th>
+                            ))}
+                            <th style={{ ...thRight, fontSize: 12 }}>Gewinner</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {legFieldBreakdown.map((row, idx) => {
+                            const winnerPlayer = row.winnerId
+                              ? match.players.find(p => p.playerId === row.winnerId)
+                              : null
+
+                            return (
+                              <tr key={idx}>
+                                <td style={{ ...tdLeft, fontWeight: 700, fontSize: 13 }}>
+                                  {row.fieldLabel}
+                                </td>
+                                {match.players.map((p) => {
+                                  const score = row.scoresByPlayer[p.playerId] ?? 0
+                                  const isFieldWinner = row.winnerId === p.playerId
+                                  return (
+                                    <td
+                                      key={p.playerId}
+                                      style={{
+                                        ...tdRight,
+                                        fontSize: 13,
+                                        color: isFieldWinner ? playerColors[p.playerId] : score > 0 ? colors.fg : colors.fgMuted,
+                                        fontWeight: isFieldWinner ? 800 : 500,
+                                        background: isFieldWinner ? `${playerColors[p.playerId]}15` : 'transparent',
+                                      }}
+                                    >
+                                      {score}
+                                    </td>
+                                  )
+                                })}
+                                <td style={{
+                                  ...tdRight,
+                                  fontSize: 12,
+                                  color: winnerPlayer ? playerColors[winnerPlayer.playerId] : '#888',
+                                  fontWeight: 600,
+                                }}>
+                                  {winnerPlayer ? winnerPlayer.name : row.winnerId === null ? 'Draw' : '\u2014'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -562,17 +928,13 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                 ) : (
                   (() => {
                     // Ordne Turns den Feldern zu ueber RoundFinished-Events
-                    // Wir bauen eine Map: legId + turnIndex -> fieldNumber
                     const turnFieldMap: Map<string, number | 'BULL'> = new Map()
-                    let turnCountPerPlayer: Record<string, number> = {}
 
-                    // Zaehle Turns pro Spieler und ordne sie dem Feld zu
                     let fieldIdx = 0
                     let turnsInCurrentRound = 0
                     const playerCount = match.players.length
 
                     for (const turn of selectedLeg.turns) {
-                      // Aktuelles Feld bestimmen
                       const currentRound = selectedLeg.roundFinished[fieldIdx]
                       if (currentRound) {
                         turnFieldMap.set(turn.eventId, currentRound.fieldNumber)
@@ -697,6 +1059,12 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
     })
   }
 
+  // Match-level erweiterte Daten
+  const matchFieldBreakdown = buildFieldBreakdown(allRoundEvents)
+  const matchConsistency = buildConsistencyStats(allRoundEvents)
+  const matchHeadToHead = buildHeadToHead(allRoundEvents)
+  const matchStreaks = buildStreaks(allRoundEvents)
+
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
@@ -805,11 +1173,15 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             </div>
           )}
 
-          {/* Erweiterte Statistiken */}
+          {/* Erweiterte Statistiken mit Konsistenz und Streaks */}
           {detailedStats.length > 0 && (() => {
             const mdPids = detailedStats.map(ps => ps.playerId)
             const mdPerfWin = getStatWinnerColors(detailedStats.map(ps => ps.perfectTurns), mdPids, 'high', playerColors)
             const mdAvgWin = getStatWinnerColors(detailedStats.map(ps => ps.avgScorePerField), mdPids, 'high', playerColors)
+            const consistencyValues = mdPids.map(pid => matchConsistency[pid] ?? 0)
+            const mdConsWin = getStatWinnerColors(consistencyValues, mdPids, 'low', playerColors)
+            const streakValues = mdPids.map(pid => matchStreaks[pid]?.longest ?? 0)
+            const mdStreakWin = getStatWinnerColors(streakValues, mdPids, 'high', playerColors)
             return (
             <div style={styles.card}>
               <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
@@ -853,11 +1225,152 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                       <td key={ps.playerId} style={tdWin(mdAvgWin[i])}>{ps.avgScorePerField.toFixed(2)}</td>
                     ))}
                   </tr>
+                  <tr>
+                    <td style={tdLeft}>Konsistenz ({'\u03C3'})</td>
+                    {detailedStats.map((ps, i) => (
+                      <td key={ps.playerId} style={tdWin(mdConsWin[i])}>{(matchConsistency[ps.playerId] ?? 0).toFixed(2)}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Beste Serie</td>
+                    {detailedStats.map((ps, i) => (
+                      <td key={ps.playerId} style={tdWin(mdStreakWin[i])}>{matchStreaks[ps.playerId]?.longest ?? 0} Felder</td>
+                    ))}
+                  </tr>
                 </tbody>
               </table>
             </div>
             )
           })()}
+
+          {/* Head-to-Head Vergleich (Match-Ebene) */}
+          {matchHeadToHead && match.players.length >= 2 && (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Head-to-Head</div>
+              {(() => {
+                const totalFields = allRoundEvents.length
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      {match.players.map((p, idx) => {
+                        const won = matchHeadToHead.fieldsWonBy[p.playerId] ?? 0
+                        return (
+                          <div key={p.playerId} style={{ flex: 1, textAlign: idx === 0 ? 'right' : 'left' }}>
+                            <div style={{ fontWeight: 700, fontSize: 20, color: playerColors[p.playerId] }}>
+                              {won}
+                            </div>
+                            <div style={{ fontSize: 12, color: colors.fgMuted }}>{p.name}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: colors.bgMuted }}>
+                      {match.players.map((p) => {
+                        const won = matchHeadToHead.fieldsWonBy[p.playerId] ?? 0
+                        const pct = totalFields > 0 ? (won / totalFields) * 100 : 0
+                        return (
+                          <div
+                            key={p.playerId}
+                            style={{
+                              width: `${pct}%`,
+                              background: playerColors[p.playerId],
+                              transition: 'width 0.3s',
+                            }}
+                          />
+                        )
+                      })}
+                      {matchHeadToHead.tiedFields > 0 && (
+                        <div style={{
+                          width: `${totalFields > 0 ? (matchHeadToHead.tiedFields / totalFields) * 100 : 0}%`,
+                          background: '#888',
+                        }} />
+                      )}
+                    </div>
+                    {matchHeadToHead.tiedFields > 0 && (
+                      <div style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 4 }}>
+                        {matchHeadToHead.tiedFields} Unentschieden
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* Feld-Breakdown Tabelle (Match-Ebene) */}
+          {matchFieldBreakdown.length > 0 && (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Breakdown</div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thLeft, fontSize: 12 }}>Feld</th>
+                      {match.players.map((p) => (
+                        <th key={p.playerId} style={{ ...thRight, fontSize: 12, color: playerColors[p.playerId] }}>
+                          {p.name}
+                        </th>
+                      ))}
+                      <th style={{ ...thRight, fontSize: 12 }}>Gewinner</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchFieldBreakdown.map((row, idx) => {
+                      const winnerPlayer = row.winnerId
+                        ? match.players.find(p => p.playerId === row.winnerId)
+                        : null
+
+                      return (
+                        <tr key={idx}>
+                          <td style={{ ...tdLeft, fontWeight: 700, fontSize: 13 }}>
+                            {row.fieldLabel}
+                          </td>
+                          {match.players.map((p) => {
+                            const score = row.scoresByPlayer[p.playerId] ?? 0
+                            const isFieldWinner = row.winnerId === p.playerId
+                            return (
+                              <td
+                                key={p.playerId}
+                                style={{
+                                  ...tdRight,
+                                  fontSize: 13,
+                                  color: isFieldWinner ? playerColors[p.playerId] : score > 0 ? colors.fg : colors.fgMuted,
+                                  fontWeight: isFieldWinner ? 800 : 500,
+                                  background: isFieldWinner ? `${playerColors[p.playerId]}15` : 'transparent',
+                                }}
+                              >
+                                {score}
+                              </td>
+                            )
+                          })}
+                          <td style={{
+                            ...tdRight,
+                            fontSize: 12,
+                            color: winnerPlayer ? playerColors[winnerPlayer.playerId] : '#888',
+                            fontWeight: 600,
+                          }}>
+                            {winnerPlayer ? winnerPlayer.name : row.winnerId === null ? 'Draw' : '\u2014'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Feld-Effizienz Chart (Match-Ebene) */}
+          {matchFieldBreakdown.length > 0 && (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Effizienz</div>
+              <FieldEfficiencyChart
+                rounds={matchFieldBreakdown}
+                players={match.players}
+                playerColors={playerColors}
+              />
+            </div>
+          )}
 
           {/* Legs Liste */}
           <div style={styles.card}>

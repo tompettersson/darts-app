@@ -264,6 +264,10 @@ export default function OperationLegSummary({
           const hrWin = getStatWinnerColors(hitRates, opPids, 'high', opColorMap)
           const avgHitScores = legState.players.map(ps => ps.dartsThrown > 0 ? ps.hitScore / ps.dartsThrown : 0)
           const avgHsWin = getStatWinnerColors(avgHitScores, opPids, 'high', opColorMap)
+          const avgPtsPerDart = legState.players.map(ps => ps.dartsThrown > 0 ? ps.totalScore / ps.dartsThrown : 0)
+          const avgPtsWin = getStatWinnerColors(avgPtsPerDart, opPids, 'high', opColorMap)
+          const best3DartValues = legState.players.map(ps => getBest3DartTurn(ps.events))
+          const best3DartWin = getStatWinnerColors(best3DartValues, opPids, 'high', opColorMap)
           const streakWin = getStatWinnerColors(legState.players.map(ps => ps.maxHitStreak), opPids, 'high', opColorMap)
           const tripleWin = isBull ? [] : getStatWinnerColors(legState.players.map(ps => ps.tripleCount), opPids, 'high', opColorMap)
           const doubleWin = isBull ? [] : getStatWinnerColors(legState.players.map(ps => ps.doubleCount), opPids, 'high', opColorMap)
@@ -324,6 +328,26 @@ export default function OperationLegSummary({
                   {legState.players.map((ps, i) => (
                     <td key={ps.playerId} style={tdWin(scoreWin[i])}>
                       {ps.totalScore}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Ø Punkte/Dart */}
+                <tr>
+                  <td style={tdLabelStyle}>Ø Punkte/Dart</td>
+                  {legState.players.map((ps, i) => (
+                    <td key={ps.playerId} style={tdWin(avgPtsWin[i])}>
+                      {ps.dartsThrown > 0 ? (ps.totalScore / ps.dartsThrown).toFixed(2) : '0.00'}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Bester 3-Dart Turn */}
+                <tr>
+                  <td style={tdLabelStyle}>Bester 3-Dart</td>
+                  {legState.players.map((ps, i) => (
+                    <td key={ps.playerId} style={tdWin(best3DartWin[i])}>
+                      {best3DartValues[i]}
                     </td>
                   ))}
                 </tr>

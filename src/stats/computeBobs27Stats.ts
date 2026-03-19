@@ -21,6 +21,12 @@ export type Bobs27MatchStats = {
   totalHits: number
   bestTargetDelta: { label: string; delta: number } | undefined
   worstTargetDelta: { label: string; delta: number } | undefined
+  bestTarget: { label: string; hits: number } | undefined
+  worstTarget: { label: string; hits: number } | undefined
+  longestHitStreak: number
+  perfectTargets: number  // Targets mit 3/3 Treffern
+  highestSingleTargetScore: { label: string; delta: number } | undefined
+  targetsWithHits: number // Targets mit mindestens 1 Treffer
   targetResults: Bobs27TargetResultStat[]
   scoreHistory: number[] // Score nach jedem Target (fuer Chart)
   eliminated: boolean
@@ -53,9 +59,14 @@ export function computeBobs27MatchStats(
     scoreHistory.push(tr.scoreAfter)
   }
 
-  // Best/Worst Target
+  // Best/Worst Target (by delta and by hits)
   let bestTargetDelta: { label: string; delta: number } | undefined
   let worstTargetDelta: { label: string; delta: number } | undefined
+  let bestTarget: { label: string; hits: number } | undefined
+  let worstTarget: { label: string; hits: number } | undefined
+  let highestSingleTargetScore: { label: string; delta: number } | undefined
+  let perfectTargets = 0
+  let targetsWithHits = 0
 
   for (const tr of targetResults) {
     if (!bestTargetDelta || tr.delta > bestTargetDelta.delta) {
@@ -63,6 +74,32 @@ export function computeBobs27MatchStats(
     }
     if (!worstTargetDelta || tr.delta < worstTargetDelta.delta) {
       worstTargetDelta = { label: tr.label, delta: tr.delta }
+    }
+    if (!bestTarget || tr.hits > bestTarget.hits) {
+      bestTarget = { label: tr.label, hits: tr.hits }
+    }
+    if (!worstTarget || tr.hits < worstTarget.hits) {
+      worstTarget = { label: tr.label, hits: tr.hits }
+    }
+    if (!highestSingleTargetScore || tr.delta > highestSingleTargetScore.delta) {
+      highestSingleTargetScore = { label: tr.label, delta: tr.delta }
+    }
+    if (tr.hits === tr.darts) perfectTargets++
+    if (tr.hits > 0) targetsWithHits++
+  }
+
+  // Longest hit streak: consecutive hits across all darts thrown
+  let longestHitStreak = 0
+  let currentStreak = 0
+  const throwEvents = match.events.filter(
+    (e): e is Bobs27ThrowEvent => e.type === 'Bobs27Throw' && e.playerId === playerId
+  )
+  for (const t of throwEvents) {
+    if (t.hit) {
+      currentStreak++
+      if (currentStreak > longestHitStreak) longestHitStreak = currentStreak
+    } else {
+      currentStreak = 0
     }
   }
 
@@ -78,6 +115,12 @@ export function computeBobs27MatchStats(
     totalHits: ps.totalHits,
     bestTargetDelta,
     worstTargetDelta,
+    bestTarget,
+    worstTarget,
+    longestHitStreak,
+    perfectTargets,
+    highestSingleTargetScore,
+    targetsWithHits,
     targetResults,
     scoreHistory,
     eliminated: ps.eliminated,

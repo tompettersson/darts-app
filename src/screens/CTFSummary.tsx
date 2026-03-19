@@ -5,7 +5,8 @@ import React, { useMemo } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getCTFMatchById } from '../storage'
-import { applyCTFEvents, formatDuration, calculateFieldPoints } from '../dartsCaptureTheField'
+import { applyCTFEvents, formatDuration, formatDart, formatTarget, calculateFieldPoints } from '../dartsCaptureTheField'
+import type { CTFTurnAddedEvent, CTFRoundFinishedEvent } from '../types/captureTheField'
 import ATBDartboard from '../components/ATBDartboard'
 import { PLAYER_COLORS } from '../playerColors'
 
@@ -25,7 +26,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
     return (
       <div style={styles.page}>
         <p>Match nicht gefunden.</p>
-        <button style={styles.backBtn} onClick={onBackToMenu}>← Zurueck</button>
+        <button style={styles.backBtn} onClick={onBackToMenu}>{'\u2190'} Zurueck</button>
       </div>
     )
   }
@@ -37,7 +38,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
     return (
       <div style={styles.page}>
         <p>Match-Daten nicht verfuegbar.</p>
-        <button style={styles.backBtn} onClick={onBackToMenu}>← Zurueck</button>
+        <button style={styles.backBtn} onClick={onBackToMenu}>{'\u2190'} Zurueck</button>
       </div>
     )
   }
@@ -47,28 +48,96 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
   const totalFields = match.sequence.length
   const winner = players.find(p => p.playerId === storedMatch.winnerId)
 
-  // Rankings: Spieler nach Feldpunkten sortieren
+  // Turn- und Round-Events extrahieren
+  const allTurnEvents = storedMatch.events.filter(
+    (e): e is CTFTurnAddedEvent => e.type === 'CTFTurnAdded'
+  )
+  const allRoundEvents = storedMatch.events.filter(
+    (e): e is CTFRoundFinishedEvent => e.type === 'CTFRoundFinished'
+  )
+
+  // Erweiterte Rankings mit detaillierten Stats
   const rankings = useMemo(() => {
     return players.map((p, i) => {
+      const pid = p.playerId
       const fieldsWon = Object.values(captureState.fieldWinners)
-        .filter(wid => wid === p.playerId).length
+        .filter(wid => wid === pid).length
       const ties = Object.values(captureState.fieldWinners)
         .filter(wid => wid === null).length
-      const totalScore = captureState.totalScoreByPlayer[p.playerId] ?? 0
-      const fieldPoints = captureState.totalFieldPointsByPlayer[p.playerId] ?? 0
+      const totalScore = captureState.totalScoreByPlayer[pid] ?? 0
+      const fieldPoints = captureState.totalFieldPointsByPlayer[pid] ?? 0
+      const dartsUsed = state.dartsUsedTotalByPlayer[pid] ?? 0
+
+      // Detaillierte Dart-Statistiken
+      let triples = 0, doubles = 0, singles = 0, misses = 0
+      const playerTurns = allTurnEvents.filter(t => t.playerId === pid)
+      const turnScores: number[] = []
+
+      for (const turn of playerTurns) {
+        turnScores.push(turn.captureScore)
+        for (const dart of turn.darts) {
+          if (dart.target === 'MISS') misses++
+          else if (dart.mult === 3) triples++
+          else if (dart.mult === 2) doubles++
+          else singles++
+        }
+      }
+
+      const hitRate = dartsUsed > 0 ? ((dartsUsed - misses) / dartsUsed) * 100 : 0
+
+      // Bestes Feld (hoechster Score auf einem Feld)
+      let bestField: { field: string; score: number } | null = null
+      let bestTurnScore = 0
+      for (const round of allRoundEvents) {
+        const score = round.scoresByPlayer[pid] ?? 0
+        if (score > bestTurnScore) {
+          bestTurnScore = score
+          bestField = {
+            field: round.fieldNumber === 'BULL' ? 'Bull' : String(round.fieldNumber),
+            score,
+          }
+        }
+      }
+
+      // Avg Score pro Feld
+      const fieldsPlayed = allRoundEvents.length
+      const avgScorePerField = fieldsPlayed > 0 ? totalScore / fieldsPlayed : 0
+
+      // Bester Turn (hoechster captureScore)
+      const bestTurn = turnScores.length > 0 ? Math.max(...turnScores) : 0
+
+      // Konsistenz: Standardabweichung der Feld-Scores
+      const fieldScoresForPlayer = allRoundEvents.map(r => r.scoresByPlayer[pid] ?? 0)
+      const mean = fieldScoresForPlayer.length > 0
+        ? fieldScoresForPlayer.reduce((a, b) => a + b, 0) / fieldScoresForPlayer.length
+        : 0
+      const variance = fieldScoresForPlayer.length > 0
+        ? fieldScoresForPlayer.reduce((sum, s) => sum + (s - mean) ** 2, 0) / fieldScoresForPlayer.length
+        : 0
+      const stdDev = Math.sqrt(variance)
+
       return {
-        playerId: p.playerId,
+        playerId: pid,
         name: p.name,
         color: PLAYER_COLORS[i % PLAYER_COLORS.length],
         fieldsWon,
         fieldPoints,
         ties,
         totalScore,
-        dartsUsed: state.dartsUsedTotalByPlayer[p.playerId] ?? 0,
-        isWinner: p.playerId === storedMatch.winnerId,
+        dartsUsed,
+        isWinner: pid === storedMatch.winnerId,
+        triples,
+        doubles,
+        singles,
+        misses,
+        hitRate,
+        bestField,
+        avgScorePerField,
+        bestTurn,
+        stdDev,
       }
     }).sort((a, b) => b.fieldPoints - a.fieldPoints || b.totalScore - a.totalScore)
-  }, [players, captureState, state.dartsUsedTotalByPlayer, storedMatch.winnerId])
+  }, [players, captureState, state.dartsUsedTotalByPlayer, storedMatch.winnerId, allTurnEvents, allRoundEvents])
 
   // Feld-Besitzer fuer Dartboard-Visualisierung
   const fieldOwners = useMemo(() => {
@@ -99,7 +168,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0 }}>Capture the Field</h2>
         <button style={styles.backBtn} onClick={onBackToMenu}>
-          ← Menu
+          {'\u2190'} Menu
         </button>
       </div>
 
@@ -110,7 +179,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
           <div style={{ ...styles.card, marginBottom: 16, padding: '10px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontWeight: 600 }}>
-                Capture the Field – Ergebnis
+                Capture the Field {'\u2013'} Ergebnis
               </span>
               <span style={{
                 background: colors.accent,
@@ -184,7 +253,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
             </div>
           )}
 
-          {/* Rangliste */}
+          {/* Rangliste mit erweiterten Stats */}
           {rankings.length > 0 && (
             <div style={{ ...styles.card, marginBottom: 16 }}>
               <div style={{ ...styles.sub, marginBottom: 8 }}>Rangliste</div>
@@ -225,6 +294,73 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
                       <div style={{ fontSize: 11, color: colors.fgMuted, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                         <span>{p.fieldsWon} Felder | {p.totalScore} Pkt</span>
                         <span>{p.dartsUsed} Darts</span>
+                      </div>
+
+                      {/* Detaillierte Stats */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '6px 12px',
+                        marginTop: 8,
+                        padding: '8px 0 0',
+                        borderTop: `1px solid ${colors.border}`,
+                      }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: colors.accent }}>
+                            {p.avgScorePerField.toFixed(1)}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>{'\u00D8'} Pkt/Feld</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: colors.success }}>
+                            {p.hitRate.toFixed(0)}%
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Trefferquote</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: colors.warning }}>
+                            {p.bestTurn}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Bester Turn</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg }}>
+                            {p.triples}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Triples</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg }}>
+                            {p.doubles}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Doubles</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg }}>
+                            {p.singles}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Singles</div>
+                        </div>
+                        {p.bestField && (
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: colors.success }}>
+                              {p.bestField.field}
+                            </div>
+                            <div style={{ fontSize: 10, color: colors.fgMuted }}>Bestes Feld ({p.bestField.score})</div>
+                          </div>
+                        )}
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: colors.fgDim }}>
+                            {p.stdDev.toFixed(2)}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Konsistenz ({'\u03C3'})</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: colors.error }}>
+                            {p.misses}
+                          </div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Misses</div>
+                        </div>
                       </div>
                     </div>
                   )

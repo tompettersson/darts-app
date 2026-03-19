@@ -71,6 +71,12 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch }: Prop
         totalHits: stats?.totalHits ?? 0,
         bestTargetDelta: stats?.bestTargetDelta,
         worstTargetDelta: stats?.worstTargetDelta,
+        bestTarget: stats?.bestTarget,
+        worstTarget: stats?.worstTarget,
+        longestHitStreak: stats?.longestHitStreak ?? 0,
+        perfectTargets: stats?.perfectTargets ?? 0,
+        highestSingleTargetScore: stats?.highestSingleTargetScore,
+        targetsWithHits: stats?.targetsWithHits ?? 0,
         targetResults: stats?.targetResults ?? [],
         scoreHistory: stats?.scoreHistory ?? [],
         isWinner: p.playerId === storedMatch.winnerId,
@@ -188,6 +194,48 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch }: Prop
             </div>
           )}
 
+          {/* Detaillierte Spieler-Statistik */}
+          {rankings.map((p, pi) => (
+            <div key={p.playerId} style={{ ...styles.card, marginBottom: 16 }}>
+              <div style={{
+                ...styles.sub, marginBottom: 8,
+                borderLeft: !isSolo ? `4px solid ${p.color}` : undefined,
+                paddingLeft: !isSolo ? 8 : undefined,
+              }}>
+                {isSolo ? 'Statistiken' : p.name}
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '8px 16px',
+                fontSize: 13,
+              }}>
+                <StatItem label="Final Score" value={`${p.finalScore}`} colors={colors}
+                  valueColor={p.eliminated ? colors.error : colors.success} bold />
+                <StatItem label="Hit-Rate" value={`${p.hitRate.toFixed(1)}%`} colors={colors}
+                  valueColor={colors.accent} />
+                <StatItem label="Bestes Target"
+                  value={p.bestTarget ? `${p.bestTarget.label} (${p.bestTarget.hits}/3)` : '-'}
+                  colors={colors} valueColor={colors.success} />
+                <StatItem label="Schwachstes Target"
+                  value={p.worstTarget ? `${p.worstTarget.label} (${p.worstTarget.hits}/3)` : '-'}
+                  colors={colors} valueColor={colors.error} />
+                <StatItem label="Laengste Hit-Serie"
+                  value={`${p.longestHitStreak} Treffer`}
+                  colors={colors} />
+                <StatItem label="Hoechster Target-Score"
+                  value={p.highestSingleTargetScore ? `+${p.highestSingleTargetScore.delta} (${p.highestSingleTargetScore.label})` : '-'}
+                  colors={colors} valueColor={colors.success} />
+                <StatItem label="Targets mit Treffer"
+                  value={`${p.targetsWithHits}/${p.targetsCompleted}`}
+                  colors={colors} />
+                <StatItem label="Perfekte Targets (3/3)"
+                  value={`${p.perfectTargets}`}
+                  colors={colors} valueColor={p.perfectTargets > 0 ? colors.success : colors.fgDim} />
+              </div>
+            </div>
+          ))}
+
           {/* Score-Verlaufs-Chart (SVG) */}
           {rankings.length > 0 && rankings[0].scoreHistory.length > 1 && (
             <div style={{ ...styles.card, marginBottom: 16 }}>
@@ -199,47 +247,62 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch }: Prop
             </div>
           )}
 
-          {/* Target-Timeline (Solo) */}
-          {isSolo && rankings[0]?.targetResults.length > 0 && (
-            <div style={{ ...styles.card, marginBottom: 16 }}>
-              <div style={{ ...styles.sub, marginBottom: 8 }}>Target-Uebersicht</div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
-                      <th style={{ textAlign: 'left', padding: '4px 6px', color: colors.fgMuted }}>Ziel</th>
-                      <th style={{ textAlign: 'center', padding: '4px 6px', color: colors.fgMuted }}>Treffer</th>
-                      <th style={{ textAlign: 'right', padding: '4px 6px', color: colors.fgMuted }}>Delta</th>
-                      <th style={{ textAlign: 'right', padding: '4px 6px', color: colors.fgMuted }}>Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rankings[0].targetResults.map((r, i) => (
-                      <tr key={i} style={{ borderBottom: `1px solid ${colors.border}` }}>
-                        <td style={{ padding: '4px 6px', fontWeight: 500 }}>{r.label}</td>
-                        <td style={{ textAlign: 'center', padding: '4px 6px' }}>
-                          {r.hits > 0 ? (
-                            <span style={{ color: colors.success }}>{r.hits}/{r.darts}</span>
-                          ) : (
-                            <span style={{ color: colors.error }}>0/{r.darts}</span>
-                          )}
-                        </td>
-                        <td style={{
-                          textAlign: 'right', padding: '4px 6px', fontWeight: 600,
-                          color: r.delta >= 0 ? colors.success : colors.error,
-                        }}>
-                          {r.delta >= 0 ? `+${r.delta}` : r.delta}
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 600 }}>
-                          {r.scoreAfter}
-                        </td>
+          {/* Target-Timeline */}
+          {rankings.map((p, pi) => {
+            if (p.targetResults.length === 0) return null
+            return (
+              <div key={`targets-${p.playerId}`} style={{ ...styles.card, marginBottom: 16 }}>
+                <div style={{
+                  ...styles.sub, marginBottom: 8,
+                  borderLeft: !isSolo ? `4px solid ${p.color}` : undefined,
+                  paddingLeft: !isSolo ? 8 : undefined,
+                }}>
+                  {isSolo ? 'Target-Uebersicht' : `${p.name} - Targets`}
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                        <th style={{ textAlign: 'left', padding: '4px 6px', color: colors.fgMuted }}>Ziel</th>
+                        <th style={{ textAlign: 'center', padding: '4px 6px', color: colors.fgMuted }}>Treffer</th>
+                        <th style={{ textAlign: 'right', padding: '4px 6px', color: colors.fgMuted }}>Delta</th>
+                        <th style={{ textAlign: 'right', padding: '4px 6px', color: colors.fgMuted }}>Score</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {p.targetResults.map((r, i) => {
+                        const bg = r.hits === r.darts
+                          ? colors.successBg
+                          : r.hits > 0
+                            ? (colors.warningBg ?? 'rgba(255,200,0,0.08)')
+                            : (colors.errorBg ?? 'rgba(255,0,0,0.06)')
+                        return (
+                          <tr key={i} style={{
+                            borderBottom: `1px solid ${colors.border}`,
+                            background: bg,
+                          }}>
+                            <td style={{ padding: '4px 6px', fontWeight: 500 }}>{r.label}</td>
+                            <td style={{ textAlign: 'center', padding: '4px 6px' }}>
+                              <HitDots hits={r.hits} total={r.darts} colors={colors} />
+                            </td>
+                            <td style={{
+                              textAlign: 'right', padding: '4px 6px', fontWeight: 600,
+                              color: r.delta >= 0 ? colors.success : colors.error,
+                            }}>
+                              {r.delta >= 0 ? `+${r.delta}` : r.delta}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 600 }}>
+                              {r.scoreAfter}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })}
 
           {/* Aktionen */}
           <div style={{ display: 'flex', gap: 8 }}>
@@ -254,6 +317,44 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch }: Prop
       </div>
     </div>
   )
+}
+
+// ===== Hilfskomponenten =====
+
+function StatItem({ label, value, colors, valueColor, bold }: {
+  label: string
+  value: string
+  colors: any
+  valueColor?: string
+  bold?: boolean
+}) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: colors.fgMuted, marginBottom: 2 }}>{label}</div>
+      <div style={{
+        fontSize: 14, fontWeight: bold ? 700 : 600,
+        color: valueColor ?? colors.fg,
+      }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function HitDots({ hits, total, colors }: { hits: number; total: number; colors: any }) {
+  const dots: React.ReactNode[] = []
+  for (let i = 0; i < total; i++) {
+    dots.push(
+      <span key={i} style={{
+        display: 'inline-block',
+        width: 8, height: 8, borderRadius: '50%',
+        background: i < hits ? colors.success : colors.error,
+        marginRight: i < total - 1 ? 3 : 0,
+        opacity: i < hits ? 1 : 0.4,
+      }} />
+    )
+  }
+  return <span style={{ display: 'inline-flex', alignItems: 'center' }}>{dots}</span>
 }
 
 // ===== Score-Verlaufs-Chart =====
@@ -293,6 +394,10 @@ function ScoreChart({ players, colors }: {
         </text>
       ))}
 
+      {/* Start-Linie bei 27 */}
+      <line x1={PAD.left} y1={scaleY(27)} x2={W - PAD.right} y2={scaleY(27)}
+        stroke={colors.fgDim} strokeWidth={0.5} strokeDasharray="2,4" opacity={0.3} />
+
       {/* Linien */}
       {players.map((p, pi) => {
         if (p.scores.length < 2) return null
@@ -322,7 +427,7 @@ function ScoreChart({ players, colors }: {
         return (
           <text key={i} x={scaleX(i, total)} y={H - 4}
             fill={colors.fgDim} fontSize={8} textAnchor="middle">
-            D{i + 1}
+            {i === 0 ? 'Start' : `D${i}`}
           </text>
         )
       })}

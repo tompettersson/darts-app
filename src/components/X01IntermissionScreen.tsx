@@ -422,6 +422,7 @@ export default function X01IntermissionScreen({
             const hvWin = getStatWinnerColors(match.players.map(p => highestVisit[p.playerId] ?? 0), legPids, 'high', playerColors)
             const coWin = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.doublePctDart ?? 0), legPids, 'high', playerColors)
             const restWin = getStatWinnerColors(match.players.map(p => restByPlayer[p.playerId]), legPids, 'low', playerColors)
+            const dartsWin = getStatWinnerColors(sum.byPlayer.map(bp => bp.darts), legPids, 'low', playerColors)
 
             return (
               <>
@@ -501,6 +502,15 @@ export default function X01IntermissionScreen({
                         {match.players.map((p, i) => (
                           <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>
                         ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLeft}>Darts geworfen</td>
+                        {match.players.map((p, i) => {
+                          const bp = sum.byPlayer.find(b => b.playerId === p.playerId)
+                          return (
+                            <td key={p.playerId} style={tdWin(dartsWin[i])}>{bp?.darts ?? 0}</td>
+                          )
+                        })}
                       </tr>
                       <tr>
                         <td style={tdLeft}>Meistes Feld</td>
