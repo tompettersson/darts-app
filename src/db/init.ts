@@ -50,7 +50,7 @@ export async function initializeDB(): Promise<DBInitResult> {
 
     if (!alreadyMigrated) {
       // Migration von LocalStorage durchführen
-      console.log('[DB Init] Starte Migration von LocalStorage...')
+      console.debug('[DB Init] Starte Migration von LocalStorage...')
       const result = await migrateFromLocalStorage()
 
       if (!result.success) {
@@ -64,7 +64,7 @@ export async function initializeDB(): Promise<DBInitResult> {
         }
       }
 
-      console.log('[DB Init] Migration erfolgreich:', {
+      console.debug('[DB Init] Migration erfolgreich:', {
         profiles: result.profiles,
         x01: result.x01Matches,
         cricket: result.cricketMatches,
@@ -98,10 +98,10 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const ctfMigrated = await dbGetMeta('ctf_ls_migrated')
       if (ctfMigrated !== 'true') {
-        console.log('[DB Init] CTF LocalStorage → SQLite Sync...')
+        console.debug('[DB Init] CTF LocalStorage → SQLite Sync...')
         const count = await migrateCTFMatches()
         await dbSetMeta('ctf_ls_migrated', 'true')
-        console.log(`[DB Init] ${count} CTF Matches nach SQLite migriert`)
+        console.debug(`[DB Init] ${count} CTF Matches nach SQLite migriert`)
       }
     } catch (e) {
       console.warn('[DB Init] CTF-Migration fehlgeschlagen:', e)
@@ -111,10 +111,10 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const strMigrated = await dbGetMeta('str_ls_migrated')
       if (strMigrated !== 'true') {
-        console.log('[DB Init] STR LocalStorage → SQLite Sync...')
+        console.debug('[DB Init] STR LocalStorage → SQLite Sync...')
         const count = await migrateStrMatches()
         await dbSetMeta('str_ls_migrated', 'true')
-        console.log(`[DB Init] ${count} STR Matches nach SQLite migriert`)
+        console.debug(`[DB Init] ${count} STR Matches nach SQLite migriert`)
       }
     } catch (e) {
       console.warn('[DB Init] STR-Migration fehlgeschlagen:', e)
@@ -124,10 +124,10 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const hsMigrated = await dbGetMeta('highscore_ls_migrated')
       if (hsMigrated !== 'true') {
-        console.log('[DB Init] Highscore LocalStorage → SQLite Sync...')
+        console.debug('[DB Init] Highscore LocalStorage → SQLite Sync...')
         const count = await migrateHighscoreMatches()
         await dbSetMeta('highscore_ls_migrated', 'true')
-        console.log(`[DB Init] ${count} Highscore Matches nach SQLite migriert`)
+        console.debug(`[DB Init] ${count} Highscore Matches nach SQLite migriert`)
       }
     } catch (e) {
       console.warn('[DB Init] Highscore-Migration fehlgeschlagen:', e)
@@ -137,7 +137,7 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const x01StatsMigrated = await dbGetMeta('x01_stats_ls_migrated')
       if (x01StatsMigrated !== 'true') {
-        console.log('[DB Init] X01 PlayerStats LS → SQLite...')
+        console.debug('[DB Init] X01 PlayerStats LS → SQLite...')
         const raw = localStorage.getItem('x01.playerStats.v1')
         if (raw) {
           const store = JSON.parse(raw) as Record<string, any>
@@ -146,7 +146,7 @@ export async function initializeDB(): Promise<DBInitResult> {
             await dbSaveX01PlayerStats(s)
             count++
           }
-          console.log(`[DB Init] ${count} X01 PlayerStats nach SQLite migriert`)
+          console.debug(`[DB Init] ${count} X01 PlayerStats nach SQLite migriert`)
         }
         await dbSetMeta('x01_stats_ls_migrated', 'true')
       }
@@ -158,7 +158,7 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const stats121Migrated = await dbGetMeta('stats_121_ls_migrated')
       if (stats121Migrated !== 'true') {
-        console.log('[DB Init] 121 PlayerStats LS → SQLite...')
+        console.debug('[DB Init] 121 PlayerStats LS → SQLite...')
         const raw = localStorage.getItem('121.playerStats.v1')
         if (raw) {
           const store = JSON.parse(raw) as Record<string, any>
@@ -167,7 +167,7 @@ export async function initializeDB(): Promise<DBInitResult> {
             await dbSave121PlayerStats(pid, s)
             count++
           }
-          console.log(`[DB Init] ${count} 121 PlayerStats nach SQLite migriert`)
+          console.debug(`[DB Init] ${count} 121 PlayerStats nach SQLite migriert`)
         }
         await dbSetMeta('stats_121_ls_migrated', 'true')
       }
@@ -179,12 +179,12 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const x01LbMigrated = await dbGetMeta('x01_lb_ls_migrated')
       if (x01LbMigrated !== 'true') {
-        console.log('[DB Init] X01 Leaderboards LS → SQLite...')
+        console.debug('[DB Init] X01 Leaderboards LS → SQLite...')
         const raw = localStorage.getItem('darts.leaderboards.v1')
         if (raw) {
           const lb = JSON.parse(raw)
           await dbSaveX01Leaderboards(lb)
-          console.log('[DB Init] X01 Leaderboards nach SQLite migriert')
+          console.debug('[DB Init] X01 Leaderboards nach SQLite migriert')
         }
         await dbSetMeta('x01_lb_ls_migrated', 'true')
       }
@@ -196,12 +196,12 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const cricketLbMigrated = await dbGetMeta('cricket_lb_ls_migrated')
       if (cricketLbMigrated !== 'true') {
-        console.log('[DB Init] Cricket Leaderboards LS → SQLite...')
+        console.debug('[DB Init] Cricket Leaderboards LS → SQLite...')
         const raw = localStorage.getItem('cricket.leaderboards.v1')
         if (raw) {
           const lb = JSON.parse(raw)
           await dbSaveCricketLeaderboards(lb)
-          console.log('[DB Init] Cricket Leaderboards nach SQLite migriert')
+          console.debug('[DB Init] Cricket Leaderboards nach SQLite migriert')
         }
         await dbSetMeta('cricket_lb_ls_migrated', 'true')
       }
@@ -213,7 +213,7 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const outboxMigrated = await dbGetMeta('outbox_ls_migrated')
       if (outboxMigrated !== 'true') {
-        console.log('[DB Init] Outbox LS → SQLite...')
+        console.debug('[DB Init] Outbox LS → SQLite...')
         const raw = localStorage.getItem('darts.outbox.v1')
         if (raw) {
           const items = JSON.parse(raw) as any[]
@@ -222,7 +222,7 @@ export async function initializeDB(): Promise<DBInitResult> {
             await dbQueueMatch(item)
             count++
           }
-          console.log(`[DB Init] ${count} Outbox-Einträge nach SQLite migriert`)
+          console.debug(`[DB Init] ${count} Outbox-Einträge nach SQLite migriert`)
         }
         await dbSetMeta('outbox_ls_migrated', 'true')
       }
@@ -234,7 +234,7 @@ export async function initializeDB(): Promise<DBInitResult> {
     try {
       const cricketStatsMigrated = await dbGetMeta('cricket_stats_ls_migrated')
       if (cricketStatsMigrated !== 'true') {
-        console.log('[DB Init] Cricket PlayerStats LS → SQLite...')
+        console.debug('[DB Init] Cricket PlayerStats LS → SQLite...')
         const raw = localStorage.getItem('cricket.playerStats.v1')
         if (raw) {
           const store = JSON.parse(raw) as Record<string, any>
@@ -243,7 +243,7 @@ export async function initializeDB(): Promise<DBInitResult> {
             await dbSaveCricketPlayerStats(s)
             count++
           }
-          console.log(`[DB Init] ${count} Cricket PlayerStats nach SQLite migriert`)
+          console.debug(`[DB Init] ${count} Cricket PlayerStats nach SQLite migriert`)
         }
         await dbSetMeta('cricket_stats_ls_migrated', 'true')
       }
@@ -251,7 +251,7 @@ export async function initializeDB(): Promise<DBInitResult> {
       console.warn('[DB Init] Cricket PlayerStats Migration fehlgeschlagen:', e)
     }
 
-    console.log('[DB Init] SQLite bereit, Version:', version)
+    console.debug('[DB Init] SQLite bereit, Version:', version)
     return {
       success: true,
       usingSQLite: true,
@@ -648,7 +648,7 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     }
 
     const durationMs = Date.now() - startTime
-    console.log(`[DB Init] Daten aus SQLite geladen in ${durationMs}ms:`, {
+    console.debug(`[DB Init] Daten aus SQLite geladen in ${durationMs}ms:`, {
       profiles: profiles.length,
       x01: x01Matches.length,
       cricket: cricketMatches.length,
@@ -693,7 +693,7 @@ export async function startupWithSQLite(): Promise<{
   dbInit: DBInitResult
   dataLoaded: AppDataLoaded | null
 }> {
-  console.log('[App Startup] Starte mit SQLite...')
+  console.debug('[App Startup] Starte mit SQLite...')
 
   // 1. DB initialisieren (inkl. Migration falls nötig)
   const dbInit = await initializeDB()
@@ -706,7 +706,7 @@ export async function startupWithSQLite(): Promise<{
   // 2. Daten aus SQLite laden
   const dataLoaded = await loadAllDataFromSQLite()
 
-  console.log('[App Startup] Abgeschlossen')
+  console.debug('[App Startup] Abgeschlossen')
   return { dbInit, dataLoaded }
 }
 

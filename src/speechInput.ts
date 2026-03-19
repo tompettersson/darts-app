@@ -253,13 +253,13 @@ export function startListening(
   const timeoutMs = expectedCount === 1 ? 8000 : 20000
   timeoutId = window.setTimeout(() => {
     if (!stopped) {
-      console.log('Speech recognition timeout, collected:', collectedDarts.length)
+      console.debug('Speech recognition timeout, collected:', collectedDarts.length)
       finish(collectedDarts)
     }
   }, timeoutMs)
 
   recognition.onstart = () => {
-    console.log('Speech recognition started, expecting', expectedCount, 'dart(s)')
+    console.debug('Speech recognition started, expecting', expectedCount, 'dart(s)')
     onStateChange?.('listening')
   }
 
@@ -274,7 +274,7 @@ export function startListening(
       // Mehrere Alternativen durchprobieren
       for (let altIdx = 0; altIdx < result.length; altIdx++) {
         const transcript = result[altIdx].transcript.trim()
-        console.log(`Speech recognized (alt ${altIdx}):`, transcript)
+        console.debug(`Speech recognized (alt ${altIdx}):`, transcript)
 
         if (!transcript) continue
 
@@ -308,7 +308,7 @@ export function startListening(
           if (dart && collectedDarts.length < expectedCount) {
             collectedDarts.push(dart)
             foundInThisAlt = true
-            console.log(`Dart parsed:`, dart, `(${collectedDarts.length}/${expectedCount})`)
+            console.debug(`Dart parsed:`, dart, `(${collectedDarts.length}/${expectedCount})`)
 
             // Partial Result Callback aufrufen
             onPartialResult?.([...collectedDarts])
@@ -347,7 +347,7 @@ export function startListening(
   }
 
   recognition.onend = () => {
-    console.log('Speech recognition ended, collected:', collectedDarts.length)
+    console.debug('Speech recognition ended, collected:', collectedDarts.length)
     if (!stopped) {
       // Wenn noch nicht genug Darts: Neustart
       if (collectedDarts.length < expectedCount) {
@@ -355,7 +355,7 @@ export function startListening(
           recognition.start()
           onStateChange?.('listening')
         } catch (e) {
-          console.log('Could not restart recognition:', e)
+          console.debug('Could not restart recognition:', e)
           finish(collectedDarts)
         }
       } else {

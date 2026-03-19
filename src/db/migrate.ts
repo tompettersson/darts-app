@@ -116,7 +116,7 @@ async function migrateProfiles(): Promise<number> {
   }))
 
   await transaction(statements)
-  console.log(`[Migration] ${profiles.length} Profiles migriert`)
+  console.debug(`[Migration] ${profiles.length} Profiles migriert`)
   return profiles.length
 }
 
@@ -137,7 +137,7 @@ type LSMatch = {
 
 async function migrateX01Matches(): Promise<number> {
   const matches = readLS<LSMatch[]>(LS_KEYS.matches, [])
-  console.log(`[Migration] Gefundene X01 Matches im LocalStorage: ${matches.length}`)
+  console.debug(`[Migration] Gefundene X01 Matches im LocalStorage: ${matches.length}`)
   if (matches.length === 0) return 0
 
   let migrated = 0
@@ -145,7 +145,7 @@ async function migrateX01Matches(): Promise<number> {
 
   for (let i = 0; i < matches.length; i += batchSize) {
     const batch = matches.slice(i, i + batchSize)
-    console.log(`[Migration] X01 Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(matches.length / batchSize)} (${i + 1}-${Math.min(i + batchSize, matches.length)})`)
+    console.debug(`[Migration] X01 Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(matches.length / batchSize)} (${i + 1}-${Math.min(i + batchSize, matches.length)})`)
 
     for (const m of batch) {
       try {
@@ -212,7 +212,7 @@ async function migrateX01Matches(): Promise<number> {
     }
   }
 
-  console.log(`[Migration] ${migrated}/${matches.length} X01 Matches migriert`)
+  console.debug(`[Migration] ${migrated}/${matches.length} X01 Matches migriert`)
   return migrated
 }
 
@@ -233,7 +233,7 @@ type LSCricketMatch = {
 
 async function migrateCricketMatches(): Promise<number> {
   const matches = readLS<LSCricketMatch[]>(LS_KEYS.cricketMatches, [])
-  console.log(`[Migration] Gefundene Cricket Matches im LocalStorage: ${matches.length}`)
+  console.debug(`[Migration] Gefundene Cricket Matches im LocalStorage: ${matches.length}`)
   if (matches.length === 0) return 0
 
   let migrated = 0
@@ -241,7 +241,7 @@ async function migrateCricketMatches(): Promise<number> {
 
   for (let i = 0; i < matches.length; i += batchSize) {
     const batch = matches.slice(i, i + batchSize)
-    console.log(`[Migration] Cricket Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(matches.length / batchSize)}`)
+    console.debug(`[Migration] Cricket Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(matches.length / batchSize)}`)
 
     for (const m of batch) {
       try {
@@ -302,7 +302,7 @@ async function migrateCricketMatches(): Promise<number> {
     }
   }
 
-  console.log(`[Migration] ${migrated}/${matches.length} Cricket Matches migriert`)
+  console.debug(`[Migration] ${migrated}/${matches.length} Cricket Matches migriert`)
   return migrated
 }
 
@@ -330,7 +330,7 @@ type LSATBMatch = {
 
 async function migrateATBMatches(): Promise<number> {
   const matches = readLS<LSATBMatch[]>(LS_KEYS.atbMatches, [])
-  console.log(`[Migration] Gefundene ATB Matches im LocalStorage: ${matches.length}`)
+  console.debug(`[Migration] Gefundene ATB Matches im LocalStorage: ${matches.length}`)
   if (matches.length === 0) return 0
 
   let migrated = 0
@@ -338,7 +338,7 @@ async function migrateATBMatches(): Promise<number> {
   for (let i = 0; i < matches.length; i++) {
     const m = matches[i]
     if (i % 5 === 0) {
-      console.log(`[Migration] ATB ${i + 1}/${matches.length}`)
+      console.debug(`[Migration] ATB ${i + 1}/${matches.length}`)
     }
 
     try {
@@ -403,7 +403,7 @@ async function migrateATBMatches(): Promise<number> {
     }
   }
 
-  console.log(`[Migration] ${migrated}/${matches.length} ATB Matches migriert`)
+  console.debug(`[Migration] ${migrated}/${matches.length} ATB Matches migriert`)
   return migrated
 }
 
@@ -433,7 +433,7 @@ async function migrateATBHighscores(): Promise<number> {
   }))
 
   await transaction(statements)
-  console.log(`[Migration] ${highscores.length} ATB Highscores migriert`)
+  console.debug(`[Migration] ${highscores.length} ATB Highscores migriert`)
   return highscores.length
 }
 
@@ -461,7 +461,7 @@ type LSCTFMatch = {
 
 export async function migrateCTFMatches(): Promise<number> {
   const matches = readLS<LSCTFMatch[]>(LS_KEYS.ctfMatches, [])
-  console.log(`[Migration] Gefundene CTF Matches im LocalStorage: ${matches.length}`)
+  console.debug(`[Migration] Gefundene CTF Matches im LocalStorage: ${matches.length}`)
   if (matches.length === 0) return 0
 
   let migrated = 0
@@ -545,7 +545,7 @@ export async function migrateCTFMatches(): Promise<number> {
     }
   }
 
-  console.log(`[Migration] ${migrated}/${matches.length} CTF Matches migriert`)
+  console.debug(`[Migration] ${migrated}/${matches.length} CTF Matches migriert`)
   return migrated
 }
 
@@ -579,7 +579,7 @@ type LSStrMatch = {
 
 export async function migrateStrMatches(): Promise<number> {
   const matches = readLS<LSStrMatch[]>(LS_KEYS.strMatches, [])
-  console.log(`[Migration] Gefundene STR Matches im LocalStorage: ${matches.length}`)
+  console.debug(`[Migration] Gefundene STR Matches im LocalStorage: ${matches.length}`)
   if (matches.length === 0) return 0
 
   let migrated = 0
@@ -662,7 +662,7 @@ export async function migrateStrMatches(): Promise<number> {
     }
   }
 
-  console.log(`[Migration] ${migrated}/${matches.length} STR Matches migriert`)
+  console.debug(`[Migration] ${migrated}/${matches.length} STR Matches migriert`)
   return migrated
 }
 
@@ -689,7 +689,7 @@ type LSHighscoreMatch = {
 
 export async function migrateHighscoreMatches(): Promise<number> {
   const matches = readLS<LSHighscoreMatch[]>(LS_KEYS.highscoreMatches, [])
-  console.log(`[Migration] Gefundene Highscore Matches im LocalStorage: ${matches.length}`)
+  console.debug(`[Migration] Gefundene Highscore Matches im LocalStorage: ${matches.length}`)
   if (matches.length === 0) return 0
 
   let migrated = 0
@@ -768,7 +768,7 @@ export async function migrateHighscoreMatches(): Promise<number> {
     }
   }
 
-  console.log(`[Migration] ${migrated}/${matches.length} Highscore Matches migriert`)
+  console.debug(`[Migration] ${migrated}/${matches.length} Highscore Matches migriert`)
   return migrated
 }
 
@@ -785,7 +785,7 @@ async function migrateSystemMeta(): Promise<void> {
   if (lastCricket) await setMeta('last_open_cricket', lastCricket)
   if (lastATB) await setMeta('last_open_atb', lastATB)
 
-  console.log('[Migration] System Meta migriert')
+  console.debug('[Migration] System Meta migriert')
 }
 
 // ============================================================================
@@ -823,7 +823,7 @@ export async function migrateFromLocalStorage(): Promise<MigrationResult> {
     // DB initialisieren
     await initDB()
 
-    console.log('[Migration] Starte Migration von LocalStorage zu SQLite...')
+    console.debug('[Migration] Starte Migration von LocalStorage zu SQLite...')
 
     // Alle Daten migrieren - einzeln mit try/catch
     try {
@@ -885,8 +885,8 @@ export async function migrateFromLocalStorage(): Promise<MigrationResult> {
     await setMeta('ls_migrated_at', nowISO())
 
     const durationMs = Date.now() - startTime
-    console.log(`[Migration] Abgeschlossen in ${durationMs}ms`)
-    console.log(`[Migration] Ergebnis: ${profiles} Profile, ${x01Matches} X01, ${cricketMatches} Cricket, ${atbMatches} ATB, ${ctfMatches} CTF, ${strMatches} STR, ${highscoreMatches} Highscore, ${atbHighscores} ATB-HS`)
+    console.debug(`[Migration] Abgeschlossen in ${durationMs}ms`)
+    console.debug(`[Migration] Ergebnis: ${profiles} Profile, ${x01Matches} X01, ${cricketMatches} Cricket, ${atbMatches} ATB, ${ctfMatches} CTF, ${strMatches} STR, ${highscoreMatches} Highscore, ${atbHighscores} ATB-HS`)
 
     return {
       success: true,
@@ -932,7 +932,7 @@ export async function clearMigratedData(): Promise<void> {
   await exec('DELETE FROM profiles')
   await exec("DELETE FROM system_meta WHERE key LIKE 'ls_%'")
 
-  console.log('[Migration] Alle migrierten Daten gelöscht')
+  console.debug('[Migration] Alle migrierten Daten gelöscht')
 }
 
 /**
@@ -972,7 +972,7 @@ export function debugLocalStorage(): Record<string, { count: number; sampleKeys?
     }
   }
 
-  console.log('[Debug] LocalStorage Inhalt:', result)
+  console.debug('[Debug] LocalStorage Inhalt:', result)
   return result
 }
 
@@ -987,7 +987,7 @@ export function listAllStorageKeys(): string[] {
       keys.push(key)
     }
   }
-  console.log('[Debug] Alle relevanten LocalStorage Keys:', keys)
+  console.debug('[Debug] Alle relevanten LocalStorage Keys:', keys)
   return keys
 }
 
@@ -995,9 +995,9 @@ export function listAllStorageKeys(): string[] {
  * Force re-migration (löscht SQLite und migriert neu)
  */
 export async function forceMigration(): Promise<MigrationResult> {
-  console.log('[Migration] Force migration - lösche alte Daten...')
+  console.debug('[Migration] Force migration - lösche alte Daten...')
   await clearMigratedData()
-  console.log('[Migration] Starte neue Migration...')
+  console.debug('[Migration] Starte neue Migration...')
   return migrateFromLocalStorage()
 }
 
@@ -1005,35 +1005,35 @@ export async function forceMigration(): Promise<MigrationResult> {
  * Kompletter Migrations-Test mit detailliertem Output
  */
 export async function fullMigrationTest(): Promise<void> {
-  console.log('='.repeat(60))
-  console.log('[Test] MIGRATIONS-TEST GESTARTET')
-  console.log('='.repeat(60))
+  console.debug('='.repeat(60))
+  console.debug('[Test] MIGRATIONS-TEST GESTARTET')
+  console.debug('='.repeat(60))
 
   // 1. LocalStorage analysieren
-  console.log('\n[1/4] LocalStorage analysieren...')
+  console.debug('\n[1/4] LocalStorage analysieren...')
   const lsData = debugLocalStorage()
   listAllStorageKeys()
 
   // 2. SQLite Daten löschen
-  console.log('\n[2/4] SQLite Daten löschen...')
+  console.debug('\n[2/4] SQLite Daten löschen...')
   await clearMigratedData()
 
   // 3. Migration durchführen
-  console.log('\n[3/4] Migration durchführen...')
+  console.debug('\n[3/4] Migration durchführen...')
   const result = await migrateFromLocalStorage()
 
   // 4. Ergebnis prüfen
-  console.log('\n[4/4] Ergebnis prüfen...')
+  console.debug('\n[4/4] Ergebnis prüfen...')
   const status = await getMigrationStatus()
 
-  console.log('\n' + '='.repeat(60))
-  console.log('[Test] MIGRATIONS-TEST ABGESCHLOSSEN')
-  console.log('='.repeat(60))
+  console.debug('\n' + '='.repeat(60))
+  console.debug('[Test] MIGRATIONS-TEST ABGESCHLOSSEN')
+  console.debug('='.repeat(60))
 
-  console.log('\nLocalStorage hatte:')
+  console.debug('\nLocalStorage hatte:')
   console.table(lsData)
 
-  console.log('\nSQLite hat jetzt:')
+  console.debug('\nSQLite hat jetzt:')
   console.table({
     profiles: status.profiles,
     x01Matches: status.x01Matches,
@@ -1041,7 +1041,7 @@ export async function fullMigrationTest(): Promise<void> {
     atbMatches: status.atbMatches,
   })
 
-  console.log('\nMigrations-Ergebnis:', result)
+  console.debug('\nMigrations-Ergebnis:', result)
 
   // Vergleich
   const lsProfiles = lsData.profiles?.count ?? 0
@@ -1059,7 +1059,7 @@ export async function fullMigrationTest(): Promise<void> {
   if (missing.profiles > 0 || missing.x01 > 0 || missing.cricket > 0 || missing.atb > 0) {
     console.warn('\n⚠️ FEHLENDE DATEN:', missing)
   } else {
-    console.log('\n✅ Alle Daten erfolgreich migriert!')
+    console.debug('\n✅ Alle Daten erfolgreich migriert!')
   }
 }
 
@@ -1174,7 +1174,7 @@ export async function enrichCricketEvents(): Promise<number> {
     await transaction(statements)
   }
 
-  console.log(`[Enrichment] ${enriched}/${events.length} Cricket Events bereichert`)
+  console.debug(`[Enrichment] ${enriched}/${events.length} Cricket Events bereichert`)
   return enriched
 }
 
@@ -1211,7 +1211,7 @@ export async function enrichATBEvents(): Promise<number> {
     await transaction(statements)
   }
 
-  console.log(`[Enrichment] ${enriched}/${events.length} ATB Events bereichert`)
+  console.debug(`[Enrichment] ${enriched}/${events.length} ATB Events bereichert`)
   return enriched
 }
 
@@ -1227,12 +1227,12 @@ export async function enrichAllEvents(): Promise<{ cricket: number; atb: number 
     }
   } catch { /* meta table might not exist yet */ }
 
-  console.log('[Enrichment] Starte Event-Enrichment...')
+  console.debug('[Enrichment] Starte Event-Enrichment...')
 
   const cricket = await enrichCricketEvents()
   const atb = await enrichATBEvents()
 
-  console.log(`[Enrichment] Fertig: ${cricket} Cricket, ${atb} ATB Events bereichert`)
+  console.debug(`[Enrichment] Fertig: ${cricket} Cricket, ${atb} ATB Events bereichert`)
 
   // Flag setzen wenn nichts mehr zu enrichen war
   if (cricket === 0 && atb === 0) {
@@ -1254,7 +1254,7 @@ export async function mergeFromLocalStorage(): Promise<{
   atbAdded: number
 }> {
   await initDB()
-  console.log('[Merge] Starte Merge von LocalStorage nach SQLite...')
+  console.debug('[Merge] Starte Merge von LocalStorage nach SQLite...')
 
   let x01Added = 0
   let cricketAdded = 0
@@ -1267,7 +1267,7 @@ export async function mergeFromLocalStorage(): Promise<{
     const existingIdSet = new Set(existingIds.map((r) => r.id))
 
     const missingMatches = lsMatches.filter((m) => !existingIdSet.has(m.id))
-    console.log(`[Merge] X01: ${lsMatches.length} in LS, ${existingIds.length} in SQLite, ${missingMatches.length} fehlen`)
+    console.debug(`[Merge] X01: ${lsMatches.length} in LS, ${existingIds.length} in SQLite, ${missingMatches.length} fehlen`)
 
     for (const m of missingMatches) {
       try {
@@ -1321,7 +1321,7 @@ export async function mergeFromLocalStorage(): Promise<{
 
         await transaction(statements)
         x01Added++
-        console.log(`[Merge] X01 hinzugefügt: ${m.id} (${m.title})`)
+        console.debug(`[Merge] X01 hinzugefügt: ${m.id} (${m.title})`)
       } catch (e) {
         console.error(`[Merge] X01 Fehler bei ${m.id}:`, e)
       }
@@ -1337,7 +1337,7 @@ export async function mergeFromLocalStorage(): Promise<{
     const existingIdSet = new Set(existingIds.map((r) => r.id))
 
     const missingMatches = lsMatches.filter((m) => !existingIdSet.has(m.id))
-    console.log(`[Merge] Cricket: ${lsMatches.length} in LS, ${existingIds.length} in SQLite, ${missingMatches.length} fehlen`)
+    console.debug(`[Merge] Cricket: ${lsMatches.length} in LS, ${existingIds.length} in SQLite, ${missingMatches.length} fehlen`)
 
     for (const m of missingMatches) {
       try {
@@ -1387,7 +1387,7 @@ export async function mergeFromLocalStorage(): Promise<{
 
         await transaction(statements)
         cricketAdded++
-        console.log(`[Merge] Cricket hinzugefügt: ${m.id} (${m.title})`)
+        console.debug(`[Merge] Cricket hinzugefügt: ${m.id} (${m.title})`)
       } catch (e) {
         console.error(`[Merge] Cricket Fehler bei ${m.id}:`, e)
       }
@@ -1403,7 +1403,7 @@ export async function mergeFromLocalStorage(): Promise<{
     const existingIdSet = new Set(existingIds.map((r) => r.id))
 
     const missingMatches = lsMatches.filter((m) => !existingIdSet.has(m.id))
-    console.log(`[Merge] ATB: ${lsMatches.length} in LS, ${existingIds.length} in SQLite, ${missingMatches.length} fehlen`)
+    console.debug(`[Merge] ATB: ${lsMatches.length} in LS, ${existingIds.length} in SQLite, ${missingMatches.length} fehlen`)
 
     for (const m of missingMatches) {
       try {
@@ -1461,7 +1461,7 @@ export async function mergeFromLocalStorage(): Promise<{
 
         await transaction(statements)
         atbAdded++
-        console.log(`[Merge] ATB hinzugefügt: ${m.id} (${m.title})`)
+        console.debug(`[Merge] ATB hinzugefügt: ${m.id} (${m.title})`)
       } catch (e) {
         console.error(`[Merge] ATB Fehler bei ${m.id}:`, e)
       }
@@ -1470,7 +1470,7 @@ export async function mergeFromLocalStorage(): Promise<{
     console.error('[Merge] ATB Fehler:', e)
   }
 
-  console.log(`[Merge] Abgeschlossen: ${x01Added} X01, ${cricketAdded} Cricket, ${atbAdded} ATB hinzugefügt`)
+  console.debug(`[Merge] Abgeschlossen: ${x01Added} X01, ${cricketAdded} Cricket, ${atbAdded} ATB hinzugefügt`)
   return { x01Added, cricketAdded, atbAdded }
 }
 

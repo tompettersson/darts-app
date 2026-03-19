@@ -47,19 +47,19 @@ async function initDatabase(): Promise<number> {
 
   sqlite3 = await sqlite3InitModule()
 
-  console.log('[SQLite Worker] Running SQLite version:', sqlite3.version.libVersion)
+  console.debug('[SQLite Worker] Running SQLite version:', sqlite3.version.libVersion)
 
   // Versuche OPFS für persistenten Speicher
   if (sqlite3.oo1.OpfsDb) {
     try {
       db = new sqlite3.oo1.OpfsDb(DB_NAME)
-      console.log('[SQLite Worker] Using OPFS storage')
+      console.debug('[SQLite Worker] Using OPFS storage')
     } catch (e) {
       console.warn('[SQLite Worker] OPFS not available, falling back to memory:', e)
       db = new sqlite3.oo1.DB(':memory:')
     }
   } else {
-    console.log('[SQLite Worker] OPFS not supported, using in-memory database')
+    console.debug('[SQLite Worker] OPFS not supported, using in-memory database')
     db = new sqlite3.oo1.DB(':memory:')
   }
 
@@ -87,7 +87,7 @@ async function runMigrations(): Promise<void> {
   // Immer alle Schema-Statements ausführen — sie sind alle CREATE IF NOT EXISTS
   // und damit idempotent. Das verhindert Probleme wenn die Version schon hochgesetzt
   // wurde, aber Tabellen (z.B. durch Hot-Reload oder DB-Reset) fehlen.
-  console.log(`[SQLite Worker] Ensuring schema (current v${currentVersion}, target v${CURRENT_DB_VERSION})`)
+  console.debug(`[SQLite Worker] Ensuring schema (current v${currentVersion}, target v${CURRENT_DB_VERSION})`)
 
   for (const sql of ALL_SCHEMA_STATEMENTS) {
     try {
@@ -104,7 +104,7 @@ async function runMigrations(): Promise<void> {
   if (currentVersion < CURRENT_DB_VERSION) {
     const pendingMigrations = MIGRATIONS.filter(m => m.version > currentVersion && m.version > 1)
     for (const migration of pendingMigrations) {
-      console.log(`[SQLite Worker] Running migration v${migration.version}: ${migration.name}`)
+      console.debug(`[SQLite Worker] Running migration v${migration.version}: ${migration.name}`)
       for (const sql of migration.up) {
         try {
           db.exec(sql)
@@ -113,7 +113,7 @@ async function runMigrations(): Promise<void> {
           // (z.B. frische DB wo CREATE TABLE sie schon angelegt hat) — ignorieren
           const msg = e instanceof Error ? e.message : String(e)
           if (msg.includes('duplicate column') || msg.includes('already exists')) {
-            console.log(`[SQLite Worker] Column already exists, skipping: ${sql}`)
+            console.debug(`[SQLite Worker] Column already exists, skipping: ${sql}`)
           } else {
             console.error(`[SQLite Worker] Migration v${migration.version} error:`, sql, e)
             throw e
@@ -129,7 +129,7 @@ async function runMigrations(): Promise<void> {
       { bind: toBindSpec([CURRENT_DB_VERSION.toString()]) }
     )
 
-    console.log(`[SQLite Worker] Version updated from v${currentVersion} to v${CURRENT_DB_VERSION}`)
+    console.debug(`[SQLite Worker] Version updated from v${currentVersion} to v${CURRENT_DB_VERSION}`)
   }
 }
 

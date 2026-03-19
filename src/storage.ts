@@ -317,7 +317,7 @@ export function pruneOldATBMatches(keepCount: number = 20): boolean {
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
 
-  console.log(`[Storage] Pruning ${toDelete} old ATB matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old ATB matches, keeping ${pruned.length}`)
   writeJSON(LS_ATB.matches, pruned)
   return true
 }
@@ -333,7 +333,7 @@ export function pruneOldX01Matches(keepCount: number = 50): boolean {
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
 
-  console.log(`[Storage] Pruning ${toDelete} old X01 matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old X01 matches, keeping ${pruned.length}`)
   writeJSON(LS_KEYS.matches, pruned)
   return true
 }
@@ -349,7 +349,7 @@ export function pruneOldCricketMatches(keepCount: number = 50): boolean {
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
 
-  console.log(`[Storage] Pruning ${toDelete} old Cricket matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old Cricket matches, keeping ${pruned.length}`)
   writeJSON(LS_CRICKET.matches, pruned)
   return true
 }
@@ -715,7 +715,7 @@ export async function getMatchesAsync(): Promise<StoredMatch[]> {
               events: m.events,
               playerIds: m.playerIds,
             })
-            console.log(`[Storage] X01 Match ${m.id} zu SQLite hinzugefügt`)
+            console.debug(`[Storage] X01 Match ${m.id} zu SQLite hinzugefügt`)
           } catch (e) {
             console.error(`[Storage] Konnte Match ${m.id} nicht zu SQLite hinzufügen:`, e)
           }
@@ -1490,7 +1490,7 @@ export function recalculate121StatsForAllPlayers() {
     updateGlobal121PlayerStatsFromMatch(m.id, m.events)
   }
 
-  console.log(`Recalculated 121 stats from ${matches.length} matches`)
+  console.debug(`Recalculated 121 stats from ${matches.length} matches`)
 }
 
 /**
@@ -3579,8 +3579,8 @@ export function downloadBackup(): void {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 
-  console.log(`[Backup] Downloaded: ${filename}`)
-  console.log(`[Backup] Stats:`, backup.stats)
+  console.debug(`[Backup] Downloaded: ${filename}`)
+  console.debug(`[Backup] Stats:`, backup.stats)
 }
 
 /**
@@ -4196,7 +4196,7 @@ export function pruneOldCTFMatches(keepCount: number = 20): boolean {
   all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
-  console.log(`[Storage] Pruning ${toDelete} old CTF matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old CTF matches, keeping ${pruned.length}`)
   writeJSON(LS_CTF.matches, pruned)
   ctfMatchesCache = pruned
   return true
@@ -4386,7 +4386,7 @@ export function pruneOldShanghaiMatches(keepCount: number = 20): boolean {
   all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
-  console.log(`[Storage] Pruning ${toDelete} old Shanghai matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old Shanghai matches, keeping ${pruned.length}`)
   writeJSON(LS_SHANGHAI.matches, pruned)
   shanghaiMatchesCache = pruned
   return true
@@ -4556,7 +4556,7 @@ export function pruneOldKillerMatches(keepCount: number = 20): boolean {
   all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
-  console.log(`[Storage] Pruning ${toDelete} old Killer matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old Killer matches, keeping ${pruned.length}`)
   writeJSON(LS_KILLER_MATCHES, pruned)
   killerMatchesCache = pruned
   return true
@@ -4791,7 +4791,7 @@ export function repairBobs27Matches(): number {
               m.durationMs = m.durationMs ?? 0
               m.finalScores = finalScores
               needsSave = true
-              console.log(`[Storage] Repaired Bob's 27 match ${m.id} from event log (no MatchFinished event)`)
+              console.debug(`[Storage] Repaired Bob's 27 match ${m.id} from event log (no MatchFinished event)`)
             }
           }
         } catch (e) {
@@ -4831,7 +4831,7 @@ export function repairBobs27Matches(): number {
   if (repaired > 0) {
     bobs27MatchesCache = all
     writeJSONSafe(LS_BOBS27.matches, all)
-    console.log(`[Storage] Repaired ${repaired} Bob's 27 match(es)`)
+    console.debug(`[Storage] Repaired ${repaired} Bob's 27 match(es)`)
   }
   return repaired
 }
@@ -4842,7 +4842,7 @@ export function pruneOldBobs27Matches(keepCount: number = 20): boolean {
   all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
-  console.log(`[Storage] Pruning ${toDelete} old Bob's 27 matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old Bob's 27 matches, keeping ${pruned.length}`)
   writeJSON(LS_BOBS27.matches, pruned)
   bobs27MatchesCache = pruned
   return true
@@ -5057,7 +5057,7 @@ export function repairOperationMatches(): number {
   if (repaired > 0) {
     operationMatchesCache = all
     writeJSONSafe(LS_OPERATION.matches, all)
-    console.log(`[Storage] Repaired ${repaired} Operation match(es)`)
+    console.debug(`[Storage] Repaired ${repaired} Operation match(es)`)
   }
   return repaired
 }
@@ -5068,7 +5068,7 @@ export function pruneOldOperationMatches(keepCount: number = 20): boolean {
   all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
-  console.log(`[Storage] Pruning ${toDelete} old Operation matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old Operation matches, keeping ${pruned.length}`)
   writeJSON(LS_OPERATION.matches, pruned)
   operationMatchesCache = pruned
   return true
@@ -5281,7 +5281,7 @@ export function migrateATBCaptureMatchesToCTF(): void {
     return
   }
 
-  console.log(`[Migration v2] Found ${finishedCapture.length} finished + ${unfinishedCapture.length} unfinished Capture/Pirate matches`)
+  console.debug(`[Migration v2] Found ${finishedCapture.length} finished + ${unfinishedCapture.length} unfinished Capture/Pirate matches`)
 
   const ctfMatches = getCTFMatches()
   const removeFromATB: string[] = []
@@ -5317,7 +5317,7 @@ export function migrateATBCaptureMatchesToCTF(): void {
     atbMatchesCache = remainingATB
     writeJSON(LS_ATB.matches, remainingATB)
 
-    console.log(`[Migration v2] Migrated ${finishedCapture.length}, deleted ${unfinishedCapture.length} unfinished`)
+    console.debug(`[Migration v2] Migrated ${finishedCapture.length}, deleted ${unfinishedCapture.length} unfinished`)
   }
 
   localStorage.setItem('ctf.migrated.v2', 'true')
@@ -5351,7 +5351,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       saveMatches(filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale X01 matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale X01 matches`)
     }
   }
 
@@ -5363,7 +5363,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       saveCricketMatches(filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Cricket matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Cricket matches`)
     }
   }
 
@@ -5376,7 +5376,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       atbMatchesCache = filtered
       writeJSON(LS_ATB.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale ATB matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale ATB matches`)
     }
   }
 
@@ -5389,7 +5389,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       strMatchesCache = filtered
       writeJSON(LS_STR.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Sträußchen matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Sträußchen matches`)
     }
   }
 
@@ -5402,7 +5402,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       ctfMatchesCache = filtered
       writeJSON(LS_CTF.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale CTF matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale CTF matches`)
     }
   }
 
@@ -5415,7 +5415,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       highscoreMatchesCache = filtered
       writeJSON(LS_HIGHSCORE.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Highscore matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Highscore matches`)
     }
   }
 
@@ -5428,7 +5428,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       shanghaiMatchesCache = filtered
       writeJSON(LS_SHANGHAI.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Shanghai matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Shanghai matches`)
     }
   }
 
@@ -5441,7 +5441,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       killerMatchesCache = filtered
       writeJSON(LS_KILLER_MATCHES, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Killer matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Killer matches`)
     }
   }
 
@@ -5454,7 +5454,7 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       bobs27MatchesCache = filtered
       writeJSON(LS_BOBS27.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Bob's 27 matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Bob's 27 matches`)
     }
   }
 
@@ -5467,12 +5467,12 @@ export function cleanupStaleUnfinishedMatches(): void {
       totalDeleted += deleted
       operationMatchesCache = filtered
       writeJSON(LS_OPERATION.matches, filtered)
-      console.log(`[Cleanup] Deleted ${deleted} stale Operation matches`)
+      console.debug(`[Cleanup] Deleted ${deleted} stale Operation matches`)
     }
   }
 
   if (totalDeleted > 0) {
-    console.log(`[Cleanup] Total: ${totalDeleted} stale unfinished matches deleted`)
+    console.debug(`[Cleanup] Total: ${totalDeleted} stale unfinished matches deleted`)
   }
 }
 
@@ -5635,7 +5635,7 @@ export function pruneOldHighscoreMatches(keepCount: number = 50): boolean {
   const toDelete = all.length - keepCount
   const pruned = all.slice(toDelete)
 
-  console.log(`[Storage] Pruning ${toDelete} old Highscore matches, keeping ${pruned.length}`)
+  console.debug(`[Storage] Pruning ${toDelete} old Highscore matches, keeping ${pruned.length}`)
   writeJSON(LS_HIGHSCORE.matches, pruned)
   highscoreMatchesCache = pruned
   return true

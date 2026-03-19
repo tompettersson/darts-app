@@ -506,7 +506,7 @@ export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
     console.warn('[DB] dbSaveX01Match: DB not ready, skipping SQLite save for', match.id)
     return
   }
-  console.log('[DB] dbSaveX01Match: Saving match', match.id)
+  console.debug('[DB] dbSaveX01Match: Saving match', match.id)
 
   const startEvt = match.events.find((e) => e.type === 'MatchStarted')
   const finishEvt = match.events.find((e) => e.type === 'MatchFinished')
@@ -565,7 +565,7 @@ export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
   }
 
   await transaction(statements)
-  console.log('[DB] dbSaveX01Match: Successfully saved match', match.id)
+  console.debug('[DB] dbSaveX01Match: Successfully saved match', match.id)
 }
 
 export async function dbUpdateX01Events(matchId: string, events: any[]): Promise<void> {
@@ -600,7 +600,7 @@ export async function dbUpdateX01Events(matchId: string, events: any[]): Promise
   }
 
   await transaction(statements)
-  console.log('[DB] dbUpdateX01Events: Updated', events.length, 'events for match', matchId)
+  console.debug('[DB] dbUpdateX01Events: Updated', events.length, 'events for match', matchId)
 }
 
 export async function dbFinishX01Match(matchId: string): Promise<void> {
@@ -609,7 +609,7 @@ export async function dbFinishX01Match(matchId: string): Promise<void> {
     console.warn('[DB] dbFinishX01Match: DB not ready, skipping SQLite update for', matchId)
     return
   }
-  console.log('[DB] dbFinishX01Match: Finishing match', matchId)
+  console.debug('[DB] dbFinishX01Match: Finishing match', matchId)
   await exec(
     'UPDATE x01_matches SET finished = 1, finished_at = ? WHERE id = ?',
     [nowISO(), matchId]

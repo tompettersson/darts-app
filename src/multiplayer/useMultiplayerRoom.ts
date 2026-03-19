@@ -158,7 +158,7 @@ export function useMultiplayerRoom(
       socket.send(JSON.stringify(msg))
     } else {
       // Queue message — will be flushed on 'open'
-      console.log('[Multiplayer] Socket not open yet, queuing message:', msg.type)
+      console.debug('[Multiplayer] Socket not open yet, queuing message:', msg.type)
       pendingQueueRef.current.push(msg)
     }
   }, [])

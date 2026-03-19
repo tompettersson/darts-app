@@ -36,7 +36,7 @@ export function queueMatch(payload: MatchPayload) {
   if (!exists) {
     list.push(payload);
     writeBoxLS(list);
-    console.log('[Outbox] queued (LS)', payload.id);
+    console.debug('[Outbox] queued (LS)', payload.id);
   }
 
   // SQLite async (fire-and-forget)
@@ -59,7 +59,7 @@ export async function flushOutbox(submit: (p: MatchPayload) => Promise<any>) {
         for (const p of items) {
           try {
             await submit(p);
-            console.log('[Outbox] delivered', p.id);
+            console.debug('[Outbox] delivered', p.id);
             await dbRemoveFromOutbox(p.id)
           } catch (err) {
             console.warn('[Outbox] still failing', p.id, err);
@@ -83,7 +83,7 @@ export async function flushOutbox(submit: (p: MatchPayload) => Promise<any>) {
   for (const p of items) {
     try {
       await submit(p);
-      console.log('[Outbox] delivered', p.id);
+      console.debug('[Outbox] delivered', p.id);
       // Also remove from SQLite
       dbRemoveFromOutbox(p.id).catch(() => {})
     } catch (err) {

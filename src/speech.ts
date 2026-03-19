@@ -91,13 +91,13 @@ function initWebSpeechFallback() {
 
   const loadVoices = () => {
     const voices = speechSynthesis.getVoices()
-    console.log('Verfügbare Stimmen:', voices.map(v => `${v.name} (${v.lang})`).join(', '))
+    console.debug('Verfügbare Stimmen:', voices.map(v => `${v.name} (${v.lang})`).join(', '))
 
     webSpeechVoice = findBestVoice(voices)
     webSpeechInitialized = true
 
     if (webSpeechVoice) {
-      console.log(`Darts-Caller Stimme: ${webSpeechVoice.name} (${webSpeechVoice.lang})`)
+      console.debug(`Darts-Caller Stimme: ${webSpeechVoice.name} (${webSpeechVoice.lang})`)
     }
   }
 
@@ -126,7 +126,7 @@ function ensureVoiceSelected(): SpeechSynthesisVoice | null {
   webSpeechVoice = findBestVoice(voices)
 
   if (webSpeechVoice) {
-    console.log(`Stimme ausgewählt: ${webSpeechVoice.name} (${webSpeechVoice.lang})`)
+    console.debug(`Stimme ausgewählt: ${webSpeechVoice.name} (${webSpeechVoice.lang})`)
   }
 
   return webSpeechVoice
@@ -186,9 +186,9 @@ export function initSpeech() {
   initWebSpeechFallback()
 
   if (API_KEY) {
-    console.log('ElevenLabs Sprachausgabe aktiviert')
+    console.debug('ElevenLabs Sprachausgabe aktiviert')
   } else {
-    console.log('Kein ElevenLabs API-Key gefunden, verwende Web Speech API')
+    console.debug('Kein ElevenLabs API-Key gefunden, verwende Web Speech API')
   }
 }
 

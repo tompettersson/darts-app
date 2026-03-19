@@ -104,7 +104,7 @@ export async function initDB(): Promise<void> {
 
       await sendRequest({ type: 'init' })
       status = 'ready'
-      console.log('[DB] Initialized, version:', dbVersion)
+      console.debug('[DB] Initialized, version:', dbVersion)
     } catch (e) {
       status = 'error'
       throw e
