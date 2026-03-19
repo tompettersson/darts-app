@@ -145,6 +145,15 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
         return
       }
 
+      // Space/Enter: Gepufferte Ziffer sofort bestätigen (1 oder 2)
+      if (e.code === 'Space' || k === 'enter') {
+        if (numBuf.current !== '') {
+          e.preventDefault()
+          flushBuf()
+        }
+        return
+      }
+
       // Ziffern 0-9
       if (k >= '0' && k <= '9') {
         e.preventDefault()
