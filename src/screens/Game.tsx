@@ -1768,86 +1768,17 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           onExit()
         }}
         title={matchStored.title}
+        subtitle={
+          match.structure.kind === 'sets'
+            ? `First to ${requiredSets} Sets · Set #${currentSetIndex || 1} · Leg #${currentLegIndex} · ${formatDuration(legDuration)}`
+            : `First to ${requiredLegs} Legs · Leg #${currentLegIndex} · ${formatDuration(legDuration)}`
+        }
       />
 
       {/* Multiplayer Connection Badge */}
       {multiplayer?.enabled && (
         <div className="game-flex-center" style={{ padding: '4px 0' }}>
           <ConnectionBadge status={multiplayer.connectionStatus} playerCount={multiplayer.playerCount} />
-        </div>
-      )}
-
-      {/* Struktur-/Fortschritt-Chips */}
-      {isArcade ? (
-        /* === ARCADE CHIPS === */
-        <div className="game-arcade-chips">
-          <span className="game-arcade-chip">
-            <b style={{ color: '#f97316' }}>{match.startingScorePerLeg}</b> Double-Out
-          </span>
-          {match.structure.kind === 'legs' ? (
-            <>
-              <span className="game-arcade-chip">
-                First to <b style={{ color: '#22c55e' }}>{requiredLegs}</b> Legs
-              </span>
-              <span className="game-arcade-chip">
-                Leg <b style={{ color: '#fff' }}>#{currentLegIndex}</b>
-              </span>
-              <span className="game-arcade-chip">
-                ⏱ <b style={{ color: '#60a5fa' }}>{formatDuration(legDuration)}</b>
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="game-arcade-chip">
-                First to <b style={{ color: '#22c55e' }}>{requiredSets}</b> Sets
-              </span>
-              <span className="game-arcade-chip">
-                Set <b style={{ color: '#fff' }}>#{currentSetIndex || 1}</b>
-              </span>
-              <span className="game-arcade-chip">
-                <b style={{ color: '#22c55e' }}>{requiredLegs}</b> Legs/Set
-              </span>
-              <span className="game-arcade-chip">
-                ⏱ <b style={{ color: '#60a5fa' }}>{formatDuration(legDuration)}</b>
-              </span>
-            </>
-          )}
-        </div>
-      ) : (
-        /* === CLASSIC CHIPS === */
-        <div className="g-chipRow" style={{ justifyContent: 'center' }}>
-          {match.structure.kind === 'legs' ? (
-            <>
-              <span className="g-chip">
-                Modus:
-                <b style={{ marginLeft: 6 }}>First to {requiredLegs} Legs</b>
-              </span>
-              <span className="g-chip">
-                Leg <b style={{ marginLeft: 6 }}>#{currentLegIndex}</b>
-              </span>
-              <span className="g-chip">
-                Modus:
-                <b style={{ marginLeft: 6 }}>{match.startingScorePerLeg} Double-Out</b>
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="g-chip">
-                Modus:
-                <b style={{ marginLeft: 6 }}>{match.startingScorePerLeg} Double-Out</b>
-              </span>
-              <span className="g-chip">
-                <b>First to {requiredSets} Sets</b>
-              </span>
-              <span className="g-chip">
-                Set <b style={{ marginLeft: 6 }}>#{currentSetIndex || 1}</b>
-              </span>
-              <span className="g-chip">
-                pro Set:
-                <b style={{ marginLeft: 6 }}>First to {requiredLegs} Legs</b>
-              </span>
-            </>
-          )}
         </div>
       )}
 

@@ -20,6 +20,8 @@ type Props = {
   onCancel?: () => void
   /** Spieltitel */
   title: string
+  /** Optionale Zusatzinfo unter/neben dem Titel (z.B. Leg-Nr, Zeit) */
+  subtitle?: string
 }
 
 export default function GameControls({
@@ -30,6 +32,7 @@ export default function GameControls({
   onExit,
   onCancel,
   title,
+  subtitle,
 }: Props) {
   const { isArcade, colors } = useTheme()
 
@@ -98,21 +101,37 @@ export default function GameControls({
         )}
       </div>
 
-      {/* Mitte: Titel */}
-      <h2
-        style={{
-          textAlign: 'center',
-          margin: 0,
-          color: isArcade ? '#fff' : colors.fg,
-          fontSize: 16,
-          fontWeight: 800,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {title}
-      </h2>
+      {/* Mitte: Titel + optionaler Untertitel */}
+      <div style={{ textAlign: 'center', overflow: 'hidden', minWidth: 0 }}>
+        <div
+          style={{
+            margin: 0,
+            color: isArcade ? '#fff' : colors.fg,
+            fontSize: subtitle ? 13 : 16,
+            fontWeight: 800,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: isArcade ? '#9ca3af' : colors.fgDim,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: 1.2,
+            marginTop: 1,
+          }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
 
       {/* Rechts: Buttons */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
