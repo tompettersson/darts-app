@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="250" fill="#1a1a2e"/>
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#e94560" stroke-width="12"/>
+  <!-- Middle ring -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#0f3460" stroke-width="10"/>
+  <!-- Inner ring -->
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#e94560" stroke-width="8"/>
+  <!-- Treble ring -->
+  <circle cx="256" cy="256" r="80" fill="none" stroke="#16213e" stroke-width="6"/>
+  <!-- Bull -->
+  <circle cx="256" cy="256" r="40" fill="#0f3460"/>
+  <!-- Bullseye -->
+  <circle cx="256" cy="256" r="18" fill="#e94560"/>
+  <!-- Cross wires -->
+  <line x1="256" y1="36" x2="256" y2="476" stroke="#533483" stroke-width="2" opacity="0.5"/>
+  <line x1="36" y1="256" x2="476" y2="256" stroke="#533483" stroke-width="2" opacity="0.5"/>
+  <!-- Dart arrow -->
+  <g transform="translate(256,180) rotate(15)">
+    <line x1="0" y1="0" x2="0" y2="-100" stroke="#ffd700" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="0,5 -8,-15 0,-10 8,-15" fill="#ffd700"/>
+    <!-- Flights -->
+    <polygon points="0,-100 -12,-120 0,-110 12,-120" fill="#e94560" opacity="0.8"/>
+  </g>
+</svg>

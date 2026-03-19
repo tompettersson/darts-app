@@ -13,7 +13,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "manual": "tsx src/manual.ts",
-    "server": "tsx src/server.ts"
+    "server": "tsx src/server.ts",
+    "test:e2e": "playwright test"
   },
   "keywords": [
     "darts",
@@ -32,6 +33,7 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@types/cors": "^2.8.19",
@@ -45,6 +47,7 @@
     "tsx": "^4.20.6",
     "typescript": "^5.7.2",
     "vite": "^7.1.9",
+    "vite-plugin-pwa": "^1.2.0",
     "vitest": "^3.2.4"
   }
 }
