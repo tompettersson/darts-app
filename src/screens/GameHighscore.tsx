@@ -2,15 +2,12 @@
 // Spielscreen für Highscore – Erreiche als Erster das Target!
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getHighscoreMatchById,
   persistHighscoreEvents,
   finishHighscoreMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteHighscoreMatch,
   getProfiles,
@@ -31,7 +28,7 @@ import {
   createHighscoreDart,
 } from '../types/highscore'
 import type { Bed } from '../darts501'
-import { playTriple20Sound, announceGameStart, announceNextPlayer, announceScore, announceLegDart, announceMatchDart, isSpeechEnabled, setSpeechEnabled } from '../speech'
+import { playTriple20Sound, announceGameStart, announceNextPlayer, announceScore, announceLegDart, announceMatchDart } from '../speech'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
@@ -56,42 +53,28 @@ type Props = {
 }
 
 export default function GameHighscore({ matchId, onExit, onShowSummary }: Props) {
-  const { isArcade, colors } = useTheme()
-
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    ledOn: colors.ledOn,
-    ledGlow: colors.ledGlow,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    yellow: colors.scoreYellow,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
+  const { c, isArcade, colors } = useGameColors()
 
   // Profile für Spielerfarben
   const profiles = useMemo(() => getProfiles(), [])
-
-  // Pause
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'highscore'))
-
-  useEffect(() => {
-    if (!gamePaused) clearMatchPaused(matchId, 'highscore')
-  }, [gamePaused, matchId])
-
-  // Mute (für Sprachausgabe)
-  const [muted, setMuted] = useState(() => !isSpeechEnabled())
 
   // Events + State
   const storedMatch = getHighscoreMatchById(matchId)
   const [events, setEvents] = useState<HighscoreEvent[]>(storedMatch?.events ?? [])
   const [currentDarts, setCurrentDarts] = useState<HighscoreDart[]>([])
 
-  // Timer
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'highscore'))
+  // State ableiten (vor useGameState, da finished benötigt wird)
+  const state = applyHighscoreEvents(events)
+  const activePlayerId = getActivePlayerId(state)
+  const activePlayer = getActivePlayer(state)
+
+  // Shared game state (pause, mute, timer, visibility)
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId,
+    mode: 'highscore',
+    finished: state.finished,
+  })
+
   const [legStartElapsedMs, setLegStartElapsedMs] = useState(0)
 
   // Intermission (Leg-Zusammenfassung)
@@ -106,11 +89,6 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
   // Number Buffer für Tastatureingabe
   const numBuf = useRef('')
   const numBufTimer = useRef<number | null>(null)
-
-  // State ableiten
-  const state = applyHighscoreEvents(events)
-  const activePlayerId = getActivePlayerId(state)
-  const activePlayer = getActivePlayer(state)
 
   // Spielerfarben aus Profilen (mit Fallback auf lokale PLAYER_COLORS)
   const playerColors = useMemo(() => {
@@ -135,13 +113,6 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
   // Ref für addDart (für Timer-Callbacks)
   const addDartRef = useRef<((bed: Bed | 'MISS', multOverride?: 1 | 2 | 3) => void) | null>(null)
 
-  // Auto-Pause bei Tab-Wechsel
-  useEffect(() => {
-    const handle = () => { if (document.hidden) setGamePaused(true) }
-    document.addEventListener('visibilitychange', handle)
-    return () => document.removeEventListener('visibilitychange', handle)
-  }, [])
-
   // "[Name], throw first! Game on!" am Spielstart
   const hasAnnouncedGameOn = useRef(false)
   useEffect(() => {
@@ -155,18 +126,6 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
       }
     }
   }, [state.match, state.finished, events])
-
-  // Timer: +100ms wenn nicht pausiert
-  useEffect(() => {
-    if (gamePaused || state.finished) return
-    const timer = setInterval(() => setElapsedMs(prev => prev + 100), 100)
-    return () => clearInterval(timer)
-  }, [gamePaused, state.finished])
-
-  // Zeit speichern bei Pause
-  useEffect(() => {
-    if (gamePaused) setMatchElapsedTime(matchId, 'highscore', elapsedMs)
-  }, [gamePaused, matchId, elapsedMs])
 
   // Dart hinzufügen
   const addDart = useCallback((bed: Bed | 'MISS', multOverride?: 1 | 2 | 3) => {
@@ -635,7 +594,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
         isPaused={gamePaused}
         onTogglePause={() => setGamePaused(p => !p)}
         isMuted={muted}
-        onToggleMute={() => { const next = !muted; setMuted(next); setSpeechEnabled(!next) }}
+        onToggleMute={() => setMuted(m => !m)}
         onExit={() => {
           setMatchPaused(matchId, 'highscore', true)
           setMatchElapsedTime(matchId, 'highscore', elapsedMs)

@@ -4,15 +4,12 @@
 // Score: Start 27, Treffer +Doppelwert, Fehler -Doppelwert, < 0 = Game Over.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getBobs27MatchById,
   persistBobs27Events,
   finishBobs27Match,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteBobs27Match,
 } from '../storage'
@@ -28,7 +25,7 @@ import {
   type Bobs27ThrowResult,
 } from '../dartsBobs27'
 import GameControls, { PauseOverlay } from '../components/GameControls'
-import { initSpeech, announceBobs27PlayerTurn, announceBobs27MustScore, announceGameStart, cancelPendingSpeech } from '../speech'
+import { announceBobs27PlayerTurn, announceBobs27MustScore, announceGameStart, cancelPendingSpeech } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
 
 type MultiplayerProp = {
@@ -50,40 +47,25 @@ type Props = {
 }
 
 export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer }: Props) {
-  const { isArcade, colors } = useTheme()
-
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
-
-  // Pause
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'bobs27'))
-
-  useEffect(() => {
-    if (!gamePaused) clearMatchPaused(matchId, 'bobs27')
-  }, [gamePaused, matchId])
+  const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getBobs27MatchById(matchId)
   const [events, setEvents] = useState<Bobs27Event[]>(storedMatch?.events ?? [])
 
-  // Timer
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'bobs27'))
+  // State aus Events ableiten (vor useGameState, da finished benoetigt wird)
+  const state = useMemo(() => applyBobs27Events(events), [events])
+
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId,
+    mode: 'bobs27',
+    finished: state.finished,
+  })
 
   // Delta-Animation
   const [deltaFlash, setDeltaFlash] = useState<{ value: number; key: number } | null>(null)
 
   // Match-End delay
   const [matchEndDelay, setMatchEndDelay] = useState(false)
-
-  // State aus Events ableiten
-  const state = useMemo(() => applyBobs27Events(events), [events])
 
   const players = state.match?.players ?? []
   const activePlayerId = getActivePlayerId(state)
@@ -158,24 +140,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     persistBobs27Events(matchId, remote)
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-Pause bei Tab-Wechsel
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) setGamePaused(true)
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // Timer: +100ms wenn nicht pausiert
-  useEffect(() => {
-    if (gamePaused || state.finished) return
-    const timer = setInterval(() => {
-      setElapsedMs(prev => prev + 100)
-    }, 100)
-    return () => clearInterval(timer)
-  }, [gamePaused, state.finished])
-
   // Sprachausgabe: Spieler + Score + Ziel ansagen bei Spielerwechsel/Target-Wechsel
   const lastAnnouncedKeyRef = React.useRef<string>('')
   const gameOnAnnouncedRef = React.useRef(false)
@@ -191,10 +155,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     speechTimersRef.current.forEach(id => clearTimeout(id))
     speechTimersRef.current = []
   }
-
-  useEffect(() => {
-    initSpeech()
-  }, [])
 
   useEffect(() => {
     if (!activePlayer || !activePlayerState || !currentTarget) return
@@ -412,8 +372,8 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
               if (gamePaused) handleResume()
               else handlePause()
             }}
-            isMuted={true}
-            onToggleMute={() => {}}
+            isMuted={muted}
+            onToggleMute={() => setMuted(m => !m)}
             onExit={handleExitMatch}
             title="Bob's 27"
           />

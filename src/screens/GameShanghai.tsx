@@ -5,15 +5,12 @@
 // Tastatursteuerung: S/D/T=Multiplier, 1-9/0=Zahlen, Space/Enter=Bestaetigen, Backspace=Undo
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getShanghaiMatchById,
   persistShanghaiEvents,
   finishShanghaiMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteShanghaiMatch,
   getPlayerColorBackgroundEnabled,
@@ -35,8 +32,6 @@ import ATBDartboard from '../components/ATBDartboard'
 import ShanghaiHitChart from '../components/ShanghaiHitChart'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import {
-  initSpeech,
-  setSpeechEnabled,
   announceGameStart,
   announceATBHit,
   announceShanghaiRoundAndPlayer,
@@ -75,45 +70,14 @@ type Props = {
 }
 
 export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) {
-  // Globales Theme System
-  const { isArcade, colors } = useTheme()
-
-  // Theme-aware Farben
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    ledOn: colors.ledOn,
-    ledGlow: colors.ledGlow,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    yellow: colors.scoreYellow,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
-
-  // --- Pause-Modus ---
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'shanghai'))
-
-  // Beim Fortsetzen (Pause beenden) den Pause-Status loeschen
-  useEffect(() => {
-    if (!gamePaused) {
-      clearMatchPaused(matchId, 'shanghai')
-    }
-  }, [gamePaused, matchId])
-
-  // --- Sprachausgabe ---
-  const [speechEnabled, setSpeechEnabledState] = useState(true)
+  // Shared theme colors
+  const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getShanghaiMatchById(matchId)
   const [events, setEvents] = useState<ShanghaiEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<ShanghaiDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const multRef = useRef(mult)
-
-  // Timer (reine Spielzeit) - mit gespeicherter Zeit fuer Fortsetzung nach Exit
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'shanghai'))
 
   // Nummern-Buffer fuer zweistellige Eingabe (10-20)
   const numBufferRef = useRef('')
@@ -133,6 +97,13 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
   // State aus Events ableiten
   const state = useMemo(() => applyShanghaiEvents(events), [events])
 
+  // Shared game state: pause, timer, speech/mute, visibility
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId,
+    mode: 'shanghai',
+    finished: state.finished,
+  })
+
   const players = state.match?.players ?? []
   const currentRound = getCurrentRound(state)
   const targetNumber = getTargetNumber(state)
@@ -140,9 +111,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
   const activePlayer = players.find(p => p.playerId === activePlayerId)
   const shanghaiState = state.shanghaiState
 
-  // Sprachausgabe initialisieren + "[Name], throw first! Game on!"
+  // "[Name], throw first! Game on!" Ansage
   useEffect(() => {
-    initSpeech()
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
       announceGameStart(activePlayer.name)
@@ -150,28 +120,6 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
       lastAnnouncedRoundRef.current = currentRound
     }
   }, [state.match, activePlayerId, activePlayer, currentRound])
-
-  // Auto-Pause bei Tab-Wechsel/Fokusverlust
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setGamePaused(true)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // Einfacher Timer: +100ms wenn nicht pausiert (reine Spielzeit)
-  useEffect(() => {
-    if (gamePaused || state.finished) return
-
-    const timer = setInterval(() => {
-      setElapsedMs(prev => prev + 100)
-    }, 100)
-
-    return () => clearInterval(timer)
-  }, [gamePaused, state.finished])
 
   // Sync mult with ref
   useEffect(() => {
@@ -619,12 +567,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
       <GameControls
         isPaused={gamePaused}
         onTogglePause={() => setGamePaused(p => !p)}
-        isMuted={!speechEnabled}
-        onToggleMute={() => {
-          const newVal = !speechEnabled
-          setSpeechEnabledState(newVal)
-          setSpeechEnabled(newVal)
-        }}
+        isMuted={muted}
+        onToggleMute={() => setMuted(m => !m)}
         onExit={() => {
           // Pause-Status und verstrichene Zeit speichern bevor wir verlassen
           setMatchPaused(matchId, 'shanghai', true)

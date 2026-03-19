@@ -4,15 +4,12 @@
 // Tastatursteuerung: S/D/T=Multiplier, 1-9/0=Zahlen, Space/Enter=Bestaetigen, Backspace=Undo
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getCTFMatchById,
   persistCTFEvents,
   finishCTFMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteCTFMatch,
   getPlayerColorBackgroundEnabled,
@@ -36,8 +33,6 @@ import {
 import ATBDartboard from '../components/ATBDartboard'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import {
-  initSpeech,
-  setSpeechEnabled,
   announceGameStart,
   announceATBHit,
   playTriple20Sound,
@@ -90,36 +85,8 @@ type Props = {
 }
 
 export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
-  // Globales Theme System
-  const { isArcade, colors } = useTheme()
-
   // Theme-aware Farben
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    ledOn: colors.ledOn,
-    ledGlow: colors.ledGlow,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    yellow: colors.scoreYellow,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
-
-  // --- Pause-Modus ---
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'ctf'))
-
-  // Beim Fortsetzen (Pause beenden) den Pause-Status loeschen
-  useEffect(() => {
-    if (!gamePaused) {
-      clearMatchPaused(matchId, 'ctf')
-    }
-  }, [gamePaused, matchId])
-
-  // --- Sprachausgabe ---
-  const [speechEnabled, setSpeechEnabledState] = useState(true)
+  const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getCTFMatchById(matchId)
   const [events, setEvents] = useState<CTFEvent[]>(storedMatch?.events ?? [])
@@ -127,8 +94,13 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const multRef = useRef(mult)
 
-  // Timer (reine Spielzeit) - mit gespeicherter Zeit fuer Fortsetzung nach Exit
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'ctf'))
+  // State aus Events ableiten (muss vor useGameState stehen, da finished davon abhaengt)
+  const state = useMemo(() => applyCTFEvents(events), [events])
+
+  // Shared game state: Pause, Mute, Timer, Visibility
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId, mode: 'ctf', finished: state.finished,
+  })
 
   // Nummern-Buffer fuer zweistellige Eingabe (10-20)
   const numBufferRef = useRef('')
@@ -154,9 +126,6 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
   // Leg-Zusammenfassung (Intermission zwischen Legs)
   const [intermission, setIntermission] = useState<CTFIntermission | null>(null)
 
-  // State aus Events ableiten
-  const state = useMemo(() => applyCTFEvents(events), [events])
-
   const players = state.match?.players ?? []
   const config = state.match?.config
   const sequence = state.match?.sequence ?? []
@@ -167,9 +136,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = players.find(p => p.playerId === activePlayerId)
 
-  // Sprachausgabe initialisieren + "[Name], throw first! Game on!" + erstes Ziel ansagen
+  // "[Name], throw first! Game on!" + erstes Ziel ansagen
   useEffect(() => {
-    initSpeech()
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
 
@@ -186,28 +154,6 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
       }
     }
   }, [state.match, activePlayerId, activePlayer, currentTarget])
-
-  // Auto-Pause bei Tab-Wechsel/Fokusverlust
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setGamePaused(true)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // Einfacher Timer: +100ms wenn nicht pausiert (reine Spielzeit)
-  useEffect(() => {
-    if (gamePaused || state.finished) return
-
-    const timer = setInterval(() => {
-      setElapsedMs(prev => prev + 100)
-    }, 100)
-
-    return () => clearInterval(timer)
-  }, [gamePaused, state.finished])
 
   // Sync mult with ref
   useEffect(() => {
@@ -705,12 +651,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
       <GameControls
         isPaused={gamePaused}
         onTogglePause={() => setGamePaused(p => !p)}
-        isMuted={!speechEnabled}
-        onToggleMute={() => {
-          const newVal = !speechEnabled
-          setSpeechEnabledState(newVal)
-          setSpeechEnabled(newVal)
-        }}
+        isMuted={muted}
+        onToggleMute={() => setMuted(m => !m)}
         onExit={() => {
           // Pause-Status und verstrichene Zeit speichern bevor wir verlassen
           setMatchPaused(matchId, 'ctf', true)

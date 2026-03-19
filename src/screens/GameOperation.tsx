@@ -7,15 +7,12 @@
 // Multi-Leg mit Leg-Summary Modal zwischen den Legs.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getOperationMatchById,
   persistOperationEvents,
   finishOperationMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteOperationMatch,
   getPlayerColorBackgroundEnabled,
@@ -328,31 +325,10 @@ type Props = {
 }
 
 export default function GameOperation({ matchId, onExit, onShowSummary, multiplayer }: Props) {
-  const { isArcade, colors } = useTheme()
-
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
-
-  // Pause
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'operation'))
-
-  useEffect(() => {
-    if (!gamePaused) clearMatchPaused(matchId, 'operation')
-  }, [gamePaused, matchId])
+  const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getOperationMatchById(matchId)
   const [events, setEvents] = useState<OperationEvent[]>(storedMatch?.events ?? [])
-
-  // Timer
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'operation'))
 
   // Leg-Summary Modal
   const [showLegSummary, setShowLegSummary] = useState(false)
@@ -368,6 +344,13 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
 
   // State aus Events ableiten
   const state = useMemo(() => applyOperationEvents(events), [events])
+
+  // Shared game state: pause, timer, speech/mute, visibility
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId,
+    mode: 'operation',
+    finished: state.isComplete || showLegSummary,
+  })
 
   const players = state.match?.players ?? []
   const activePlayerId = getActivePlayerId(state)
@@ -411,24 +394,6 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     setEvents(updatedEvents)
     persistOperationEvents(matchId, updatedEvents)
   }, [state.match, state.legs.length]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-Pause bei Tab-Wechsel
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) setGamePaused(true)
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // Timer: +100ms wenn nicht pausiert
-  useEffect(() => {
-    if (gamePaused || state.isComplete || showLegSummary) return
-    const timer = setInterval(() => {
-      setElapsedMs(prev => prev + 100)
-    }, 100)
-    return () => clearInterval(timer)
-  }, [gamePaused, state.isComplete, showLegSummary])
 
   // Zeige Leg-Summary wenn Leg gerade fertig geworden ist (und Match nicht fertig)
   useEffect(() => {
@@ -819,8 +784,8 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
               if (gamePaused) handleResume()
               else handlePause()
             }}
-            isMuted={true}
-            onToggleMute={() => {}}
+            isMuted={muted}
+            onToggleMute={() => setMuted(m => !m)}
             onExit={handleExitMatch}
             title="Operation: Ein Feld, keine Gnade"
           />

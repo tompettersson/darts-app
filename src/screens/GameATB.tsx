@@ -3,15 +3,12 @@
 // Tastatursteuerung: Space=Treffer, S/D/T=Multiplier, 0=Miss
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getATBMatchById,
   persistATBEvents,
   finishATBMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteATBMatch,
   getPlayerColorBackgroundEnabled,
@@ -35,8 +32,6 @@ import {
 import ATBDartboard from '../components/ATBDartboard'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import {
-  initSpeech,
-  setSpeechEnabled,
   announceGameStart,
   announceATBHit,
   announceATBNextTarget,
@@ -109,45 +104,19 @@ type Props = {
 }
 
 export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
-  // Globales Theme System
-  const { isArcade, colors } = useTheme()
-
-  // Theme-aware Farben
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    ledOn: colors.ledOn,
-    ledGlow: colors.ledGlow,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    yellow: colors.scoreYellow,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
-
-  // --- Pause-Modus ---
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'atb'))
-
-  // Beim Fortsetzen (Pause beenden) den Pause-Status löschen
-  useEffect(() => {
-    if (!gamePaused) {
-      clearMatchPaused(matchId, 'atb')
-    }
-  }, [gamePaused, matchId])
-
-  // --- Sprachausgabe ---
-  const [speechEnabled, setSpeechEnabledState] = useState(true)
+  const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getATBMatchById(matchId)
   const [events, setEvents] = useState<ATBEvent[]>(storedMatch?.events ?? [])
+  const state = applyATBEvents(events)
+
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId, mode: 'atb', finished: state.finished,
+  })
+
   const [current, setCurrent] = useState<ATBDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const multRef = useRef(mult)
-
-  // Timer (reine Spielzeit) - mit gespeicherter Zeit für Fortsetzung nach Exit
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'atb'))
 
   // Für Sprachansagen: letztes angesagtes Ziel/Spieler merken
   const lastAnnouncedTargetRef = useRef<number | 'BULL' | null>(null)
@@ -157,16 +126,12 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
   // Leg-Zusammenfassung (Intermission zwischen Legs)
   const [intermission, setIntermission] = useState<ATBIntermission | null>(null)
 
-  // State aus Events ableiten
-  const state = applyATBEvents(events)
-
   // Aktiver Spieler + Ziel für Ansage (muss VOR den useEffects definiert werden)
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = state.match?.players.find(p => p.playerId === activePlayerId)
 
-  // Sprachausgabe initialisieren + "[Name], throw first! Game on!" + erstes Ziel ansagen
+  // "[Name], throw first! Game on!" + erstes Ziel ansagen
   useEffect(() => {
-    initSpeech()
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
 
@@ -190,28 +155,6 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
       }
     }
   }, [state.match, activePlayerId, activePlayer, state.currentIndexByPlayer])
-
-  // Auto-Pause bei Tab-Wechsel/Fokusverlust
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setGamePaused(true)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // Einfacher Timer: +100ms wenn nicht pausiert (reine Spielzeit)
-  useEffect(() => {
-    if (gamePaused || state.finished) return
-
-    const timer = setInterval(() => {
-      setElapsedMs(prev => prev + 100)
-    }, 100)
-
-    return () => clearInterval(timer)
-  }, [gamePaused, state.finished])
 
   // Sync mult with ref
   useEffect(() => {
@@ -709,12 +652,8 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
       <GameControls
         isPaused={gamePaused}
         onTogglePause={() => setGamePaused(p => !p)}
-        isMuted={!speechEnabled}
-        onToggleMute={() => {
-          const newVal = !speechEnabled
-          setSpeechEnabledState(newVal)
-          setSpeechEnabled(newVal)
-        }}
+        isMuted={muted}
+        onToggleMute={() => setMuted(m => !m)}
         onExit={() => {
           // Pause-Status und verstrichene Zeit speichern bevor wir verlassen
           setMatchPaused(matchId, 'atb', true)

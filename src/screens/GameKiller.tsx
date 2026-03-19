@@ -11,10 +11,7 @@ import {
   persistKillerEvents,
   finishKillerMatch,
   deleteKillerMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   getProfiles,
 } from '../storage'
@@ -43,10 +40,8 @@ import {
   playKillerHitSound,
   playKillerEliminatedSound,
   playTriple20Sound,
-  setSpeechEnabled,
-  isSpeechEnabled,
-  initSpeech,
 } from '../speech'
+import { useGameState } from '../hooks/useGameState'
 import { computeKillerMatchStats } from '../stats/computeKillerStats'
 import type { KillerStoredMatch } from '../types/killer'
 import GameControls, { PauseOverlay } from '../components/GameControls'
@@ -91,26 +86,6 @@ type Props = {
 }
 
 export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
-  // --- Pause-Modus ---
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'killer'))
-
-  useEffect(() => {
-    if (!gamePaused) {
-      clearMatchPaused(matchId, 'killer')
-    }
-  }, [gamePaused, matchId])
-
-  // --- Mute / Speech ---
-  const [muted, setMuted] = useState(() => !isSpeechEnabled())
-
-  useEffect(() => {
-    initSpeech()
-  }, [])
-
-  useEffect(() => {
-    setSpeechEnabled(!muted)
-  }, [muted])
-
   // --- Intermission (Leg-Ende) ---
   const [intermission, setIntermission] = useState<{
     legWinnerId: string
@@ -130,9 +105,6 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const multRef = useRef(mult)
 
-  // Timer
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'killer'))
-
   // Nummern-Buffer fuer zweistellige Eingabe (10-20)
   const numBufferRef = useRef('')
   const numTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -149,6 +121,13 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
 
   // State aus Events ableiten
   const state = useMemo(() => applyKillerEvents(events), [events])
+
+  // --- Shared game state (pause, mute, timer, visibility) ---
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs } = useGameState({
+    matchId,
+    mode: 'killer',
+    finished: state.phase === 'finished',
+  })
 
   const players = state.players
   const config = state.config
@@ -202,26 +181,6 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
   useEffect(() => {
     multRef.current = mult
   }, [mult])
-
-  // Auto-Pause bei Tab-Wechsel
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setGamePaused(true)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // Timer
-  useEffect(() => {
-    if (gamePaused || state.phase === 'finished') return
-    const timer = setInterval(() => {
-      setElapsedMs(prev => prev + 100)
-    }, 100)
-    return () => clearInterval(timer)
-  }, [gamePaused, state.phase])
 
   // Log auto-scroll
   const logRef = useRef<HTMLDivElement>(null)

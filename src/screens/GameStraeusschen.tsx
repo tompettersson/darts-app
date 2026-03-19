@@ -3,15 +3,12 @@
 // Tastatur: Space=Treffer, 0=Miss, Backspace=Undo, P=Pause, Escape=Exit
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useTheme } from '../ThemeProvider'
+import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getStrMatchById,
   persistStrEvents,
   finishStrMatch,
-  isMatchPaused,
   setMatchPaused,
-  clearMatchPaused,
-  getMatchElapsedTime,
   setMatchElapsedTime,
   deleteStrMatch,
   getProfiles,
@@ -36,8 +33,6 @@ import StraeusschenDartboard from '../components/StraeusschenDartboard'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import { computeStrLegStats, type StrPlayerLegStat } from '../stats/computeStraeusschenStats'
 import {
-  isSpeechEnabled,
-  setSpeechEnabled,
   announceGameStart,
   announceStrPlayerDone,
   announceStrPlayerTurn,
@@ -77,36 +72,23 @@ type Props = {
 }
 
 export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Props) {
-  const { isArcade, colors } = useTheme()
-
-  const c = useMemo(() => ({
-    bg: colors.bg,
-    cardBg: colors.bgCard,
-    ledOn: colors.ledOn,
-    ledGlow: colors.ledGlow,
-    green: colors.success,
-    red: colors.error,
-    textDim: colors.fgDim,
-    textBright: colors.fg,
-    yellow: colors.scoreYellow,
-    border: colors.border,
-    accent: colors.accent,
-  }), [colors])
-
-  // Pause
-  const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'str'))
-
-  useEffect(() => {
-    if (!gamePaused) clearMatchPaused(matchId, 'str')
-  }, [gamePaused, matchId])
+  const { c, isArcade, colors } = useGameColors()
 
   // Events + State
   const storedMatch = getStrMatchById(matchId)
   const [events, setEvents] = useState<StrEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<StrDart[]>([])
 
-  // Timer
-  const [elapsedMs, setElapsedMs] = useState(() => getMatchElapsedTime(matchId, 'str'))
+  // State ableiten (before useGameState, because we need `state.finished`)
+  const state = applyStrEvents(events)
+
+  // Shared game state (pause, timer, speech/mute, visibility)
+  const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
+    matchId,
+    mode: 'str',
+    finished: state.finished,
+  })
+
   const [legStartElapsedMs, setLegStartElapsedMs] = useState(0)
 
   // Intermission (Leg-Zusammenfassung)
@@ -115,15 +97,10 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
   // Spieler-fertig-Zusammenfassung
   const [playerDoneInfo, setPlayerDoneInfo] = useState<StrPlayerDoneInfo | null>(null)
 
-  // Speech / Mute
-  const [muted, setMuted] = useState(() => !isSpeechEnabled())
-
   // Zahlenwahl-Overlay (für 'free' mode)
   const [showNumberPicker, setShowNumberPicker] = useState(false)
   const pendingNextNumberRef = useRef<{ darts: StrDart[] } | null>(null)
 
-  // State ableiten
-  const state = applyStrEvents(events)
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = getActivePlayer(state)
   const availableDarts = activePlayerId ? getAvailableDarts(state, activePlayerId) : 0
@@ -148,20 +125,6 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
     })
     return colors
   }, [state.match, profiles])
-
-  // Auto-Pause bei Tab-Wechsel
-  useEffect(() => {
-    const handle = () => { if (document.hidden) setGamePaused(true) }
-    document.addEventListener('visibilitychange', handle)
-    return () => document.removeEventListener('visibilitychange', handle)
-  }, [])
-
-  // Timer: +100ms wenn nicht pausiert
-  useEffect(() => {
-    if (gamePaused || state.finished) return
-    const timer = setInterval(() => setElapsedMs(prev => prev + 100), 100)
-    return () => clearInterval(timer)
-  }, [gamePaused, state.finished])
 
   // "[Name], throw first! Game on!" am Spielstart
   const gameOnAnnouncedRef = useRef(false)
@@ -420,7 +383,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
         isPaused={gamePaused}
         onTogglePause={() => setGamePaused(p => !p)}
         isMuted={muted}
-        onToggleMute={() => { const next = !muted; setMuted(next); setSpeechEnabled(!next) }}
+        onToggleMute={() => setMuted(m => !m)}
         onExit={() => {
           setMatchPaused(matchId, 'str', true)
           setMatchElapsedTime(matchId, 'str', elapsedMs)
