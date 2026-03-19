@@ -153,6 +153,9 @@ export function applyCSSVariables(theme: AppTheme): void {
   // Set data attribute for CSS selectors
   root.setAttribute('data-theme', theme)
 
+  // Set body background immediately to prevent white flash
+  document.body.style.background = colors.bg
+
   // Set font family
   root.style.setProperty('--theme-font', font)
   root.style.fontFamily = font

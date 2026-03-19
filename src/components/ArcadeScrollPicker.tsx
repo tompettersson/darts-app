@@ -22,6 +22,12 @@ export default function ArcadeScrollPicker({ items, selectedIndex, onChange, onC
   const touchStartY = useRef(0)
   const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Auto-focus on mount so keyboard navigation works immediately
+  useEffect(() => {
+    const timer = setTimeout(() => containerRef.current?.focus(), 50)
+    return () => clearTimeout(timer)
+  }, [])
+
   const clamp = (idx: number) => Math.max(0, Math.min(items.length - 1, idx))
 
   // Keyboard navigation — scoped to the focused container, not window
