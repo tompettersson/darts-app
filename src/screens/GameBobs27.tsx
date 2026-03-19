@@ -25,7 +25,7 @@ import {
   type Bobs27ThrowResult,
 } from '../dartsBobs27'
 import GameControls, { PauseOverlay } from '../components/GameControls'
-import { announceBobs27PlayerTurn, announceBobs27MustScore, announceGameStart, cancelPendingSpeech } from '../speech'
+import { announceBobs27PlayerTurn, announceBobs27MustScore, announceGameStart, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
 
 type MultiplayerProp = {
@@ -181,8 +181,10 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
     if (key !== lastAnnouncedKeyRef.current) {
       lastAnnouncedKeyRef.current = key
-      announceBobs27PlayerTurn(activePlayer.name, activePlayerState.score, currentTarget.label)
-      if (mustScore) announceBobs27MustScore()
+      debouncedAnnounce(() => {
+        announceBobs27PlayerTurn(activePlayer.name, activePlayerState.score, currentTarget.label)
+        if (mustScore) announceBobs27MustScore()
+      })
     }
   }, [activePlayer, activePlayerState, currentTarget, state.finished, gamePaused, matchEndDelay, state.match])
 
@@ -257,7 +259,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
     // Ausstehende Sprachansagen abbrechen
     clearSpeechTimers()
-    cancelPendingSpeech()
+    cancelDebouncedAnnounce()
 
     const trimmed = events.slice(0, cutIndex)
     setEvents(trimmed)

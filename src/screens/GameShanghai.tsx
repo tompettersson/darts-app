@@ -40,6 +40,8 @@ import {
   announceShanghai,
   playTriple20Sound,
   playShanghaiDrumRoll,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
 
@@ -137,14 +139,17 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
     if (lastAnnouncedPlayerRef.current !== activePlayerId) {
       lastAnnouncedPlayerRef.current = activePlayerId
 
-      // Neue Runde? -> Zielzahl + Name ansagen
-      if (currentRound !== lastAnnouncedRoundRef.current) {
-        lastAnnouncedRoundRef.current = currentRound
-        announceShanghaiRoundAndPlayer(targetNumber, activePlayer.name)
-      } else {
-        // Gleiche Runde, nur Spielerwechsel -> nur Name
-        announceShanghaiPlayerTurn(activePlayer.name)
-      }
+      // Debounced (verhindert Stacking bei schnellem Undo)
+      debouncedAnnounce(() => {
+        // Neue Runde? -> Zielzahl + Name ansagen
+        if (currentRound !== lastAnnouncedRoundRef.current) {
+          lastAnnouncedRoundRef.current = currentRound
+          announceShanghaiRoundAndPlayer(targetNumber, activePlayer.name)
+        } else {
+          // Gleiche Runde, nur Spielerwechsel -> nur Name
+          announceShanghaiPlayerTurn(activePlayer.name)
+        }
+      })
     }
   }, [activePlayerId, activePlayer, state.finished, gamePaused, intermission, currentRound, targetNumber])
 
@@ -335,6 +340,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
     }
 
     if (lastTurnIndex === -1) return // Kein Turn zum Rueckgaengigmachen
+
+    // Ausstehende Sprachansagen abbrechen
+    cancelDebouncedAnnounce()
 
     // Entferne alle Events ab dem letzten Turn (inkl. eventueller RoundFinished/LegFinished etc.)
     const newEvents = events.slice(0, lastTurnIndex)

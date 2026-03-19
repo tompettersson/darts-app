@@ -39,6 +39,8 @@ import {
   announceStrLegWinner,
   announceStrMatchWinner,
   playTriple20Sound,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
 
@@ -286,6 +288,10 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
       if (events[i].type === 'StrTurnAdded') { lastTurnIndex = i; break }
     }
     if (lastTurnIndex === -1) return
+
+    // Ausstehende Sprachansagen abbrechen
+    cancelDebouncedAnnounce()
+
     const newEvents = events.slice(0, lastTurnIndex)
     persistStrEvents(matchId, newEvents)
     setEvents(newEvents)
@@ -772,7 +778,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
             const nextPlayer = getActivePlayer(nextState)
             const nextPs = nextPid ? nextState.playerState[nextPid] : null
             if (nextPlayer && nextPs) {
-              announceStrPlayerTurn(nextPlayer.name, nextPs.currentNumber)
+              debouncedAnnounce(() => announceStrPlayerTurn(nextPlayer.name, nextPs.currentNumber))
             }
           }}
         />

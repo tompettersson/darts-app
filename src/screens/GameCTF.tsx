@@ -43,7 +43,8 @@ import {
   announceCTFLastRounds,
   announceCTFWinner,
   announceCTFMatchEndRankings,
-  cancelPendingSpeech,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import ATBCaptureScoreChart from '../components/ATBCaptureScoreChart'
 
@@ -170,10 +171,10 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
     if (lastAnnouncedPlayerRef.current !== activePlayerId) {
       lastAnnouncedPlayerRef.current = activePlayerId
 
-      // Kurze Verzoegerung fuer natuerlichen Fluss
-      scheduleSpeech(() => {
+      // Debounced fuer natuerlichen Fluss (verhindert Stacking bei schnellem Undo)
+      debouncedAnnounce(() => {
         announceCTFPlayerTurn(activePlayer.name)
-      }, 300)
+      })
     }
   }, [activePlayerId, activePlayer, state.finished])
 
@@ -389,7 +390,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
 
     // Ausstehende Sprachansagen abbrechen
     clearSpeechTimers()
-    cancelPendingSpeech()
+    cancelDebouncedAnnounce()
 
     // Entferne alle Events ab dem letzten Turn (inkl. eventueller RoundFinished/LegFinished etc.)
     const newEvents = events.slice(0, lastTurnIndex)

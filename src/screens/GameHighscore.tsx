@@ -28,7 +28,7 @@ import {
   createHighscoreDart,
 } from '../types/highscore'
 import type { Bed } from '../darts501'
-import { playTriple20Sound, announceGameStart, announceNextPlayer, announceScore, announceLegDart, announceMatchDart } from '../speech'
+import { playTriple20Sound, announceGameStart, announceNextPlayer, announceScore, announceLegDart, announceMatchDart, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
@@ -179,7 +179,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
       const tmpState = applyHighscoreEvents(newEvents)
       const nextPlayer = getActivePlayer(tmpState)
       if (nextPlayer) {
-        setTimeout(() => announceNextPlayer(nextPlayer.name), 600)
+        debouncedAnnounce(() => announceNextPlayer(nextPlayer.name))
       }
     }
 
@@ -246,6 +246,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
 
   // Undo letzter Dart
   const undoLastDart = useCallback(() => {
+    cancelDebouncedAnnounce()
     setCurrentDarts(prev => prev.slice(0, -1))
   }, [])
 

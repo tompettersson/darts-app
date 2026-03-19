@@ -42,6 +42,8 @@ import {
   announceOperationLastRound,
   announceOperationHits,
   playTriple20Sound,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import OperationLegSummary from './OperationLegSummary'
 import { PLAYER_COLORS } from '../playerColors'
@@ -495,7 +497,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
             announceOperationLastRound()
           }
           if (nextPlayer) {
-            announceOperationNextPlayer(nextPlayer.name)
+            debouncedAnnounce(() => announceOperationNextPlayer(nextPlayer.name))
           }
         }
       }
@@ -519,6 +521,9 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
   const undoLast = useCallback(() => {
     if (gamePaused || state.isComplete || matchEndDelay || showLegSummary) return
     if (events.length <= 1) return // Mindestens MatchStarted behalten
+
+    // Ausstehende Sprachansagen abbrechen
+    cancelDebouncedAnnounce()
 
     // Finde letztes OperationDart Event und entferne alles ab dort
     let cutIndex = events.length

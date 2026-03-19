@@ -286,6 +286,31 @@ export function isSpeechEnabled(): boolean {
 }
 
 /**
+ * Debounced Ansage: Wartet die angegebene Zeit ab bevor gesprochen wird.
+ * Wird innerhalb der Wartezeit erneut aufgerufen, wird die vorherige
+ * Ansage verworfen und nur die neue gesprochen. Verhindert "Ansage-Stau"
+ * bei schnellem Undo/Redo.
+ */
+let debouncedTimer: ReturnType<typeof setTimeout> | null = null
+
+export function debouncedAnnounce(fn: () => void, delayMs = 350) {
+  if (debouncedTimer) clearTimeout(debouncedTimer)
+  cancelPendingSpeech()
+  debouncedTimer = setTimeout(() => {
+    debouncedTimer = null
+    fn()
+  }, delayMs)
+}
+
+export function cancelDebouncedAnnounce() {
+  if (debouncedTimer) {
+    clearTimeout(debouncedTimer)
+    debouncedTimer = null
+  }
+  cancelPendingSpeech()
+}
+
+/**
  * Bricht alle ausstehenden Sprachansagen ab (Queue leeren + aktuelle Ansage stoppen).
  */
 export function cancelPendingSpeech() {

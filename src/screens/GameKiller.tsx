@@ -40,6 +40,8 @@ import {
   playKillerHitSound,
   playKillerEliminatedSound,
   playTriple20Sound,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import { useGameState } from '../hooks/useGameState'
 import { computeKillerMatchStats } from '../stats/computeKillerStats'
@@ -201,12 +203,14 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
     if (!ps) return
     const name = playerNames[activePlayerId] ?? ''
 
-    if (state.phase === 'qualifying' && !ps.isKiller && ps.targetNumber !== null) {
-      const ring = config.qualifyingRing === 'TRIPLE' ? 'Triple' : 'Double'
-      announceKillerQualifyingTurn(name, ps.targetNumber, ring)
-    } else {
-      announceKillerPlayerTurn(name)
-    }
+    debouncedAnnounce(() => {
+      if (state.phase === 'qualifying' && !ps.isKiller && ps.targetNumber !== null) {
+        const ring = config.qualifyingRing === 'TRIPLE' ? 'Triple' : 'Double'
+        announceKillerQualifyingTurn(name, ps.targetNumber, ring)
+      } else {
+        announceKillerPlayerTurn(name)
+      }
+    })
   }, [activePlayerId, muted, gamePaused, intermission, state.phase, players, playerNames, config.qualifyingRing])
 
   if (!storedMatch) {
@@ -408,6 +412,9 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
       }
     }
     if (lastTurnIndex === -1) return
+
+    // Ausstehende Sprachansagen abbrechen
+    cancelDebouncedAnnounce()
 
     // Entferne alle Events ab dem letzten Turn
     const newEvents = events.slice(0, lastTurnIndex)

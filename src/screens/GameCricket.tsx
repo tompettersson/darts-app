@@ -31,7 +31,7 @@ import CricketProgressChart, { prepareCricketChartData, CRICKET_TARGETS } from '
 import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '../components/CricketGanttChart'
 import CricketTurnList, { formatDartLabel, computeMarksDetail, type CricketTurnEntry } from '../components/CricketTurnList'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
-import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound } from '../speech'
+import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import './game.css'
 
 type Props = {
@@ -2447,7 +2447,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
       const nextState = applyCricketEvents(nextEvents)
       const nextActiveId = currentPlayerId(nextState) ?? order[0]
       const nextActivePlayer = match.players.find(p => p.playerId === nextActiveId)
-      setTimeout(() => announceNextPlayer(nextActivePlayer?.name ?? nextActiveId), 400 + closedDelay)
+      debouncedAnnounce(() => announceNextPlayer(nextActivePlayer?.name ?? nextActiveId))
     }
 
     // Crazy-Target-Ansage für den NÄCHSTEN Turn (nur wenn kein Leg/Match gewonnen)
@@ -2541,6 +2541,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
 
   function undoLastTurn() {
     if (events.length === 0) return
+    cancelDebouncedAnnounce()
     const next = [...events]
     let removedTurn = false
     // poppe MatchFinished / LegFinished / letzten Turn

@@ -41,6 +41,8 @@ import {
   announceATBEliminated,
   announceATBMissBack,
   playTriple20Sound,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import { computeATBDetailedStats, type ATBDetailedStats } from '../stats/computeATBStats'
 import { PLAYER_COLORS } from '../playerColors'
@@ -184,10 +186,10 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
       lastAnnouncedPlayerRef.current = activePlayerId
       lastAnnouncedTargetRef.current = currentTarget
 
-      // Kurze Verzögerung für natürlichen Fluss
-      setTimeout(() => {
+      // Debounced für natürlichen Fluss (verhindert Stacking bei schnellem Undo)
+      debouncedAnnounce(() => {
         announceATBPlayerTurn(activePlayer.name, currentTarget)
-      }, 300)
+      })
     }
   }, [activePlayerId, activePlayer, state.finished, state.match?.sequence, state.match?.extendedSequence, state.currentIndexByPlayer])
 
@@ -465,6 +467,9 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
     }
 
     if (lastTurnIndex === -1) return // Kein Turn zum Rückgängigmachen
+
+    // Ausstehende Sprachansagen abbrechen
+    cancelDebouncedAnnounce()
 
     // Entferne alle Events ab dem letzten Turn (inkl. eventueller LegFinished etc.)
     const newEvents = events.slice(0, lastTurnIndex)

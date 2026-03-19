@@ -66,6 +66,8 @@ import {
   playTriple20Sound,
   announceDouble,
   announcePlayerFinishArea,
+  cancelDebouncedAnnounce,
+  debouncedAnnounce,
 } from '../speech'
 import ConnectionBadge from '../multiplayer/ConnectionBadge'
 import X01EndScreen from '../components/X01EndScreen'
@@ -1129,6 +1131,9 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
     const removeCount = events.length - lastVisitIdx
     const newEvents = events.slice(0, lastVisitIdx)
 
+    // Ausstehende Sprachansagen abbrechen
+    cancelDebouncedAnnounce()
+
     if (multiplayer?.enabled) {
       // Multiplayer: Send undo to server, wait for broadcast
       multiplayer.undo(removeCount)
@@ -1502,10 +1507,10 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           if (match.players.length > 1) {
             // Im Finish-Bereich (≤170): Name + Rest-Score ansagen
             if (nextRemaining <= 170) {
-              setTimeout(() => announcePlayerFinishArea(nextPlayerName, nextRemaining), 600)
+              debouncedAnnounce(() => announcePlayerFinishArea(nextPlayerName, nextRemaining))
             } else {
               // Sonst nur Name ansagen
-              setTimeout(() => announceNextPlayer(nextPlayerName), 600)
+              debouncedAnnounce(() => announceNextPlayer(nextPlayerName))
             }
           }
 
