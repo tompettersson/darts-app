@@ -12,11 +12,12 @@ import Accordion from '../components/Accordion'
 // SQL Stats Tabs
 import SQLStatsTab from './stats/SQLStatsTab'
 import AdvancedStatsTab from './stats/AdvancedStatsTab'
+const PlayerInsightsTab = React.lazy(() => import('./stats/PlayerInsightsTab'))
 
 // SQL Stats Hook
 import { useSQLStats, formatDuration } from '../hooks/useSQLStats'
 
-type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'speziell' | 'trends' | 'analyse' | 'erfolge' | 'training'
+type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'speziell' | 'trends' | 'analyse' | 'erfolge' | 'training' | 'insights'
 
 export default function StatsProfile({
   onOpenMatch,
@@ -239,6 +240,7 @@ export default function StatsProfile({
     { key: 'atb', label: 'ATB' },
     { key: 'ctf', label: 'CTF' },
     { key: 'speziell', label: 'Speziell' },
+    { key: 'insights', label: 'Spielerprofil' },
     { key: 'trends', label: 'Trends' },
     { key: 'analyse', label: 'Analyse' },
     { key: 'erfolge', label: 'Erfolge' },
@@ -1908,6 +1910,13 @@ export default function StatsProfile({
           </>
           )
         })()}
+
+        {/* ============ SPIELERPROFIL / INSIGHTS ============ */}
+        {activeTab === 'insights' && selected && !sqlStats.loading && (
+          <React.Suspense fallback={<div style={{ padding: 20, textAlign: 'center', color: colors.fgDim }}>Laden...</div>}>
+            <PlayerInsightsTab playerId={selected.id} data={sqlStats.data} />
+          </React.Suspense>
+        )}
 
         {/* ============ TRENDS (SQL-basiert) ============ */}
         {activeTab === 'trends' && selected && (

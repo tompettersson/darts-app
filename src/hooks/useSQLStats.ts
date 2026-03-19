@@ -60,6 +60,21 @@ import {
   type CrossGameH2H,
   type TimeInsights,
   type TrainingRecommendation,
+  // Player Insights
+  getFieldAccuracy,
+  getDoubleSuccessPerField,
+  getPlayerTypeProfile,
+  getCrossGameWinRates,
+  getTimeOfDayStats,
+  getDayOfWeekPerformance,
+  getPlayerMilestones,
+  type FieldAccuracy,
+  type DoubleFieldSuccess,
+  type PlayerTypeProfile,
+  type CrossGameWinRate,
+  type TimeOfDayStats,
+  type DayOfWeekPerformance,
+  type Milestone,
 } from '../db/stats'
 
 export type ATBBestTime = {
@@ -108,6 +123,14 @@ export type SQLStatsData = {
   crossGameH2H: CrossGameH2H[]
   timeInsights: TimeInsights | null
   trainingRecommendations: TrainingRecommendation[]
+  // Player Insights
+  fieldAccuracy: FieldAccuracy[]
+  doubleSuccessPerField: DoubleFieldSuccess[]
+  playerTypeProfile: PlayerTypeProfile | null
+  crossGameWinRates: CrossGameWinRate[]
+  timeOfDayStats: TimeOfDayStats[]
+  dayOfWeekPerformance: DayOfWeekPerformance[]
+  milestones: Milestone[]
 }
 
 export type SQLStatsState = {
@@ -149,6 +172,14 @@ const emptyData: SQLStatsData = {
   crossGameH2H: [],
   timeInsights: null,
   trainingRecommendations: [],
+  // Player Insights
+  fieldAccuracy: [],
+  doubleSuccessPerField: [],
+  playerTypeProfile: null,
+  crossGameWinRates: [],
+  timeOfDayStats: [],
+  dayOfWeekPerformance: [],
+  milestones: [],
 }
 
 /**
@@ -184,6 +215,9 @@ export function useSQLStats(playerId: string | undefined): SQLStatsState {
           formCurve, sessionPerf, checkoutByRemaining, clutchStats,
           cricketFieldMPR, bobs27Progression, bobs27DoubleWeakness,
           fullAchievements, crossGameH2H, timeInsights, trainingRecommendations,
+          // Player Insights
+          fieldAccuracy, doubleSuccessPerField, playerTypeProfile,
+          crossGameWinRates, timeOfDayStats, dayOfWeekPerformance, milestones,
         ] = await Promise.all([
           getGeneralPlayerStats(pid),
           getX01FullStats(pid),
@@ -219,6 +253,14 @@ export function useSQLStats(playerId: string | undefined): SQLStatsState {
           getCrossGameHeadToHead(pid),
           getTimeInsights(pid),
           getTrainingRecommendations(pid),
+          // Player Insights
+          getFieldAccuracy(pid).catch(() => []),
+          getDoubleSuccessPerField(pid).catch(() => []),
+          getPlayerTypeProfile(pid).catch(() => null),
+          getCrossGameWinRates(pid).catch(() => []),
+          getTimeOfDayStats(pid).catch(() => []),
+          getDayOfWeekPerformance(pid).catch(() => []),
+          getPlayerMilestones(pid).catch(() => []),
         ])
 
         if (!cancelled) {
@@ -234,6 +276,8 @@ export function useSQLStats(playerId: string | undefined): SQLStatsState {
               checkoutByRemaining, clutchStats,
               cricketFieldMPR, bobs27Progression, bobs27DoubleWeakness,
               fullAchievements, crossGameH2H, timeInsights, trainingRecommendations,
+              fieldAccuracy, doubleSuccessPerField, playerTypeProfile,
+              crossGameWinRates, timeOfDayStats, dayOfWeekPerformance, milestones,
             },
           })
         }
