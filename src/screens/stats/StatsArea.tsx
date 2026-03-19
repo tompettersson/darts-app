@@ -2,28 +2,29 @@
 // Komplett ausgelagerter Statistikbereich (Untermenü + Subscreens)
 // App.tsx bleibt dadurch schlank.
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, Suspense } from 'react'
 import { ui, getThemedUI } from '../../ui'
 import { useTheme } from '../../ThemeProvider'
 import ArcadeScrollPicker, { type PickerItem } from '../../components/ArcadeScrollPicker'
 
-// Screens (bestehend)
-import StatsDashboard, { type H2HState } from './StatsDashboard'
-import PlayersOverview from './PlayersOverview'
-import StatsProfile from '../StatsProfile'
-import MatchDetails from '../MatchDetails'
-import ATBMatchDetails from '../ATBMatchDetails'
-import StrMatchDetails from '../StrMatchDetails'
-import HighscoreMatchDetails from '../HighscoreMatchDetails'
-import CTFMatchDetails from '../CTFMatchDetails'
-import ShanghaiMatchDetails from '../ShanghaiMatchDetails'
-import KillerSummary from '../KillerSummary'
-import Bobs27MatchDetails from '../Bobs27MatchDetails'
-import OperationMatchDetails from '../OperationMatchDetails'
-import HallOfFame from '../HallOfFame'
+// H2HState Type-Import (nur Typ, kein Code-Bundle)
+import type { H2HState } from './StatsDashboard'
 
-// Match History (bei dir liegt es unter /screens)
-import MatchHistory from '../MatchHistory'
+// Lazy-loaded Screens (nur bei Bedarf geladen)
+const StatsDashboard = React.lazy(() => import('./StatsDashboard'))
+const PlayersOverview = React.lazy(() => import('./PlayersOverview'))
+const StatsProfile = React.lazy(() => import('../StatsProfile'))
+const MatchDetails = React.lazy(() => import('../MatchDetails'))
+const ATBMatchDetails = React.lazy(() => import('../ATBMatchDetails'))
+const StrMatchDetails = React.lazy(() => import('../StrMatchDetails'))
+const HighscoreMatchDetails = React.lazy(() => import('../HighscoreMatchDetails'))
+const CTFMatchDetails = React.lazy(() => import('../CTFMatchDetails'))
+const ShanghaiMatchDetails = React.lazy(() => import('../ShanghaiMatchDetails'))
+const KillerSummary = React.lazy(() => import('../KillerSummary'))
+const Bobs27MatchDetails = React.lazy(() => import('../Bobs27MatchDetails'))
+const OperationMatchDetails = React.lazy(() => import('../OperationMatchDetails'))
+const HallOfFame = React.lazy(() => import('../HallOfFame'))
+const MatchHistory = React.lazy(() => import('../MatchHistory'))
 
 type View =
   | 'stats-menu'
@@ -177,190 +178,205 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
     )
   }
 
+  // ---------- Suspense Fallback ----------
+  const suspenseFallback = (
+    <div style={{ ...styles.page, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
+      <div style={{ color: colors.fgDim, fontSize: 14 }}>Laden...</div>
+    </div>
+  )
+
   // ---------- DASHBOARD ----------
   if (view === 'stats-dashboard') {
     return (
-      <StatsDashboard
-        onBack={() => setView('stats-menu')}
-        onShowPlayer={(pid: string) => {
-          setPlayerProfileId(pid)
-          setView('player-profile')
-        }}
-        onOpenMatch={(id: string) => {
-          setDetailMatchId(id)
-          setReturnFromMatchDetails('stats-dashboard')
-          setView('match-details')
-        }}
-        onOpenCricketMatch={(id: string) => {
-          onOpenCricketMatch(id, 'stats-dashboard')
-        }}
-        onOpenHallOfFame={() => {
-          setView('hall-of-fame')
-        }}
-        h2hState={h2hState}
-        onH2HStateChange={setH2HState}
-      />
+      <Suspense fallback={suspenseFallback}>
+        <StatsDashboard
+          onBack={() => setView('stats-menu')}
+          onShowPlayer={(pid: string) => {
+            setPlayerProfileId(pid)
+            setView('player-profile')
+          }}
+          onOpenMatch={(id: string) => {
+            setDetailMatchId(id)
+            setReturnFromMatchDetails('stats-dashboard')
+            setView('match-details')
+          }}
+          onOpenCricketMatch={(id: string) => {
+            onOpenCricketMatch(id, 'stats-dashboard')
+          }}
+          onOpenHallOfFame={() => {
+            setView('hall-of-fame')
+          }}
+          h2hState={h2hState}
+          onH2HStateChange={setH2HState}
+        />
+      </Suspense>
     )
   }
 
   // ---------- MATCH HISTORY ----------
   if (view === 'match-history') {
     return (
-      <div style={styles.page}>
-        <div style={styles.centerPage}>
-          <div style={styles.centerInnerWide}>
-            <MatchHistory
-              onBack={() => setView('stats-menu')}
-              onOpenX01Match={(id: string) => {
-                setDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('match-details')
-              }}
-              onOpenCricketMatch={(id: string) => {
-                onOpenCricketMatch(id, 'match-history')
-              }}
-              onOpenATBMatch={(id: string) => {
-                setAtbDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('atb-match-details')
-              }}
-              onOpenStrMatch={(id: string) => {
-                setStrDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('str-match-details')
-              }}
-              onOpenHighscoreMatch={(id: string) => {
-                setHighscoreDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('highscore-match-details')
-              }}
-              onOpenCTFMatch={(id: string) => {
-                setCtfDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('ctf-match-details')
-              }}
-              onOpenShanghaiMatch={(id: string) => {
-                setShanghaiDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('shanghai-match-details')
-              }}
-              onOpenKillerMatch={(id: string) => {
-                setKillerDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('killer-match-details')
-              }}
-              onOpenBobs27Match={(id: string) => {
-                setBobs27DetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('bobs27-match-details')
-              }}
-              onOpenOperationMatch={(id: string) => {
-                setOperationDetailMatchId(id)
-                setReturnFromMatchDetails('match-history')
-                setView('operation-match-details')
-              }}
-            />
+      <Suspense fallback={suspenseFallback}>
+        <div style={styles.page}>
+          <div style={styles.centerPage}>
+            <div style={styles.centerInnerWide}>
+              <MatchHistory
+                onBack={() => setView('stats-menu')}
+                onOpenX01Match={(id: string) => {
+                  setDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('match-details')
+                }}
+                onOpenCricketMatch={(id: string) => {
+                  onOpenCricketMatch(id, 'match-history')
+                }}
+                onOpenATBMatch={(id: string) => {
+                  setAtbDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('atb-match-details')
+                }}
+                onOpenStrMatch={(id: string) => {
+                  setStrDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('str-match-details')
+                }}
+                onOpenHighscoreMatch={(id: string) => {
+                  setHighscoreDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('highscore-match-details')
+                }}
+                onOpenCTFMatch={(id: string) => {
+                  setCtfDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('ctf-match-details')
+                }}
+                onOpenShanghaiMatch={(id: string) => {
+                  setShanghaiDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('shanghai-match-details')
+                }}
+                onOpenKillerMatch={(id: string) => {
+                  setKillerDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('killer-match-details')
+                }}
+                onOpenBobs27Match={(id: string) => {
+                  setBobs27DetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('bobs27-match-details')
+                }}
+                onOpenOperationMatch={(id: string) => {
+                  setOperationDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('operation-match-details')
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </Suspense>
     )
   }
 
   // ---------- PLAYERS OVERVIEW ----------
   if (view === 'players-overview') {
     return (
-      <div style={styles.page}>
-        <div style={styles.headerRow}>
-          <h2 style={{ margin: 0, color: colors.fg }}>Spielerübersicht</h2>
-          <button style={styles.backBtn} onClick={() => setView('stats-menu')}>
-            ← Zurück
-          </button>
-        </div>
+      <Suspense fallback={suspenseFallback}>
+        <div style={styles.page}>
+          <div style={styles.headerRow}>
+            <h2 style={{ margin: 0, color: colors.fg }}>Spielerübersicht</h2>
+            <button style={styles.backBtn} onClick={() => setView('stats-menu')}>
+              ← Zurück
+            </button>
+          </div>
 
-        <div style={styles.centerPage}>
-          <div style={styles.centerInnerWide}>
-            <PlayersOverview
-              onSelectPlayer={(pid: string) => {
-                setPlayerProfileId(pid)
-                setView('player-profile')
-              }}
-            />
+          <div style={styles.centerPage}>
+            <div style={styles.centerInnerWide}>
+              <PlayersOverview
+                onSelectPlayer={(pid: string) => {
+                  setPlayerProfileId(pid)
+                  setView('player-profile')
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </Suspense>
     )
   }
 
   // ---------- PLAYER PROFILE (neue StatsProfile Komponente) ----------
   if (view === 'player-profile') {
     return (
-      <div style={styles.page}>
-        <div style={styles.headerRow}>
-          <h2 style={{ margin: 0, color: colors.fg }}>Spieler-Statistiken</h2>
-          <button style={styles.backBtn} onClick={() => setView('stats-menu')}>
-            ← Zurück
-          </button>
-        </div>
+      <Suspense fallback={suspenseFallback}>
+        <div style={styles.page}>
+          <div style={styles.headerRow}>
+            <h2 style={{ margin: 0, color: colors.fg }}>Spieler-Statistiken</h2>
+            <button style={styles.backBtn} onClick={() => setView('stats-menu')}>
+              ← Zurück
+            </button>
+          </div>
 
-        <StatsProfile
-          onOpenMatch={(matchId: string) => {
-            setDetailMatchId(matchId)
-            setReturnFromMatchDetails('player-profile')
-            setView('match-details')
-          }}
-        />
-      </div>
+          <StatsProfile
+            onOpenMatch={(matchId: string) => {
+              setDetailMatchId(matchId)
+              setReturnFromMatchDetails('player-profile')
+              setView('match-details')
+            }}
+          />
+        </div>
+      </Suspense>
     )
   }
 
   // ---------- HALL OF FAME ----------
   if (view === 'hall-of-fame') {
-    return <HallOfFame onBack={() => setView('stats-menu')} />
+    return <Suspense fallback={suspenseFallback}><HallOfFame onBack={() => setView('stats-menu')} /></Suspense>
   }
 
   // ---------- MATCH DETAILS (X01) ----------
   if (view === 'match-details' && detailMatchId) {
-    return <MatchDetails matchId={detailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><MatchDetails matchId={detailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- ATB MATCH DETAILS ----------
   if (view === 'atb-match-details' && atbDetailMatchId) {
-    return <ATBMatchDetails matchId={atbDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><ATBMatchDetails matchId={atbDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- STRÄUSSCHEN MATCH DETAILS ----------
   if (view === 'str-match-details' && strDetailMatchId) {
-    return <StrMatchDetails matchId={strDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><StrMatchDetails matchId={strDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- HIGHSCORE MATCH DETAILS ----------
   if (view === 'highscore-match-details' && highscoreDetailMatchId) {
-    return <HighscoreMatchDetails matchId={highscoreDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><HighscoreMatchDetails matchId={highscoreDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- CTF MATCH DETAILS ----------
   if (view === 'ctf-match-details' && ctfDetailMatchId) {
-    return <CTFMatchDetails matchId={ctfDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><CTFMatchDetails matchId={ctfDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- SHANGHAI MATCH DETAILS ----------
   if (view === 'shanghai-match-details' && shanghaiDetailMatchId) {
-    return <ShanghaiMatchDetails matchId={shanghaiDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><ShanghaiMatchDetails matchId={shanghaiDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- KILLER MATCH DETAILS ----------
   if (view === 'killer-match-details' && killerDetailMatchId) {
-    return <KillerSummary matchId={killerDetailMatchId} onBack={() => setView(returnFromMatchDetails)} readOnly />
+    return <Suspense fallback={suspenseFallback}><KillerSummary matchId={killerDetailMatchId} onBack={() => setView(returnFromMatchDetails)} readOnly /></Suspense>
   }
 
   // ---------- BOB'S 27 MATCH DETAILS ----------
   if (view === 'bobs27-match-details' && bobs27DetailMatchId) {
-    return <Bobs27MatchDetails matchId={bobs27DetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><Bobs27MatchDetails matchId={bobs27DetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- OPERATION MATCH DETAILS ----------
   if (view === 'operation-match-details' && operationDetailMatchId) {
-    return <OperationMatchDetails matchId={operationDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+    return <Suspense fallback={suspenseFallback}><OperationMatchDetails matchId={operationDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // Fallback

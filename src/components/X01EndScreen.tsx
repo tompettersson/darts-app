@@ -1,0 +1,398 @@
+// src/components/X01EndScreen.tsx
+// Extracted end screen component for X01 matches
+
+import React, { useState } from 'react'
+import {
+  applyEvents,
+  computeStats,
+  type DartsEvent,
+  type MatchStarted,
+  type VisitAdded,
+  isVisitAdded,
+  isLegStarted,
+  isLegFinished,
+  isSetStarted,
+  isSetFinished,
+} from '../darts501'
+import { setMatchMetadata } from '../storage'
+import type { StoredMatch } from '../storage'
+
+// --- Helpers (moved from Game.tsx, only used in endscreen) ---
+
+function getMedal(
+  playerId: string,
+  scoreForRank: Record<string, number>,
+  sortedByScore: { playerId: string }[]
+): string {
+  const playerScore = scoreForRank[playerId] ?? 0
+  const rank1Score = scoreForRank[sortedByScore[0]?.playerId] ?? 0
+  const rank2Score = sortedByScore.length > 1 ? (scoreForRank[sortedByScore[1]?.playerId] ?? 0) : -1
+  const rank3Score = sortedByScore.length > 2 ? (scoreForRank[sortedByScore[2]?.playerId] ?? 0) : -1
+
+  if (playerScore === rank1Score) return '\u{1F947}'
+  if (playerScore === rank2Score) return '\u{1F948}'
+  if (sortedByScore.length > 2 && playerScore === rank3Score) return '\u{1F949}'
+  return '\u2014'
+}
+
+function computePointsPerLegAvg(events: DartsEvent[], playerId: string): number {
+  const byLeg = new Map<string, number>()
+  for (const e of events) {
+    if (!isVisitAdded(e)) continue
+    if (e.playerId !== playerId) continue
+    byLeg.set(e.legId, (byLeg.get(e.legId) ?? 0) + (e.visitScore ?? 0))
+  }
+  if (byLeg.size === 0) return 0
+  const sum = Array.from(byLeg.values()).reduce((a, b) => a + b, 0)
+  return sum / byLeg.size
+}
+
+function computeMostHitField(allEvents: DartsEvent[], legId: string | null, playerId: string): string {
+  const hitCount: Record<string, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && (legId === null || e.legId === legId)
+  )
+  for (const v of visits) {
+    for (const d of v.darts) {
+      if (d.bed === 'MISS') continue
+      const key = d.bed === 'BULL' || d.bed === 'DBULL' ? 'Bull' : String(d.bed)
+      hitCount[key] = (hitCount[key] ?? 0) + 1
+    }
+  }
+  const sorted = Object.entries(hitCount).sort((a, b) => b[1] - a[1])
+  if (sorted.length === 0) return '\u2013'
+  return `${sorted[0][0]} (${sorted[0][1]}\u00D7)`
+}
+
+function computeMostCommonScore(allEvents: DartsEvent[], legId: string | null, playerId: string): string {
+  const scoreCount: Record<number, number> = {}
+  const visits = allEvents.filter((e): e is VisitAdded =>
+    isVisitAdded(e) && e.playerId === playerId && !e.bust && (legId === null || e.legId === legId)
+  )
+  for (const v of visits) {
+    scoreCount[v.visitScore] = (scoreCount[v.visitScore] ?? 0) + 1
+  }
+  const sorted = Object.entries(scoreCount).sort((a, b) => Number(b[1]) - Number(a[1]))
+  if (sorted.length === 0) return '\u2013'
+  return `${sorted[0][0]} (${sorted[0][1]}\u00D7)`
+}
+
+function computeLegsAndSetsScore(match: MatchStarted, state: ReturnType<typeof applyEvents>) {
+  const players = match.players.map((p) => p.playerId)
+  const setsWon: Record<string, number> = Object.fromEntries(players.map((pid) => [pid, 0]))
+  for (const s of state.sets) if (s.winnerPlayerId) setsWon[s.winnerPlayerId] = (setsWon[s.winnerPlayerId] ?? 0) + 1
+
+  let legsWonCurrent: Record<string, number>
+  if (match.structure.kind === 'legs') {
+    const allLegs: Record<string, number> = Object.fromEntries(players.map((pid) => [pid, 0]))
+    for (const L of state.legs) if (L.winnerPlayerId) allLegs[L.winnerPlayerId]++
+    legsWonCurrent = allLegs
+  } else {
+    const curSet = state.sets[state.sets.length - 1]
+    legsWonCurrent = curSet?.legsWonByPlayer
+      ? { ...curSet.legsWonByPlayer }
+      : Object.fromEntries(players.map((pid) => [pid, 0]))
+  }
+
+  return { legsWonCurrent, setsWon }
+}
+
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
+
+// --- Component ---
+
+type X01EndScreenProps = {
+  matchId: string
+  match: MatchStarted
+  matchStored: StoredMatch | { id: string; title: string; matchName?: string; notes?: string; createdAt: string; events: DartsEvent[]; playerIds: string[]; finished?: boolean }
+  events: DartsEvent[]
+  state: ReturnType<typeof applyEvents>
+  winnerName: string
+  isSets: boolean
+  playerColors: Record<string, string>
+  onExit: () => void
+  isArcade: boolean
+  c: Record<string, string>
+}
+
+export default function X01EndScreen({
+  matchId,
+  match,
+  matchStored,
+  events,
+  state,
+  winnerName,
+  isSets,
+  playerColors,
+  onExit,
+}: X01EndScreenProps) {
+  // Spielname + Bemerkungen Eingabe im Endscreen
+  const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
+  const [endscreenNotes, setEndscreenNotes] = useState(matchStored?.notes ?? '')
+  const [metadataSaved, setMetadataSaved] = useState(
+    matchStored?.matchName !== undefined || matchStored?.notes !== undefined
+  )
+
+  const { legsWonCurrent, setsWon } = computeLegsAndSetsScore(match, state)
+  const statsByPlayer = computeStats(events)
+  const players = match.players
+  const headerCells = players.map((p) => p.name ?? p.playerId)
+
+  type Row = { label: string; values: React.ReactNode[]; compareValues?: number[]; better?: 'high' | 'low' }
+  const rows: Row[] = []
+  const pids = players.map(p => p.playerId)
+
+  // Platzierung berechnen (nach Sets oder Legs sortiert)
+  const scoreForRank = isSets ? setsWon : legsWonCurrent
+  const sortedByScore = [...players].sort((a, b) => (scoreForRank[b.playerId] ?? 0) - (scoreForRank[a.playerId] ?? 0))
+
+  rows.push({
+    label: 'Platz',
+    values: players.map((p) => {
+      return (
+        <span key={p.playerId}>
+          {getMedal(p.playerId, scoreForRank, sortedByScore)}
+        </span>
+      )
+    }),
+  })
+
+  if (isSets) {
+    rows.push({
+      label: 'Sets gewonnen',
+      values: players.map((p) => <span key={p.playerId}>{setsWon[p.playerId] ?? 0}</span>),
+      compareValues: players.map(p => setsWon[p.playerId] ?? 0), better: 'high',
+    })
+  }
+
+  rows.push({
+    label: 'Legs gewonnen (aktuelles/letztes Set)',
+    values: players.map((p) => <span key={p.playerId}>{legsWonCurrent[p.playerId] ?? 0}</span>),
+    compareValues: players.map(p => legsWonCurrent[p.playerId] ?? 0), better: 'high',
+  })
+
+  const checkoutPcts = players.map(p => {
+    const s: any = statsByPlayer[p.playerId] ?? {}
+    const made = s.doublesHitDart ?? 0
+    const att = s.doubleAttemptsDart ?? 0
+    return { pct: att > 0 ? (made / att) * 100 : 0, made, att }
+  })
+  rows.push({
+    label: 'Checkout-Quote (Darts)',
+    values: players.map((p, i) => (
+      <span key={p.playerId}>
+        {checkoutPcts[i].pct.toFixed(1)}% <span className="g-dim">({checkoutPcts[i].made}/{checkoutPcts[i].att})</span>
+      </span>
+    )),
+    compareValues: checkoutPcts.map(c => c.pct), better: 'high',
+  })
+
+  rows.push({
+    label: '3-Dart Average (\u00D8)',
+    values: players.map((p) => (
+      <span key={p.playerId}>{(statsByPlayer[p.playerId]?.threeDartAvg ?? 0).toFixed(2)}</span>
+    )),
+    compareValues: players.map(p => statsByPlayer[p.playerId]?.threeDartAvg ?? 0), better: 'high',
+  })
+
+  rows.push({
+    label: 'First-9 Average (\u00D8)',
+    values: players.map((p) => (
+      <span key={p.playerId}>{(statsByPlayer[p.playerId]?.first9OverallAvg ?? 0).toFixed(2)}</span>
+    )),
+    compareValues: players.map(p => statsByPlayer[p.playerId]?.first9OverallAvg ?? 0), better: 'high',
+  })
+
+  const pointsPerLeg = players.map(p => computePointsPerLegAvg(events, p.playerId))
+  rows.push({
+    label: 'Punkte pro Leg (\u00D8)',
+    values: players.map((p, i) => <span key={p.playerId}>{pointsPerLeg[i].toFixed(1)}</span>),
+    compareValues: pointsPerLeg, better: 'high',
+  })
+
+  // Höchste Aufnahme pro Spieler (über alle Legs)
+  const highestVisitMatch: Record<string, number> = {}
+  for (const p of players) highestVisitMatch[p.playerId] = 0
+  for (const ev of events) {
+    if (isVisitAdded(ev) && !ev.bust && ev.visitScore > (highestVisitMatch[ev.playerId] ?? 0)) {
+      highestVisitMatch[ev.playerId] = ev.visitScore
+    }
+  }
+
+  rows.push({
+    label: 'H\u00F6chste Aufnahme',
+    values: players.map((p) => {
+      const hv = highestVisitMatch[p.playerId] ?? 0
+      return <span key={p.playerId}>{hv > 0 ? hv : '\u2014'}</span>
+    }),
+    compareValues: players.map(p => highestVisitMatch[p.playerId] ?? 0), better: 'high',
+  })
+
+  rows.push({
+    label: 'Bestes Leg',
+    values: players.map((p) => {
+      const best = statsByPlayer[p.playerId]?.bestLegDarts
+      return <span key={p.playerId}>{best ? `${best} Darts` : '\u2014'}</span>
+    }),
+    compareValues: players.map(p => statsByPlayer[p.playerId]?.bestLegDarts ?? Infinity), better: 'low',
+  })
+
+  rows.push({
+    label: 'Meistes Feld',
+    values: players.map((p) => (
+      <span key={p.playerId}>{computeMostHitField(events, null, p.playerId)}</span>
+    )),
+  })
+
+  rows.push({
+    label: 'H\u00E4ufigste Punktzahl',
+    values: players.map((p) => (
+      <span key={p.playerId}>{computeMostCommonScore(events, null, p.playerId)}</span>
+    )),
+  })
+
+  const handleSaveMetadata = () => {
+    const success = setMatchMetadata(matchId, endscreenName, endscreenNotes)
+    if (success) {
+      setMetadataSaved(true)
+    }
+  }
+
+  return (
+    <div className="g-page">
+      <div className="g-header">
+        <h2 className="g-title">
+          {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} \u2013 beendet
+        </h2>
+        <button className="g-btn" onClick={onExit}>
+          Zur\u00FCck ins Men\u00FC
+        </button>
+      </div>
+
+      <div className="g-tableWrap">
+        <table className="g-table">
+          <thead>
+            <tr>
+              <th className="g-th"></th>
+              {headerCells.map((h, i) => (
+                <th key={i} className="g-th">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, ri) => {
+              const winColors = r.better && r.compareValues
+                ? getStatWinnerColors(r.compareValues, pids, r.better, playerColors)
+                : undefined
+              return (
+                <tr key={ri}>
+                  <td className="g-tdh" style={{ fontWeight: 700 }}>
+                    {r.label}
+                  </td>
+                  {r.values.map((v, ci) => (
+                    <td key={ci} className="g-td" style={winColors?.[ci] ? { color: winColors[ci], fontWeight: 700 } : undefined}>
+                      {v}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Spielname + Bemerkungen */}
+      <div style={{ marginTop: 16, padding: '0 8px' }}>
+        {metadataSaved ? (
+          // Nach dem Speichern: nur Anzeige
+          <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
+            {endscreenName && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Spielname</div>
+                <div>{endscreenName}</div>
+              </div>
+            )}
+            {endscreenNotes && (
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Bemerkungen</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{endscreenNotes}</div>
+              </div>
+            )}
+            {!endscreenName && !endscreenNotes && (
+              <div style={{ color: '#6b7280' }}>Keine Spielinfo gespeichert</div>
+            )}
+          </div>
+        ) : (
+          // Vor dem Speichern: Eingabefelder
+          <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
+                Spielname (optional)
+              </label>
+              <input
+                type="text"
+                value={endscreenName}
+                onChange={(e) => setEndscreenName(e.target.value)}
+                placeholder="z.B. Finale WM 2024"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
+                Bemerkungen (optional)
+              </label>
+              <textarea
+                value={endscreenNotes}
+                onChange={(e) => setEndscreenNotes(e.target.value)}
+                placeholder="Besonderheiten, Highlights, etc."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  fontSize: 14,
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <button
+              className="g-btn"
+              onClick={handleSaveMetadata}
+              style={{ width: '100%' }}
+            >
+              Speichern
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ textAlign: 'right', marginTop: 16 }}>
+        <button className="g-btn" onClick={onExit}>
+          Zur\u00FCck ins Men\u00FC
+        </button>
+      </div>
+    </div>
+  )
+}

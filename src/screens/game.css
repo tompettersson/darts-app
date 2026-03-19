@@ -430,3 +430,198 @@
   letter-spacing: 3px;
   text-shadow: 0 0 30px rgba(249,115,22,0.7), 0 0 60px rgba(249,115,22,0.3);
 }
+
+/* =========================
+   Game-specific utility classes
+   (migrated from inline styles)
+   ========================= */
+
+/* Arcade chip: dark pill used in arcade mode header */
+.game-arcade-chip {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #9ca3af;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Arcade chips row */
+.game-arcade-chips {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  background: #0f0f0f;
+  padding: 8px 16px;
+}
+
+/* Flex row centered (horizontal center, vertical center) */
+.game-flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Flex row with gap */
+.game-flex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Overlay backdrop (for leg summary, modals) */
+.game-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* Modal card (leg summary etc.) */
+.game-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+/* Leg summary table */
+.game-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.game-stats-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid #e5e7eb;
+  font-weight: 600;
+  color: #475569;
+}
+
+.game-stats-table th.game-th-center {
+  text-align: center;
+}
+
+.game-stats-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.game-stats-table td.game-td-center {
+  text-align: center;
+}
+
+.game-stats-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Summary panel (score display, centered with bg) */
+.game-summary-panel {
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 12px 16px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* Info/hint banner base style */
+.game-hint-banner {
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.game-hint-banner.warning {
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
+}
+
+.game-hint-banner.info {
+  background: #dbeafe;
+  border: 2px solid #3b82f6;
+}
+
+/* Tab button (for chart toggle etc.) */
+.game-tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.game-tab-btn.active {
+  background: #111827;
+  color: #fff;
+}
+
+.game-tab-btn.inactive {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* Primary action button (full-width, dark) */
+.game-btn-primary {
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 12px;
+  border: none;
+  background: #111827;
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Dart slot: empty placeholder for a dart */
+.game-dart-slot {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.game-dart-slot.empty {
+  color: #9ca3af;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+}
+
+.game-dart-slot.filled {
+  font-weight: 700;
+  color: #f97316;
+  background: #1c1c1c;
+  border: 1px solid #f97316;
+}
+
+/* Duration/meta row */
+.game-meta-row {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Section with margin-bottom */
+.game-section {
+  margin-bottom: 16px;
+}

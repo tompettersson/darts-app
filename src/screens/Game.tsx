@@ -46,6 +46,7 @@ import {
   isSetFinished,
 } from '../darts501'
 import { getCheckoutRoute, isCheckout, getSetupShot } from '../checkoutTable'
+import X01IntermissionScreen from '../components/X01IntermissionScreen'
 import Scoreboard from '../components/Scoreboard'
 import X01ArcadeView, { PlayerStatsList, VisitList, type VisitEntry } from '../components/X01ArcadeView'
 import ScoreProgressionChart, { PLAYER_COLORS } from '../components/ScoreProgressionChart'
@@ -67,6 +68,7 @@ import {
   announcePlayerFinishArea,
 } from '../speech'
 import ConnectionBadge from '../multiplayer/ConnectionBadge'
+import X01EndScreen from '../components/X01EndScreen'
 import './game.css'
 
 // ---- Helpers ----
@@ -936,8 +938,6 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
   // --- Intermission (Leg/Set Summary zwischen den Runden) ---
   const [intermission, setIntermission] = useState<Intermission | null>(null)
-  const [showDetails, setShowDetails] = useState(false)
-  const [legChartMode, setLegChartMode] = useState<'progression' | 'staircase'>('staircase')
   const isPaused = !!intermission || gamePaused
 
   // --- Scroll-Ref für Legverlauf (Arcade) ---
@@ -1062,285 +1062,6 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
     | undefined
   const [ended, setEnded] = useState<{ winnerName: string } | null>(null)
 
-  // Spielname + Bemerkungen Eingabe im Endscreen
-  const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
-  const [endscreenNotes, setEndscreenNotes] = useState(matchStored?.notes ?? '')
-  const [metadataSaved, setMetadataSaved] = useState(
-    matchStored?.matchName !== undefined || matchStored?.notes !== undefined
-  )
-
-  // Endscreen-Content wird hier berechnet, aber erst nach allen Hooks returned
-  let endScreenContent: React.ReactNode = null
-
-  if ((finishedEvt || ended) && match && matchStored) {
-    const winnerId = finishedEvt?.winnerPlayerId
-    const winnerName =
-      ended?.winnerName ??
-      (winnerId ? match.players.find((p) => p.playerId === winnerId)?.name ?? '—' : '—')
-
-    const { legsWonCurrent, setsWon } = computeLegsAndSetsScore(match, state)
-    const statsByPlayer = computeStats(events)
-    const players = match.players
-    const headerCells = players.map((p) => p.name ?? p.playerId)
-
-    type Row = { label: string; values: React.ReactNode[]; compareValues?: number[]; better?: 'high' | 'low' }
-    const rows: Row[] = []
-    const pids = players.map(p => p.playerId)
-
-    // Platzierung berechnen (nach Sets oder Legs sortiert)
-    const scoreForRank = isSets ? setsWon : legsWonCurrent
-    const sortedByScore = [...players].sort((a, b) => (scoreForRank[b.playerId] ?? 0) - (scoreForRank[a.playerId] ?? 0))
-    const getMedal = (playerId: string): string => {
-      const playerScore = scoreForRank[playerId] ?? 0
-      const rank1Score = scoreForRank[sortedByScore[0]?.playerId] ?? 0
-      const rank2Score = sortedByScore.length > 1 ? (scoreForRank[sortedByScore[1]?.playerId] ?? 0) : -1
-      const rank3Score = sortedByScore.length > 2 ? (scoreForRank[sortedByScore[2]?.playerId] ?? 0) : -1
-
-      if (playerScore === rank1Score) return '🥇'
-      if (playerScore === rank2Score) return '🥈'
-      if (sortedByScore.length > 2 && playerScore === rank3Score) return '🥉'
-      return '—'
-    }
-
-    rows.push({
-      label: 'Platz',
-      values: players.map((p) => {
-        return (
-          <span key={p.playerId}>
-            {getMedal(p.playerId)}
-          </span>
-        )
-      }),
-    })
-
-    if (isSets) {
-      rows.push({
-        label: 'Sets gewonnen',
-        values: players.map((p) => <span key={p.playerId}>{setsWon[p.playerId] ?? 0}</span>),
-        compareValues: players.map(p => setsWon[p.playerId] ?? 0), better: 'high',
-      })
-    }
-
-    rows.push({
-      label: 'Legs gewonnen (aktuelles/letztes Set)',
-      values: players.map((p) => <span key={p.playerId}>{legsWonCurrent[p.playerId] ?? 0}</span>),
-      compareValues: players.map(p => legsWonCurrent[p.playerId] ?? 0), better: 'high',
-    })
-
-    const checkoutPcts = players.map(p => {
-      const s: any = statsByPlayer[p.playerId] ?? {}
-      const made = s.doublesHitDart ?? 0
-      const att = s.doubleAttemptsDart ?? 0
-      return { pct: att > 0 ? (made / att) * 100 : 0, made, att }
-    })
-    rows.push({
-      label: 'Checkout-Quote (Darts)',
-      values: players.map((p, i) => (
-        <span key={p.playerId}>
-          {checkoutPcts[i].pct.toFixed(1)}% <span className="g-dim">({checkoutPcts[i].made}/{checkoutPcts[i].att})</span>
-        </span>
-      )),
-      compareValues: checkoutPcts.map(c => c.pct), better: 'high',
-    })
-
-    rows.push({
-      label: '3-Dart Average (Ø)',
-      values: players.map((p) => (
-        <span key={p.playerId}>{(statsByPlayer[p.playerId]?.threeDartAvg ?? 0).toFixed(2)}</span>
-      )),
-      compareValues: players.map(p => statsByPlayer[p.playerId]?.threeDartAvg ?? 0), better: 'high',
-    })
-
-    rows.push({
-      label: 'First-9 Average (Ø)',
-      values: players.map((p) => (
-        <span key={p.playerId}>{(statsByPlayer[p.playerId]?.first9OverallAvg ?? 0).toFixed(2)}</span>
-      )),
-      compareValues: players.map(p => statsByPlayer[p.playerId]?.first9OverallAvg ?? 0), better: 'high',
-    })
-
-    const pointsPerLeg = players.map(p => computePointsPerLegAvg(events, p.playerId))
-    rows.push({
-      label: 'Punkte pro Leg (Ø)',
-      values: players.map((p, i) => <span key={p.playerId}>{pointsPerLeg[i].toFixed(1)}</span>),
-      compareValues: pointsPerLeg, better: 'high',
-    })
-
-    // Höchste Aufnahme pro Spieler (über alle Legs)
-    const highestVisitMatch: Record<string, number> = {}
-    for (const p of players) highestVisitMatch[p.playerId] = 0
-    for (const ev of events) {
-      if (isVisitAdded(ev) && !ev.bust && ev.visitScore > (highestVisitMatch[ev.playerId] ?? 0)) {
-        highestVisitMatch[ev.playerId] = ev.visitScore
-      }
-    }
-
-    rows.push({
-      label: 'Höchste Aufnahme',
-      values: players.map((p) => {
-        const hv = highestVisitMatch[p.playerId] ?? 0
-        return <span key={p.playerId}>{hv > 0 ? hv : '—'}</span>
-      }),
-      compareValues: players.map(p => highestVisitMatch[p.playerId] ?? 0), better: 'high',
-    })
-
-    rows.push({
-      label: 'Bestes Leg',
-      values: players.map((p) => {
-        const best = statsByPlayer[p.playerId]?.bestLegDarts
-        return <span key={p.playerId}>{best ? `${best} Darts` : '—'}</span>
-      }),
-      compareValues: players.map(p => statsByPlayer[p.playerId]?.bestLegDarts ?? Infinity), better: 'low',
-    })
-
-    rows.push({
-      label: 'Meistes Feld',
-      values: players.map((p) => (
-        <span key={p.playerId}>{computeMostHitField(events, null, p.playerId)}</span>
-      )),
-    })
-
-    rows.push({
-      label: 'Häufigste Punktzahl',
-      values: players.map((p) => (
-        <span key={p.playerId}>{computeMostCommonScore(events, null, p.playerId)}</span>
-      )),
-    })
-
-    const handleSaveMetadata = () => {
-      const success = setMatchMetadata(matchId, endscreenName, endscreenNotes)
-      if (success) {
-        setMetadataSaved(true)
-      }
-    }
-
-    endScreenContent = (
-      <div className="g-page">
-        <div className="g-header">
-          <h2 className="g-title">
-            {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} – beendet
-          </h2>
-          <button className="g-btn" onClick={onExit}>
-            Zurück ins Menü
-          </button>
-        </div>
-
-        <div className="g-tableWrap">
-          <table className="g-table">
-            <thead>
-              <tr>
-                <th className="g-th"></th>
-                {headerCells.map((h, i) => (
-                  <th key={i} className="g-th">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, ri) => {
-                const winColors = r.better && r.compareValues
-                  ? getStatWinnerColors(r.compareValues, pids, r.better, playerColors)
-                  : undefined
-                return (
-                  <tr key={ri}>
-                    <td className="g-tdh" style={{ fontWeight: 700 }}>
-                      {r.label}
-                    </td>
-                    {r.values.map((v, ci) => (
-                      <td key={ci} className="g-td" style={winColors?.[ci] ? { color: winColors[ci], fontWeight: 700 } : undefined}>
-                        {v}
-                      </td>
-                    ))}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Spielname + Bemerkungen */}
-        <div style={{ marginTop: 16, padding: '0 8px' }}>
-          {metadataSaved ? (
-            // Nach dem Speichern: nur Anzeige
-            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
-              {endscreenName && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Spielname</div>
-                  <div>{endscreenName}</div>
-                </div>
-              )}
-              {endscreenNotes && (
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Bemerkungen</div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{endscreenNotes}</div>
-                </div>
-              )}
-              {!endscreenName && !endscreenNotes && (
-                <div style={{ color: '#6b7280' }}>Keine Spielinfo gespeichert</div>
-              )}
-            </div>
-          ) : (
-            // Vor dem Speichern: Eingabefelder
-            <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
-                  Spielname (optional)
-                </label>
-                <input
-                  type="text"
-                  value={endscreenName}
-                  onChange={(e) => setEndscreenName(e.target.value)}
-                  placeholder="z.B. Finale WM 2024"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #d1d5db',
-                    fontSize: 14,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
-                  Bemerkungen (optional)
-                </label>
-                <textarea
-                  value={endscreenNotes}
-                  onChange={(e) => setEndscreenNotes(e.target.value)}
-                  placeholder="Besonderheiten, Highlights, etc."
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #d1d5db',
-                    fontSize: 14,
-                    resize: 'vertical',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <button
-                className="g-btn"
-                onClick={handleSaveMetadata}
-                style={{ width: '100%' }}
-              >
-                Speichern
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div style={{ textAlign: 'right', marginTop: 16 }}>
-          <button className="g-btn" onClick={onExit}>
-            Zurück ins Menü
-          </button>
-        </div>
-      </div>
-    )
-  }
   // ---------- ENDSCREEN Ende ----------
 
   // Multiplayer: Ist der lokale Spieler gerade am Zug?
@@ -1579,7 +1300,6 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           const currentLegStarted = newEvents.find((e): e is LegStarted => isLegStarted(e) && e.legId === leg.legId)
           const currentLegIndex = currentLegStarted?.legIndex ?? totalLegsStarted
 
-          setShowDetails(false)
           setIntermission({
             kind: 'leg',
             legId: leg.legId,
@@ -1701,7 +1421,6 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
             doPersist(newEvents)
             setCurrent([])
 
-            setShowDetails(false)
             setIntermission({
               kind: 'set',
               setIndex: curSetIndex,
@@ -1740,7 +1459,6 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           const currentLegStartedSet = newEvents.find((e): e is LegStarted => isLegStarted(e) && e.legId === leg.legId)
           const currentLegIndexSet = currentLegStartedSet?.legIndex ?? totalLegsStarted
 
-          setShowDetails(false)
           setIntermission({
             kind: 'leg',
             legId: leg.legId,
@@ -1886,7 +1604,6 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       }
       setCurrent([])
       setIntermission(null)
-      setShowDetails(false)
       legWonAnnouncedRef.current = false
     } catch (err) {
       console.error('continueFromIntermission failed:', err)
@@ -1909,8 +1626,26 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
   }
 
   // Endscreen anzeigen wenn Match beendet (nach allen Hooks!)
-  if (endScreenContent) {
-    return endScreenContent
+  if ((finishedEvt || ended) && match && matchStored) {
+    const winnerId = finishedEvt?.winnerPlayerId
+    const winnerName =
+      ended?.winnerName ??
+      (winnerId ? match.players.find((p) => p.playerId === winnerId)?.name ?? '\u2014' : '\u2014')
+    return (
+      <X01EndScreen
+        matchId={matchId}
+        match={match}
+        matchStored={matchStored}
+        events={events}
+        state={state}
+        winnerName={winnerName}
+        isSets={!!isSets}
+        playerColors={playerColors}
+        onExit={onExit}
+        isArcade={isArcade}
+        c={colors}
+      />
+    )
   }
 
   // Ab hier sind match, leg und matchStored garantiert nicht-null
@@ -1943,518 +1678,14 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
       {/* Intermission Overlay (Leg/Set Summary) */}
       {intermission && (
-        <div className="g-overlay" role="dialog" aria-modal="true">
-          <div className="g-modal">
-            <div className="g-modalHeader">
-              <div>
-                <div className="g-modalTitle">
-                  {intermission.kind === 'leg'
-                    ? `Leg Summary${intermission.legIndex ? ` · Leg #${intermission.legIndex}` : ''}`
-                    : `Set Summary · Set #${intermission.setIndex}`}
-                </div>
-                <div className="g-modalSub">Klick auf „Details“ zeigt den ausführlichen Verlauf.</div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="g-btn" onClick={() => setShowDetails((v) => !v)}>
-                  {showDetails ? 'Details verbergen' : 'Details anzeigen'}
-                </button>
-                <button
-                  className="g-btn"
-                  onClick={continueFromIntermission}
-                >
-                  Weiter →
-                </button>
-              </div>
-            </div>
-
-            {intermission.kind === 'leg' ? (
-              (() => {
-                const sum = buildLegSummary(events, match, intermission.legId)
-                const legStats = computeLegStats(events, match, intermission.legId)
-                const winnerName = sum.winnerPlayerId
-                  ? match.players.find((p) => p.playerId === sum.winnerPlayerId)?.name ?? sum.winnerPlayerId
-                  : '—'
-
-                // Zwischenstand nach diesem Leg berechnen
-                const legWinsAfterThis: Record<string, number> = {}
-                match.players.forEach((p) => { legWinsAfterThis[p.playerId] = 0 })
-                // Alle LegFinished Events bis einschließlich dieses Legs zählen
-                for (const ev of events) {
-                  if (isLegFinished(ev)) {
-                    if (ev.winnerPlayerId) {
-                      legWinsAfterThis[ev.winnerPlayerId] = (legWinsAfterThis[ev.winnerPlayerId] ?? 0) + 1
-                    }
-                    if (ev.legId === intermission.legId) break
-                  }
-                }
-                const scoreAfterLeg = match.players.map((p) => legWinsAfterThis[p.playerId]).join(' : ')
-
-                // 61+ berechnen (nicht in bins)
-                const bins61plus: Record<string, number> = {}
-                match.players.forEach((p) => { bins61plus[p.playerId] = 0 })
-                sum.visits.forEach((v: any) => {
-                  if (v.visitScore >= 61 && v.visitScore < 100) {
-                    bins61plus[v.playerId] = (bins61plus[v.playerId] || 0) + 1
-                  }
-                })
-
-                // Höchste Aufnahme pro Spieler
-                const highestVisit: Record<string, number> = {}
-                match.players.forEach((p) => { highestVisit[p.playerId] = 0 })
-                sum.visits.forEach((v: any) => {
-                  if (!v.bust && v.visitScore > (highestVisit[v.playerId] ?? 0)) {
-                    highestVisit[v.playerId] = v.visitScore
-                  }
-                })
-
-                // Checkout-Info pro Spieler (aus Visit mit remainingAfter === 0)
-                const checkoutInfo: Record<string, { height: number; lastDart: string }> = {}
-                sum.visits.forEach((v: any) => {
-                  if (v.remainingAfter === 0 && !v.bust) {
-                    // Finde den letzten Dart der tatsächlich getroffen hat
-                    const dartsArr = v.dartsLabel?.split(' · ') ?? []
-                    const lastDart = dartsArr[dartsArr.length - 1] || '—'
-                    checkoutInfo[v.playerId] = {
-                      height: v.remainingBefore,
-                      lastDart: lastDart,
-                    }
-                  }
-                })
-
-                // Rest pro Spieler
-                const restByPlayer: Record<string, number> = {}
-                match.players.forEach((p) => { restByPlayer[p.playerId] = match.startingScorePerLeg })
-                sum.visits.forEach((v: any) => {
-                  restByPlayer[v.playerId] = v.remainingAfter
-                })
-
-                // Spielzeit
-                let legDuration = ''
-                if (sum.startedAt && sum.finishedAt) {
-                  const start = new Date(sum.startedAt).getTime()
-                  const end = new Date(sum.finishedAt).getTime()
-                  const diffMs = end - start
-                  const mins = Math.floor(diffMs / 60000)
-                  const secs = Math.floor((diffMs % 60000) / 1000)
-                  legDuration = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-                }
-
-                // Table Styles
-                const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#475569', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
-                const thRight: React.CSSProperties = { textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#0f172a', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
-                const tdLeft: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151' }
-                const tdRight: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }
-                const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
-
-                // Winner-Farben für Leg-Statistik
-                const legPids = match.players.map(p => p.playerId)
-                const avgWin = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.threeDartAvg ?? 0), legPids, 'high', playerColors)
-                const f9Win = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.first9OverallAvg ?? 0), legPids, 'high', playerColors)
-                const w180 = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.bins?._180 ?? 0), legPids, 'high', playerColors)
-                const w140 = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.bins?._140plus ?? 0), legPids, 'high', playerColors)
-                const w100 = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.bins?._100plus ?? 0), legPids, 'high', playerColors)
-                const w61 = getStatWinnerColors(match.players.map(p => bins61plus[p.playerId] ?? 0), legPids, 'high', playerColors)
-                const hvWin = getStatWinnerColors(match.players.map(p => highestVisit[p.playerId] ?? 0), legPids, 'high', playerColors)
-                const coWin = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.doublePctDart ?? 0), legPids, 'high', playerColors)
-                const restWin = getStatWinnerColors(match.players.map(p => restByPlayer[p.playerId]), legPids, 'low', playerColors)
-
-                return (
-                  <>
-                    {/* Zwischenstand groß oben */}
-                    <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 8 }}>
-                      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>Zwischenstand nach Leg {intermission.legIndex ?? '?'}</div>
-                      <div style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: 2 }}>
-                        {scoreAfterLeg}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 4 }}>
-                        {match.players.map((p) => (
-                          <span key={p.playerId} style={{ fontSize: 13, color: '#6b7280' }}>{p.name}</span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Sieger-Banner */}
-                    <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 800, fontSize: 16, color: '#16a34a' }}>
-                      Sieger: {winnerName}
-                      {checkoutInfo[sum.winnerPlayerId ?? ''] && (
-                        <span style={{ fontWeight: 500, fontSize: 13, color: '#6b7280', marginLeft: 8 }}>
-                          (Checkout: {checkoutInfo[sum.winnerPlayerId ?? ''].height})
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Statistik-Tabelle wie in MatchDetails */}
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr>
-                            <th style={thLeft}></th>
-                            {match.players.map((p) => (
-                              <th key={p.playerId} style={thRight}>{p.name}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td style={tdLeft}>Average</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(avgWin[i])}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>First Nine</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(f9Win[i])}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>180s</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(w180[i])}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>140+</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(w140[i])}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>100+</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(w100[i])}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>61+</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(w61[i])}>{bins61plus[p.playerId] ?? 0}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>Höchste Aufnahme</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>Meistes Feld</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{computeMostHitField(events, intermission.legId, p.playerId)}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>Häufigste Punktzahl</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, intermission.legId, p.playerId)}</td>
-                            ))}
-                          </tr>
-
-                          <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
-
-                          <tr>
-                            <td style={tdLeft}>Checkout Höhe</td>
-                            {match.players.map((p) => {
-                              const info = checkoutInfo[p.playerId]
-                              return <td key={p.playerId} style={tdRight}>{info ? `${info.height} (${info.lastDart})` : '–'}</td>
-                            })}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>Checkout Versuche</td>
-                            {match.players.map((p) => {
-                              const attempts = legStats[p.playerId]?.doubleAttemptsDart ?? 0
-                              const hits = legStats[p.playerId]?.doublesHitDart ?? 0
-                              return <td key={p.playerId} style={tdRight}>{attempts} / {hits}</td>
-                            })}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>Checkout Quote</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(coWin[i])}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td style={tdLeft}>Rest</td>
-                            {match.players.map((p, i) => (
-                              <td key={p.playerId} style={tdWin(restWin[i])}>{restByPlayer[p.playerId]}</td>
-                            ))}
-                          </tr>
-
-                          <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
-
-                          <tr>
-                            <td style={tdLeft}>Spielzeit</td>
-                            <td colSpan={match.players.length} style={{ ...tdRight, textAlign: 'center' }}>{legDuration || '–'}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Chart Toggle */}
-                    <div style={{
-                      display: 'flex',
-                      gap: 4,
-                      marginTop: 16,
-                      marginBottom: 8,
-                    }}>
-                      <button
-                        onClick={() => setLegChartMode('staircase')}
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          border: legChartMode === 'staircase' ? '2px solid #f97316' : '1px solid #e5e7eb',
-                          background: legChartMode === 'staircase' ? '#fff7ed' : '#fff',
-                          color: legChartMode === 'staircase' ? '#ea580c' : '#6b7280',
-                          fontWeight: 600,
-                          fontSize: 12,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        📊 Staircase
-                      </button>
-                      <button
-                        onClick={() => setLegChartMode('progression')}
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          border: legChartMode === 'progression' ? '2px solid #f97316' : '1px solid #e5e7eb',
-                          background: legChartMode === 'progression' ? '#fff7ed' : '#fff',
-                          color: legChartMode === 'progression' ? '#ea580c' : '#6b7280',
-                          fontWeight: 600,
-                          fontSize: 12,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        📈 Verlauf
-                      </button>
-                    </div>
-
-                    {/* Chart-Ansicht basierend auf Modus */}
-                    {legChartMode === 'staircase' ? (
-                      /* Staircase-Visualisierung für den Gewinner */
-                      (() => {
-                        const winnerId = sum.winnerPlayerId
-                        const winnerPlayer = match.players.find(p => p.playerId === winnerId)
-
-                        // Hole die rohen VisitAdded Events (haben darts Property)
-                        const rawVisits = events.filter((e): e is VisitAdded =>
-                          isVisitAdded(e) && e.legId === intermission.legId && e.playerId === winnerId
-                        )
-
-                        const totalDarts = rawVisits.reduce((acc, v) => acc + v.darts.length, 0)
-                        const lastVisit = rawVisits[rawVisits.length - 1]
-                        const checkoutHeight = lastVisit?.remainingBefore
-                        const lastDart = lastVisit?.darts?.[lastVisit.darts.length - 1]
-                        const finishingDart = lastDart ? fmtDart(lastDart) : undefined
-
-                        // Visits in LegVisit-Format konvertieren
-                        const legVisits: LegVisit[] = rawVisits.map((v) => ({
-                          visitScore: v.visitScore,
-                          remainingBefore: v.remainingBefore,
-                          remainingAfter: v.remainingAfter,
-                          bust: v.bust,
-                          darts: v.darts.map((d) => ({
-                            bed: d.bed,
-                            mult: d.mult,
-                            score: d.score ?? 0,
-                          })),
-                        }))
-
-                        return (
-                          <LegStaircaseChart
-                            startScore={match.startingScorePerLeg}
-                            visits={legVisits}
-                            playerName={winnerPlayer?.name ?? winnerId ?? 'Spieler'}
-                            playerColor={winnerId ? (playerColors[winnerId] ?? PLAYER_COLORS[match.players.findIndex(p => p.playerId === winnerId) % PLAYER_COLORS.length]) : PLAYER_COLORS[0]}
-                            totalDarts={totalDarts}
-                            checkoutHeight={checkoutHeight}
-                            finishingDart={finishingDart}
-                            showHeader={true}
-                          />
-                        )
-                      })()
-                    ) : (
-                      /* Klassischer Score Progression Chart */
-                      (() => {
-                        // Hole die rohen VisitAdded Events für alle Spieler
-                        const allRawVisits = events.filter((e): e is VisitAdded =>
-                          isVisitAdded(e) && e.legId === intermission.legId
-                        )
-
-                        return (
-                          <div style={{
-                            height: 270,
-                            background: isArcade ? '#0a0a0a' : '#f8fafc',
-                            borderRadius: 8,
-                            overflow: 'hidden',
-                          }}>
-                            <ScoreProgressionChart
-                              startScore={match.startingScorePerLeg}
-                              players={match.players.map((p, index) => ({
-                                id: p.playerId,
-                                name: p.name ?? p.playerId,
-                                color: playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length],
-                                visits: allRawVisits
-                                  .filter((v) => v.playerId === p.playerId)
-                                  .map((v, i) => ({
-                                    visitIndex: i + 1,
-                                    remainingBefore: v.remainingBefore,
-                                    remainingAfter: v.remainingAfter,
-                                    bust: v.bust,
-                                    dartScores: v.darts.map((d) => d.score ?? 0),
-                                  })),
-                              }))}
-                              winnerPlayerId={sum.winnerPlayerId}
-                              showCheckoutLine={true}
-                              showFinishLine={true}
-                            />
-                          </div>
-                        )
-                      })()
-                    )}
-
-                    {/* Wurfabfolge */}
-                    {showDetails && (
-                      <div className="g-details" style={{ marginTop: 12 }}>
-                        <div className="g-detailsTitle">Wurfabfolge</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {sum.visits.map((v: any, idx: number) => {
-                            const color = '#6b7280'
-                            const darts = v.darts?.map(fmtDart) ?? []
-                            return (
-                              <div
-                                key={v.eventId || idx}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 12,
-                                  padding: '8px 12px',
-                                  background: v.bust ? '#fef2f2' : '#f8fafc',
-                                  borderLeft: `4px solid ${v.bust ? '#ef4444' : color}`,
-                                  borderRadius: '0 6px 6px 0',
-                                  fontSize: 14,
-                                }}
-                              >
-                                <span style={{ fontWeight: 700, minWidth: 80 }}>{v.playerName}</span>
-                                <span style={{ minWidth: 120, fontFamily: 'monospace' }}>
-                                  {darts[0] || '—'} · {darts[1] || '—'} · {darts[2] || '—'}
-                                </span>
-                                <span style={{ fontWeight: 600, minWidth: 50 }}>= {v.visitScore}</span>
-                                <span style={{ color: '#6b7280' }}>Rest: {v.remainingAfter}</span>
-                                {v.bust && <span style={{ color: '#ef4444', fontWeight: 600 }}>BUST</span>}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )
-              })()
-            ) : (
-              (() => {
-                const legIds = getLegIdsForSet(events, intermission.setIndex)
-                const legs = legIds.map((legId) => {
-                  const s = buildLegSummary(events, match, legId)
-                  s.setIndex = intermission.setIndex
-                  return s
-                })
-
-                const winnerName = intermission.winnerPlayerId
-                  ? match.players.find((p) => p.playerId === intermission.winnerPlayerId)?.name ?? intermission.winnerPlayerId
-                  : '—'
-
-                return (
-                  <>
-                    <div className="g-summaryGrid">
-                      <div className="g-summaryTile">
-                        <div className="g-k">Set-Sieger</div>
-                        <div className="g-v">{winnerName}</div>
-                      </div>
-                      <div className="g-summaryTile">
-                        <div className="g-k">Legs im Set</div>
-                        <div className="g-v">{legs.length}</div>
-                      </div>
-                    </div>
-
-                    <div className="g-details">
-                      <div className="g-detailsTitle">Leg Summaries (im Set)</div>
-
-                      <div className="g-visitList">
-                        {legs.map((sum) => {
-                          const wName = sum.winnerPlayerId
-                            ? match.players.find((p) => p.playerId === sum.winnerPlayerId)?.name ?? sum.winnerPlayerId
-                            : '—'
-                          return (
-                            <div key={sum.legId} className="g-legCard">
-                              <div className="g-legCardTop">
-                                <div style={{ fontWeight: 900 }}>Leg #{sum.legIndex ?? '—'} · Sieger: {wName}</div>
-                                <div className="g-dim">
-                                  {fmtClock(sum.startedAt)} → {fmtClock(sum.finishedAt)}
-                                </div>
-                              </div>
-
-                              <div className="g-legCardGrid">
-                                <div className="g-legMini">
-                                  <div className="g-k">Checkout</div>
-                                  <div className="g-v">{sum.highestCheckout ?? 0}</div>
-                                </div>
-                                <div className="g-legMini">
-                                  <div className="g-k">Darts</div>
-                                  <div className="g-v">{sum.dartsThrownTotal}</div>
-                                </div>
-                                <div className="g-legMini">
-                                  <div className="g-k">Best Visit</div>
-                                  <div className="g-v">{sum.bestVisit}</div>
-                                </div>
-                                <div className="g-legMini">
-                                  <div className="g-k">Busts</div>
-                                  <div className="g-v">{sum.bustsTotal}</div>
-                                </div>
-                              </div>
-
-                              {showDetails && (
-                                <div className="g-subDetails">
-                                  <div className="g-detailsTitle" style={{ marginTop: 10 }}>
-                                    Verlauf
-                                  </div>
-                                  <div className="g-visitList">
-                                    {sum.visits.map((v) => (
-                                      <div key={v.eventId} className={`g-visit ${v.bust ? 'is-bust' : ''}`}>
-                                        <div className="g-visitTop">
-                                          <div>
-                                            <b>{v.playerName}</b> · {v.dartsLabel}
-                                          </div>
-                                          <div className="g-dim">{fmtClock(v.ts)}</div>
-                                        </div>
-                                        <div className="g-visitBottom">
-                                          <div>
-                                            Score: <b>{v.visitScore}</b>
-                                            {v.bust ? ' (BUST)' : ''}
-                                          </div>
-                                          <div className="g-dim">
-                                            Rest: {v.remainingBefore} → <b>{v.remainingAfter}</b>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )
-              })()
-            )}
-          </div>
-        </div>
+        <X01IntermissionScreen
+          intermission={intermission}
+          events={events}
+          match={match}
+          playerColors={playerColors}
+          isArcade={isArcade}
+          onContinue={continueFromIntermission}
+        />
       )}
 
       {/* Pause Overlay */}
@@ -2486,7 +1717,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
       {/* Multiplayer Connection Badge */}
       {multiplayer?.enabled && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+        <div className="game-flex-center" style={{ padding: '4px 0' }}>
           <ConnectionBadge status={multiplayer.connectionStatus} playerCount={multiplayer.playerCount} />
         </div>
       )}
@@ -2494,105 +1725,34 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       {/* Struktur-/Fortschritt-Chips */}
       {isArcade ? (
         /* === ARCADE CHIPS === */
-        <div style={{
-          display: 'flex',
-          gap: 8,
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          background: '#0f0f0f',
-          padding: '8px 16px',
-        }}>
-          <span style={{
-            background: '#1a1a1a',
-            border: '1px solid #333',
-            color: '#9ca3af',
-            borderRadius: 999,
-            padding: '4px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-          }}>
+        <div className="game-arcade-chips">
+          <span className="game-arcade-chip">
             <b style={{ color: '#f97316' }}>{match.startingScorePerLeg}</b> Double-Out
           </span>
           {match.structure.kind === 'legs' ? (
             <>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 First to <b style={{ color: '#22c55e' }}>{requiredLegs}</b> Legs
               </span>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 Leg <b style={{ color: '#fff' }}>#{currentLegIndex}</b>
               </span>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 ⏱ <b style={{ color: '#60a5fa' }}>{formatDuration(legDuration)}</b>
               </span>
             </>
           ) : (
             <>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 First to <b style={{ color: '#22c55e' }}>{requiredSets}</b> Sets
               </span>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 Set <b style={{ color: '#fff' }}>#{currentSetIndex || 1}</b>
               </span>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 <b style={{ color: '#22c55e' }}>{requiredLegs}</b> Legs/Set
               </span>
-              <span style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                color: '#9ca3af',
-                borderRadius: 999,
-                padding: '4px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
+              <span className="game-arcade-chip">
                 ⏱ <b style={{ color: '#60a5fa' }}>{formatDuration(legDuration)}</b>
               </span>
             </>

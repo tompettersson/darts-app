@@ -32,6 +32,7 @@ import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '
 import CricketTurnList, { formatDartLabel, computeMarksDetail, type CricketTurnEntry } from '../components/CricketTurnList'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound } from '../speech'
+import './game.css'
 
 type Props = {
   matchId: string
@@ -1574,38 +1575,13 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
                     ? dart.mult === 2 ? 'DB' : 'B'
                     : `${dart.mult === 3 ? 'T' : dart.mult === 2 ? 'D' : 'S'}${dart.target}`
                 return (
-                  <span
-                    key={i}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#f97316',
-                      background: '#1c1c1c',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      border: '1px solid #f97316',
-                      minWidth: 32,
-                      textAlign: 'center',
-                    }}
-                  >
+                  <span key={i} className="game-dart-slot filled">
                     {label}
                   </span>
                 )
               }
               return (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    color: '#9ca3af',
-                    background: '#f1f5f9',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    border: '1px solid #e5e7eb',
-                    minWidth: 32,
-                    textAlign: 'center',
-                  }}
-                >
+                <span key={i} className="game-dart-slot empty">
                   —
                 </span>
               )
@@ -1617,29 +1593,11 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
       {/* LEG SUMMARY OVERLAY */}
       {legSummary && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 20,
-          }}
+          className="game-overlay"
           onClick={() => setLegSummary(null)}
         >
           <div
-            style={{
-              background: '#fff',
-              borderRadius: 16,
-              padding: 24,
-              maxWidth: 500,
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            }}
+            className="game-modal"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -1653,15 +1611,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
             </div>
 
             {/* Spielstand */}
-            <div
-              style={{
-                background: '#f1f5f9',
-                borderRadius: 12,
-                padding: '12px 16px',
-                textAlign: 'center',
-                marginBottom: 16,
-              }}
-            >
+            <div className="game-summary-panel">
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Spielstand</div>
               <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: 2 }}>
                 {order.map(pid => legSummary.legWinsAfter[pid] ?? 0).join(' : ')}
@@ -1679,37 +1629,25 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
             </div>
 
             {/* Leg-Dauer */}
-            <div
-              style={{
-                background: '#f8fafc',
-                borderRadius: 8,
-                padding: '8px 16px',
-                marginBottom: 16,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+            <div className="game-meta-row">
               <span style={{ fontWeight: 500, color: '#374151' }}>Leg-Dauer</span>
               <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{legSummary.legDuration}</span>
             </div>
 
             {/* Leg-Statistik Tabelle */}
-            <div style={{ marginBottom: 16 }}>
+            <div className="game-section">
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Leg-Statistik</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table className="game-stats-table">
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '2px solid #e5e7eb', fontWeight: 600, color: '#475569' }}></th>
+                    <th></th>
                     {order.map(pid => {
                       const p = match.players.find(x => x.playerId === pid)
                       return (
                         <th
                           key={pid}
+                          className="game-th-center"
                           style={{
-                            textAlign: 'center',
-                            padding: '6px 8px',
-                            borderBottom: '2px solid #e5e7eb',
                             fontWeight: 700,
                             color: pid === legSummary.winnerId ? '#16a34a' : '#0f172a',
                           }}
@@ -1722,65 +1660,65 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Total Marks</td>
+                    <td>Total Marks</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9', fontWeight: 600 }}>
+                      <td key={pid} className="game-td-center" style={{ fontWeight: 600 }}>
                         {legSummary.legStats[pid]?.totalMarks ?? 0}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Marks/Turn</td>
+                    <td>Marks/Turn</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                      <td key={pid} className="game-td-center">
                         {(legSummary.legStats[pid]?.marksPerTurn ?? 0).toFixed(2)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Turns</td>
+                    <td>Turns</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                      <td key={pid} className="game-td-center">
                         {legSummary.legStats[pid]?.turns ?? 0}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Best Turn</td>
+                    <td>Best Turn</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                      <td key={pid} className="game-td-center">
                         {legSummary.legStats[pid]?.bestTurnMarks ?? 0}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Triples</td>
+                    <td>Triples</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                      <td key={pid} className="game-td-center">
                         {legSummary.legStats[pid]?.triplesHit ?? 0}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Doubles</td>
+                    <td>Doubles</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                      <td key={pid} className="game-td-center">
                         {legSummary.legStats[pid]?.doublesHit ?? 0}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>Single Bull</td>
+                    <td>Single Bull</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                      <td key={pid} className="game-td-center">
                         {legSummary.legStats[pid]?.bullHits ?? 0}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={{ padding: '6px 8px' }}>Double Bull</td>
+                    <td>Double Bull</td>
                     {order.map(pid => (
-                      <td key={pid} style={{ textAlign: 'center', padding: '6px 8px' }}>
+                      <td key={pid} className="game-td-center">
                         {legSummary.legStats[pid]?.doubleBullHits ?? 0}
                       </td>
                     ))}
@@ -1790,38 +1728,18 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
             </div>
 
             {/* Cricket Charts mit Tab-Auswahl */}
-            <div style={{ marginBottom: 16 }}>
+            <div className="game-section">
               {/* Tab-Buttons */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <button
                   onClick={() => setChartTab('marks')}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: chartTab === 'marks' ? '#111827' : '#e5e7eb',
-                    color: chartTab === 'marks' ? '#fff' : '#374151',
-                    fontWeight: 600,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                  }}
+                  className={`game-tab-btn ${chartTab === 'marks' ? 'active' : 'inactive'}`}
                 >
                   Marks-Verlauf
                 </button>
                 <button
                   onClick={() => setChartTab('fields')}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: chartTab === 'fields' ? '#111827' : '#e5e7eb',
-                    color: chartTab === 'fields' ? '#fff' : '#374151',
-                    fontWeight: 600,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                  }}
+                  className={`game-tab-btn ${chartTab === 'fields' ? 'active' : 'inactive'}`}
                 >
                   Feldfortschritt
                 </button>
@@ -1878,17 +1796,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
             {/* Weiter Button */}
             <button
               onClick={() => setLegSummary(null)}
-              style={{
-                width: '100%',
-                padding: '14px 24px',
-                borderRadius: 12,
-                border: 'none',
-                background: '#111827',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: 16,
-                cursor: 'pointer',
-              }}
+              className="game-btn-primary"
             >
               Weiter zum nächsten Leg →
             </button>
@@ -1924,16 +1832,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
 
       {/* LAST FIELD HINT */}
       {lastFieldHint && lastFieldHint.type === 'lastField' && (
-        <div
-          style={{
-            background: '#fef3c7',
-            border: '2px solid #f59e0b',
-            borderRadius: 12,
-            padding: '10px 16px',
-            marginBottom: 12,
-            textAlign: 'center',
-          }}
-        >
+        <div className="game-hint-banner warning">
           <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
             🎯 Letztes Feld: <span style={{ fontSize: 16, fontWeight: 800 }}>{lastFieldHint.field === 'BULL' ? 'Bull' : lastFieldHint.field}</span>
           </div>
@@ -1949,16 +1848,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
 
       {/* ALL CLOSED HINT (Punkte entscheiden) */}
       {lastFieldHint && lastFieldHint.type === 'allClosed' && (
-        <div
-          style={{
-            background: '#dbeafe',
-            border: '2px solid #3b82f6',
-            borderRadius: 12,
-            padding: '10px 16px',
-            marginBottom: 12,
-            textAlign: 'center',
-          }}
-        >
+        <div className="game-hint-banner info">
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>
             Alle Felder zu! Punkte entscheiden:
           </div>
