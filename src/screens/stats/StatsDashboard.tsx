@@ -13,6 +13,7 @@ import { AVAILABLE_METRICS, getTrendForMetric, type MetricId } from '../../stats
 import { formatDuration } from '../../dartsAroundTheBlock'
 import ArcadeScrollPicker, { type PickerItem } from '../../components/ArcadeScrollPicker'
 import { PLAYER_COLORS } from '../../playerColors'
+import { PieChart, BarChart as BarChartComp } from '../../components/charts'
 
 export type DashboardView = 'menu' | 'h2h' | 'compare'
 export type DashboardGameMode = 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'shanghai' | 'killer'
@@ -1974,6 +1975,91 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
                   </div>
                 </div>
               )}
+
+              {/* H2H Siegverteilung Donut */}
+              {player1Id && player2Id && player1 && player2 && currentH2H && currentH2H.matchesPlayed > 0 && (
+                <div style={{ padding: '16px 24px', borderBottom: `1px solid ${colors.border}`, display: 'flex', justifyContent: 'center' }}>
+                  <PieChart
+                    data={[
+                      { label: player1.name, value: currentH2H.player1Wins, color: player1.color || '#3B82F6' },
+                      { label: player2.name, value: currentH2H.player2Wins, color: player2.color || '#EF4444' },
+                    ]}
+                    size={110}
+                    strokeWidth={20}
+                    donut
+                  />
+                </div>
+              )}
+
+              {/* H2H pro Modus - Balkenvergleich */}
+              {player1Id && player2Id && player1 && player2 && (() => {
+                const modeData: { label: string; p1: number; p2: number }[] = []
+                if (x01H2H && x01H2H.matchesPlayed > 0) modeData.push({ label: 'X01', p1: x01H2H.player1Wins, p2: x01H2H.player2Wins })
+                if (h2h121 && h2h121.legsPlayed > 0) modeData.push({ label: '121', p1: h2h121.player1Wins, p2: h2h121.player2Wins })
+                if (cricketH2H && cricketH2H.matchesPlayed > 0) modeData.push({ label: 'Cricket', p1: cricketH2H.player1Wins, p2: cricketH2H.player2Wins })
+                if (atbH2H && atbH2H.matchesPlayed > 0) modeData.push({ label: 'ATB', p1: atbH2H.player1Wins, p2: atbH2H.player2Wins })
+                if (ctfH2H && ctfH2H.matchesPlayed > 0) modeData.push({ label: 'CTF', p1: ctfH2H.player1Wins, p2: ctfH2H.player2Wins })
+                if (shanghaiH2H && shanghaiH2H.matchesPlayed > 0) modeData.push({ label: 'Shanghai', p1: shanghaiH2H.player1Wins, p2: shanghaiH2H.player2Wins })
+                if (killerH2H && killerH2H.matchesPlayed > 0) modeData.push({ label: 'Killer', p1: killerH2H.player1Wins, p2: killerH2H.player2Wins })
+
+                if (modeData.length < 2) return null
+
+                const color1 = player1.color || '#3B82F6'
+                const color2 = player2.color || '#EF4444'
+                const maxVal = Math.max(...modeData.map(d => Math.max(d.p1, d.p2)), 1)
+
+                return (
+                  <div style={{ padding: 16, borderBottom: `1px solid ${colors.border}` }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 700, color: colors.fgMuted, marginBottom: 12,
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                    }}>Siege pro Modus</div>
+
+                    {/* Legende */}
+                    <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 2, background: color1, display: 'inline-block' }} />
+                        {player1.name}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 2, background: color2, display: 'inline-block' }} />
+                        {player2.name}
+                      </div>
+                    </div>
+
+                    {/* Grouped Bars */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {modeData.map(d => (
+                        <div key={d.label}>
+                          <div style={{ fontSize: 12, color: colors.fgMuted, marginBottom: 4 }}>{d.label}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ flex: 1, height: 12, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
+                                <div style={{
+                                  width: `${(d.p1 / maxVal) * 100}%`, height: '100%',
+                                  background: color1, borderRadius: 6, transition: 'width 0.3s ease',
+                                  minWidth: d.p1 > 0 ? 4 : 0,
+                                }} />
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: color1, minWidth: 20, textAlign: 'right' }}>{d.p1}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ flex: 1, height: 12, background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
+                                <div style={{
+                                  width: `${(d.p2 / maxVal) * 100}%`, height: '100%',
+                                  background: color2, borderRadius: 6, transition: 'width 0.3s ease',
+                                  minWidth: d.p2 > 0 ? 4 : 0,
+                                }} />
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: color2, minWidth: 20, textAlign: 'right' }}>{d.p2}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Stats */}
               {player1Id && player2Id && (

@@ -5,6 +5,8 @@ import React, { useMemo } from 'react'
 import { useTheme } from '../../ThemeProvider'
 import { getThemedUI } from '../../ui'
 import type { SQLStatsData } from '../../hooks/useSQLStats'
+import BarChart from '../../components/charts/BarChart'
+import LineChart from '../../components/charts/LineChart'
 
 type Props = {
   data: SQLStatsData
@@ -74,6 +76,24 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
       {/* Formkurve */}
       {data.formCurve.length > 0 && (
         <Section title="Formkurve (letzte 20 X01 Matches)" colors={colors}>
+          {/* LineChart: 3-Dart-Average Trend */}
+          {data.formCurve.length >= 2 && (
+            <div style={{ marginBottom: 12, overflowX: 'auto' }}>
+              <LineChart
+                data={data.formCurve.map((f, i) => ({
+                  label: `#${i + 1}`,
+                  value: f.threeDartAvg,
+                }))}
+                height={160}
+                width={Math.max(300, data.formCurve.length * 40)}
+                color={colors.accent}
+                showPoints={data.formCurve.length <= 20}
+                showLabels
+                showGrid
+                valueFormatter={(v) => v.toFixed(1)}
+              />
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {data.formCurve.map((f, i) => (
               <div key={i} style={{
@@ -98,6 +118,23 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
       {/* Segment-Analyse */}
       {data.doubleRates.length > 0 && (
         <Section title="Doppel-Trefferquote (X01)" colors={colors}>
+          {/* Horizontales Balkendiagramm - sortiert nach Quote */}
+          <div style={{ marginBottom: 12 }}>
+            <BarChart
+              data={[...data.doubleRates]
+                .sort((a, b) => b.hitRate - a.hitRate)
+                .slice(0, 20)
+                .map(d => ({
+                  label: d.field,
+                  value: d.hitRate,
+                  color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? '#f59e0b' : '#ef4444',
+                }))}
+              maxValue={100}
+              height={20}
+              gap={4}
+              formatValue={(v) => `${v}%`}
+            />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
             {data.doubleRates.slice(0, 20).map(d => (
               <div key={d.field} style={{
@@ -116,6 +153,23 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
 
       {data.trebleRates.length > 0 && (
         <Section title="Triple-Trefferquote (X01)" colors={colors}>
+          {/* Horizontales Balkendiagramm - sortiert nach Quote */}
+          <div style={{ marginBottom: 12 }}>
+            <BarChart
+              data={[...data.trebleRates]
+                .sort((a, b) => b.hitRate - a.hitRate)
+                .slice(0, 20)
+                .map(d => ({
+                  label: d.field,
+                  value: d.hitRate,
+                  color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? '#f59e0b' : '#ef4444',
+                }))}
+              maxValue={100}
+              height={20}
+              gap={4}
+              formatValue={(v) => `${v}%`}
+            />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
             {data.trebleRates.slice(0, 20).map(d => (
               <div key={d.field} style={{
@@ -132,9 +186,50 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
         </Section>
       )}
 
+      {/* Segment-Genauigkeit */}
+      {data.segmentAccuracy.length > 0 && (
+        <Section title="Segment-Genauigkeit (X01)" colors={colors}>
+          <div style={{ marginBottom: 12 }}>
+            <BarChart
+              data={[...data.segmentAccuracy]
+                .sort((a, b) => b.hitRate - a.hitRate)
+                .map(s => ({
+                  label: String(s.field),
+                  value: s.hitRate,
+                  color: s.hitRate >= 50 ? '#22c55e' : s.hitRate >= 30 ? '#f59e0b' : '#ef4444',
+                }))}
+              maxValue={100}
+              height={20}
+              gap={4}
+              formatValue={(v) => `${v}%`}
+            />
+          </div>
+        </Section>
+      )}
+
       {/* Checkout nach Restpunkten */}
       {data.checkoutByRemaining.length > 0 && (
         <Section title="Checkout-Quote nach Restpunkten" colors={colors}>
+          {/* LineChart: Checkout-Quote nach Restpunkten */}
+          {data.checkoutByRemaining.length >= 2 && (
+            <div style={{ marginBottom: 12, overflowX: 'auto' }}>
+              <LineChart
+                data={[...data.checkoutByRemaining]
+                  .sort((a, b) => a.remaining - b.remaining)
+                  .map(c => ({
+                    label: `${c.remaining}`,
+                    value: c.successRate,
+                  }))}
+                height={160}
+                width={Math.max(300, data.checkoutByRemaining.length * 35)}
+                color="#10b981"
+                showPoints={data.checkoutByRemaining.length <= 30}
+                showLabels
+                showGrid
+                valueFormatter={(v) => `${v.toFixed(0)}%`}
+              />
+            </div>
+          )}
           <div style={{ maxHeight: 300, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>

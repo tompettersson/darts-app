@@ -6,6 +6,7 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getAllHighscoresSQL } from '../db/stats'
 import type { HighscoreCategory, HighscoreGameType } from '../types/highscores'
+import BarChart from '../components/charts/BarChart'
 
 type Props = {
   onBack: () => void
@@ -479,6 +480,60 @@ export default function HallOfFame({ onBack }: Props) {
             </div>
           )}
         </div>
+
+        {/* Top-Visualisierung als BarChart */}
+        {currentCategory?.entries && currentCategory.entries.length >= 2 && (() => {
+          const MEDAL_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32']
+          const top = currentCategory.entries.slice(0, 5)
+          const barData = top.map((entry, i) => ({
+            label: entry.playerName.length > 8 ? entry.playerName.slice(0, 7) + '.' : entry.playerName,
+            value: entry.value,
+            color: i < 3 ? MEDAL_COLORS[i] : (entry.playerColor ?? '#6b7280'),
+          }))
+
+          // For "asc" categories (lower is better), invert the visual so
+          // the best (lowest) value gets the longest bar
+          const isAscBetter = currentCategory.sortOrder === 'asc'
+          const displayData = isAscBetter
+            ? (() => {
+                const maxVal = Math.max(...barData.map(d => d.value), 1)
+                return barData.map(d => ({ ...d, value: maxVal - d.value + maxVal * 0.15 }))
+              })()
+            : barData
+
+          return (
+            <div style={{
+              background: colors.bgCard,
+              borderRadius: 8,
+              border: `1px solid ${colors.border}`,
+              padding: 16,
+              marginTop: 12,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: colors.fgMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Top {top.length} Vergleich
+              </div>
+              <BarChart
+                data={displayData}
+                height={22}
+                gap={6}
+                showValues={false}
+              />
+              {/* Show actual values as labels */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                {top.map((entry, i) => (
+                  <div key={`val-${i}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: colors.fgMuted }}>
+                    <span style={{ color: i < 3 ? MEDAL_COLORS[i] : colors.fgDim, fontWeight: i < 3 ? 700 : 400 }}>
+                      {i + 1}. {entry.playerName}
+                    </span>
+                    <span style={{ fontWeight: 600, color: colors.fg }}>
+                      {formatValue(entry.value, currentCategory.format)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Back Button */}
         <div style={s.backArea}>

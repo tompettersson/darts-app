@@ -4,6 +4,8 @@
 import React, { useMemo, useState } from 'react'
 import { useTheme } from '../../ThemeProvider'
 import type { SQLStatsData } from '../../hooks/useSQLStats'
+import GaugeChart from '../../components/charts/GaugeChart'
+import BarChart from '../../components/charts/BarChart'
 
 type Props = {
   playerId: string
@@ -122,12 +124,13 @@ function NoData({ colors, text }: { colors: any; text?: string }) {
 }
 
 // ============================================================================
-// SUB-TAB 1: PROFIL (Radar Chart + Player Type + Key Metrics)
+// SUB-TAB 1: PROFIL (Radar Chart + Player Type + Key Metrics + GaugeCharts)
 // ============================================================================
 
 function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   const dashboard = data.crossGameDashboard
   const clutch = data.clutchStats
+  const crossGameWinRates = data.crossGameWinRates ?? []
 
   // Compute radar axes (0-100 each)
   const radarScores = useMemo(() => {
@@ -195,6 +198,13 @@ function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   const totalDarts = data.x01?.totalDarts ?? 0
   const totalMatches = dashboard?.totalMatchesAllModes ?? 0
 
+  // Color for gauge based on win rate
+  const getGaugeColor = (wr: number) => {
+    if (wr >= 60) return '#22c55e'
+    if (wr >= 40) return '#f59e0b'
+    return '#ef4444'
+  }
+
   if (!dashboard && !data.x01) return <NoData colors={colors} />
 
   return (
@@ -243,7 +253,38 @@ function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
         </StatGrid>
       </Section>
 
-      {/* Cross-Game Win Rate Table */}
+      {/* Cross-Game Win Rate Gauges */}
+      {crossGameWinRates.length > 0 && (
+        <Section title="Winrate pro Spielmodus" colors={colors}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+            gap: 12,
+            justifyItems: 'center',
+          }}>
+            {crossGameWinRates.map(wr => (
+              <div key={wr.gameMode} style={{ textAlign: 'center' }}>
+                <GaugeChart
+                  value={wr.winRate}
+                  size={90}
+                  strokeWidth={10}
+                  color={getGaugeColor(wr.winRate)}
+                  backgroundColor={colors.bgDim}
+                  formatValue={v => `${v.toFixed(0)}%`}
+                />
+                <div style={{ fontSize: 12, fontWeight: 600, color: colors.fg, marginTop: 2 }}>
+                  {wr.gameMode}
+                </div>
+                <div style={{ fontSize: 10, color: colors.fgDim }}>
+                  {wr.matchesWon}/{wr.matchesPlayed} Siege
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Cross-Game Distribution Table */}
       {gameModeWinRates.length > 0 && (
         <Section title="Spielmodus-Verteilung" colors={colors}>
           {gameModeWinRates.map(g => (
@@ -375,13 +416,16 @@ function RadarChart({ scores, colors, accentColor }: {
 }
 
 // ============================================================================
-// SUB-TAB 2: FELDANALYSE (Field Heatmap + Best/Worst + Double Chart)
+// SUB-TAB 2: FELDANALYSE (Enhanced Heatmap + Best/Worst + BarChart Doubles)
 // ============================================================================
 
 function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   const segments = data.segmentAccuracy ?? []
   const doubleRates = data.doubleRates ?? []
   const trebleRates = data.trebleRates ?? []
+
+  // Use new doubleSuccessPerField if available, otherwise fall back to doubleRates
+  const doubleSuccessPerField = data.doubleSuccessPerField ?? []
 
   // Compute per-field data from segment accuracy
   const fieldData = useMemo(() => {
@@ -405,35 +449,49 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   // Max for heatmap color scaling
   const maxHitRate = fieldData.length > 0 ? Math.max(...fieldData.map(f => f.hitRate)) : 100
 
-  // Heat color
+  // Heat color with better gradient
   const getHeatColor = (rate: number) => {
     if (maxHitRate === 0) return colors.bgDim
     const intensity = rate / maxHitRate
-    if (intensity <= 0.2) return '#ef444433'
-    if (intensity <= 0.4) return '#f59e0b44'
-    if (intensity <= 0.6) return '#eab30866'
-    if (intensity <= 0.8) return '#22c55e66'
-    return '#22c55eaa'
+    if (intensity <= 0.2) return '#ef444440'
+    if (intensity <= 0.4) return '#f9731644'
+    if (intensity <= 0.6) return '#eab30855'
+    if (intensity <= 0.8) return '#84cc1666'
+    return '#22c55e88'
   }
 
-  // Double rates sorted by field number
-  const sortedDoubles = useMemo(() => {
-    return [...doubleRates].sort((a, b) => {
-      const numA = a.field === 'DBull' ? 25 : parseInt(a.field.replace('D', ''))
-      const numB = b.field === 'DBull' ? 25 : parseInt(b.field.replace('D', ''))
-      return numA - numB
-    })
-  }, [doubleRates])
+  // Double rates sorted by hit rate (best first) for BarChart
+  const sortedDoublesByRate = useMemo(() => {
+    const source = doubleSuccessPerField.length > 0
+      ? doubleSuccessPerField.map(d => ({
+          field: d.field === 'BULL' ? 'DBull' : `D${d.field}`,
+          hitRate: d.hitRate,
+          hits: d.hits,
+          attempts: d.attempts,
+        }))
+      : doubleRates
 
-  const maxDoubleRate = sortedDoubles.length > 0 ? Math.max(...sortedDoubles.map(d => d.hitRate), 1) : 1
+    return [...source]
+      .filter(d => d.attempts > 0)
+      .sort((a, b) => b.hitRate - a.hitRate)
+  }, [doubleSuccessPerField, doubleRates])
 
-  if (segments.length === 0 && doubleRates.length === 0) {
+  // BarChart data for doubles
+  const doubleBarData = useMemo(() => {
+    return sortedDoublesByRate.slice(0, 15).map(d => ({
+      label: d.field,
+      value: d.hitRate,
+      color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? '#f59e0b' : '#ef4444',
+    }))
+  }, [sortedDoublesByRate])
+
+  if (segments.length === 0 && doubleRates.length === 0 && doubleSuccessPerField.length === 0) {
     return <NoData colors={colors} text="Noch keine Felddaten vorhanden. Spiele ein paar X01-Matches!" />
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {/* Field Heatmap */}
+      {/* Enhanced Field Heatmap */}
       {fieldData.length > 0 && (
         <Section title="Feld-Heatmap" colors={colors}>
           <div style={{
@@ -442,24 +500,66 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
             gap: 4,
           }}>
             {fieldData.map(f => (
-              <div key={f.field} style={{
-                padding: '8px 4px', borderRadius: 6, textAlign: 'center',
+              <div key={f.field} title={`Feld ${f.field}: ${f.hitRate.toFixed(1)}% Treffer`} style={{
+                padding: '10px 4px', borderRadius: 8, textAlign: 'center',
                 background: getHeatColor(f.hitRate),
                 border: `1px solid ${colors.border}`,
+                cursor: 'default',
+                transition: 'transform 0.15s, box-shadow 0.15s',
+                position: 'relative',
               }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: colors.fg }}>{f.field}</div>
-                <div style={{ fontSize: 10, color: colors.fgDim }}>{f.hitRate.toFixed(0)}%</div>
-                {f.tripleRate > 0 && (
-                  <div style={{ fontSize: 9, color: '#a855f7' }}>T:{f.tripleRate.toFixed(0)}%</div>
-                )}
-                {f.doubleRate > 0 && (
-                  <div style={{ fontSize: 9, color: '#3b82f6' }}>D:{f.doubleRate.toFixed(0)}%</div>
+                <div style={{
+                  fontWeight: 800, fontSize: 18, color: colors.fg,
+                  lineHeight: 1.1,
+                }}>{f.field}</div>
+                <div style={{
+                  fontSize: 11, color: colors.fg, fontWeight: 600, marginTop: 2,
+                  opacity: 0.85,
+                }}>{f.hitRate.toFixed(0)}%</div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 3 }}>
+                  {f.tripleRate > 0 && (
+                    <span style={{
+                      fontSize: 9, color: '#a855f7', fontWeight: 600,
+                      background: '#a855f715', padding: '0 3px', borderRadius: 3,
+                    }}>T{f.tripleRate.toFixed(0)}</span>
+                  )}
+                  {f.doubleRate > 0 && (
+                    <span style={{
+                      fontSize: 9, color: '#3b82f6', fontWeight: 600,
+                      background: '#3b82f615', padding: '0 3px', borderRadius: 3,
+                    }}>D{f.doubleRate.toFixed(0)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Color Legend */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
+            justifyContent: 'center', flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 10, color: colors.fgDim, marginRight: 4 }}>Legende:</span>
+            {[
+              { label: 'Niedrig', color: '#ef444440' },
+              { label: '', color: '#f97316044' },
+              { label: 'Mittel', color: '#eab30855' },
+              { label: '', color: '#84cc1666' },
+              { label: 'Hoch', color: '#22c55e88' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <div style={{
+                  width: 16, height: 10, borderRadius: 2,
+                  background: item.color, border: `1px solid ${colors.border}`,
+                }} />
+                {item.label && (
+                  <span style={{ fontSize: 10, color: colors.fgDim }}>{item.label}</span>
                 )}
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 10, color: colors.fgDim }}>
-            <span>Farbe = Trefferquote</span>
+
+          <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, color: colors.fgDim, justifyContent: 'center' }}>
             <span style={{ color: '#a855f7' }}>T = Triple%</span>
             <span style={{ color: '#3b82f6' }}>D = Double%</span>
           </div>
@@ -496,35 +596,22 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
         </div>
       )}
 
-      {/* Double Success Bar Chart */}
-      {sortedDoubles.length > 0 && (
-        <Section title="Doppel-Trefferquote" colors={colors}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {sortedDoubles.map(d => (
-              <div key={d.field} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 50, fontSize: 12, fontWeight: 600, color: colors.fg, textAlign: 'right' }}>
-                  {d.field}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <MiniBar
-                    value={d.hitRate}
-                    max={maxDoubleRate}
-                    color={d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? '#f59e0b' : '#ef4444'}
-                    colors={colors}
-                  />
-                </div>
-                <div style={{
-                  width: 60, fontSize: 12, textAlign: 'right',
-                  color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? colors.fgDim : '#ef4444',
-                }}>
-                  {d.hitRate.toFixed(1)}%
-                </div>
-                <div style={{ width: 50, fontSize: 10, color: colors.fgDim, textAlign: 'right' }}>
-                  {d.hits}/{d.attempts}
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Double Success BarChart (sorted by hit rate) */}
+      {doubleBarData.length > 0 && (
+        <Section title="Doppel-Trefferquote (sortiert)" colors={colors}>
+          <BarChart
+            data={doubleBarData}
+            maxValue={Math.max(...doubleBarData.map(d => d.value), 1)}
+            height={20}
+            gap={6}
+            showValues
+            formatValue={v => `${v.toFixed(1)}%`}
+          />
+          {sortedDoublesByRate.length > 0 && (
+            <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 8, textAlign: 'center' }}>
+              Top {Math.min(15, sortedDoublesByRate.length)} Doppelfelder nach Trefferquote
+            </div>
+          )}
         </Section>
       )}
     </div>
@@ -636,12 +723,12 @@ function HeadToHeadTab({ data, playerId, colors }: { data: SQLStatsData; playerI
 }
 
 // ============================================================================
-// SUB-TAB 4: MEILENSTEINE (Milestones Timeline)
+// SUB-TAB 4: MEILENSTEINE (Enhanced Milestones with Icons + Progress Bars)
 // ============================================================================
 
 type MilestoneCategory = 'scoring' | 'finishing' | 'consistency' | 'endurance'
 
-interface Milestone {
+interface MilestoneItem {
   id: string
   title: string
   description: string
@@ -653,11 +740,18 @@ interface Milestone {
   target?: number
 }
 
+const CATEGORY_ICONS: Record<MilestoneCategory, string> = {
+  scoring: '\u2605',     // filled star
+  finishing: '\u25C6',   // diamond
+  consistency: '\u25CF', // circle
+  endurance: '\u25B2',   // triangle
+}
+
 function MeilensteineTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   const achievements = data.fullAchievements ?? []
 
   // Map achievements to milestones
-  const milestones: Milestone[] = useMemo(() => {
+  const milestones: MilestoneItem[] = useMemo(() => {
     if (achievements.length === 0) return getDefaultMilestones(data)
     return achievements.map(a => ({
       id: a.id,
@@ -701,37 +795,70 @@ function MeilensteineTab({ data, colors }: { data: SQLStatsData; colors: any }) 
           <div style={{ fontSize: 13, color: colors.fgDim }}>von {milestones.length} Meilensteinen erreicht</div>
         </div>
         {milestones.length > 0 && (
-          <div style={{ height: 8, background: colors.bgDim, borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: 10, background: colors.bgDim, borderRadius: 5, overflow: 'hidden' }}>
             <div style={{
               width: `${(unlocked.length / milestones.length) * 100}%`,
-              height: '100%', background: colors.accent, borderRadius: 4,
+              height: '100%', background: `linear-gradient(90deg, ${colors.accent}, #22c55e)`, borderRadius: 5,
+              transition: 'width 0.5s ease',
             }} />
           </div>
         )}
+
+        {/* Category breakdown */}
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap',
+        }}>
+          {(Object.keys(categoryLabels) as MilestoneCategory[]).map(cat => {
+            const total = milestones.filter(m => m.category === cat).length
+            const done = milestones.filter(m => m.category === cat && m.unlocked).length
+            if (total === 0) return null
+            return (
+              <div key={cat} style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, color: colors.fgDim,
+              }}>
+                <span style={{ color: categoryColors[cat], fontSize: 14 }}>
+                  {CATEGORY_ICONS[cat]}
+                </span>
+                <span style={{ fontWeight: 600, color: categoryColors[cat] }}>
+                  {categoryLabels[cat]}
+                </span>
+                <span>{done}/{total}</span>
+              </div>
+            )
+          })}
+        </div>
       </Section>
 
       {/* Unlocked milestones timeline */}
       {unlocked.length > 0 && (
         <Section title="Erreichte Meilensteine" colors={colors}>
-          <div style={{ position: 'relative', paddingLeft: 24 }}>
+          <div style={{ position: 'relative', paddingLeft: 28 }}>
             {/* Vertical line */}
             <div style={{
-              position: 'absolute', left: 8, top: 8, bottom: 8,
+              position: 'absolute', left: 10, top: 8, bottom: 8,
               width: 2, background: colors.border,
             }} />
             {unlocked.map((m, i) => (
               <div key={m.id} style={{
                 position: 'relative', paddingBottom: i < unlocked.length - 1 ? 16 : 0,
               }}>
-                {/* Dot on timeline */}
+                {/* Icon on timeline */}
                 <div style={{
-                  position: 'absolute', left: -20, top: 4,
-                  width: 14, height: 14, borderRadius: '50%',
+                  position: 'absolute', left: -24, top: 2,
+                  width: 20, height: 20, borderRadius: '50%',
                   background: categoryColors[m.category],
                   border: `2px solid ${colors.bgCard}`,
-                }} />
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, color: '#fff', fontWeight: 700,
+                }}>
+                  {'\u2713'}
+                </div>
                 <div style={{ paddingLeft: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ color: categoryColors[m.category], fontSize: 14 }}>
+                      {CATEGORY_ICONS[m.category]}
+                    </span>
                     <span style={{ fontWeight: 700, fontSize: 14, color: colors.fg }}>{m.title}</span>
                     <span style={{
                       fontSize: 10, padding: '1px 6px', borderRadius: 4,
@@ -752,42 +879,69 @@ function MeilensteineTab({ data, colors }: { data: SQLStatsData; colors: any }) 
         </Section>
       )}
 
-      {/* Locked milestones */}
+      {/* Locked milestones with progress bars */}
       {locked.length > 0 && (
         <Section title="Noch offen" colors={colors}>
-          {locked.map(m => (
-            <div key={m.id} style={{
-              padding: '10px 12px', borderRadius: 8, marginBottom: 6,
-              background: colors.bgDim, opacity: 0.7,
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: categoryColors[m.category] + '15',
-                color: categoryColors[m.category], fontSize: 14, fontWeight: 700,
+          {locked.map(m => {
+            const progressPct = Math.min(100, m.progress * 100)
+            return (
+              <div key={m.id} style={{
+                padding: '10px 12px', borderRadius: 8, marginBottom: 6,
+                background: colors.bgDim,
+                border: `1px solid ${colors.border}`,
+                display: 'flex', alignItems: 'flex-start', gap: 10,
               }}>
-                {Math.round(m.progress * 100)}%
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: colors.fg }}>{m.title}</div>
-                <div style={{ fontSize: 11, color: colors.fgDim }}>{m.description}</div>
-                {m.target != null && (
-                  <div style={{ marginTop: 4 }}>
-                    <div style={{ height: 4, background: colors.border, borderRadius: 2, overflow: 'hidden' }}>
+                {/* Category icon */}
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: categoryColors[m.category] + '18',
+                  color: categoryColors[m.category], fontSize: 16,
+                }}>
+                  {CATEGORY_ICONS[m.category]}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: colors.fg }}>{m.title}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: colors.fgDim, marginTop: 1 }}>{m.description}</div>
+                  {/* Progress bar */}
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{
+                      height: 6, background: colors.border, borderRadius: 3, overflow: 'hidden',
+                      position: 'relative',
+                    }}>
                       <div style={{
-                        width: `${Math.min(100, m.progress * 100)}%`,
-                        height: '100%', background: categoryColors[m.category], borderRadius: 2,
+                        width: `${progressPct}%`,
+                        height: '100%',
+                        background: progressPct >= 80
+                          ? `linear-gradient(90deg, ${categoryColors[m.category]}, #22c55e)`
+                          : categoryColors[m.category],
+                        borderRadius: 3,
+                        transition: 'width 0.4s ease',
                       }} />
                     </div>
-                    <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 2 }}>
-                      {m.value ?? 0} / {m.target}
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      fontSize: 10, color: colors.fgDim, marginTop: 3,
+                    }}>
+                      <span>
+                        {m.value != null && m.target != null
+                          ? `${m.value} / ${m.target}`
+                          : `${progressPct.toFixed(0)}%`}
+                      </span>
+                      <span style={{
+                        fontWeight: 600,
+                        color: progressPct >= 80 ? '#22c55e' : progressPct >= 50 ? '#f59e0b' : colors.fgDim,
+                      }}>
+                        {progressPct >= 80 ? 'Fast geschafft!' : progressPct >= 50 ? 'Auf gutem Weg' : ''}
+                      </span>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </Section>
       )}
     </div>
@@ -801,10 +955,10 @@ function mapCategory(cat: string): MilestoneCategory {
   return 'scoring'
 }
 
-function getDefaultMilestones(data: SQLStatsData): Milestone[] {
+function getDefaultMilestones(data: SQLStatsData): MilestoneItem[] {
   const x01 = data.x01
   const dashboard = data.crossGameDashboard
-  const milestones: Milestone[] = []
+  const milestones: MilestoneItem[] = []
 
   // Scoring milestones
   const totalMatches = dashboard?.totalMatchesAllModes ?? 0
@@ -859,25 +1013,43 @@ function getDefaultMilestones(data: SQLStatsData): Milestone[] {
 }
 
 // ============================================================================
-// SUB-TAB 5: TAGESFORM (Time Insights)
+// SUB-TAB 5: TAGESFORM (Time Insights with BarChart)
 // ============================================================================
 
 function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   const timeInsights = data.timeInsights
   const warmup = data.warmupEffect
   const sessions = data.sessionPerformance ?? []
+  const timeOfDayStats = data.timeOfDayStats ?? []
 
-  if (!timeInsights && !warmup && sessions.length === 0) {
+  if (!timeInsights && !warmup && sessions.length === 0 && timeOfDayStats.length === 0) {
     return <NoData colors={colors} text="Noch keine Zeitdaten vorhanden. Spiele ein paar Matches!" />
   }
 
-  // Hourly performance
+  // Hourly performance — prefer timeOfDayStats if available, else timeInsights
   const hourlyData = timeInsights?.hourlyPerformance ?? []
-  const maxHourlyWinRate = hourlyData.length > 0 ? Math.max(...hourlyData.map(h => h.winRate), 1) : 1
-  const maxHourlyMatches = hourlyData.length > 0 ? Math.max(...hourlyData.map(h => h.matchCount), 1) : 1
 
-  // Day-of-week data is not available in TimeInsights type
-  // Can be computed from sessions if needed
+  // Find best hour
+  const bestHourEntry = useMemo(() => {
+    if (hourlyData.length === 0) return null
+    const withData = hourlyData.filter(h => h.matchCount >= 3)
+    if (withData.length === 0) return null
+    return withData.reduce((best, h) => h.winRate > best.winRate ? h : best, withData[0])
+  }, [hourlyData])
+
+  // BarChart data for hourly performance
+  const hourlyBarData = useMemo(() => {
+    if (hourlyData.length === 0) return []
+    return hourlyData.map(h => ({
+      label: `${h.hour}:00`,
+      value: h.matchCount >= 3 ? h.winRate : 0,
+      color: bestHourEntry && h.hour === bestHourEntry.hour
+        ? '#22c55e'
+        : h.matchCount >= 3
+          ? (h.winRate >= 50 ? '#3b82f6' : '#ef4444')
+          : colors.bgDim,
+    }))
+  }, [hourlyData, bestHourEntry, colors])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -912,36 +1084,24 @@ function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {
         </Section>
       )}
 
-      {/* Hourly bar chart */}
-      {hourlyData.length > 0 && (
+      {/* Hourly performance BarChart */}
+      {hourlyBarData.length > 0 && (
         <Section title="Performance nach Uhrzeit" colors={colors}>
-          <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 100, padding: '0 4px' }}>
-            {hourlyData.map(h => {
-              const barHeight = Math.max(4, (h.winRate / maxHourlyWinRate) * 80)
-              const hasData = h.matchCount >= 3
-              return (
-                <div key={h.hour} style={{
-                  flex: 1, display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'flex-end', height: '100%',
-                }}>
-                  {hasData && (
-                    <div style={{ fontSize: 8, color: colors.fgDim, marginBottom: 2 }}>
-                      {h.winRate.toFixed(0)}%
-                    </div>
-                  )}
-                  <div style={{
-                    width: '100%', maxWidth: 16, height: barHeight, borderRadius: 2,
-                    background: hasData
-                      ? (h.winRate >= 50 ? '#22c55e' : '#ef4444')
-                      : colors.bgDim,
-                  }} />
-                  <div style={{ fontSize: 8, color: colors.fgDim, marginTop: 2 }}>{h.hour}</div>
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 6, textAlign: 'center' }}>
-            Winrate nach Uhrzeit (mind. 3 Matches)
+          <BarChart
+            data={hourlyBarData}
+            maxValue={100}
+            height={20}
+            gap={4}
+            showValues
+            formatValue={v => v > 0 ? `${v.toFixed(0)}%` : '-'}
+          />
+          <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 8, textAlign: 'center' }}>
+            Winrate nach Uhrzeit (mind. 3 Matches) |{' '}
+            {bestHourEntry && (
+              <span style={{ color: '#22c55e', fontWeight: 600 }}>
+                Beste Stunde: {bestHourEntry.hour}:00 ({bestHourEntry.winRate.toFixed(0)}%)
+              </span>
+            )}
           </div>
         </Section>
       )}
