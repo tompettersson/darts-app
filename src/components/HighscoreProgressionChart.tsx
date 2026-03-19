@@ -4,16 +4,7 @@
 
 import React, { useRef, useEffect, useState } from 'react'
 import { useTheme } from '../ThemeProvider'
-
-// Spielerfarben
-export const PLAYER_COLORS = [
-  '#3b82f6',  // Blau (Spieler 1)
-  '#22c55e',  // Grün (Spieler 2)
-  '#f97316',  // Orange (Spieler 3)
-  '#ef4444',  // Rot (Spieler 4)
-  '#8b5cf6',  // Lila (Spieler 5)
-  '#14b8a6',  // Teal (Spieler 6)
-]
+export { PLAYER_COLORS } from '../playerColors'
 
 type PlayerTurn = {
   turnIndex: number

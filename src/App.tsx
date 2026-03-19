@@ -50,6 +50,14 @@ import {
   getShanghaiMatchById,
   getOpenKillerMatch,
   getKillerMatchById,
+  createBobs27MatchShell,
+  setLastOpenBobs27MatchId,
+  getOpenBobs27Match,
+  getBobs27MatchById,
+  createOperationMatchShell,
+  setLastOpenOperationMatchId,
+  getOpenOperationMatch,
+  getOperationMatchById,
   type StoredMatch,
 } from './storage'
 
@@ -57,55 +65,47 @@ import {
 import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501'
 
 // X01 Screens
-import Game from './screens/Game'
 import NewGame from './screens/NewGame'
 import NewGameStart, { type Preset } from './screens/NewGameStart'
-
-// StatsArea (NEU ausgelagert)
-import StatsArea from './screens/stats/StatsArea'
 
 // Profile Screens (Verwaltung)
 import CreateProfile from './screens/CreateProfile'
 import ProfileList from './screens/ProfileList'
 import ProfileBackup from './screens/ProfileBackup'
 
-// Cricket Screens
+// NewGame Screens (leichtgewichtig, eager loaded)
 import NewGameCricket from './screens/NewGameCricket'
-import GameCricket from './screens/GameCricket'
-import CricketSummary from './screens/CricketSummary'
-
-// Around the Block Screens
 import NewGameATB from './screens/NewGameATB'
-import GameATB from './screens/GameATB'
-import ATBSummary from './screens/ATBSummary'
-
-// 121 Sprint
 import NewGame121 from './screens/NewGame121'
-
-// Sträußchen
 import NewGameStraeusschen from './screens/NewGameStraeusschen'
-import GameStraeusschen from './screens/GameStraeusschen'
-import StraeusschenSummary from './screens/StraeusschenSummary'
-
-// Highscore
 import NewGameHighscore from './screens/NewGameHighscore'
-import GameHighscore from './screens/GameHighscore'
-import HighscoreSummary from './screens/HighscoreSummary'
-
-// Capture the Field
 import NewGameCTF from './screens/NewGameCTF'
-import GameCTF from './screens/GameCTF'
-import CTFSummary from './screens/CTFSummary'
-
-// Shanghai
 import NewGameShanghai from './screens/NewGameShanghai'
-import GameShanghai from './screens/GameShanghai'
-import ShanghaiSummary from './screens/ShanghaiSummary'
-
-// Killer
 import NewGameKiller from './screens/NewGameKiller'
-import GameKiller from './screens/GameKiller'
-import KillerSummary from './screens/KillerSummary'
+import NewGameBobs27 from './screens/NewGameBobs27'
+import NewGameOperation from './screens/NewGameOperation'
+
+// Lazy-loaded Game Screens, Summaries & Stats
+const Game = React.lazy(() => import('./screens/Game'))
+const GameCricket = React.lazy(() => import('./screens/GameCricket'))
+const GameATB = React.lazy(() => import('./screens/GameATB'))
+const GameStraeusschen = React.lazy(() => import('./screens/GameStraeusschen'))
+const GameHighscore = React.lazy(() => import('./screens/GameHighscore'))
+const GameCTF = React.lazy(() => import('./screens/GameCTF'))
+const GameShanghai = React.lazy(() => import('./screens/GameShanghai'))
+const GameKiller = React.lazy(() => import('./screens/GameKiller'))
+const GameBobs27 = React.lazy(() => import('./screens/GameBobs27'))
+const GameOperation = React.lazy(() => import('./screens/GameOperation'))
+const StatsArea = React.lazy(() => import('./screens/stats/StatsArea'))
+const CricketSummary = React.lazy(() => import('./screens/CricketSummary'))
+const ATBSummary = React.lazy(() => import('./screens/ATBSummary'))
+const StraeusschenSummary = React.lazy(() => import('./screens/StraeusschenSummary'))
+const HighscoreSummary = React.lazy(() => import('./screens/HighscoreSummary'))
+const CTFSummary = React.lazy(() => import('./screens/CTFSummary'))
+const ShanghaiSummary = React.lazy(() => import('./screens/ShanghaiSummary'))
+const KillerSummary = React.lazy(() => import('./screens/KillerSummary'))
+const Bobs27Summary = React.lazy(() => import('./screens/Bobs27Summary'))
+const OperationSummary = React.lazy(() => import('./screens/OperationSummary'))
 
 // Zufallsspiel
 import NewGameRandom from './screens/NewGameRandom'
@@ -119,7 +119,7 @@ import type { DartsEvent as DartsEventType } from './darts501'
 import ArcadeScrollPicker, { type PickerItem } from './components/ArcadeScrollPicker'
 
 // Speech (Einstellungen)
-import { getVoiceLang, setVoiceLang, type VoiceLang } from './speech'
+import { getVoiceLang, setVoiceLang, type SpeechLang } from './speech'
 
 // Types
 import type { CricketSetup } from './screens/newgame/CricketModePicker'
@@ -154,6 +154,12 @@ type View =
   | 'new-killer'
   | 'game-killer'
   | 'summary-killer'
+  | 'new-bobs27'
+  | 'game-bobs27'
+  | 'summary-bobs27'
+  | 'new-operation'
+  | 'game-operation'
+  | 'summary-operation'
   | 'stats-area'
   // Profiles/Backup
   | 'create-profile'
@@ -290,12 +296,21 @@ export default function App() {
   const [activeKillerId, setActiveKillerId] = useState<string | undefined>(() => getOpenKillerMatch()?.id)
   const [summaryKillerId, setSummaryKillerId] = useState<string | undefined>(undefined)
 
+  // Bob's 27 Match IDs
+  const [activeBobs27Id, setActiveBobs27Id] = useState<string | undefined>(() => getOpenBobs27Match()?.id)
+  const [summaryBobs27Id, setSummaryBobs27Id] = useState<string | undefined>(undefined)
+
+  // Operation Match IDs
+  const [activeOperationId, setActiveOperationId] = useState<string | undefined>(() => getOpenOperationMatch()?.id)
+  const [summaryOperationId, setSummaryOperationId] = useState<string | undefined>(undefined)
+
   // --- Multiplayer State ---
   const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
   const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(null)
   const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(null)
   const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>('')
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
+  const [multiplayerGameType, setMultiplayerGameType] = useState<string>('x01')
 
   const [mpState, mpActions] = useMultiplayerRoom(
     multiplayerRoomCode,
@@ -323,12 +338,14 @@ export default function App() {
   const openCTF = getOpenCTFMatch()
   const openShanghai = getOpenShanghaiMatch()
   const openKiller = getOpenKillerMatch()
+  const openBobs27 = getOpenBobs27Match()
+  const openOperation = getOpenOperationMatch()
 
   // Wer soll bei "Spiel fortsetzen" genommen werden?
   const continueInfo = useMemo(() => {
     const act = getLastActivity()
 
-    function buildResult(kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer') {
+    function buildResult(kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation') {
       if (kind === 'x01') {
         if (openMatch && !openMatch.finished) {
           return { kind: 'x01' as const, id: openMatch.id, title: openMatch.title }
@@ -361,13 +378,21 @@ export default function App() {
         if (openKiller && !openKiller.finished) {
           return { kind: 'killer' as const, id: openKiller.id, title: openKiller.title }
         }
+      } else if (kind === 'bobs27') {
+        if (openBobs27 && !openBobs27.finished) {
+          return { kind: 'bobs27' as const, id: openBobs27.id, title: openBobs27.title }
+        }
+      } else if (kind === 'operation') {
+        if (openOperation && !openOperation.finished) {
+          return { kind: 'operation' as const, id: openOperation.id, title: openOperation.title }
+        }
       }
       return null
     }
 
     // 1) bevorzugt das zuletzt aktive
     if (act && act.matchExists && !act.finished) {
-      const pref = buildResult(act.kind as 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer')
+      const pref = buildResult(act.kind as 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation')
       if (pref) return pref
     }
     // 2) fallback: X01
@@ -394,9 +419,15 @@ export default function App() {
     // 9) fallback: Killer
     const killerRes = buildResult('killer')
     if (killerRes) return killerRes
-    // 10) nix offen
+    // 10) fallback: Bob's 27
+    const bobs27Res = buildResult('bobs27')
+    if (bobs27Res) return bobs27Res
+    // 11) fallback: Operation
+    const operationRes = buildResult('operation')
+    if (operationRes) return operationRes
+    // 12) nix offen
     return null
-  }, [openMatch, openCricket, openATB, openStr, openHighscore, openCTF, openShanghai, openKiller])
+  }, [openMatch, openCricket, openATB, openStr, openHighscore, openCTF, openShanghai, openKiller, openBobs27, openOperation])
 
   // ---------- Loading Screen ----------
   if (dbLoading) {
@@ -464,6 +495,31 @@ export default function App() {
         }}
         onSelectKiller={() => {
           setView('new-killer')
+        }}
+        onSelectBobs27={() => {
+          setView('new-bobs27')
+        }}
+        onSelectOperation={() => {
+          setView('new-operation')
+        }}
+        onMultiplayerHost={() => {
+          const profiles = getProfiles()
+          if (profiles.length === 0) {
+            alert('Erstelle zuerst ein Profil unter Einstellungen')
+            return
+          }
+          setMultiplayerMyPlayerId(profiles[0].id)
+          setIsMultiplayerSetup(true)
+          setView('new-start')
+        }}
+        onMultiplayerJoin={() => {
+          const profiles = getProfiles()
+          if (profiles.length === 0) {
+            alert('Erstelle zuerst ein Profil unter Einstellungen')
+            return
+          }
+          setMultiplayerMyPlayerId(profiles[0].id)
+          setView('multiplayer-lobby-join')
         }}
       />
     )
@@ -1134,6 +1190,130 @@ export default function App() {
     )
   }
 
+  // BOB'S 27 KONFIG
+  if (view === 'new-bobs27') {
+    return (
+      <NewGameBobs27
+        onCancel={() => setView('new-start')}
+        onStart={(data) => {
+          const match = createBobs27MatchShell({
+            players: data.players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
+            config: data.config,
+          })
+          setActiveBobs27Id(match.id)
+          setLastOpenBobs27MatchId(match.id)
+          setLastActivity('bobs27', match.id)
+          setView('game-bobs27')
+        }}
+      />
+    )
+  }
+
+  // BOB'S 27 LIVE GAME
+  if (view === 'game-bobs27' && activeBobs27Id) {
+    return (
+      <GameBobs27
+        matchId={activeBobs27Id}
+        onExit={() => setView('menu')}
+        onShowSummary={(id) => {
+          setSummaryBobs27Id(id)
+          setView('summary-bobs27')
+        }}
+      />
+    )
+  }
+
+  // BOB'S 27 SUMMARY
+  if (view === 'summary-bobs27' && summaryBobs27Id) {
+    return (
+      <Bobs27Summary
+        matchId={summaryBobs27Id}
+        onBackToMenu={() => {
+          setView('menu')
+          setSummaryBobs27Id(undefined)
+        }}
+        onRematch={() => {
+          const oldData = getBobs27MatchById(summaryBobs27Id)
+          if (!oldData) {
+            setView('menu')
+            return
+          }
+          const match = createBobs27MatchShell({
+            players: oldData.players.map(p => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
+            config: oldData.config,
+          })
+          setActiveBobs27Id(match.id)
+          setLastOpenBobs27MatchId(match.id)
+          setLastActivity('bobs27', match.id)
+          setSummaryBobs27Id(undefined)
+          setView('game-bobs27')
+        }}
+      />
+    )
+  }
+
+  // OPERATION KONFIG
+  if (view === 'new-operation') {
+    return (
+      <NewGameOperation
+        onCancel={() => setView('new-start')}
+        onStart={(data) => {
+          const match = createOperationMatchShell({
+            players: data.players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
+            config: data.config,
+          })
+          setActiveOperationId(match.id)
+          setLastOpenOperationMatchId(match.id)
+          setLastActivity('operation', match.id)
+          setView('game-operation')
+        }}
+      />
+    )
+  }
+
+  // OPERATION LIVE GAME
+  if (view === 'game-operation' && activeOperationId) {
+    return (
+      <GameOperation
+        matchId={activeOperationId}
+        onExit={() => setView('menu')}
+        onShowSummary={(id) => {
+          setSummaryOperationId(id)
+          setView('summary-operation')
+        }}
+      />
+    )
+  }
+
+  // OPERATION SUMMARY
+  if (view === 'summary-operation' && summaryOperationId) {
+    return (
+      <OperationSummary
+        matchId={summaryOperationId}
+        onBackToMenu={() => {
+          setView('menu')
+          setSummaryOperationId(undefined)
+        }}
+        onRematch={() => {
+          const oldData = getOperationMatchById(summaryOperationId)
+          if (!oldData) {
+            setView('menu')
+            return
+          }
+          const match = createOperationMatchShell({
+            players: oldData.players.map(p => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
+            config: oldData.config,
+          })
+          setActiveOperationId(match.id)
+          setLastOpenOperationMatchId(match.id)
+          setLastActivity('operation', match.id)
+          setSummaryOperationId(undefined)
+          setView('game-operation')
+        }}
+      />
+    )
+  }
+
   // MULTIPLAYER LOBBY (Host)
   if (view === 'multiplayer-lobby-host' && multiplayerMatchId) {
     return (
@@ -1150,7 +1330,7 @@ export default function App() {
           // Message will be queued until socket is open
           const profiles = getProfiles()
           const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
-          mpActions.createRoom(multiplayerMatchId!, {
+          mpActions.createRoom(multiplayerMatchId!, multiplayerGameType ?? 'x01', {
             playerId: multiplayerMyPlayerId,
             name: myProfile?.name ?? multiplayerMyPlayerId,
             color: myProfile?.color,
@@ -1217,30 +1397,64 @@ export default function App() {
     )
   }
 
-  // MULTIPLAYER GAME (X01 with multiplayer props)
+  // MULTIPLAYER GAME (routes to correct game component based on gameType)
   if (view === 'multiplayer-game' && multiplayerMatchId) {
+    const mpProps = {
+      enabled: true as const,
+      roomCode: multiplayerRoomCode ?? '',
+      myPlayerId: multiplayerMyPlayerId,
+      submitEvents: mpActions.submitEvents,
+      undo: mpActions.undo,
+      remoteEvents: multiplayerRemoteEvents,
+      connectionStatus: mpState.status,
+      playerCount: mpState.players.filter(p => p.connected).length,
+    }
+    const mpOnExit = () => {
+      mpActions.disconnect()
+      setMultiplayerRoomCode(null)
+      setMultiplayerMatchId(null)
+      setMultiplayerRemoteEvents(null)
+      setActiveMatchId(undefined)
+      setView('menu')
+    }
+
+    if (multiplayerGameType === 'bobs27') {
+      return (
+        <GameBobs27
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setActiveBobs27Id(id)
+            setView('summary-bobs27')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'operation') {
+      return (
+        <GameOperation
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setActiveOperationId(id)
+            setView('summary-operation')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    // Default: X01
     return (
       <Game
         matchId={multiplayerMatchId}
-        onExit={() => {
-          mpActions.disconnect()
-          setMultiplayerRoomCode(null)
-          setMultiplayerMatchId(null)
-          setMultiplayerRemoteEvents(null)
-          setActiveMatchId(undefined)
-          setView('menu')
-        }}
+        onExit={mpOnExit}
         onNewGame={() => setView('new-start')}
-        multiplayer={{
-          enabled: true,
-          roomCode: multiplayerRoomCode ?? '',
-          myPlayerId: multiplayerMyPlayerId,
-          submitEvents: mpActions.submitEvents,
-          undo: mpActions.undo,
-          remoteEvents: multiplayerRemoteEvents,
-          connectionStatus: mpState.status,
-          playerCount: mpState.players.filter(p => p.connected).length,
-        }}
+        multiplayer={mpProps}
       />
     )
   }
@@ -1373,9 +1587,13 @@ export default function App() {
   // EINSTELLUNGEN (Theme, Kommentator-Stimme etc.)
   if (view === 'settings') {
     const currentLang = getVoiceLang()
-    const voiceOptions: { value: VoiceLang; label: string; desc: string }[] = [
+    const voiceOptions: { value: SpeechLang; label: string; desc: string }[] = [
       { value: 'en', label: 'English', desc: 'Darts-Caller Stil (Standard)' },
       { value: 'de', label: 'Deutsch', desc: 'Deutscher Kommentator' },
+      { value: 'fr', label: 'Français', desc: 'Commentateur français' },
+      { value: 'it', label: 'Italiano', desc: 'Commentatore italiano' },
+      { value: 'sv', label: 'Svenska', desc: 'Svensk kommentator' },
+      { value: 'nl', label: 'Nederlands', desc: 'Nederlandse commentator' },
     ]
 
     const themeOptions: { value: AppTheme; label: string; desc: string }[] = [
@@ -1584,14 +1802,20 @@ export default function App() {
       setActiveKillerId(continueInfo.id)
       setLastActivity('killer', continueInfo.id)
       setView('game-killer')
+    } else if (continueInfo.kind === 'bobs27') {
+      setActiveBobs27Id(continueInfo.id)
+      setLastActivity('bobs27', continueInfo.id)
+      setView('game-bobs27')
+    } else if (continueInfo.kind === 'operation') {
+      setActiveOperationId(continueInfo.id)
+      setLastActivity('operation', continueInfo.id)
+      setView('game-operation')
     }
   }
 
   const menuItems: PickerItem[] = [
     { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : '—' },
     { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket' },
-    { id: 'multiplayer-host', label: 'Match hosten', sub: 'Remote-Spiel erstellen' },
-    { id: 'multiplayer-join', label: 'Match beitreten', sub: 'Code eingeben' },
     { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores' },
     { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Backup, Theme' },
   ]
@@ -1599,20 +1823,7 @@ export default function App() {
   const handleMenuConfirm = (index: number) => {
     const itemId = menuItems[index].id
     if (itemId === 'continue') handleContinueGame()
-    else if (itemId === 'multiplayer-host') {
-      const profiles = getProfiles()
-      if (profiles.length === 0) return
-      setMultiplayerMyPlayerId(profiles[0].id)
-      setIsMultiplayerSetup(true)
-      setView('new-start')
-    } else if (itemId === 'multiplayer-join') {
-      const profiles = getProfiles()
-      if (profiles.length === 0) return
-      setMultiplayerMyPlayerId(profiles[0].id)
-      setView('multiplayer-lobby-join')
-    } else {
-      setView(itemId as View)
-    }
+    else setView(itemId as View)
   }
 
   if (isArcade) {
@@ -1662,41 +1873,6 @@ export default function App() {
                   <div style={styles.title}>Neues Spiel</div>
                   <div style={styles.sub}>X01 oder Cricket</div>
                 </button>
-
-                {/* MULTIPLAYER */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button
-                    onClick={() => {
-                      const profiles = getProfiles()
-                      if (profiles.length === 0) {
-                        alert('Erstelle zuerst ein Profil unter Einstellungen')
-                        return
-                      }
-                      setMultiplayerMyPlayerId(profiles[0].id)
-                      setIsMultiplayerSetup(true)
-                      setView('new-start')
-                    }}
-                    style={{ ...styles.tile, textAlign: 'center' }}
-                  >
-                    <div style={styles.title}>Match hosten</div>
-                    <div style={styles.sub}>Remote-Spiel erstellen</div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const profiles = getProfiles()
-                      if (profiles.length === 0) {
-                        alert('Erstelle zuerst ein Profil unter Einstellungen')
-                        return
-                      }
-                      setMultiplayerMyPlayerId(profiles[0].id)
-                      setView('multiplayer-lobby-join')
-                    }}
-                    style={{ ...styles.tile, textAlign: 'center' }}
-                  >
-                    <div style={styles.title}>Match beitreten</div>
-                    <div style={styles.sub}>Code eingeben</div>
-                  </button>
-                </div>
 
                 {/* STATISTIKEN (ausgelagert) */}
                 <button onClick={() => setView('stats-area')} style={styles.tile}>

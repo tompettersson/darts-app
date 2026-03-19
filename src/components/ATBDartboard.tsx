@@ -2,6 +2,7 @@
 // Visuelle Dartscheibe für Around the Block mit Spielerpositionen
 
 import React from 'react'
+import { PLAYER_COLORS } from '../playerColors'
 
 // Dartboard-Reihenfolge (im Uhrzeigersinn, startend bei 12 Uhr)
 const BOARD_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
@@ -34,17 +35,6 @@ function darkenColor(hex: string, factor: number): string {
   return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`
 }
 
-// Spielerfarben (satte Farben)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500))
-  '#22c55e', // Grün (500))
-  '#f97316', // Orange (500))
-  '#ef4444', // Rot (500))
-  '#a855f7', // Violett (500))
-  '#14b8a6', // Türkis (500))
-  '#eab308', // Gelb (500))
-  '#ec4899', // Pink (500))
-]
 
 type PlayerPosition = {
   playerId: string

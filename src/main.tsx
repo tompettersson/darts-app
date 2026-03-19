@@ -9,7 +9,9 @@ import './db/init'
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
-      <App />
+      <React.Suspense fallback={null}>
+        <App />
+      </React.Suspense>
     </ThemeProvider>
   </React.StrictMode>
 )

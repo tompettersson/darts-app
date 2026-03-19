@@ -39,6 +39,7 @@ type Props = {
   setupShot: string | null
   bust: boolean
   showSets: boolean
+  confirmedScore?: { value: number; bust: boolean; key: number } | null
 }
 
 // Farben
@@ -676,13 +677,17 @@ function CenterScore({
   currentDart,
   checkoutRoute,
   bust,
+  confirmedScore,
 }: {
   currentScore: number
   currentDart: number
   checkoutRoute: string | null
   bust: boolean
+  confirmedScore?: { value: number; bust: boolean; key: number } | null
 }) {
   const hasScore = currentScore > 0 || currentDart > 0
+  // Bestätigter Score überlagert kurz die Anzeige
+  const showConfirmed = !!confirmedScore && !hasScore
 
   return (
     <div
@@ -693,24 +698,35 @@ function CenterScore({
         justifyContent: 'center',
         padding: '8px 16px',
         minWidth: 90,
+        position: 'relative',
       }}
     >
       {/* Label */}
       <div
         style={{
           fontSize: 9,
-          color: bust ? c.red : c.textDim,
+          color: bust || confirmedScore?.bust ? c.red : showConfirmed ? c.green : c.textDim,
           letterSpacing: 1,
           marginBottom: 4,
           textTransform: 'uppercase',
           fontWeight: 700,
         }}
       >
-        {bust ? 'BUST' : 'SCORE'}
+        {bust || confirmedScore?.bust ? 'BUST' : 'SCORE'}
       </div>
 
       {/* Score als Siebensegment */}
-      {hasScore ? (
+      {showConfirmed ? (
+        <div key={confirmedScore!.key} style={{ animation: 'x01confirmedPop 800ms ease-out forwards' }}>
+          <SevenSegNumber
+            value={confirmedScore!.value}
+            digits={3}
+            size={1.5}
+            colorOn={confirmedScore!.bust ? c.red : c.green}
+            glowColor={confirmedScore!.bust ? c.red : '#4ade80'}
+          />
+        </div>
+      ) : hasScore ? (
         <div style={{ animation: bust ? 'x01bustFlash 0.5s ease-in-out' : undefined }}>
           <SevenSegNumber
             value={currentScore}
@@ -747,6 +763,7 @@ export default function X01ArcadeView({
   setupShot,
   bust,
   showSets,
+  confirmedScore,
 }: Props) {
   // Spieler aufteilen: Links (Index 0, 2, 4, ...) und Rechts (Index 1, 3, 5, ...)
   const leftPlayers = players.filter((_, i) => i % 2 === 0)
@@ -769,6 +786,13 @@ export default function X01ArcadeView({
           25% { opacity: 0.3; }
           50% { opacity: 1; }
           75% { opacity: 0.3; }
+        }
+        @keyframes x01confirmedPop {
+          0%   { opacity: 0; transform: scale(0.6); }
+          15%  { opacity: 1; transform: scale(1.12); }
+          30%  { transform: scale(1); }
+          75%  { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(0.95) translateY(-4px); }
         }
       `}</style>
 
@@ -802,6 +826,7 @@ export default function X01ArcadeView({
             currentDart={currentDart}
             checkoutRoute={checkoutRoute}
             bust={bust}
+            confirmedScore={confirmedScore}
           />
         </div>
 

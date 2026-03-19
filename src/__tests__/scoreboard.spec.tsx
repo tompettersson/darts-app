@@ -1,15 +1,29 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
-import App from '../App'
 
-describe('Scoreboard UI', () => {
-  it('renders player names and sections', () => {
-    render(<App />)
-    expect(screen.getByText(/Scoreboard/i)).toBeInTheDocument()
-    // Player names from exampleMatchEvents
-    expect(screen.getByText(/Thomas/i)).toBeInTheDocument()
-    expect(screen.getByText(/CPU/i)).toBeInTheDocument()
-    expect(screen.getByText(/Checkout-Routen/i)).toBeInTheDocument()
+// Mock SQLite init before importing App
+vi.mock('../db/init', () => ({
+  startupWithSQLite: vi.fn().mockResolvedValue({ dbInit: { success: true }, dataLoaded: true }),
+  isSQLiteReady: vi.fn().mockReturnValue(true),
+}))
+
+import App from '../App'
+import { ThemeProvider } from '../ThemeProvider'
+
+describe('App UI', () => {
+  it('renders the main menu after loading', async () => {
+    render(
+      <ThemeProvider>
+        <React.Suspense fallback={null}>
+          <App />
+        </React.Suspense>
+      </ThemeProvider>
+    )
+    await waitFor(() => {
+      expect(screen.getByText(/Neues Spiel/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Statistiken/i)).toBeInTheDocument()
+    expect(screen.getByText(/Einstellungen/i)).toBeInTheDocument()
   })
 })

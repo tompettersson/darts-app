@@ -3,14 +3,7 @@
 
 import React, { useRef, useEffect, useState } from 'react'
 import { useTheme } from '../ThemeProvider'
-
-// Spielerfarben
-export const PLAYER_COLORS = [
-  '#f97316',  // Orange (Spieler 1)
-  '#22d3ee',  // Cyan (Spieler 2)
-  '#a855f7',  // Lila (Spieler 3)
-  '#22c55e',  // Grün (Spieler 4)
-]
+export { PLAYER_COLORS } from '../playerColors'
 
 type PlayerVisit = {
   visitIndex: number
