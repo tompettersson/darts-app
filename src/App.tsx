@@ -64,26 +64,25 @@ import {
 // X01 Engine Types
 import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501'
 
-// X01 Screens
-import NewGame from './screens/NewGame'
-import NewGameStart, { type Preset } from './screens/NewGameStart'
+// Types (erased at compile time)
+import type { Preset } from './screens/NewGameStart'
 
-// Profile Screens (Verwaltung)
-import CreateProfile from './screens/CreateProfile'
-import ProfileList from './screens/ProfileList'
-import ProfileBackup from './screens/ProfileBackup'
-
-// NewGame Screens (leichtgewichtig, eager loaded)
-import NewGameCricket from './screens/NewGameCricket'
-import NewGameATB from './screens/NewGameATB'
-import NewGame121 from './screens/NewGame121'
-import NewGameStraeusschen from './screens/NewGameStraeusschen'
-import NewGameHighscore from './screens/NewGameHighscore'
-import NewGameCTF from './screens/NewGameCTF'
-import NewGameShanghai from './screens/NewGameShanghai'
-import NewGameKiller from './screens/NewGameKiller'
-import NewGameBobs27 from './screens/NewGameBobs27'
-import NewGameOperation from './screens/NewGameOperation'
+// Lazy-loaded NewGame & Profile Screens
+const NewGame = React.lazy(() => import('./screens/NewGame'))
+const NewGameStart = React.lazy(() => import('./screens/NewGameStart'))
+const CreateProfile = React.lazy(() => import('./screens/CreateProfile'))
+const ProfileList = React.lazy(() => import('./screens/ProfileList'))
+const ProfileBackup = React.lazy(() => import('./screens/ProfileBackup'))
+const NewGameCricket = React.lazy(() => import('./screens/NewGameCricket'))
+const NewGameATB = React.lazy(() => import('./screens/NewGameATB'))
+const NewGame121 = React.lazy(() => import('./screens/NewGame121'))
+const NewGameStraeusschen = React.lazy(() => import('./screens/NewGameStraeusschen'))
+const NewGameHighscore = React.lazy(() => import('./screens/NewGameHighscore'))
+const NewGameCTF = React.lazy(() => import('./screens/NewGameCTF'))
+const NewGameShanghai = React.lazy(() => import('./screens/NewGameShanghai'))
+const NewGameKiller = React.lazy(() => import('./screens/NewGameKiller'))
+const NewGameBobs27 = React.lazy(() => import('./screens/NewGameBobs27'))
+const NewGameOperation = React.lazy(() => import('./screens/NewGameOperation'))
 
 // Lazy-loaded Game Screens, Summaries & Stats
 const Game = React.lazy(() => import('./screens/Game'))
@@ -107,8 +106,8 @@ const KillerSummary = React.lazy(() => import('./screens/KillerSummary'))
 const Bobs27Summary = React.lazy(() => import('./screens/Bobs27Summary'))
 const OperationSummary = React.lazy(() => import('./screens/OperationSummary'))
 
-// Zufallsspiel
-import NewGameRandom from './screens/NewGameRandom'
+// Zufallsspiel (lazy)
+const NewGameRandom = React.lazy(() => import('./screens/NewGameRandom'))
 import { generateRandomGame, describeRandomGame } from './randomGame'
 
 // Multiplayer
