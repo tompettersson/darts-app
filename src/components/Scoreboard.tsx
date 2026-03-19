@@ -6,9 +6,16 @@ import DartboardInput from './DartboardInput'
 
 type InputMode = 'keyboard' | 'dartboard'
 
+/** Info about a thrown dart, used for slot display */
+type ThrownDart = {
+  bed: Bed | 'MISS'
+  mult: 1 | 2 | 3
+}
+
 type Props = {
   onThrow: (bed: Bed | 'MISS', mult: 1 | 2 | 3) => void
   dartsThrown?: number // Anzahl bereits geworfener Darts (0-2)
+  thrownDarts?: ThrownDart[] // Actual dart details for slot display
   theme?: 'light' | 'arcade'
   onUndoLastDart?: () => void // Backspace: letzten Dart in aktueller Aufnahme rückgängig
   compact?: boolean // Kompaktes quadratisches Layout für Arcade-Modus
@@ -38,6 +45,20 @@ const DartIcon = ({ size = 18 }: { size?: number }) => (
   </svg>
 )
 
+// SVG Bullseye Icon
+const BullseyeIcon = ({ size = 14 }: { size?: number }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 2 }}
+  >
+    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+    <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
+    <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+  </svg>
+)
+
 // Hilfsfunktion: DartResult als lesbaren String formatieren
 function formatDart(d: DartResult): string {
   const prefix = d.mult === 3 ? 'T' : d.mult === 2 ? 'D' : ''
@@ -47,13 +68,48 @@ function formatDart(d: DartResult): string {
   return `${prefix}${d.bed}`
 }
 
-export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', onUndoLastDart, compact = false }: Props) {
+// Format a thrown dart for slot display
+function formatThrownDart(d: ThrownDart): string {
+  if (d.bed === 'MISS') return 'Miss'
+  if (d.bed === 'BULL') return 'Bull'
+  if (d.bed === 'DBULL') return 'DBull'
+  const prefix = d.mult === 3 ? 'T' : d.mult === 2 ? 'D' : 'S'
+  return `${prefix}${d.bed}`
+}
+
+// Compute numerical score of a dart
+function dartScore(d: ThrownDart): number {
+  if (d.bed === 'MISS') return 0
+  if (d.bed === 'BULL') return 25
+  if (d.bed === 'DBULL') return 50
+  return (d.bed as number) * d.mult
+}
+
+// Get slot color based on dart score
+function dartSlotColor(d: ThrownDart): { bg: string; border: string; text: string } {
+  const s = dartScore(d)
+  if (s === 0) return { bg: '#fee2e2', border: '#ef4444', text: '#b91c1c' } // Red for miss
+  if (s >= 40) return { bg: '#dcfce7', border: '#22c55e', text: '#15803d' } // Green for great
+  if (s >= 20) return { bg: '#fff7ed', border: '#f97316', text: '#c2410c' } // Orange for medium
+  return { bg: '#f0f9ff', border: '#60a5fa', text: '#1d4ed8' } // Blue for low
+}
+
+function dartSlotColorDark(d: ThrownDart): { bg: string; border: string; text: string } {
+  const s = dartScore(d)
+  if (s === 0) return { bg: '#450a0a', border: '#ef4444', text: '#fca5a5' }
+  if (s >= 40) return { bg: '#052e16', border: '#22c55e', text: '#86efac' }
+  if (s >= 20) return { bg: '#431407', border: '#f97316', text: '#fdba74' }
+  return { bg: '#172554', border: '#60a5fa', text: '#93c5fd' }
+}
+
+export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, theme = 'light', onUndoLastDart, compact = false }: Props) {
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'processing'>('idle')
   const [voiceMode, setVoiceMode] = useState<1 | 3 | null>(null)
   const [partialDarts, setPartialDarts] = useState<DartResult[]>([])
   const stopListeningRef = useRef<(() => void) | null>(null)
   const [inputMode, setInputMode] = useState<InputMode>('keyboard')
+  const [numBufDisplay, setNumBufDisplay] = useState('')
 
   const dark = theme === 'arcade'
 
@@ -78,6 +134,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
       numBufTimer.current = null
     }
     numBuf.current = ''
+    setNumBufDisplay('')
   }, [])
 
   const fireNum = useCallback((n: number) => {
@@ -173,6 +230,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
           } else {
             // 1 oder 2: Puffern, auf zweite Ziffer warten
             numBuf.current = digit
+            setNumBufDisplay(digit)
             numBufTimer.current = window.setTimeout(() => {
               flushBuf()
             }, 500) as unknown as number
@@ -214,31 +272,45 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
   const isSelected = (m: 1 | 2 | 3) => mult === m
 
   // ===== Styling =====
-  const modeButtonStyle = (active: boolean): React.CSSProperties => dark ? ({
-    padding: '6px 10px',
-    borderRadius: 6,
-    border: `2px solid ${active ? '#22c55e' : '#6b7280'}`,
-    background: active ? '#166534' : '#374151',
-    color: active ? '#fff' : '#9ca3af',
-    cursor: 'pointer',
-    fontWeight: 700,
-    fontSize: 13,
-    lineHeight: 1.2,
-    transition: 'all .15s',
-    flex: 1,
-  }) : ({
-    padding: '4px 6px',
-    borderRadius: 4,
-    border: active ? '1px solid #0ea5e9' : '1px solid #e5e7eb',
-    background: active ? '#e0f2fe' : '#fff',
-    color: active ? '#0369a1' : '#111827',
-    cursor: 'pointer',
-    fontWeight: 700,
-    fontSize: 11,
-    lineHeight: 1.2,
-    transition: 'background .15s, border-color .15s, color .15s',
-    boxShadow: active ? '0 0 0 1px rgba(14,165,233,0.15)' : 'none',
-  })
+  const lightSdtColors = {
+    1: { activeBg: '#dbeafe', activeBorder: '#3b82f6', activeColor: '#1d4ed8', glow: 'rgba(59,130,246,0.25)' },
+    2: { activeBg: '#dcfce7', activeBorder: '#22c55e', activeColor: '#15803d', glow: 'rgba(34,197,94,0.25)' },
+    3: { activeBg: '#fee2e2', activeBorder: '#ef4444', activeColor: '#b91c1c', glow: 'rgba(239,68,68,0.25)' },
+  }
+
+  const modeButtonStyle = (m: 1 | 2 | 3, active: boolean): React.CSSProperties => {
+    const c = dark ? sdtColors[m] : lightSdtColors[m]
+    if (dark) return {
+      padding: '6px 10px',
+      borderRadius: 6,
+      border: `2px solid ${active ? (c as typeof sdtColors[1]).border : '#6b7280'}`,
+      background: active ? (c as typeof sdtColors[1]).bg : '#374151',
+      color: active ? '#fff' : '#9ca3af',
+      cursor: 'pointer',
+      fontWeight: 700,
+      fontSize: 13,
+      lineHeight: 1.2,
+      transition: 'all .15s',
+      flex: 1,
+      boxShadow: active ? `0 0 10px ${(c as typeof sdtColors[1]).glow}` : 'none',
+      transform: active ? 'scale(1.08)' : 'scale(1)',
+    }
+    const lc = c as typeof lightSdtColors[1]
+    return {
+      padding: '4px 6px',
+      borderRadius: 4,
+      border: active ? `2px solid ${lc.activeBorder}` : '1px solid #e5e7eb',
+      background: active ? lc.activeBg : '#fff',
+      color: active ? lc.activeColor : '#111827',
+      cursor: 'pointer',
+      fontWeight: 700,
+      fontSize: 11,
+      lineHeight: 1.2,
+      transition: 'all .15s',
+      boxShadow: active ? `0 0 8px ${lc.glow}` : 'none',
+      transform: active ? 'scale(1.08)' : 'scale(1)',
+    }
+  }
 
   const numberButtonStyle: React.CSSProperties = dark ? {
     padding: compact ? '8px 0' : '8px 0',
@@ -274,13 +346,23 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
   }
 
   const specialBtnStyle = (type: 'bull' | 'dbull' | 'miss'): React.CSSProperties => {
-    if (!dark) return numberButtonStyle
     const isMiss = type === 'miss'
+    const isBull = type === 'bull' || type === 'dbull'
+    if (!dark) {
+      return {
+        ...numberButtonStyle,
+        border: isMiss ? '2px solid #fca5a5' : '2px solid #fbbf24',
+        background: isMiss ? '#fef2f2' : '#fffbeb',
+        color: isMiss ? '#b91c1c' : '#92400e',
+        fontWeight: 800,
+      }
+    }
     return {
       ...numberButtonStyle,
-      border: `2px solid ${isMiss ? '#6b7280' : '#eab308'}`,
-      color: isMiss ? '#9ca3af' : '#eab308',
-      background: isMiss ? '#374151' : '#292524',
+      border: `2px solid ${isMiss ? '#ef4444' : '#eab308'}`,
+      color: isMiss ? '#fca5a5' : '#fde047',
+      background: isMiss ? '#450a0a' : '#422006',
+      fontWeight: 800,
     }
   }
 
@@ -292,6 +374,14 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
 
   const [hoverId, setHoverId] = useState<string | null>(null)
   const hov = (id: string) => hoverId === id
+
+  // Render content for special buttons (Bull/Miss)
+  const specialBtnContent = (type: 'bull' | 'dbull' | 'miss', label: string) => {
+    if (type === 'bull' || type === 'dbull') {
+      return <><BullseyeIcon size={compact ? 13 : 12} />{label}</>
+    }
+    return <>{label}</>
+  }
 
   const fireNumber = (n: number, e?: React.MouseEvent) => {
     e?.currentTarget && (e.currentTarget as HTMLElement).blur()
@@ -401,24 +491,36 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
     textAlign: 'center',
   }
 
+  // S/D/T color coding
+  const sdtColors = {
+    1: { active: '#3b82f6', glow: 'rgba(59,130,246,0.5)', bg: '#1e3a5f', border: '#60a5fa' },   // Blue
+    2: { active: '#22c55e', glow: 'rgba(34,197,94,0.5)', bg: '#14532d', border: '#4ade80' },     // Green
+    3: { active: '#ef4444', glow: 'rgba(239,68,68,0.5)', bg: '#7f1d1d', border: '#f87171' },     // Red
+  }
+
   // Arcade-Modus: S/D/T rechts vertikal + runder Toggle-Button
-  const arcadeSdtStyle = (active: boolean): React.CSSProperties => ({
-    width: compact ? 44 : 38,
-    height: compact ? 44 : 38,
-    borderRadius: compact ? 5 : 6,
-    border: `2px solid ${active ? '#22c55e' : '#6b7280'}`,
-    background: active ? '#166534' : '#374151',
-    color: active ? '#fff' : '#9ca3af',
-    cursor: 'pointer',
-    fontWeight: 800,
-    fontSize: compact ? 16 : 14,
-    lineHeight: 1,
-    transition: 'all .15s',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-  })
+  const arcadeSdtStyle = (m: 1 | 2 | 3, active: boolean): React.CSSProperties => {
+    const c = sdtColors[m]
+    return {
+      width: compact ? 44 : 38,
+      height: compact ? 44 : 38,
+      borderRadius: compact ? 5 : 6,
+      border: `2px solid ${active ? c.border : '#6b7280'}`,
+      background: active ? c.bg : '#374151',
+      color: active ? '#fff' : '#9ca3af',
+      cursor: 'pointer',
+      fontWeight: 800,
+      fontSize: compact ? 16 : 14,
+      lineHeight: 1,
+      transition: 'all .15s',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 0,
+      boxShadow: active ? `0 0 12px ${c.glow}` : 'none',
+      transform: active ? 'scale(1.12)' : 'scale(1)',
+    }
+  }
 
   const arcadeToggleBtnStyle: React.CSSProperties = {
     width: compact ? 36 : 32,
@@ -441,6 +543,82 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
 
   return (
     <div style={containerStyle}>
+      {/* Dart Slot Display — 3 pill-shaped badges */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+        padding: compact ? '4px 0 2px' : '6px 0 4px',
+      }}>
+        {[0, 1, 2].map((idx) => {
+          const dart = thrownDarts?.[idx]
+          const filled = !!dart
+          if (filled) {
+            const colors = dark ? dartSlotColorDark(dart) : dartSlotColor(dart)
+            return (
+              <div
+                key={idx}
+                className="dart-slot-filled"
+                style={{
+                  padding: compact ? '4px 10px' : '5px 12px',
+                  borderRadius: 20,
+                  border: `2px solid ${colors.border}`,
+                  background: colors.bg,
+                  color: colors.text,
+                  fontSize: compact ? 13 : 14,
+                  fontWeight: 800,
+                  minWidth: compact ? 48 : 54,
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {formatThrownDart(dart)}
+              </div>
+            )
+          }
+          return (
+            <div
+              key={idx}
+              style={{
+                padding: compact ? '4px 10px' : '5px 12px',
+                borderRadius: 20,
+                border: `2px dashed ${dark ? '#4b5563' : '#d1d5db'}`,
+                background: 'transparent',
+                color: dark ? '#6b7280' : '#9ca3af',
+                fontSize: compact ? 13 : 14,
+                fontWeight: 600,
+                minWidth: compact ? 48 : 54,
+                textAlign: 'center',
+              }}
+            >
+              {idx + 1}
+            </div>
+          )
+        })}
+
+        {/* NumBuf Indicator */}
+        {numBufDisplay && (
+          <div
+            className="numbuf-indicator"
+            style={{
+              padding: '3px 10px',
+              borderRadius: 8,
+              background: dark ? '#1e3a5f' : '#dbeafe',
+              border: `2px solid ${dark ? '#3b82f6' : '#60a5fa'}`,
+              color: dark ? '#93c5fd' : '#1d4ed8',
+              fontSize: 14,
+              fontWeight: 800,
+              minWidth: 36,
+              textAlign: 'center',
+              marginLeft: 4,
+            }}
+          >
+            {numBufDisplay}_
+          </div>
+        )}
+      </div>
+
       {/* Light-Modus: Eingabemodus-Umschalter oben */}
       {!dark && (
         <div style={{
@@ -524,7 +702,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
                       onBlur={() => setHoverId(null)}
                       onClick={(e) => handler(e)}
                     >
-                      {label}
+                      {specialBtnContent(type, label)}
                     </button>
                   ))}
                 </div>
@@ -532,13 +710,13 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
 
               {/* Rechte Seite: S/D/T vertikal + Toggle-Button */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingTop: 2 }}>
-                <button type="button" style={arcadeSdtStyle(isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }} aria-label="Single" aria-pressed={isSelected(1)}>
+                <button type="button" style={arcadeSdtStyle(1, isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }} aria-label="Single" aria-pressed={isSelected(1)}>
                   S
                 </button>
-                <button type="button" style={arcadeSdtStyle(isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }} aria-label="Double" aria-pressed={isSelected(2)}>
+                <button type="button" style={arcadeSdtStyle(2, isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }} aria-label="Double" aria-pressed={isSelected(2)}>
                   D
                 </button>
-                <button type="button" style={arcadeSdtStyle(isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }} aria-label="Triple" aria-pressed={isSelected(3)}>
+                <button type="button" style={arcadeSdtStyle(3, isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }} aria-label="Triple" aria-pressed={isSelected(3)}>
                   T
                 </button>
                 {/* Runder Toggle-Button für Dartscheibe/Tastatur */}
@@ -552,13 +730,13 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
             <>
               {/* Moduswahl S/D/T */}
               <div style={{ display: 'flex', gap: 3, justifyContent: 'center', alignItems: 'center' }} role="group" aria-label="Multiplikator auswählen">
-                <button type="button" style={modeButtonStyle(isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }} aria-label="Single" aria-pressed={isSelected(1)}>
+                <button type="button" style={modeButtonStyle(1, isSelected(1))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(1) }} aria-label="Single" aria-pressed={isSelected(1)}>
                   S
                 </button>
-                <button type="button" style={modeButtonStyle(isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }} aria-label="Double" aria-pressed={isSelected(2)}>
+                <button type="button" style={modeButtonStyle(2, isSelected(2))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(2) }} aria-label="Double" aria-pressed={isSelected(2)}>
                   D
                 </button>
-                <button type="button" style={modeButtonStyle(isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }} aria-label="Triple" aria-pressed={isSelected(3)}>
+                <button type="button" style={modeButtonStyle(3, isSelected(3))} onClick={(e) => { (e.currentTarget as HTMLElement).blur(); setMult(3) }} aria-label="Triple" aria-pressed={isSelected(3)}>
                   T
                 </button>
                 <span style={{ fontSize: 9, color: '#9ca3af', marginLeft: 4 }}>Bull=fix</span>
@@ -601,7 +779,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
                     onBlur={() => setHoverId(null)}
                     onClick={(e) => handler(e)}
                   >
-                    {label}
+                    {specialBtnContent(type, label)}
                   </button>
                 ))}
 
@@ -661,11 +839,26 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, theme = 'light', 
             </>
           )}
 
-          {/* CSS Animation für Pulse */}
+          {/* CSS Animations */}
           <style>{`
             @keyframes pulse {
               0%, 100% { opacity: 1; }
               50% { opacity: 0.6; }
+            }
+            @keyframes dartSlotScaleIn {
+              0% { transform: scale(0.5); opacity: 0.3; }
+              60% { transform: scale(1.15); }
+              100% { transform: scale(1); opacity: 1; }
+            }
+            .dart-slot-filled {
+              animation: dartSlotScaleIn 0.3s ease-out;
+            }
+            @keyframes numbufBlink {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.4; }
+            }
+            .numbuf-indicator {
+              animation: numbufBlink 0.8s ease-in-out infinite;
             }
           `}</style>
 

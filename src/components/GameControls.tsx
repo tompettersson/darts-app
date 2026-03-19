@@ -149,7 +149,22 @@ export default function GameControls({
 }
 
 // Pause Overlay Komponente - Klick oder Taste beendet Pause
-export function PauseOverlay({ onResume }: { onResume: () => void }) {
+type PauseOverlayProps = {
+  onResume: () => void
+  /** Optional: Match-Stand (z.B. "Legs: 2-1" oder "Sets: 1-0, Legs: 2-1") */
+  matchScore?: string
+  /** Optional: Verstrichene Spielzeit (formatiert, z.B. "5:32") */
+  elapsedTime?: string
+  /** Optional: Mini-Stats der Spieler */
+  playerStats?: Array<{
+    name: string
+    color?: string
+    average: number
+    dartsThrown: number
+  }>
+}
+
+export function PauseOverlay({ onResume, matchScore, elapsedTime, playerStats }: PauseOverlayProps) {
   const { isArcade, colors } = useTheme()
 
   // Jede Taste beendet Pause
@@ -162,6 +177,10 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [onResume])
 
+  const cardBg = isArcade ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.12)'
+  const textMuted = isArcade ? '#9ca3af' : '#a1a1aa'
+  const textBright = isArcade ? '#e5e7eb' : '#d4d4d8'
+
   return (
     <div
       onClick={onResume}
@@ -171,13 +190,14 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0, 0, 0, 0.7)',
+        background: 'rgba(0, 0, 0, 0.6)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9999,
-        backdropFilter: 'blur(4px)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         cursor: 'pointer',
       }}
     >
@@ -196,11 +216,72 @@ export function PauseOverlay({ onResume }: { onResume: () => void }) {
       >
         PAUSE
       </div>
+
+      {/* Match Score + Elapsed Time */}
+      {(matchScore || elapsedTime) && (
+        <div style={{
+          marginTop: 20,
+          display: 'flex',
+          gap: 16,
+          alignItems: 'center',
+          fontSize: 15,
+          fontWeight: 600,
+          color: textBright,
+        }}>
+          {matchScore && <span>{matchScore}</span>}
+          {matchScore && elapsedTime && <span style={{ color: textMuted }}>|</span>}
+          {elapsedTime && <span style={{ color: textMuted }}>Spielzeit: {elapsedTime}</span>}
+        </div>
+      )}
+
+      {/* Mini Stats */}
+      {playerStats && playerStats.length > 0 && (
+        <div style={{
+          marginTop: 20,
+          display: 'flex',
+          gap: 12,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+        }}>
+          {playerStats.map((p, i) => (
+            <div key={i} style={{
+              background: cardBg,
+              borderRadius: 10,
+              padding: '10px 16px',
+              minWidth: 120,
+              textAlign: 'center',
+              border: `1px solid ${p.color ? p.color + '40' : 'rgba(255,255,255,0.1)'}`,
+            }}>
+              <div style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: p.color || textBright,
+                marginBottom: 6,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                {p.name}
+              </div>
+              <div style={{ fontSize: 12, color: textMuted, marginBottom: 2 }}>
+                3-Dart-Avg
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: textBright }}>
+                {p.average.toFixed(1)}
+              </div>
+              <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>
+                {p.dartsThrown} Darts
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div
         style={{
           marginTop: 24,
           fontSize: 16,
-          color: isArcade ? '#9ca3af' : '#6b7280',
+          color: textMuted,
           fontWeight: 500,
         }}
       >

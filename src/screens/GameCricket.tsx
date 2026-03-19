@@ -1575,7 +1575,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
                     ? dart.mult === 2 ? 'DB' : 'B'
                     : `${dart.mult === 3 ? 'T' : dart.mult === 2 ? 'D' : 'S'}${dart.target}`
                 return (
-                  <span key={i} className="game-dart-slot filled">
+                  <span key={i} className="game-dart-slot filled dart-slot-fill">
                     {label}
                   </span>
                 )

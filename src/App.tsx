@@ -117,6 +117,45 @@ import type { DartsEvent as DartsEventType } from './darts501'
 // Arcade Scroll Picker
 import ArcadeScrollPicker, { type PickerItem } from './components/ArcadeScrollPicker'
 
+// --- Main Menu SVG Icons (24x24) ---
+const MenuIconContinue = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <rect x="2" y="3" width="20" height="18" rx="3" fill="#1d3557" />
+    <polygon points="10,8 17,12 10,16" fill="#a8dadc" />
+  </svg>
+)
+
+const MenuIconNewGame = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="10" fill="#2d6a4f" />
+    <line x1="12" y1="7" x2="12" y2="17" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="7" y1="12" x2="17" y2="12" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
+  </svg>
+)
+
+const MenuIconStats = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <rect x="3" y="14" width="4" height="7" rx="1" fill="#e76f51" />
+    <rect x="10" y="8" width="4" height="13" rx="1" fill="#f4a261" />
+    <rect x="17" y="3" width="4" height="18" rx="1" fill="#2a9d8f" />
+  </svg>
+)
+
+const MenuIconSettings = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="4" fill="#6c757d" />
+    <circle cx="12" cy="12" r="9" stroke="#6c757d" strokeWidth="2" fill="none" strokeDasharray="4 3" />
+    <circle cx="12" cy="12" r="2" fill="#adb5bd" />
+  </svg>
+)
+
+const menuAccentColors = {
+  continue: '#1d3557',
+  newGame: '#2d6a4f',
+  stats: '#e76f51',
+  settings: '#6c757d',
+}
+
 // Speech (Einstellungen)
 import { getVoiceLang, setVoiceLang, type SpeechLang } from './speech'
 
@@ -460,6 +499,7 @@ export default function App() {
   // PRESET-AUSWAHL (X01 / Cricket)
   if (view === 'new-start') {
     return (
+      <div className="screen-enter" key="new-start">
       <NewGameStart
         onBack={() => setView('menu')}
         onSelectPreset={(p: Preset) => {
@@ -521,6 +561,7 @@ export default function App() {
           setView('multiplayer-lobby-join')
         }}
       />
+      </div>
     )
   }
 
@@ -1552,6 +1593,7 @@ export default function App() {
   // ---------- STATS AREA (ausgelagert) ----------
   if (view === 'stats-area') {
     return (
+      <div className="screen-enter" key="stats-area">
       <StatsArea
         onBackToMenu={() => {
           setStatsAreaReturnView(undefined)
@@ -1566,25 +1608,27 @@ export default function App() {
         onInitialViewUsed={() => setStatsAreaReturnView(undefined)}
         key={statsAreaReturnView || 'default'} // Force remount wenn initialView sich ändert
       />
+      </div>
     )
   }
 
   // ---------- PROFILE / BACKUP (bleibt im Hauptmenü) ----------
 
   if (view === 'create-profile') {
-    return <CreateProfile onCancel={() => setView('profiles-menu')} onDone={() => setView('profiles-menu')} />
+    return <div className="screen-enter" key="create-profile"><CreateProfile onCancel={() => setView('profiles-menu')} onDone={() => setView('profiles-menu')} /></div>
   }
 
   if (view === 'profiles') {
-    return <ProfileList onBack={() => setView('profiles-menu')} />
+    return <div className="screen-enter" key="profiles"><ProfileList onBack={() => setView('profiles-menu')} /></div>
   }
 
   if (view === 'profiles-backup') {
-    return <ProfileBackup onBack={() => setView('profiles-menu')} />
+    return <div className="screen-enter" key="profiles-backup"><ProfileBackup onBack={() => setView('profiles-menu')} /></div>
   }
 
   // EINSTELLUNGEN (Theme, Kommentator-Stimme etc.)
   if (view === 'settings') {
+    // screen-enter wrapper applied below in the return
     const currentLang = getVoiceLang()
     const voiceOptions: { value: SpeechLang; label: string; desc: string }[] = [
       { value: 'en', label: 'English', desc: 'Darts-Caller Stil (Standard)' },
@@ -1601,7 +1645,7 @@ export default function App() {
     ]
 
     return (
-      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="screen-enter" key="settings" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
 
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
@@ -1710,7 +1754,7 @@ export default function App() {
     }
 
     return (
-      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="screen-enter" key="profiles-menu" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <div style={{ height: 60 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (
@@ -1827,10 +1871,19 @@ export default function App() {
 
   if (isArcade) {
     return (
-      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="screen-enter" key="menu-arcade" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-            <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Darts</h1>
+            <h1 style={{
+              margin: 0,
+              color: colors.fg,
+              textAlign: 'center',
+              fontSize: 28,
+              fontWeight: 900,
+              padding: '16px 0 8px',
+              background: `linear-gradient(135deg, ${colors.bg}, #1a1a2e)`,
+              borderRadius: 12,
+            }}>Darts</h1>
             <ArcadeScrollPicker
               items={menuItems}
               selectedIndex={menuPickerIndex}
@@ -1844,51 +1897,79 @@ export default function App() {
     )
   }
 
+  const menuTileStyle = (accent: string, disabled?: boolean): React.CSSProperties => ({
+    ...styles.tile,
+    ...(disabled ? styles.tileDisabled : {}),
+    borderLeft: `4px solid ${accent}`,
+    padding: '14px 16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+  })
+
   return (
-    <div style={styles.page}>
+    <div className="screen-enter" key="menu" style={styles.page}>
       <div style={styles.centerPage}>
         <div style={styles.centerInner}>
           <div style={{ display: 'grid', gap: 12 }}>
-            <h1 style={{ margin: 0, color: colors.fg }}>Darts</h1>
+            <h1 style={{
+              margin: 0,
+              color: colors.fg,
+              fontSize: 28,
+              fontWeight: 900,
+              textAlign: 'center',
+              padding: '16px 0 8px',
+              background: `linear-gradient(135deg, ${colors.bg}, ${isArcade ? '#1a1a2e' : '#e2e8f0'})`,
+              borderRadius: 12,
+            }}>Darts</h1>
 
             <div style={styles.card}>
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gap: 10 }}>
                 {/* SPIEL FORTSETZEN */}
                 <button
                   onClick={handleContinueGame}
                   disabled={!continueInfo}
-                  style={{
-                    ...styles.tile,
-                    ...(!continueInfo ? styles.tileDisabled : {}),
-                  }}
+                  style={menuTileStyle(menuAccentColors.continue, !continueInfo)}
                   title={continueInfo ? continueInfo.title : 'Kein laufendes Match'}
                 >
-                  <div style={styles.title}>Spiel fortsetzen</div>
-                  <div style={styles.sub}>{continueInfo ? continueInfo.title : '—'}</div>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconContinue /></div>
+                  <div>
+                    <div style={styles.title}>Spiel fortsetzen</div>
+                    <div style={styles.sub}>{continueInfo ? continueInfo.title : '---'}</div>
+                  </div>
                 </button>
 
                 {/* NEUES SPIEL */}
-                <button onClick={() => setView('new-start')} style={styles.tile}>
-                  <div style={styles.title}>Neues Spiel</div>
-                  <div style={styles.sub}>X01 oder Cricket</div>
+                <button onClick={() => setView('new-start')} style={menuTileStyle(menuAccentColors.newGame)}>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconNewGame /></div>
+                  <div>
+                    <div style={styles.title}>Neues Spiel</div>
+                    <div style={styles.sub}>X01 oder Cricket</div>
+                  </div>
                 </button>
 
                 {/* STATISTIKEN (ausgelagert) */}
-                <button onClick={() => setView('stats-area')} style={styles.tile}>
-                  <div style={styles.title}>Statistiken</div>
-                  <div style={styles.sub}>Matchhistorie, Spieler, Highscores</div>
+                <button onClick={() => setView('stats-area')} style={menuTileStyle(menuAccentColors.stats)}>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconStats /></div>
+                  <div>
+                    <div style={styles.title}>Statistiken</div>
+                    <div style={styles.sub}>Matchhistorie, Spieler, Highscores</div>
+                  </div>
                 </button>
 
                 {/* EINSTELLUNGEN */}
-                <button onClick={() => setView('profiles-menu')} style={styles.tile}>
-                  <div style={styles.title}>Einstellungen</div>
-                  <div style={styles.sub}>Profile, Backup, Theme</div>
+                <button onClick={() => setView('profiles-menu')} style={menuTileStyle(menuAccentColors.settings)}>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconSettings /></div>
+                  <div>
+                    <div style={styles.title}>Einstellungen</div>
+                    <div style={styles.sub}>Profile, Backup, Theme</div>
+                  </div>
                 </button>
               </div>
             </div>
 
             <div style={{ ...styles.sub, textAlign: 'center' }}>
-              Gäste fügst du direkt im Spiel unter „Spieler" hinzu.
+              Gäste fügst du direkt im Spiel unter "Spieler" hinzu.
             </div>
           </div>
         </div>

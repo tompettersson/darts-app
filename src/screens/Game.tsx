@@ -71,6 +71,7 @@ import {
 } from '../speech'
 import ConnectionBadge from '../multiplayer/ConnectionBadge'
 import X01EndScreen from '../components/X01EndScreen'
+import CelebrationEffect from '../components/CelebrationEffect'
 import './game.css'
 
 // ---- Helpers ----
@@ -235,7 +236,7 @@ function PlayerTurnCard({
     card: {
       position: 'relative',
       border: isBustFlash ? '2px solid #dc2626' : isActive ? `2px solid ${activeColor}` : '1px solid #e5e7eb',
-      background: '#fff',
+      background: isActive ? `linear-gradient(135deg, ${activeColor}15 0%, transparent 60%)` : '#fff',
       borderRadius: 14,
       padding: 14,
       boxShadow: isBustFlash
@@ -302,7 +303,7 @@ function PlayerTurnCard({
   const last = lastVisit?.darts ?? []
 
   return (
-    <div style={s.card}>
+    <div style={s.card} className={isActive ? 'player-switch' : undefined}>
       <style>{`
         @keyframes scoreFlash {
           0%   { opacity: 0; transform: scale(0.8); }
@@ -335,7 +336,7 @@ function PlayerTurnCard({
         <div style={s.col}>
           <div style={s.colTitle}>Aktuelle Würfe</div>
           {cur.map((v, i) => (
-            <div key={i} style={s.bubble}>
+            <div key={i} style={s.bubble} className={v != null ? 'dart-slot-fill' : undefined}>
               {v ?? '—'}
             </div>
           ))}
@@ -899,6 +900,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
     updateGlobalX01PlayerStatsFromMatch(matchStoredNonNull.id, finalEvents)
 
     const wName = matchNonNull.players.find((p) => p.playerId === winnerId)?.name ?? '—'
+    setCelebration({ type: 'match-win', key: Date.now() })
     setEnded({ winnerName: wName })
 
     return true
@@ -927,6 +929,9 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
   // Score Popup (zentrale Einblendung nach Visit)
   const [scorePopup, setScorePopup] = useState<{ label: string; bust: boolean; key: number } | null>(null)
   const scorePopupTimerRef = useRef<number>(0)
+
+  // Celebration Effect (Confetti bei 180, High Checkout, Match Win)
+  const [celebration, setCelebration] = useState<{ type: '180' | 'high-checkout' | 'match-win'; key: number } | null>(null)
 
   // --- Pause-Modus ---
   const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'x01'))
@@ -1194,6 +1199,11 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         if (scorePopupTimerRef.current) window.clearTimeout(scorePopupTimerRef.current)
         setScorePopup({ label: popLabel, bust: !!firstVisitEvt.bust, key: Date.now() })
         scorePopupTimerRef.current = window.setTimeout(() => setScorePopup(null), 800)
+
+        // Celebration: 180 scored
+        if (!firstVisitEvt.bust && firstVisitEvt.visitScore === 180) {
+          setCelebration({ type: '180', key: Date.now() })
+        }
       }
 
       const engineSetLegFinished = !!lastLegTmp?.winnerPlayerId && lastLegTmp.legId === leg.legId
@@ -1277,6 +1287,10 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
         // Leg fertig -> Leg Summary, nächstes Leg erst nach "Weiter"
         if (justFinishedLeg) {
+          // Celebration: High Checkout (100+)
+          if (firstVisitEvt && !firstVisitEvt.bust && (firstVisitEvt.visitScore ?? 0) >= 100) {
+            setCelebration({ type: 'high-checkout', key: Date.now() })
+          }
           // Sprachausgabe: Leg gewonnen
           if (speechEnabled && !legWonAnnouncedRef.current) {
             legWonAnnouncedRef.current = true
@@ -1319,6 +1333,10 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         const justFinishedLegSet = !!lastLegSetAware?.winnerPlayerId && lastLegSetAware.legId === leg.legId
 
         if (justFinishedLegSet) {
+          // Celebration: High Checkout (100+) in Sets mode
+          if (firstVisitEvt && !firstVisitEvt.bust && (firstVisitEvt.visitScore ?? 0) >= 100) {
+            setCelebration({ type: 'high-checkout', key: Date.now() })
+          }
           const { legsPerSet, bestOfSets } = match.structure
           const needLegs = requiredToWinLocal(legsPerSet)
           const needSets = requiredToWinLocal(bestOfSets)
@@ -1674,6 +1692,16 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
   return (
     <div className="g-page" style={backgroundStyle}>
+      {/* Celebration Effect (Confetti) */}
+      {celebration && (
+        <CelebrationEffect
+          key={celebration.key}
+          type={celebration.type}
+          duration={celebration.type === 'match-win' ? 3000 : 2000}
+          onComplete={() => setCelebration(null)}
+        />
+      )}
+
       {/* Score Popup (nur Classic-Modus, Arcade nutzt CenterScore) */}
       {scorePopup && !isArcade && (
         <div key={scorePopup.key} className={`g-scorePopup${scorePopup.bust ? ' bust' : ''}`}>
@@ -1694,7 +1722,29 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       )}
 
       {/* Pause Overlay */}
-      {gamePaused && <PauseOverlay onResume={() => setGamePaused(false)} />}
+      {gamePaused && (
+        <PauseOverlay
+          onResume={() => setGamePaused(false)}
+          matchScore={(() => {
+            if (!match) return undefined
+            const parts: string[] = []
+            if (isSets) {
+              const setsStr = match.players.map(p => `${setsWon[p.playerId] ?? 0}`).join('-')
+              parts.push(`Sets: ${setsStr}`)
+            }
+            const legsStr = match.players.map(p => `${legsWonCurrent[p.playerId] ?? 0}`).join('-')
+            parts.push(`Legs: ${legsStr}`)
+            return parts.join(', ')
+          })()}
+          elapsedTime={formatDuration(legDuration)}
+          playerStats={match?.players.map(p => ({
+            name: p.name ?? p.playerId,
+            color: playerColors[p.playerId],
+            average: statsByPlayer[p.playerId]?.threeDartAvg ?? 0,
+            dartsThrown: statsByPlayer[p.playerId]?.dartsThrown ?? 0,
+          }))}
+        />
+      )}
 
       {/* Kopfzeile mit Pause/Mute/Exit */}
       <GameControls
@@ -1829,7 +1879,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
               return (
                 <PlayerTurnCard
-                  key={p.playerId}
+                  key={`${p.playerId}-${isActive ? 'active' : 'idle'}`}
                   name={p.name ?? p.playerId}
                   color={p.color}
                   remaining={isActive ? live.remaining : remaining}
@@ -1878,7 +1928,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
               {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug — warte...
             </div>
           )}
-          <Scoreboard onThrow={handleThrow} dartsThrown={current.length} onUndoLastDart={handleUndoLastDart} />
+          <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} />
         </>
       ) : (
         <>
@@ -2150,7 +2200,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                       {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
                     </div>
                   )}
-                  <Scoreboard onThrow={handleThrow} dartsThrown={current.length} theme="arcade" onUndoLastDart={handleUndoLastDart} compact={true} />
+                  <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} compact={true} />
                 </div>
               </div>
             )

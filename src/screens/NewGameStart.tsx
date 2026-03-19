@@ -5,6 +5,189 @@ import CricketModePicker, { type CricketSetup } from './newgame/CricketModePicke
 import ArcadeScrollPicker, { type PickerItem } from '../components/ArcadeScrollPicker'
 import type { ATBMode, ATBDirection } from '../types/aroundTheBlock'
 
+// --- Inline SVG Icons (32x32) ---
+const IconDartboard = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="14" stroke="#e63946" strokeWidth="2" fill="#1d3557" />
+    <circle cx="16" cy="16" r="10" stroke="#f1faee" strokeWidth="1.5" fill="#457b9d" />
+    <circle cx="16" cy="16" r="5" stroke="#e63946" strokeWidth="1.5" fill="#a8dadc" />
+    <circle cx="16" cy="16" r="2" fill="#e63946" />
+  </svg>
+)
+
+const IconCricket = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <line x1="6" y1="26" x2="26" y2="6" stroke="#2d6a4f" strokeWidth="3" strokeLinecap="round" />
+    <line x1="6" y1="6" x2="26" y2="26" stroke="#40916c" strokeWidth="3" strokeLinecap="round" />
+    <circle cx="16" cy="16" r="4" fill="#95d5b2" stroke="#2d6a4f" strokeWidth="1.5" />
+  </svg>
+)
+
+const IconBouquet = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="10" r="4" fill="#f72585" />
+    <circle cx="11" cy="13" r="3.5" fill="#b5179e" />
+    <circle cx="21" cy="13" r="3.5" fill="#7209b7" />
+    <circle cx="13" cy="17" r="3" fill="#560bad" />
+    <circle cx="19" cy="17" r="3" fill="#480ca8" />
+    <line x1="16" y1="20" x2="16" y2="30" stroke="#2d6a4f" strokeWidth="2.5" strokeLinecap="round" />
+  </svg>
+)
+
+const IconCircularArrows = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <path d="M16 4a12 12 0 0 1 10.39 6" stroke="#0077b6" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+    <path d="M28 16a12 12 0 0 1-6 10.39" stroke="#00b4d8" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+    <path d="M16 28a12 12 0 0 1-10.39-6" stroke="#0096c7" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+    <path d="M4 16a12 12 0 0 1 6-10.39" stroke="#48cae4" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+    <polygon points="26,10 28,6 22,8" fill="#0077b6" />
+    <polygon points="22,26 26,28 24,22" fill="#00b4d8" />
+    <polygon points="6,22 4,26 10,24" fill="#0096c7" />
+    <polygon points="10,6 6,4 8,10" fill="#48cae4" />
+  </svg>
+)
+
+const IconSwords = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <line x1="6" y1="6" x2="22" y2="22" stroke="#d62828" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="26" y1="6" x2="10" y2="22" stroke="#f77f00" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="6" y1="6" x2="10" y2="6" stroke="#d62828" strokeWidth="2" strokeLinecap="round" />
+    <line x1="6" y1="6" x2="6" y2="10" stroke="#d62828" strokeWidth="2" strokeLinecap="round" />
+    <line x1="26" y1="6" x2="22" y2="6" stroke="#f77f00" strokeWidth="2" strokeLinecap="round" />
+    <line x1="26" y1="6" x2="26" y2="10" stroke="#f77f00" strokeWidth="2" strokeLinecap="round" />
+    <rect x="8" y="22" width="5" height="5" rx="1" fill="#d62828" opacity="0.7" />
+    <rect x="19" y="22" width="5" height="5" rx="1" fill="#f77f00" opacity="0.7" />
+  </svg>
+)
+
+const IconDragon = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <rect x="4" y="4" width="24" height="24" rx="3" fill="#c1121f" />
+    <text x="16" y="22" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#fdf0d5" fontFamily="serif">S</text>
+    <circle cx="10" cy="10" r="2" fill="#fdf0d5" />
+    <circle cx="22" cy="10" r="2" fill="#fdf0d5" />
+  </svg>
+)
+
+const IconStar = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <polygon points="16,3 19.5,12 29,12 21.5,18 24,28 16,22 8,28 10.5,18 3,12 12.5,12" fill="#ffd60a" stroke="#e6ac00" strokeWidth="1" />
+  </svg>
+)
+
+const IconSkull = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <ellipse cx="16" cy="14" rx="10" ry="11" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5" />
+    <circle cx="12" cy="12" r="3" fill="#343a40" />
+    <circle cx="20" cy="12" r="3" fill="#343a40" />
+    <ellipse cx="16" cy="18" rx="1.5" ry="2" fill="#343a40" />
+    <rect x="12" y="24" width="2" height="4" rx="1" fill="#f8f9fa" stroke="#343a40" strokeWidth="1" />
+    <rect x="15" y="24" width="2" height="4" rx="1" fill="#f8f9fa" stroke="#343a40" strokeWidth="1" />
+    <rect x="18" y="24" width="2" height="4" rx="1" fill="#f8f9fa" stroke="#343a40" strokeWidth="1" />
+  </svg>
+)
+
+const IconDice = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <rect x="4" y="4" width="24" height="24" rx="4" fill="#6a4c93" stroke="#4a3070" strokeWidth="1.5" />
+    <circle cx="10" cy="10" r="2" fill="#fff" />
+    <circle cx="22" cy="10" r="2" fill="#fff" />
+    <circle cx="16" cy="16" r="2" fill="#fff" />
+    <circle cx="10" cy="22" r="2" fill="#fff" />
+    <circle cx="22" cy="22" r="2" fill="#fff" />
+  </svg>
+)
+
+const IconCrosshair = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="12" stroke="#06d6a0" strokeWidth="2" fill="none" />
+    <circle cx="16" cy="16" r="7" stroke="#06d6a0" strokeWidth="1.5" fill="none" />
+    <circle cx="16" cy="16" r="2" fill="#06d6a0" />
+    <line x1="16" y1="2" x2="16" y2="8" stroke="#06d6a0" strokeWidth="2" strokeLinecap="round" />
+    <line x1="16" y1="24" x2="16" y2="30" stroke="#06d6a0" strokeWidth="2" strokeLinecap="round" />
+    <line x1="2" y1="16" x2="8" y2="16" stroke="#06d6a0" strokeWidth="2" strokeLinecap="round" />
+    <line x1="24" y1="16" x2="30" y2="16" stroke="#06d6a0" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+)
+
+const IconShuffle = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <path d="M4 10h6l4 6 4-6h6" stroke="#e76f51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <path d="M4 22h6l4-6 4 6h6" stroke="#f4a261" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <polygon points="24,7 28,10 24,13" fill="#e76f51" />
+    <polygon points="24,19 28,22 24,25" fill="#f4a261" />
+  </svg>
+)
+
+const IconTraining = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <rect x="4" y="8" width="24" height="18" rx="3" fill="#264653" />
+    <line x1="8" y1="14" x2="24" y2="14" stroke="#2a9d8f" strokeWidth="2" strokeLinecap="round" />
+    <line x1="8" y1="18" x2="20" y2="18" stroke="#e9c46a" strokeWidth="2" strokeLinecap="round" />
+    <line x1="8" y1="22" x2="16" y2="22" stroke="#e76f51" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="22" cy="6" r="3" fill="#e76f51" />
+  </svg>
+)
+
+const IconBoard = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <rect x="3" y="3" width="26" height="26" rx="4" fill="#003049" />
+    <circle cx="16" cy="16" r="9" stroke="#fcbf49" strokeWidth="2" fill="none" />
+    <line x1="16" y1="5" x2="16" y2="27" stroke="#fcbf49" strokeWidth="1" opacity="0.4" />
+    <line x1="5" y1="16" x2="27" y2="16" stroke="#fcbf49" strokeWidth="1" opacity="0.4" />
+    <circle cx="16" cy="16" r="3" fill="#fcbf49" />
+  </svg>
+)
+
+const IconOnline = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="12" stroke="#7b2cbf" strokeWidth="2" fill="none" />
+    <ellipse cx="16" cy="16" rx="6" ry="12" stroke="#7b2cbf" strokeWidth="1.5" fill="none" />
+    <line x1="4" y1="12" x2="28" y2="12" stroke="#7b2cbf" strokeWidth="1" />
+    <line x1="4" y1="20" x2="28" y2="20" stroke="#7b2cbf" strokeWidth="1" />
+    <circle cx="16" cy="16" r="2" fill="#c77dff" />
+  </svg>
+)
+
+// Color accents per mode
+const modeAccents: Record<string, string> = {
+  random: '#e76f51',
+  x01: '#e63946',
+  cricket: '#2d6a4f',
+  training: '#264653',
+  board: '#003049',
+  online: '#7b2cbf',
+  '121': '#1d3557',
+  str: '#b5179e',
+  highscore: '#e6ac00',
+  killer: '#343a40',
+  bobs27: '#6a4c93',
+  operation: '#06d6a0',
+  atb: '#0077b6',
+  ctf: '#d62828',
+  shanghai: '#c1121f',
+  host: '#7b2cbf',
+  join: '#9d4edd',
+}
+
+// Icon wrapper style
+const iconWrapStyle: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+// Tile with icon layout
+const tileWithIconStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  textAlign: 'left',
+}
+
 // ATBSetup wird noch von App.tsx verwendet
 
 type ModeStr = '121-double-out' | '301-double-out' | '501-double-out' | '701-double-out' | '901-double-out'
@@ -178,61 +361,91 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
               <h1 style={titleStyle}>Neues Spiel</h1>
               {/* Zufallsspiel - ganz oben */}
               <button
-                style={{ ...styles.tile, textAlign: 'center', background: colors.warningBg, borderColor: colors.warning }}
+                style={{ ...styles.tile, background: colors.warningBg, borderColor: colors.warning, borderLeft: `4px solid ${modeAccents.random}` }}
                 onClick={() => onSelectRandom?.()}
                 aria-label="Zufallsspiel starten"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Zufallsspiel</div>
-                <div style={styles.sub}>Überraschung! Zufälliger Spielmodus</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconShuffle /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Zufallsspiel</div>
+                    <div style={styles.sub}>Überraschung! Zufälliger Spielmodus</div>
+                  </div>
+                </div>
               </button>
 
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.x01}` }}
                 onClick={() => setStep('preset')}
                 aria-label="X01 auswählen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>X01</div>
-                <div style={styles.sub}>301 / 501 / 701 / 901 – Double-Out</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconDartboard /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>X01</div>
+                    <div style={styles.sub}>301 / 501 / 701 / 901 – Double-Out</div>
+                  </div>
+                </div>
               </button>
 
               {/* Cricket */}
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.cricket}` }}
                 onClick={() => setStep('cricket')}
                 aria-label="Cricket auswählen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Cricket</div>
-                <div style={styles.sub}>Short / Long & Cutthroat</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconCricket /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Cricket</div>
+                    <div style={styles.sub}>Short / Long & Cutthroat</div>
+                  </div>
+                </div>
               </button>
 
               {/* Trainingspiele */}
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.training}` }}
                 onClick={() => setStep('training')}
                 aria-label="Trainingspiele auswählen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Trainingspiele</div>
-                <div style={styles.sub}>121 Sprint & mehr</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconTraining /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Trainingspiele</div>
+                    <div style={styles.sub}>121 Sprint & mehr</div>
+                  </div>
+                </div>
               </button>
 
               {/* Rund ums Board */}
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.board}` }}
                 onClick={() => setStep('board')}
                 aria-label="Rund ums Board"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Rund ums Board</div>
-                <div style={styles.sub}>ATB, Capture the Field, Shanghai</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconBoard /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Rund ums Board</div>
+                    <div style={styles.sub}>ATB, Capture the Field, Shanghai</div>
+                  </div>
+                </div>
               </button>
 
               {/* Online spielen */}
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.online}` }}
                 onClick={() => setStep('online')}
                 aria-label="Online spielen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Online spielen</div>
-                <div style={styles.sub}>Match hosten oder beitreten</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconOnline /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Online spielen</div>
+                    <div style={styles.sub}>Match hosten oder beitreten</div>
+                  </div>
+                </div>
               </button>
             </div>
           )
@@ -291,100 +504,72 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           ) : (
             <div style={styles.centerInnerWide} aria-label="Trainingspiele">
               <h1 style={titleStyle}>Neues Spiel</h1>
-              <div style={styles.rowCard}>
-                <div>
-                  <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 18, lineHeight: 1.1 }}>
-                    121
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['121']}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconDartboard /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 18, lineHeight: 1.1 }}>
+                      121
+                    </div>
+                    <div style={styles.sub}>Sprint – Straight-In / Double-Out</div>
                   </div>
-                  <div style={styles.sub}>Sprint – Straight-In / Double-Out</div>
                 </div>
-                <button
-                  style={styles.pill}
-                  onClick={() => onSelect121?.()}
-                  aria-label="121 Sprint auswählen"
-                >
-                  auswählen
-                </button>
+                <button style={styles.pill} onClick={() => onSelect121?.()} aria-label="121 Sprint auswählen">auswählen</button>
               </div>
 
-              <div style={styles.rowCard}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
-                    Sträußchen
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.str}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconBouquet /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Sträußchen</div>
+                    <div style={styles.sub}>3x Triple auf 17/18/19/20</div>
                   </div>
-                  <div style={styles.sub}>3× Triple auf 17/18/19/20</div>
                 </div>
-                <button
-                  style={styles.pill}
-                  onClick={() => onSelectStraeusschen?.()}
-                  aria-label="Sträußchen auswählen"
-                >
-                  auswählen
-                </button>
+                <button style={styles.pill} onClick={() => onSelectStraeusschen?.()} aria-label="Sträußchen auswählen">auswählen</button>
               </div>
 
-              <div style={styles.rowCard}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
-                    Highscore
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.highscore}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconStar /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Highscore</div>
+                    <div style={styles.sub}>Erreiche als Erster das Target!</div>
                   </div>
-                  <div style={styles.sub}>Erreiche als Erster das Target!</div>
                 </div>
-                <button
-                  style={styles.pill}
-                  onClick={() => onSelectHighscore?.()}
-                  aria-label="Highscore auswählen"
-                >
-                  auswählen
-                </button>
+                <button style={styles.pill} onClick={() => onSelectHighscore?.()} aria-label="Highscore auswählen">auswählen</button>
               </div>
 
-              <div style={styles.rowCard}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
-                    Killer
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.killer}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconSkull /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Killer</div>
+                    <div style={styles.sub}>Eliminiere alle Gegner!</div>
                   </div>
-                  <div style={styles.sub}>Eliminiere alle Gegner!</div>
                 </div>
-                <button
-                  style={styles.pill}
-                  onClick={() => onSelectKiller?.()}
-                  aria-label="Killer auswählen"
-                >
-                  auswählen
-                </button>
+                <button style={styles.pill} onClick={() => onSelectKiller?.()} aria-label="Killer auswählen">auswählen</button>
               </div>
 
-              <div style={styles.rowCard}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
-                    Bob's 27
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.bobs27}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconDice /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Bob's 27</div>
+                    <div style={styles.sub}>Doubles Training D1-D20</div>
                   </div>
-                  <div style={styles.sub}>Doubles Training D1-D20</div>
                 </div>
-                <button
-                  style={styles.pill}
-                  onClick={() => onSelectBobs27?.()}
-                  aria-label="Bob's 27 auswählen"
-                >
-                  auswählen
-                </button>
+                <button style={styles.pill} onClick={() => onSelectBobs27?.()} aria-label="Bob's 27 auswählen">auswählen</button>
               </div>
 
-              <div style={styles.rowCard}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
-                    Operation: EFKG
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.operation}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconCrosshair /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Operation: EFKG</div>
+                    <div style={styles.sub}>Ein Feld, keine Gnade</div>
                   </div>
-                  <div style={styles.sub}>Ein Feld, keine Gnade</div>
                 </div>
-                <button
-                  style={styles.pill}
-                  onClick={() => onSelectOperation?.()}
-                  aria-label="Operation auswählen"
-                >
-                  auswählen
-                </button>
+                <button style={styles.pill} onClick={() => onSelectOperation?.()} aria-label="Operation auswählen">auswählen</button>
               </div>
             </div>
           )
@@ -407,28 +592,43 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
             <div style={styles.centerInner}>
               <h1 style={titleStyle}>Rund ums Board</h1>
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.atb}` }}
                 onClick={() => onSelectATB?.({ mode: 'ascending', direction: 'forward' })}
                 aria-label="Around the Block auswählen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Around the Block</div>
-                <div style={styles.sub}>1-20 + Bull treffen</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconCircularArrows /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Around the Block</div>
+                    <div style={styles.sub}>1-20 + Bull treffen</div>
+                  </div>
+                </div>
               </button>
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.ctf}` }}
                 onClick={() => onSelectCTF?.()}
                 aria-label="Capture the Field auswählen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Capture the Field</div>
-                <div style={styles.sub}>Felder erobern!</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconSwords /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Capture the Field</div>
+                    <div style={styles.sub}>Felder erobern!</div>
+                  </div>
+                </div>
               </button>
               <button
-                style={{ ...styles.tile, textAlign: 'center' }}
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.shanghai}` }}
                 onClick={() => onSelectShanghai?.()}
                 aria-label="Shanghai auswählen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Shanghai</div>
-                <div style={styles.sub}>1-20 punkten, Shanghai = Sofortsieg!</div>
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconDragon /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Shanghai</div>
+                    <div style={styles.sub}>1-20 punkten, Shanghai = Sofortsieg!</div>
+                  </div>
+                </div>
               </button>
             </div>
           )
@@ -452,20 +652,26 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
               <h1 style={titleStyle}>Online spielen</h1>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <button
-                  style={{ ...styles.tile, textAlign: 'center' }}
+                  style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.host}` }}
                   onClick={() => onMultiplayerHost?.()}
                   aria-label="Match hosten"
                 >
-                  <div style={{ ...styles.title, marginBottom: 4 }}>Match hosten</div>
-                  <div style={styles.sub}>Remote-Spiel erstellen</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={iconWrapStyle}><IconOnline /></div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Match hosten</div>
+                    <div style={styles.sub}>Remote-Spiel erstellen</div>
+                  </div>
                 </button>
                 <button
-                  style={{ ...styles.tile, textAlign: 'center' }}
+                  style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.join}` }}
                   onClick={() => onMultiplayerJoin?.()}
                   aria-label="Match beitreten"
                 >
-                  <div style={{ ...styles.title, marginBottom: 4 }}>Match beitreten</div>
-                  <div style={styles.sub}>Code eingeben</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={iconWrapStyle}><IconOnline /></div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Match beitreten</div>
+                    <div style={styles.sub}>Code eingeben</div>
+                  </div>
                 </button>
               </div>
             </div>
