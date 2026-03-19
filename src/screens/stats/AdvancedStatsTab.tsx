@@ -5,8 +5,6 @@ import React, { useMemo } from 'react'
 import { useTheme } from '../../ThemeProvider'
 import { getThemedUI } from '../../ui'
 import type { SQLStatsData } from '../../hooks/useSQLStats'
-import BarChart from '../../components/charts/BarChart'
-import LineChart from '../../components/charts/LineChart'
 
 type Props = {
   data: SQLStatsData
@@ -49,22 +47,6 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
             <StatCell label="Aktuelle Serie" value={`${dashboard.playingStreak.currentDays} Tage`} colors={colors} />
             <StatCell label="Längste Serie" value={`${dashboard.playingStreak.longestDays} Tage`} colors={colors} />
           </StatGrid>
-
-          {/* Spielmodus-Verteilung */}
-          {dashboard.gameModeDistribution.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 4 }}>Spielmodus-Verteilung</div>
-              {dashboard.gameModeDistribution.map(d => (
-                <div key={d.mode} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <div style={{ flex: 1, fontSize: 13, color: colors.fg }}>{d.label}</div>
-                  <div style={{ width: 120, height: 8, background: colors.bgDim, borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${d.percentage}%`, height: '100%', background: colors.accent, borderRadius: 4 }} />
-                  </div>
-                  <div style={{ fontSize: 12, color: colors.fgDim, width: 60, textAlign: 'right' }}>{d.matchCount} ({d.percentage}%)</div>
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* Aktivitäts-Heatmap */}
           {dashboard.activityHeatmap.length > 0 && (
@@ -136,213 +118,6 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
         </Section>
       )}
 
-      {/* Formkurve */}
-      {data.formCurve.length > 0 && (
-        <Section title="Formkurve (letzte 20 X01 Matches)" colors={colors}>
-          {/* LineChart: 3-Dart-Average Trend */}
-          {data.formCurve.length >= 2 && (
-            <div style={{ marginBottom: 12, overflowX: 'auto' }}>
-              <LineChart
-                data={data.formCurve.map((f, i) => ({
-                  label: `#${i + 1}`,
-                  value: f.threeDartAvg,
-                }))}
-                height={160}
-                width={Math.max(300, data.formCurve.length * 40)}
-                color={colors.accent}
-                showPoints={data.formCurve.length <= 20}
-                showLabels
-                showGrid
-                valueFormatter={(v) => v.toFixed(1)}
-              />
-            </div>
-          )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {data.formCurve.map((f, i) => (
-              <div key={i} style={{
-                padding: '4px 8px', borderRadius: 6, fontSize: 12,
-                background: f.won ? '#22c55e22' : '#ef444422',
-                color: f.won ? '#22c55e' : '#ef4444',
-                border: `1px solid ${f.won ? '#22c55e44' : '#ef444444'}`,
-              }}>
-                {Math.round(f.threeDartAvg)}
-              </div>
-            ))}
-          </div>
-          {data.warmupEffect && data.warmupEffect.sessionCount >= 3 && (
-            <div style={{ marginTop: 8, fontSize: 12, color: colors.fgDim }}>
-              <div>
-                Warmup-Effekt (X01): 1. Match Avg {data.warmupEffect.firstMatchAvg}, spätere {data.warmupEffect.laterMatchesAvg}
-                {data.warmupEffect.difference > 0 ? ` (+${data.warmupEffect.difference})` : ` (${data.warmupEffect.difference})`}
-              </div>
-              {data.warmupEffect.modeEffects && data.warmupEffect.modeEffects.filter(m => m.mode !== 'x01').map(me => (
-                <div key={me.mode} style={{ marginTop: 2 }}>
-                  {me.label} ({me.metric}): {me.firstAvg.toFixed(1)} → {me.laterAvg.toFixed(1)}
-                  {me.diff > 0 ? ` (+${me.diff.toFixed(1)})` : ` (${me.diff.toFixed(1)})`}
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* Segment-Analyse */}
-      {data.doubleRates.length > 0 && (
-        <Section title="Doppel-Trefferquote (X01)" colors={colors}>
-          {/* Horizontales Balkendiagramm - sortiert nach Quote */}
-          <div style={{ marginBottom: 12 }}>
-            <BarChart
-              data={[...data.doubleRates]
-                .sort((a, b) => b.hitRate - a.hitRate)
-                .slice(0, 20)
-                .map(d => ({
-                  label: d.field,
-                  value: d.hitRate,
-                  color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? '#f59e0b' : '#ef4444',
-                }))}
-              maxValue={100}
-              height={20}
-              gap={4}
-              formatValue={(v) => `${v}%`}
-            />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
-            {data.doubleRates.slice(0, 20).map(d => (
-              <div key={d.field} style={{
-                padding: '6px 8px', borderRadius: 6, fontSize: 12,
-                background: colors.bgDim, textAlign: 'center',
-              }}>
-                <div style={{ fontWeight: 600, color: colors.fg }}>{d.field}</div>
-                <div style={{ color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? colors.fgDim : '#ef4444' }}>
-                  {d.hitRate}% <span style={{ fontSize: 10 }}>({d.hits}/{d.attempts})</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {data.trebleRates.length > 0 && (
-        <Section title="Triple-Trefferquote (X01)" colors={colors}>
-          {/* Horizontales Balkendiagramm - sortiert nach Quote */}
-          <div style={{ marginBottom: 12 }}>
-            <BarChart
-              data={[...data.trebleRates]
-                .sort((a, b) => b.hitRate - a.hitRate)
-                .slice(0, 20)
-                .map(d => ({
-                  label: d.field,
-                  value: d.hitRate,
-                  color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? '#f59e0b' : '#ef4444',
-                }))}
-              maxValue={100}
-              height={20}
-              gap={4}
-              formatValue={(v) => `${v}%`}
-            />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
-            {data.trebleRates.slice(0, 20).map(d => (
-              <div key={d.field} style={{
-                padding: '6px 8px', borderRadius: 6, fontSize: 12,
-                background: colors.bgDim, textAlign: 'center',
-              }}>
-                <div style={{ fontWeight: 600, color: colors.fg }}>{d.field}</div>
-                <div style={{ color: d.hitRate >= 30 ? '#22c55e' : d.hitRate >= 15 ? colors.fgDim : '#ef4444' }}>
-                  {d.hitRate}% <span style={{ fontSize: 10 }}>({d.hits}/{d.attempts})</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* Segment-Genauigkeit */}
-      {data.segmentAccuracy.length > 0 && (
-        <Section title="Segment-Genauigkeit (X01)" colors={colors}>
-          <div style={{ marginBottom: 12 }}>
-            <BarChart
-              data={[...data.segmentAccuracy]
-                .sort((a, b) => b.hitRate - a.hitRate)
-                .map(s => ({
-                  label: String(s.field),
-                  value: s.hitRate,
-                  color: s.hitRate >= 50 ? '#22c55e' : s.hitRate >= 30 ? '#f59e0b' : '#ef4444',
-                }))}
-              maxValue={100}
-              height={20}
-              gap={4}
-              formatValue={(v) => `${v}%`}
-            />
-          </div>
-        </Section>
-      )}
-
-      {/* Checkout nach Restpunkten */}
-      {data.checkoutByRemaining.length > 0 && (
-        <Section title="Checkout-Quote nach Restpunkten" colors={colors}>
-          {/* LineChart: Checkout-Quote nach Restpunkten */}
-          {data.checkoutByRemaining.length >= 2 && (
-            <div style={{ marginBottom: 12, overflowX: 'auto' }}>
-              <LineChart
-                data={[...data.checkoutByRemaining]
-                  .sort((a, b) => a.remaining - b.remaining)
-                  .map(c => ({
-                    label: `${c.remaining}`,
-                    value: c.successRate,
-                  }))}
-                height={160}
-                width={Math.max(300, data.checkoutByRemaining.length * 35)}
-                color="#10b981"
-                showPoints={data.checkoutByRemaining.length <= 30}
-                showLabels
-                showGrid
-                valueFormatter={(v) => `${v.toFixed(0)}%`}
-              />
-            </div>
-          )}
-          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
-                  <th style={{ textAlign: 'left', padding: '4px 8px', color: colors.fgDim }}>Rest</th>
-                  <th style={{ textAlign: 'right', padding: '4px 8px', color: colors.fgDim }}>Versuche</th>
-                  <th style={{ textAlign: 'right', padding: '4px 8px', color: colors.fgDim }}>Erfolge</th>
-                  <th style={{ textAlign: 'right', padding: '4px 8px', color: colors.fgDim }}>Quote</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.checkoutByRemaining.map(c => (
-                  <tr key={c.remaining} style={{ borderBottom: `1px solid ${colors.border}22` }}>
-                    <td style={{ padding: '4px 8px', color: colors.fg, fontWeight: 600 }}>{c.remaining}</td>
-                    <td style={{ textAlign: 'right', padding: '4px 8px', color: colors.fgDim }}>{c.attempts}</td>
-                    <td style={{ textAlign: 'right', padding: '4px 8px', color: colors.fgDim }}>{c.successes}</td>
-                    <td style={{ textAlign: 'right', padding: '4px 8px', color: c.successRate >= 30 ? '#22c55e' : colors.fg }}>{c.successRate}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      {/* Cricket Field MPR */}
-      {data.cricketFieldMPR.length > 0 && (
-        <Section title="Cricket: Marks pro Feld" colors={colors}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 4 }}>
-            {data.cricketFieldMPR.map(f => (
-              <div key={f.field} style={{
-                padding: '6px 8px', borderRadius: 6, fontSize: 12,
-                background: colors.bgDim, textAlign: 'center',
-              }}>
-                <div style={{ fontWeight: 600, color: colors.fg }}>{f.field}</div>
-                <div style={{ color: colors.fgDim }}>{f.marks} Marks</div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
       {/* Bob's 27 Progression */}
       {data.bobs27Progression.length > 0 && (
         <Section title="Bob's 27: Score-Progression" colors={colors}>
@@ -379,28 +154,6 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
               </div>
             ))}
           </div>
-        </Section>
-      )}
-
-      {/* Cross-Game H2H */}
-      {data.crossGameH2H.length > 0 && (
-        <Section title="Gegner-Bilanz (alle Modi)" colors={colors}>
-          {data.crossGameH2H.map(h => (
-            <div key={h.opponentId} style={{
-              padding: '8px 12px', borderRadius: 8, background: colors.bgDim, marginBottom: 6,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, color: colors.fg }}>{h.opponentName}</div>
-                <div style={{
-                  color: h.winRate >= 50 ? '#22c55e' : '#ef4444',
-                  fontWeight: 600, fontSize: 14,
-                }}>{h.wins}:{h.losses}</div>
-              </div>
-              <div style={{ fontSize: 11, color: colors.fgDim, marginTop: 2 }}>
-                {h.totalMatches} Matches | Winrate: {h.winRate}% | Modi: {h.modes.map(m => m.label).join(', ')}
-              </div>
-            </div>
-          ))}
         </Section>
       )}
 

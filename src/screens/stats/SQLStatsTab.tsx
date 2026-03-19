@@ -15,24 +15,19 @@ import {
   getBobs27MonthlyHitRate,
   getOperationMonthlyAvgScore,
   getOperationMonthlyHitRate,
-  getPlayerStreaks,
   getQuickStats,
   getHighestCheckouts,
   getBestMatchAverages,
   getMost180sInMatch,
   getMonthlyStats,
-  getStatsByDayOfWeek,
   getAllHeadToHeadForPlayer,
   type TrendPoint,
   type QuickStats,
   type BestPerformance,
-  type PlayerStreak,
   type MonthlyStats,
-  type DayOfWeekStats,
   type HeadToHead,
 } from '../../db/stats'
-import { LineChart, BarChart, ProgressBar, PieChart, GaugeChart } from '../../components/charts'
-import { getCrossGameDashboard, type CrossGameDashboard } from '../../db/stats'
+import { LineChart, BarChart } from '../../components/charts'
 
 type Props = {
   playerId: string
@@ -50,9 +45,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
   const [monthlyAvg, setMonthlyAvg] = useState<TrendPoint[]>([])
   const [monthlyCheckout, setMonthlyCheckout] = useState<TrendPoint[]>([])
   const [cricketMPR, setCricketMPR] = useState<TrendPoint[]>([])
-  const [streaks, setStreaks] = useState<PlayerStreak | null>(null)
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats[]>([])
-  const [dayStats, setDayStats] = useState<DayOfWeekStats[]>([])
   const [headToHead, setHeadToHead] = useState<HeadToHead[]>([])
   const [highCheckouts, setHighCheckouts] = useState<BestPerformance[]>([])
   const [bestAverages, setBestAverages] = useState<BestPerformance[]>([])
@@ -61,8 +54,6 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
   // Sub-Tab
   const [subTab, setSubTab] = useState<'overview' | 'trends' | 'h2h' | 'records'>('overview')
 
-  // Cross-Game Dashboard (Spielmodus-Verteilung, Win-Rate)
-  const [crossGame, setCrossGame] = useState<CrossGameDashboard | null>(null)
 
   // ATB/CTF/STR/Highscore Monatliche Trends (from SQLite)
   const [atbMonthlyHitRate, setAtbMonthlyHitRate] = useState<TrendPoint[]>([])
@@ -86,7 +77,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
           p.catch((err) => { console.warn('SQL stats query failed:', err); return fallback })
 
         const [
-          qs, avg, co, cmpr, atbHR, ctfHR, ctfAS, strHR, hsAvg, b27Avg, b27HR, opAvg, opHR, str, ms, ds, h2h, hc, ba, m180, cg
+          qs, avg, co, cmpr, atbHR, ctfHR, ctfAS, strHR, hsAvg, b27Avg, b27HR, opAvg, opHR, ms, h2h, hc, ba, m180
         ] = await Promise.all([
           safe(getQuickStats(playerId), null),
           safe(getX01MonthlyAverage(playerId), []),
@@ -101,14 +92,11 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
           safe(getBobs27MonthlyHitRate(playerId), []),
           safe(getOperationMonthlyAvgScore(playerId), []),
           safe(getOperationMonthlyHitRate(playerId), []),
-          safe(getPlayerStreaks(playerId), null),
           safe(getMonthlyStats(playerId), []),
-          safe(getStatsByDayOfWeek(playerId), []),
           safe(getAllHeadToHeadForPlayer(playerId), []),
           safe(getHighestCheckouts(10), []),
           safe(getBestMatchAverages(10), []),
           safe(getMost180sInMatch(10), []),
-          safe(getCrossGameDashboard(playerId), null),
         ])
 
         setQuickStats(qs)
@@ -124,14 +112,11 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
         setBobs27MonthlyHitRate(b27HR)
         setOperationMonthlyAvgScore(opAvg)
         setOperationMonthlyHitRate(opHR)
-        setStreaks(str)
         setMonthlyStats(ms)
-        setDayStats(ds)
         setHeadToHead(h2h)
         setHighCheckouts(hc)
         setBestAverages(ba)
         setMost180s(m180)
-        setCrossGame(cg)
         setState('ready')
       } catch (err) {
         console.error('Error loading SQL stats:', err)
@@ -333,170 +318,6 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
             </div>
           </div>
 
-          {/* Spielmodus-Verteilung & Win-Rate */}
-          {crossGame && crossGame.gameModeDistribution.length > 0 && (
-            <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-              {/* Donut: Spielmodus-Verteilung */}
-              <div style={{ ...s.card, flex: '1 1 280px', marginBottom: 0 }}>
-                <div style={s.cardHeader as React.CSSProperties}>Spielmodus-Verteilung</div>
-                <div style={{ ...s.cardBody, display: 'flex', justifyContent: 'center' }}>
-                  <PieChart
-                    data={crossGame.gameModeDistribution.map((d, i) => ({
-                      label: d.label,
-                      value: d.matchCount,
-                      color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#a855f7', '#f43f5e', '#14b8a6'][i % 10],
-                    }))}
-                    size={130}
-                    strokeWidth={22}
-                    donut
-                  />
-                </div>
-              </div>
-
-              {/* Gauge: Gesamt-Siegesquote */}
-              <div style={{ ...s.card, flex: '1 1 180px', marginBottom: 0 }}>
-                <div style={s.cardHeader as React.CSSProperties}>Siegesquote</div>
-                <div style={{ ...s.cardBody, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <GaugeChart
-                    value={crossGame.overallWinRate}
-                    label="Gesamt"
-                    size={130}
-                    strokeWidth={14}
-                  />
-                  {crossGame.overallWinRateMultiOnly > 0 && crossGame.overallWinRateMultiOnly !== crossGame.overallWinRate && (
-                    <div style={{ marginTop: 8 }}>
-                      <GaugeChart
-                        value={crossGame.overallWinRateMultiOnly}
-                        label="Nur Mehrspieler"
-                        size={100}
-                        strokeWidth={10}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Streaks */}
-          {streaks && (
-            <div style={s.card}>
-              <div style={s.cardHeader as React.CSSProperties}>Serien</div>
-              <div style={s.cardBody}>
-                <div style={s.row}>
-                  <span style={s.label}>Aktuelle Serie</span>
-                  <span style={streaks.currentWinStreak > 0 ? s.valueGood : s.valueBad}>
-                    {quickStats.currentStreak}
-                  </span>
-                </div>
-                <div style={s.row}>
-                  <span style={s.label}>Längste Siegesserie</span>
-                  <span style={s.valueGood}>{streaks.longestWinStreak} Siege</span>
-                </div>
-                <div style={s.rowLast}>
-                  <span style={s.label}>Längste Pechsträhne</span>
-                  <span style={s.valueBad}>{streaks.longestLoseStreak} Niederlagen</span>
-                </div>
-
-                {/* Visuelle Serien-Anzeige */}
-                {(streaks.longestWinStreak > 0 || streaks.longestLoseStreak > 0) && (
-                  <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Siegesserie</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{
-                          flex: 1, height: 10, background: '#F3F4F6', borderRadius: 5, overflow: 'hidden',
-                        }}>
-                          <div style={{
-                            width: `${Math.min(100, (streaks.currentWinStreak / Math.max(streaks.longestWinStreak, 1)) * 100)}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #10b981, #059669)',
-                            borderRadius: 5,
-                            transition: 'width 0.4s ease',
-                            minWidth: streaks.currentWinStreak > 0 ? 4 : 0,
-                          }} />
-                        </div>
-                        <span style={{ fontSize: 11, color: '#059669', fontWeight: 600, minWidth: 30 }}>
-                          {streaks.currentWinStreak}/{streaks.longestWinStreak}
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Pechsträhne</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{
-                          flex: 1, height: 10, background: '#F3F4F6', borderRadius: 5, overflow: 'hidden',
-                        }}>
-                          <div style={{
-                            width: `${Math.min(100, (streaks.currentLoseStreak / Math.max(streaks.longestLoseStreak, 1)) * 100)}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #ef4444, #dc2626)',
-                            borderRadius: 5,
-                            transition: 'width 0.4s ease',
-                            minWidth: streaks.currentLoseStreak > 0 ? 4 : 0,
-                          }} />
-                        </div>
-                        <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600, minWidth: 30 }}>
-                          {streaks.currentLoseStreak}/{streaks.longestLoseStreak}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Lieblings-Tag */}
-          {quickStats.favoriteDayName !== '-' && (
-            <div style={s.card}>
-              <div style={s.cardHeader as React.CSSProperties}>Spielaktivität</div>
-              <div style={s.cardBody}>
-                <div style={s.rowLast}>
-                  <span style={s.label}>Aktivster Wochentag</span>
-                  <span style={s.valueHighlight}>{quickStats.favoriteDayName}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Wochentag-Analyse */}
-          {dayStats.length > 0 && (
-            <div style={s.card}>
-              <div style={s.cardHeader as React.CSSProperties}>Gewinnquote nach Wochentag</div>
-              <div style={s.cardBody}>
-                {/* BarChart Visualisierung */}
-                <div style={{ marginBottom: 16 }}>
-                  <BarChart
-                    data={dayStats.map(d => ({
-                      label: d.dayName.substring(0, 2),
-                      value: d.winRate,
-                      color: d.winRate >= 60 ? '#10b981' : d.winRate >= 40 ? '#f59e0b' : d.winRate > 0 ? '#ef4444' : '#d1d5db',
-                    }))}
-                    maxValue={100}
-                    height={20}
-                    gap={6}
-                    formatValue={v => `${v}%`}
-                  />
-                </div>
-                {/* Detail-Liste */}
-                {dayStats.map((d, i) => (
-                  <div key={d.dayOfWeek} style={i === dayStats.length - 1 ? s.rowLast : s.row}>
-                    <span style={s.label}>{d.dayName}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>{d.matchesPlayed} Matches</span>
-                      <span style={{
-                        ...s.value,
-                        color: d.winRate >= 50 ? '#059669' : d.winRate > 0 ? '#DC2626' : '#6B7280',
-                      }}>
-                        {d.winRate}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
 

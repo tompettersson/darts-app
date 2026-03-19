@@ -338,15 +338,9 @@ export default function StatsProfile({
         {activeTab === 'uebersicht' && !sqlStats.loading && sqlStats.data.general && (() => {
           const gen = sqlStats.data.general
           const streaks = sqlStats.data.streaks
-          const h2h = sqlStats.data.headToHead
           const x01WinRate = gen.multiX01Matches > 0 ? Math.round(gen.x01Wins / gen.multiX01Matches * 100) : 0
           const cricketWinRate = gen.multiCricketMatches > 0 ? Math.round(gen.cricketWins / gen.multiCricketMatches * 100) : 0
           const atbWinRate = gen.multiATBMatches > 0 ? Math.round(gen.atbWins / gen.multiATBMatches * 100) : 0
-
-          // Head-to-Head Analyse
-          const mainOpponent = h2h.length > 0 ? h2h[0] : null
-          const favoriteOpponent = h2h.find(o => o.player1Wins > o.player2Wins)
-          const fearOpponent = h2h.find(o => o.player2Wins > o.player1Wins)
 
           return (
           <>
@@ -583,55 +577,6 @@ export default function StatsProfile({
                 <div style={s.statsRowLast}>
                   <span style={s.statsLabel}>Längste Pechsträhne</span>
                   <span style={s.statsValueBad}>{streaks.longestLoseStreak} Spiele</span>
-                </div>
-              </div>
-            )}
-
-            {/* Gegner-Bilanz (aus Head-to-Head) */}
-            {h2h.length > 0 && (
-              <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Gegner-Bilanz</div>
-                {mainOpponent && (
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Hauptgegner</span>
-                    <span style={s.statsValue}>
-                      {mainOpponent.player2Name} ({mainOpponent.totalMatches} Spiele)
-                    </span>
-                  </div>
-                )}
-                {favoriteOpponent && (
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Lieblingsgegner</span>
-                    <span style={s.statsValueGood}>
-                      {favoriteOpponent.player2Name} ({favoriteOpponent.player1Wins}:{favoriteOpponent.player2Wins})
-                    </span>
-                  </div>
-                )}
-                {fearOpponent && (
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Angstgegner</span>
-                    <span style={s.statsValueBad}>
-                      {fearOpponent.player2Name} ({fearOpponent.player1Wins}:{fearOpponent.player2Wins})
-                    </span>
-                  </div>
-                )}
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 8 }}>Alle Gegner (X01):</div>
-                  {h2h.slice(0, 5).map(opp => (
-                    <div key={opp.player2Id} style={{ ...s.statsRow, padding: '4px 0' }}>
-                      <div>
-                        <span style={{ fontSize: 13, color: colors.fg }}>{opp.player2Name}</span>
-                        {opp.lastPlayed && (
-                          <span style={{ fontSize: 11, color: colors.fgDim, marginLeft: 8 }}>
-                            (zuletzt: {new Date(opp.lastPlayed).toLocaleDateString('de-DE')})
-                          </span>
-                        )}
-                      </div>
-                      <span style={{ fontSize: 13, color: colors.fg }}>
-                        {opp.player1Wins}:{opp.player2Wins} ({opp.totalMatches} Matches)
-                      </span>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}

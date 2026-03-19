@@ -178,16 +178,6 @@ function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
     Anfaenger: '#6b7280',
   }
 
-  // Cross-game mode distribution (percentage-based)
-  const gameModeWinRates = useMemo(() => {
-    if (!dashboard) return []
-    return dashboard.gameModeDistribution.map(g => ({
-      mode: g.label,
-      matches: g.matchCount,
-      percentage: g.percentage,
-    }))
-  }, [dashboard])
-
   // Total hours (estimated from avg match duration * total matches)
   const totalHours = useMemo(() => {
     if (!data.timeInsights || !dashboard) return 0
@@ -284,29 +274,6 @@ function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
         </Section>
       )}
 
-      {/* Cross-Game Distribution Table */}
-      {gameModeWinRates.length > 0 && (
-        <Section title="Spielmodus-Verteilung" colors={colors}>
-          {gameModeWinRates.map(g => (
-            <div key={g.mode} style={{
-              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
-            }}>
-              <div style={{ width: 100, fontSize: 13, fontWeight: 600, color: colors.fg, flexShrink: 0 }}>
-                {g.mode}
-              </div>
-              <div style={{ flex: 1 }}>
-                <MiniBar value={g.percentage} max={100} color={colors.accent} colors={colors} />
-              </div>
-              <div style={{ width: 70, textAlign: 'right', fontSize: 13, fontWeight: 600, color: colors.fg }}>
-                {g.percentage}%
-              </div>
-              <div style={{ width: 50, textAlign: 'right', fontSize: 11, color: colors.fgDim }}>
-                {g.matches}x
-              </div>
-            </div>
-          ))}
-        </Section>
-      )}
     </div>
   )
 }
