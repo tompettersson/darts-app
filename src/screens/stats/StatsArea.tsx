@@ -21,6 +21,7 @@ const HighscoreMatchDetails = React.lazy(() => import('../HighscoreMatchDetails'
 const CTFMatchDetails = React.lazy(() => import('../CTFMatchDetails'))
 const ShanghaiMatchDetails = React.lazy(() => import('../ShanghaiMatchDetails'))
 const KillerSummary = React.lazy(() => import('../KillerSummary'))
+const CricketMatchDetails = React.lazy(() => import('../CricketMatchDetails'))
 const Bobs27MatchDetails = React.lazy(() => import('../Bobs27MatchDetails'))
 const OperationMatchDetails = React.lazy(() => import('../OperationMatchDetails'))
 const HallOfFame = React.lazy(() => import('../HallOfFame'))
@@ -34,6 +35,7 @@ type View =
   | 'player-profile'
   | 'match-details'
   | 'atb-match-details'
+  | 'cricket-match-details'
   | 'str-match-details'
   | 'highscore-match-details'
   | 'ctf-match-details'
@@ -60,6 +62,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
 
   const [detailMatchId, setDetailMatchId] = useState<string | undefined>(undefined)
   const [atbDetailMatchId, setAtbDetailMatchId] = useState<string | undefined>(undefined)
+  const [cricketDetailMatchId, setCricketDetailMatchId] = useState<string | undefined>(undefined)
   const [strDetailMatchId, setStrDetailMatchId] = useState<string | undefined>(undefined)
   const [highscoreDetailMatchId, setHighscoreDetailMatchId] = useState<string | undefined>(undefined)
   const [ctfDetailMatchId, setCtfDetailMatchId] = useState<string | undefined>(undefined)
@@ -89,7 +92,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
       e.preventDefault()
       if (view === 'stats-menu') {
         onBackToMenu()
-      } else if (view === 'match-details' || view === 'atb-match-details' || view === 'str-match-details' || view === 'highscore-match-details' || view === 'ctf-match-details' || view === 'shanghai-match-details' || view === 'killer-match-details' || view === 'bobs27-match-details' || view === 'operation-match-details') {
+      } else if (view === 'match-details' || view === 'atb-match-details' || view === 'cricket-match-details' || view === 'str-match-details' || view === 'highscore-match-details' || view === 'ctf-match-details' || view === 'shanghai-match-details' || view === 'killer-match-details' || view === 'bobs27-match-details' || view === 'operation-match-details') {
         setView(returnFromMatchDetails)
       } else {
         setView('stats-menu')
@@ -201,7 +204,9 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
             setView('match-details')
           }}
           onOpenCricketMatch={(id: string) => {
-            onOpenCricketMatch(id, 'stats-dashboard')
+            setCricketDetailMatchId(id)
+            setReturnFromMatchDetails('stats-dashboard')
+            setView('cricket-match-details')
           }}
           onOpenHallOfFame={() => {
             setView('hall-of-fame')
@@ -228,7 +233,9 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
                   setView('match-details')
                 }}
                 onOpenCricketMatch={(id: string) => {
-                  onOpenCricketMatch(id, 'match-history')
+                  setCricketDetailMatchId(id)
+                  setReturnFromMatchDetails('match-history')
+                  setView('cricket-match-details')
                 }}
                 onOpenATBMatch={(id: string) => {
                   setAtbDetailMatchId(id)
@@ -337,6 +344,11 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   // ---------- MATCH DETAILS (X01) ----------
   if (view === 'match-details' && detailMatchId) {
     return <Suspense fallback={suspenseFallback}><MatchDetails matchId={detailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
+  }
+
+  // ---------- CRICKET MATCH DETAILS ----------
+  if (view === 'cricket-match-details' && cricketDetailMatchId) {
+    return <Suspense fallback={suspenseFallback}><CricketMatchDetails matchId={cricketDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
   }
 
   // ---------- ATB MATCH DETAILS ----------

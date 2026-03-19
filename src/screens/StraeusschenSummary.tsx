@@ -157,6 +157,11 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
   const turnsWin = getStatWinnerColors(sorted.map(s => s.totalTurns), pids, 'low', playerColorRecord)
   const dartsWin = getStatWinnerColors(sorted.map(s => s.totalDarts), pids, 'low', playerColorRecord)
   const hitRateWin = getStatWinnerColors(sorted.map(s => s.hitRate), pids, 'high', playerColorRecord)
+  const bestRoundWin = getStatWinnerColors(sorted.map(s => s.bestRound?.hits ?? 0), pids, 'high', playerColorRecord)
+  const worstRoundWin = getStatWinnerColors(sorted.map(s => s.worstRound?.hits ?? 0), pids, 'high', playerColorRecord)
+  const avgHitsWin = getStatWinnerColors(sorted.map(s => s.avgHitsPerRound), pids, 'high', playerColorRecord)
+  const streakWin = getStatWinnerColors(sorted.map(s => s.longestHitStreak), pids, 'high', playerColorRecord)
+  const firstDartWin = getStatWinnerColors(sorted.map(s => s.firstDartHitRate), pids, 'high', playerColorRecord)
 
   // Single-leg Triple winners
   const singleLegSorted = singleLegStats ? sortedLegStats(singleLegStats, sorted) : []
@@ -364,6 +369,68 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(hitRateWin[i] ?? undefined)}>
                       {s.hitRate.toFixed(1)}%
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Treffer/Fehlwürfe */}
+                <tr>
+                  <td style={labelStyle}>Treffer / Fehl</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(undefined)}>
+                      <span style={{ color: colors.success }}>{s.totalHits}</span>
+                      {' / '}
+                      <span style={{ color: colors.error }}>{s.totalMisses}</span>
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Best Round */}
+                <tr>
+                  <td style={labelStyle}>Beste Runde</td>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(bestRoundWin[i] ?? undefined)}>
+                      {s.bestRound ? `${s.bestRound.hits}/${s.bestRound.darts}` : '—'}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Worst Round */}
+                <tr>
+                  <td style={labelStyle}>Schlechteste Runde</td>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(worstRoundWin[i] ?? undefined)}>
+                      {s.worstRound ? `${s.worstRound.hits}/${s.worstRound.darts}` : '—'}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Avg Hits per Round */}
+                <tr>
+                  <td style={labelStyle}>Ø Treffer/Runde</td>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(avgHitsWin[i] ?? undefined)}>
+                      {s.avgHitsPerRound.toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Longest Hit Streak */}
+                <tr>
+                  <td style={labelStyle}>Längste Trefferserie</td>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(streakWin[i] ?? undefined)}>
+                      {s.longestHitStreak}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* First Dart Hit Rate */}
+                <tr>
+                  <td style={labelStyle}>1. Dart Trefferquote</td>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(firstDartWin[i] ?? undefined)}>
+                      {s.firstDartHitRate.toFixed(1)}%
                     </td>
                   ))}
                 </tr>

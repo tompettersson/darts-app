@@ -88,6 +88,8 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch }: Pr
         misses: stats?.misses ?? 0,
         totalDarts: stats?.totalDarts ?? 0,
         hitRate: stats?.hitRate ?? 0,
+        consistencyScore: stats?.consistencyScore ?? 0,
+        longestScoringStreak: stats?.longestScoringStreak ?? 0,
         dartsUsed: state.dartsUsedTotalByPlayer[p.playerId] ?? 0,
         isWinner: p.playerId === storedMatch.winnerId,
       }
@@ -325,18 +327,29 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch }: Pr
                 const worstWin = getStatWinnerColors(rankings.map(p => p.worstRound.score), pids, 'high', colorMap)
                 const missWin = getStatWinnerColors(rankings.map(p => p.misses), pids, 'low', colorMap)
                 const hitWin = getStatWinnerColors(rankings.map(p => p.hitRate), pids, 'high', colorMap)
+                const consistWin = getStatWinnerColors(rankings.map(p => p.consistencyScore), pids, 'low', colorMap)
+                const streakWin = getStatWinnerColors(rankings.map(p => p.longestScoringStreak), pids, 'high', colorMap)
+                const shanghaiWin = getStatWinnerColors(rankings.map(p => p.shanghaiCount), pids, 'high', colorMap)
+
+                const thStyle: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', color: colors.fgMuted, whiteSpace: 'nowrap' }
+                const tdStyle: React.CSSProperties = { textAlign: 'right', padding: '6px 8px' }
 
                 return (
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
                       <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
-                        <th style={{ textAlign: 'left', padding: '6px 8px', color: colors.fgMuted }}>Spieler</th>
-                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Avg/R</th>
-                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Beste</th>
-                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Schw.</th>
-                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>T/D/S</th>
-                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Miss</th>
-                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Hit%</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>Spieler</th>
+                        <th style={thStyle}>Punkte</th>
+                        <th style={thStyle}>Darts</th>
+                        <th style={thStyle}>Avg/R</th>
+                        <th style={thStyle}>Beste</th>
+                        <th style={thStyle}>Schw.</th>
+                        <th style={thStyle}>Shanghai</th>
+                        <th style={thStyle}>T/D/S</th>
+                        <th style={thStyle}>Miss</th>
+                        <th style={thStyle}>Hit%</th>
+                        <th style={thStyle} title="Konsistenz (niedrigere Standardabweichung = stabiler)">Konsist.</th>
+                        <th style={thStyle} title="Laengste Serie aufeinanderfolgender Runden mit Punkten">Streak</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -345,23 +358,38 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch }: Pr
                           <td style={{ padding: '6px 8px', fontWeight: 600 }}>
                             <span style={{ color: p.color }}>{p.name}</span>
                           </td>
-                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(avgWin[i] ? { color: avgWin[i], fontWeight: 700 } : {}) }}>
+                          <td style={{ ...tdStyle, fontWeight: 700, color: colors.accent }}>
+                            {p.totalScore}
+                          </td>
+                          <td style={tdStyle}>
+                            {p.dartsUsed}
+                          </td>
+                          <td style={{ ...tdStyle, ...(avgWin[i] ? { color: avgWin[i], fontWeight: 700 } : {}) }}>
                             {p.avgPerRound.toFixed(1)}
                           </td>
-                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(bestWin[i] ? { color: bestWin[i], fontWeight: 700 } : { color: colors.success }) }}>
+                          <td style={{ ...tdStyle, ...(bestWin[i] ? { color: bestWin[i], fontWeight: 700 } : { color: colors.success }) }}>
                             {p.bestRound.score > 0 ? `${p.bestRound.score} (R${p.bestRound.round})` : '-'}
                           </td>
-                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(worstWin[i] ? { color: worstWin[i], fontWeight: 700 } : { color: colors.error }) }}>
+                          <td style={{ ...tdStyle, ...(worstWin[i] ? { color: worstWin[i], fontWeight: 700 } : { color: colors.error }) }}>
                             {p.worstRound.round > 0 ? `${p.worstRound.score} (R${p.worstRound.round})` : '-'}
                           </td>
-                          <td style={{ textAlign: 'right', padding: '6px 8px' }}>
+                          <td style={{ ...tdStyle, ...(shanghaiWin[i] ? { color: shanghaiWin[i], fontWeight: 700 } : p.shanghaiCount > 0 ? { color: colors.warning, fontWeight: 700 } : { color: colors.fgDim }) }}>
+                            {p.shanghaiCount}x
+                          </td>
+                          <td style={tdStyle}>
                             {p.triples}/{p.doubles}/{p.singles}
                           </td>
-                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(missWin[i] ? { color: missWin[i], fontWeight: 700 } : { color: colors.fgDim }) }}>
+                          <td style={{ ...tdStyle, ...(missWin[i] ? { color: missWin[i], fontWeight: 700 } : { color: colors.fgDim }) }}>
                             {p.misses}
                           </td>
-                          <td style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600, ...(hitWin[i] ? { color: hitWin[i], fontWeight: 700 } : {}) }}>
+                          <td style={{ ...tdStyle, fontWeight: 600, ...(hitWin[i] ? { color: hitWin[i], fontWeight: 700 } : {}) }}>
                             {p.hitRate.toFixed(0)}%
+                          </td>
+                          <td style={{ ...tdStyle, ...(consistWin[i] ? { color: consistWin[i], fontWeight: 700 } : {}) }} title={`Standardabweichung: ${p.consistencyScore.toFixed(1)}`}>
+                            {p.consistencyScore.toFixed(1)}
+                          </td>
+                          <td style={{ ...tdStyle, ...(streakWin[i] ? { color: streakWin[i], fontWeight: 700 } : {}) }}>
+                            {p.longestScoringStreak}
                           </td>
                         </tr>
                       ))}

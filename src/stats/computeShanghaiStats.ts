@@ -15,6 +15,9 @@ export type ShanghaiMatchStats = {
   misses: number
   totalDarts: number
   hitRate: number // Prozent Treffer auf Zielzahl
+  consistencyScore: number // Standardabweichung der Rundenscores (niedrig = konsistent)
+  longestScoringStreak: number // Laengste Serie aufeinanderfolgender Runden mit Score > 0
+  roundScores: { round: number; score: number }[] // Score pro Runde (fuer Charts)
 }
 
 export function computeShanghaiMatchStats(
@@ -39,8 +42,11 @@ export function computeShanghaiMatchStats(
   let bestRound = { round: 0, score: -1 }
   let worstRound = { round: 0, score: Infinity }
 
+  const roundScores: { round: number; score: number }[] = []
+
   for (const turn of turns) {
     totalScore += turn.turnScore
+    roundScores.push({ round: turn.targetNumber, score: turn.turnScore })
 
     if (turn.isShanghai) shanghaiCount++
 
@@ -69,6 +75,26 @@ export function computeShanghaiMatchStats(
   const avgPerRound = turns.length > 0 ? totalScore / turns.length : 0
   const hitRate = totalDarts > 0 ? (hits / totalDarts) * 100 : 0
 
+  // Konsistenz: Standardabweichung der Rundenscores
+  let consistencyScore = 0
+  if (roundScores.length > 1) {
+    const mean = totalScore / roundScores.length
+    const variance = roundScores.reduce((sum, rs) => sum + Math.pow(rs.score - mean, 2), 0) / roundScores.length
+    consistencyScore = Math.sqrt(variance)
+  }
+
+  // Laengste Scoring-Streak (aufeinanderfolgende Runden mit Score > 0)
+  let longestScoringStreak = 0
+  let currentStreak = 0
+  for (const rs of roundScores) {
+    if (rs.score > 0) {
+      currentStreak++
+      if (currentStreak > longestScoringStreak) longestScoringStreak = currentStreak
+    } else {
+      currentStreak = 0
+    }
+  }
+
   return {
     totalScore,
     avgPerRound,
@@ -81,5 +107,8 @@ export function computeShanghaiMatchStats(
     misses,
     totalDarts,
     hitRate,
+    consistencyScore,
+    longestScoringStreak,
+    roundScores,
   }
 }

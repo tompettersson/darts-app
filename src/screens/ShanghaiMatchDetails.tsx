@@ -1,6 +1,6 @@
 // src/screens/ShanghaiMatchDetails.tsx
 // Spielzusammenfassung fuer Shanghai Matches (aus Match History)
-// Mit Leg-Uebersicht und Drill-Down (analog zu CTFMatchDetails)
+// Mit Leg-Uebersicht, Drill-Down, Charts und umfangreichen Statistiken
 
 import React, { useMemo, useState } from 'react'
 import { getShanghaiMatchById, getProfiles } from '../storage'
@@ -33,6 +33,243 @@ type LegInfo = {
   finalScores: Record<string, number>
   turns: ShanghaiTurnAddedEvent[]
   rounds: ShanghaiRoundFinishedEvent[]
+}
+
+// ===== SVG Score Progression Chart =====
+function ShanghaiScoreProgressionChart({
+  rounds,
+  players,
+  playerColors,
+  colors,
+}: {
+  rounds: ShanghaiRoundFinishedEvent[]
+  players: ShanghaiPlayer[]
+  playerColors: Record<string, string>
+  colors: any
+}) {
+  if (rounds.length === 0) return null
+
+  const W = 580
+  const H = 200
+  const PAD = { top: 20, right: 20, bottom: 30, left: 45 }
+  const chartW = W - PAD.left - PAD.right
+  const chartH = H - PAD.top - PAD.bottom
+
+  // Max total score across all rounds
+  const maxTotal = Math.max(
+    1,
+    ...rounds.flatMap(r => players.map(p => r.totalsByPlayer[p.playerId] ?? 0))
+  )
+
+  const xScale = (i: number) => PAD.left + (i / Math.max(1, rounds.length - 1)) * chartW
+  const yScale = (v: number) => PAD.top + chartH - (v / maxTotal) * chartH
+
+  // Build polylines per player
+  const lines = players.map(p => {
+    const points = rounds.map((r, i) => {
+      const total = r.totalsByPlayer[p.playerId] ?? 0
+      return `${xScale(i)},${yScale(total)}`
+    })
+    return {
+      playerId: p.playerId,
+      color: playerColors[p.playerId],
+      name: p.name,
+      d: points.join(' '),
+      lastTotal: rounds[rounds.length - 1]?.totalsByPlayer[p.playerId] ?? 0,
+    }
+  })
+
+  // Y-axis ticks
+  const yTicks: number[] = []
+  const step = Math.ceil(maxTotal / 5 / 10) * 10 || 10
+  for (let v = 0; v <= maxTotal; v += step) yTicks.push(v)
+  if (yTicks[yTicks.length - 1] < maxTotal) yTicks.push(Math.ceil(maxTotal / step) * step)
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, height: 'auto' }}>
+        {/* Grid lines */}
+        {yTicks.map(v => (
+          <g key={v}>
+            <line
+              x1={PAD.left} y1={yScale(v)}
+              x2={W - PAD.right} y2={yScale(v)}
+              stroke={colors.border} strokeWidth={0.5} strokeDasharray="4,3"
+            />
+            <text x={PAD.left - 6} y={yScale(v) + 4} textAnchor="end" fontSize={10} fill={colors.fgMuted}>
+              {v}
+            </text>
+          </g>
+        ))}
+
+        {/* X-axis labels */}
+        {rounds.map((r, i) => (
+          <text
+            key={i}
+            x={xScale(i)}
+            y={H - 6}
+            textAnchor="middle"
+            fontSize={9}
+            fill={colors.fgMuted}
+          >
+            {r.roundNumber}
+          </text>
+        ))}
+
+        {/* Lines */}
+        {lines.map(l => (
+          <g key={l.playerId}>
+            <polyline
+              points={l.d}
+              fill="none"
+              stroke={l.color}
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {/* Dots */}
+            {rounds.map((r, i) => {
+              const total = r.totalsByPlayer[l.playerId] ?? 0
+              return (
+                <circle
+                  key={i}
+                  cx={xScale(i)}
+                  cy={yScale(total)}
+                  r={3}
+                  fill={l.color}
+                  stroke={colors.bg}
+                  strokeWidth={1}
+                />
+              )
+            })}
+            {/* End label */}
+            <text
+              x={xScale(rounds.length - 1) + 6}
+              y={yScale(l.lastTotal) + 4}
+              fontSize={10}
+              fontWeight={700}
+              fill={l.color}
+            >
+              {l.lastTotal}
+            </text>
+          </g>
+        ))}
+
+        {/* X-axis label */}
+        <text x={PAD.left + chartW / 2} y={H - 0} textAnchor="middle" fontSize={10} fill={colors.fgMuted}>
+          Runde
+        </text>
+      </svg>
+    </div>
+  )
+}
+
+// ===== SVG Per-Round Bar Chart =====
+function ShanghaiRoundBarChart({
+  rounds,
+  players,
+  playerColors,
+  colors,
+  shanghaiRounds,
+}: {
+  rounds: ShanghaiRoundFinishedEvent[]
+  players: ShanghaiPlayer[]
+  playerColors: Record<string, string>
+  colors: any
+  shanghaiRounds: Set<number>
+}) {
+  if (rounds.length === 0) return null
+
+  const playerCount = players.length
+  const W = 580
+  const H = 180
+  const PAD = { top: 15, right: 10, bottom: 30, left: 35 }
+  const chartW = W - PAD.left - PAD.right
+  const chartH = H - PAD.top - PAD.bottom
+
+  const maxRoundScore = Math.max(
+    1,
+    ...rounds.flatMap(r => players.map(p => r.scoresByPlayer[p.playerId] ?? 0))
+  )
+
+  const groupW = chartW / rounds.length
+  const barW = Math.min(20, (groupW - 4) / playerCount)
+
+  const yScale = (v: number) => PAD.top + chartH - (v / maxRoundScore) * chartH
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, height: 'auto' }}>
+        {/* Y grid */}
+        {[0, 0.25, 0.5, 0.75, 1].map(frac => {
+          const v = Math.round(maxRoundScore * frac)
+          return (
+            <g key={frac}>
+              <line
+                x1={PAD.left} y1={yScale(v)}
+                x2={W - PAD.right} y2={yScale(v)}
+                stroke={colors.border} strokeWidth={0.5} strokeDasharray="3,3"
+              />
+              <text x={PAD.left - 4} y={yScale(v) + 3} textAnchor="end" fontSize={9} fill={colors.fgMuted}>
+                {v}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Bars */}
+        {rounds.map((r, ri) => {
+          const groupX = PAD.left + ri * groupW
+          const isShanghaiRound = shanghaiRounds.has(r.roundNumber)
+
+          return (
+            <g key={ri}>
+              {/* Shanghai highlight background */}
+              {isShanghaiRound && (
+                <rect
+                  x={groupX}
+                  y={PAD.top}
+                  width={groupW}
+                  height={chartH}
+                  fill={colors.warning}
+                  opacity={0.08}
+                  rx={2}
+                />
+              )}
+              {players.map((p, pi) => {
+                const score = r.scoresByPlayer[p.playerId] ?? 0
+                const barH = score > 0 ? Math.max(2, (score / maxRoundScore) * chartH) : 0
+                const x = groupX + (groupW - playerCount * barW) / 2 + pi * barW
+                return (
+                  <rect
+                    key={p.playerId}
+                    x={x}
+                    y={PAD.top + chartH - barH}
+                    width={barW - 1}
+                    height={barH}
+                    fill={playerColors[p.playerId]}
+                    opacity={0.85}
+                    rx={1}
+                  />
+                )
+              })}
+              {/* X label */}
+              <text
+                x={groupX + groupW / 2}
+                y={H - 8}
+                textAnchor="middle"
+                fontSize={9}
+                fill={isShanghaiRound ? colors.warning : colors.fgMuted}
+                fontWeight={isShanghaiRound ? 700 : 400}
+              >
+                {r.roundNumber}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
 }
 
 export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
@@ -141,16 +378,23 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
   // Spielmodus-String
   const gameMode = `Shanghai ${match.structure?.kind === 'sets' ? 'S' : 'L'}`
 
-  // Stats pro Spieler berechnen (fuer bestimmtes Leg oder gesamtes Match)
+  // Erweiterte Stats pro Spieler berechnen (fuer bestimmtes Leg oder gesamtes Match)
   function computePlayerStats(turns: ShanghaiTurnAddedEvent[], players: ShanghaiPlayer[], winnerId?: string | null) {
     return players.map((player) => {
       const pid = player.playerId
       const playerTurns = turns.filter(t => t.playerId === pid)
       let totalScore = 0, triples = 0, doubles = 0, singles = 0, misses = 0, totalDarts = 0, hits = 0, shanghaiCount = 0
 
+      const roundScores: number[] = []
+      let bestRound = { round: 0, score: -1 }
+      let worstRound = { round: 0, score: Infinity }
+
       for (const turn of playerTurns) {
         totalScore += turn.turnScore
+        roundScores.push(turn.turnScore)
         if (turn.isShanghai) shanghaiCount++
+        if (turn.turnScore > bestRound.score) bestRound = { round: turn.targetNumber, score: turn.turnScore }
+        if (turn.turnScore < worstRound.score) worstRound = { round: turn.targetNumber, score: turn.turnScore }
         for (const dart of turn.darts) {
           totalDarts++
           if (dart.target === 'MISS') { misses++ }
@@ -164,6 +408,23 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
       }
 
       const hitRate = totalDarts > 0 ? (hits / totalDarts) * 100 : 0
+      const avgPerRound = playerTurns.length > 0 ? totalScore / playerTurns.length : 0
+
+      // Konsistenz
+      let consistencyScore = 0
+      if (roundScores.length > 1) {
+        const mean = totalScore / roundScores.length
+        const variance = roundScores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / roundScores.length
+        consistencyScore = Math.sqrt(variance)
+      }
+
+      // Laengste Scoring-Streak
+      let longestScoringStreak = 0
+      let currentStreak = 0
+      for (const s of roundScores) {
+        if (s > 0) { currentStreak++; if (currentStreak > longestScoringStreak) longestScoringStreak = currentStreak }
+        else currentStreak = 0
+      }
 
       return {
         playerId: pid,
@@ -176,15 +437,29 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
         misses,
         hitRate,
         shanghaiCount,
-        avgPerRound: playerTurns.length > 0 ? totalScore / playerTurns.length : 0,
+        avgPerRound,
+        bestRound: bestRound.score >= 0 ? bestRound : { round: 0, score: 0 },
+        worstRound: worstRound.score < Infinity ? worstRound : { round: 0, score: 0 },
+        consistencyScore,
+        longestScoringStreak,
         isWinner: winnerId === pid,
       }
     })
   }
 
+  // Helper: Shanghai-Runden ermitteln (Runden in denen ein Shanghai erzielt wurde)
+  function getShanghaiRounds(turns: ShanghaiTurnAddedEvent[]): Set<number> {
+    const result = new Set<number>()
+    for (const t of turns) {
+      if (t.isShanghai) result.add(t.targetNumber)
+    }
+    return result
+  }
+
   // ===== LEG DETAIL VIEW =====
   if (selectedLeg) {
     const legStats = computePlayerStats(selectedLeg.turns, match.players, selectedLeg.winnerId)
+    const shanghaiRounds = getShanghaiRounds(selectedLeg.turns)
 
     // Kumulativen Spielstand nach diesem Leg berechnen
     const cumulativeScore: Record<string, number> = {}
@@ -263,7 +538,7 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
               </div>
             )}
 
-            {/* Leg-Statistiken */}
+            {/* Leg-Statistiken (erweitert) */}
             <div style={styles.card}>
               <div style={{ fontWeight: 700, marginBottom: 12 }}>Leg-Statistiken</div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -283,12 +558,20 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                     {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.accent, fontWeight: 800, fontSize: 16 }}>{ps.totalScore}</td>)}
                   </tr>
                   <tr>
+                    <td style={tdLeft}>Darts</td>
+                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
+                  </tr>
+                  <tr>
                     <td style={tdLeft}>{'\u00D8'} pro Runde</td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerRound.toFixed(1)}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Darts</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
+                    <td style={tdLeft}>Beste Runde</td>
+                    {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>{ps.bestRound.score > 0 ? `${ps.bestRound.score} (R${ps.bestRound.round})` : '-'}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Schlechteste</td>
+                    {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>{ps.worstRound.round > 0 ? `${ps.worstRound.score} (R${ps.worstRound.round})` : '-'}</td>)}
                   </tr>
                   <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                   <tr>
@@ -311,6 +594,14 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                     <td style={tdLeft}>Trefferquote</td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
                   </tr>
+                  <tr>
+                    <td style={tdLeft}>Konsistenz</td>
+                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.consistencyScore.toFixed(1)}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Scoring-Streak</td>
+                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.longestScoringStreak}</td>)}
+                  </tr>
                   {legStats.some(ps => ps.shanghaiCount > 0) && (
                     <tr>
                       <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}>Shanghai</td>
@@ -321,15 +612,57 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
               </table>
             </div>
 
-            {/* Runden-Uebersicht */}
+            {/* Score Progression Chart */}
+            {selectedLeg.rounds.length >= 2 && (
+              <div style={styles.card}>
+                <div style={{ fontWeight: 700, marginBottom: 12 }}>Punkteverlauf</div>
+                <ShanghaiScoreProgressionChart
+                  rounds={selectedLeg.rounds}
+                  players={match.players}
+                  playerColors={playerColors}
+                  colors={colors}
+                />
+                {/* Legende */}
+                <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                  {match.players.map(p => (
+                    <div key={p.playerId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      <div style={{ width: 12, height: 3, background: playerColors[p.playerId], borderRadius: 2 }} />
+                      <span style={{ color: playerColors[p.playerId], fontWeight: 600 }}>{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Per-Round Bar Chart */}
+            {selectedLeg.rounds.length > 0 && (
+              <div style={styles.card}>
+                <div style={{ fontWeight: 700, marginBottom: 12 }}>Punkte pro Runde</div>
+                <ShanghaiRoundBarChart
+                  rounds={selectedLeg.rounds}
+                  players={match.players}
+                  playerColors={playerColors}
+                  colors={colors}
+                  shanghaiRounds={shanghaiRounds}
+                />
+                {shanghaiRounds.size > 0 && (
+                  <div style={{ fontSize: 11, color: colors.warning, textAlign: 'center', marginTop: 6 }}>
+                    Hervorgehobene Runden: Shanghai erzielt
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Runden-Uebersicht (Tabelle mit Running Total) */}
             {selectedLeg.rounds.length > 0 && (
               <div style={styles.card}>
                 <div style={{ fontWeight: 700, marginBottom: 12 }}>Runden-Uebersicht</div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
-                      <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                      <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
                         <th style={{ textAlign: 'left', padding: '4px 6px', color: colors.fgMuted }}>Runde</th>
+                        <th style={{ textAlign: 'left', padding: '4px 6px', color: colors.fgMuted }}>Ziel</th>
                         {match.players.map(p => (
                           <th key={p.playerId} style={{ textAlign: 'right', padding: '4px 6px', color: playerColors[p.playerId] }}>
                             {p.name}
@@ -341,11 +674,32 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                       {selectedLeg.rounds.map(round => {
                         const roundScores = match.players.map(p => round.scoresByPlayer[p.playerId] ?? 0)
                         const roundMax = Math.max(...roundScores)
+                        const isShanghaiRound = shanghaiRounds.has(round.roundNumber)
 
                         return (
-                          <tr key={round.roundNumber} style={{ borderBottom: `1px solid ${colors.border}` }}>
-                            <td style={{ padding: '4px 6px', fontWeight: 500, color: colors.fgDim }}>
+                          <tr
+                            key={round.roundNumber}
+                            style={{
+                              borderBottom: `1px solid ${colors.border}`,
+                              background: isShanghaiRound ? `${colors.warning}10` : undefined,
+                            }}
+                          >
+                            <td style={{ padding: '4px 6px', fontWeight: 500, color: isShanghaiRound ? colors.warning : colors.fgDim }}>
                               R{round.roundNumber}
+                              {isShanghaiRound && (
+                                <span style={{
+                                  marginLeft: 4,
+                                  background: colors.warning,
+                                  color: colors.bg,
+                                  padding: '0px 4px',
+                                  borderRadius: 3,
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                }}>S!</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '4px 6px', color: colors.fgDim, fontWeight: 600 }}>
+                              {round.roundNumber}
                             </td>
                             {match.players.map(p => {
                               const score = round.scoresByPlayer[p.playerId] ?? 0
@@ -371,7 +725,7 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                       })}
                       {/* Endscore */}
                       <tr style={{ borderTop: `2px solid ${colors.border}` }}>
-                        <td style={{ padding: '6px 6px', fontWeight: 700 }}>Gesamt</td>
+                        <td colSpan={2} style={{ padding: '6px 6px', fontWeight: 700 }}>Gesamt</td>
                         {match.players.map(p => (
                           <td key={p.playerId} style={{ textAlign: 'right', padding: '6px 6px', fontWeight: 700, color: playerColors[p.playerId] }}>
                             {selectedLeg.finalScores[p.playerId] ?? legStats.find(s => s.playerId === p.playerId)?.totalScore ?? 0}
@@ -458,6 +812,7 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
     (e): e is ShanghaiTurnAddedEvent => e.type === 'ShanghaiTurnAdded'
   )
   const matchStats = computePlayerStats(allTurns, match.players, match.winnerId)
+  const shanghaiRounds = getShanghaiRounds(allTurns)
 
   // Leg-Siege
   const legWinsPerPlayer: Record<string, number> = {}
@@ -490,6 +845,10 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
   // Shanghai-Highlights zaehlen
   const totalShanghais = matchStats.reduce((sum, ps) => sum + ps.shanghaiCount, 0)
 
+  // Match-Header Info
+  const totalDartsAll = matchStats.reduce((sum, ps) => sum + ps.totalDarts, 0)
+  const roundsPlayed = allRounds.length
+
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
@@ -511,6 +870,36 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
             playedAt={match.createdAt}
             onBack={onBack}
           />
+
+          {/* Match-Info Kacheln */}
+          <div style={styles.card}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, textAlign: 'center' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: colors.fg }}>
+                  {formatDuration(match.durationMs ?? 0)}
+                </div>
+                <div style={{ fontSize: 11, color: colors.fgMuted }}>Dauer</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: colors.accent }}>
+                  {totalDartsAll}
+                </div>
+                <div style={{ fontSize: 11, color: colors.fgMuted }}>Darts</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: colors.fgDim }}>
+                  {roundsPlayed}
+                </div>
+                <div style={{ fontSize: 11, color: colors.fgMuted }}>Runden</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: colors.fg }}>
+                  {match.players.length}
+                </div>
+                <div style={{ fontSize: 11, color: colors.fgMuted }}>Spieler</div>
+              </div>
+            </div>
+          </div>
 
           {/* Draw Banner */}
           {match.finished && (match.winnerId === null || match.winnerId === undefined) && (
@@ -550,7 +939,7 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
             </div>
           )}
 
-          {/* Match-Statistik */}
+          {/* Match-Statistik (erweitert) */}
           <div style={styles.card}>
             <div style={{ fontWeight: 700, marginBottom: 12 }}>Match-Statistik</div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -570,14 +959,28 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                   {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.accent, fontWeight: 800, fontSize: 16 }}>{ps.totalScore}</td>)}
                 </tr>
                 <tr>
+                  <td style={tdLeft}>Darts</td>
+                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
+                </tr>
+                <tr>
                   <td style={tdLeft}>{'\u00D8'} pro Runde</td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerRound.toFixed(1)}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Darts</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
+                  <td style={tdLeft}>Beste Runde</td>
+                  {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>{ps.bestRound.score > 0 ? `${ps.bestRound.score} (R${ps.bestRound.round})` : '-'}</td>)}
+                </tr>
+                <tr>
+                  <td style={tdLeft}>Schlechteste</td>
+                  {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>{ps.worstRound.round > 0 ? `${ps.worstRound.score} (R${ps.worstRound.round})` : '-'}</td>)}
                 </tr>
                 <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
+                {matchStats.some(ps => ps.shanghaiCount > 0) && (
+                  <tr>
+                    <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}>Shanghai</td>
+                    {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: ps.shanghaiCount > 0 ? colors.warning : colors.fgDim, fontWeight: ps.shanghaiCount > 0 ? 700 : 400 }}>{ps.shanghaiCount}x</td>)}
+                  </tr>
+                )}
                 <tr>
                   <td style={tdLeft}>Triples</td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.triples}</td>)}
@@ -598,15 +1001,134 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                   <td style={tdLeft}>Trefferquote</td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
                 </tr>
-                {matchStats.some(ps => ps.shanghaiCount > 0) && (
-                  <tr>
-                    <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}>Shanghai</td>
-                    {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: ps.shanghaiCount > 0 ? colors.warning : colors.fgDim, fontWeight: ps.shanghaiCount > 0 ? 700 : 400 }}>{ps.shanghaiCount}x</td>)}
-                  </tr>
-                )}
+                <tr>
+                  <td style={tdLeft} title="Standardabweichung der Rundenscores (niedriger = konsistenter)">Konsistenz</td>
+                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.consistencyScore.toFixed(1)}</td>)}
+                </tr>
+                <tr>
+                  <td style={tdLeft} title="Laengste Serie aufeinanderfolgender Runden mit Punkten">Scoring-Streak</td>
+                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.longestScoringStreak}</td>)}
+                </tr>
               </tbody>
             </table>
           </div>
+
+          {/* Score Progression Chart */}
+          {allRounds.length >= 2 && (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Punkteverlauf</div>
+              <ShanghaiScoreProgressionChart
+                rounds={allRounds}
+                players={match.players}
+                playerColors={playerColors}
+                colors={colors}
+              />
+              {/* Legende */}
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                {match.players.map(p => (
+                  <div key={p.playerId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <div style={{ width: 12, height: 3, background: playerColors[p.playerId], borderRadius: 2 }} />
+                    <span style={{ color: playerColors[p.playerId], fontWeight: 600 }}>{p.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Per-Round Bar Chart */}
+          {allRounds.length > 0 && (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Punkte pro Runde</div>
+              <ShanghaiRoundBarChart
+                rounds={allRounds}
+                players={match.players}
+                playerColors={playerColors}
+                colors={colors}
+                shanghaiRounds={shanghaiRounds}
+              />
+              {shanghaiRounds.size > 0 && (
+                <div style={{ fontSize: 11, color: colors.warning, textAlign: 'center', marginTop: 6 }}>
+                  Hervorgehobene Runden: Shanghai erzielt
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Runden-Uebersicht Tabelle (mit Running Total) */}
+          {allRounds.length > 0 && (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Runden-Uebersicht</div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
+                      <th style={{ textAlign: 'left', padding: '4px 6px', color: colors.fgMuted }}>Runde</th>
+                      <th style={{ textAlign: 'left', padding: '4px 6px', color: colors.fgMuted }}>Ziel</th>
+                      {match.players.map(p => (
+                        <th key={p.playerId} style={{ textAlign: 'right', padding: '4px 6px', color: playerColors[p.playerId] }}>
+                          {p.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allRounds.map(round => {
+                      const roundScores = match.players.map(p => round.scoresByPlayer[p.playerId] ?? 0)
+                      const roundMax = Math.max(...roundScores)
+                      const isShanghaiRound = shanghaiRounds.has(round.roundNumber)
+
+                      return (
+                        <tr
+                          key={round.roundNumber}
+                          style={{
+                            borderBottom: `1px solid ${colors.border}`,
+                            background: isShanghaiRound ? `${colors.warning}10` : undefined,
+                          }}
+                        >
+                          <td style={{ padding: '4px 6px', fontWeight: 500, color: isShanghaiRound ? colors.warning : colors.fgDim }}>
+                            R{round.roundNumber}
+                            {isShanghaiRound && (
+                              <span style={{
+                                marginLeft: 4,
+                                background: colors.warning,
+                                color: colors.bg,
+                                padding: '0px 4px',
+                                borderRadius: 3,
+                                fontSize: 9,
+                                fontWeight: 700,
+                              }}>S!</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '4px 6px', color: colors.fgDim, fontWeight: 600 }}>
+                            {round.roundNumber}
+                          </td>
+                          {match.players.map(p => {
+                            const score = round.scoresByPlayer[p.playerId] ?? 0
+                            const total = round.totalsByPlayer[p.playerId] ?? 0
+                            const isBest = score > 0 && score === roundMax
+                            return (
+                              <td
+                                key={p.playerId}
+                                style={{
+                                  textAlign: 'right',
+                                  padding: '4px 6px',
+                                  fontWeight: isBest ? 700 : 400,
+                                  color: score === 0 ? colors.fgDim : (isBest ? colors.success : colors.fg),
+                                }}
+                              >
+                                {score}
+                                <span style={{ color: colors.fgMuted, fontSize: 10, marginLeft: 4 }}>({total})</span>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Legs Liste */}
           <div style={styles.card}>

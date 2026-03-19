@@ -23,6 +23,8 @@ import {
   type StrPlayerMatchStat,
   type StrPlayerLegStat,
 } from '../stats/computeStraeusschenStats'
+import { getAllNumbers, getTargetLabel } from '../dartsStraeusschen'
+import type { StrRingMode } from '../types/straeusschen'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
 import { PLAYER_COLORS } from '../playerColors'
@@ -135,14 +137,25 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
   const legsPlayed = legs.length
   const isMultiLeg = legsPlayed > 1
 
+  // Ring mode
+  const ringMode: StrRingMode = storedMatch?.ringMode ?? 'triple'
+  const ringLabel = ringMode === 'double' ? 'Double' : 'Triple'
+  const formatTarget = (num: StrTargetNumber) => getTargetLabel(num, ringMode)
+  const includeBull = !!storedMatch.ringMode && (
+    storedMatch.generatedOrder?.includes(25 as StrTargetNumber) ||
+    (match.mode === 'single' && match.targetNumber === 25) ||
+    !!storedMatch.bullMode
+  )
+
   // Spielerfarben
   const playerColorMap = new Map<string, string>()
   match.players.forEach((p, i) => playerColorMap.set(p.playerId, PLAYER_COLORS[i % PLAYER_COLORS.length]))
 
   // Mode label
+  const ringPrefix = ringMode === 'double' ? 'D' : 'T'
   const modeLabel = match.mode === 'single'
-    ? `Sträußchen · T${match.targetNumber ?? 20}`
-    : 'Sträußchen · T17–T20'
+    ? `Sträußchen · ${formatTarget(match.targetNumber ?? 20 as StrTargetNumber)}`
+    : `Sträußchen · ${ringPrefix}17–${ringPrefix}20${includeBull ? ' + Bull' : ''}`
 
   // Sorted stats (winner first, then by score)
   const sorted = [...matchStats].sort((a, b) => {
@@ -307,12 +320,62 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                       </td>
                     ))}
                   </tr>
+                  <tr>
+                    <td style={labelStyle}>Treffer / Fehl</td>
+                    {sortedLeg.map(s => (
+                      <td key={s.playerId} style={tdStyle(undefined)}>
+                        <span style={{ color: colors.success }}>{s.totalHits}</span>
+                        {' / '}
+                        <span style={{ color: colors.error }}>{s.totalMisses}</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={labelStyle}>Beste Runde</td>
+                    {sortedLeg.map(s => (
+                      <td key={s.playerId} style={tdStyle(colors.accent)}>
+                        {s.bestRound ? `${s.bestRound.hits}/${s.bestRound.darts}` : '—'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={labelStyle}>Schlechteste Runde</td>
+                    {sortedLeg.map(s => (
+                      <td key={s.playerId} style={tdStyle(undefined)}>
+                        {s.worstRound ? `${s.worstRound.hits}/${s.worstRound.darts}` : '—'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={labelStyle}>Ø Treffer/Runde</td>
+                    {sortedLeg.map(s => (
+                      <td key={s.playerId} style={tdStyle(undefined)}>
+                        {s.avgHitsPerRound.toFixed(2)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={labelStyle}>Längste Serie</td>
+                    {sortedLeg.map(s => (
+                      <td key={s.playerId} style={tdStyle(colors.accent)}>
+                        {s.longestHitStreak}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={labelStyle}>1. Dart Trefferquote</td>
+                    {sortedLeg.map(s => (
+                      <td key={s.playerId} style={tdStyle(undefined)}>
+                        {s.firstDartHitRate.toFixed(1)}%
+                      </td>
+                    ))}
+                  </tr>
                   {isMultiField && (
                     <tr>
                       <td style={labelStyle}>Schwerstes Feld</td>
                       {sortedLeg.map(s => (
                         <td key={s.playerId} style={tdStyle(colors.error)}>
-                          {s.hardestField ? `T${s.hardestField.number} (${s.hardestField.darts}D)` : '—'}
+                          {s.hardestField ? `${formatTarget(s.hardestField.number)} (${s.hardestField.darts}D)` : '—'}
                         </td>
                       ))}
                     </tr>
@@ -365,9 +428,9 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     )}
                   </thead>
                   <tbody>
-                    {([17, 18, 19, 20] as StrTargetNumber[]).map(num => (
+                    {getAllNumbers(includeBull).map(num => (
                       <tr key={num}>
-                        <td style={{ ...labelStyle, fontWeight: 600 }}>T{num}</td>
+                        <td style={{ ...labelStyle, fontWeight: 600 }}>{formatTarget(num)}</td>
                         {sortedLeg.length === 1 ? (() => {
                           const field = sortedLeg[0]?.fields.find(f => f.targetNumber === num)
                           return (
@@ -397,6 +460,157 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
               </div>
             )}
 
+            {/* Per-Number Efficiency Chart (Leg, all mode) */}
+            {isMultiField && (
+              <div style={{ ...styles.card, marginBottom: 16 }}>
+                <div style={{ ...styles.sub, marginBottom: 12, fontWeight: 700, color: colors.fg }}>
+                  Effizienz pro Feld
+                </div>
+                {sortedLeg.map(s => {
+                  const nums = getAllNumbers(includeBull)
+                  const maxDarts = Math.max(...nums.map(n => {
+                    const field = s.fields.find(f => f.targetNumber === n)
+                    return field?.totalDarts ?? 0
+                  }), 3)
+                  const barH = 22
+                  const gap = 6
+                  const chartW2 = 400
+                  const labelW2 = 50
+                  const valueW2 = 45
+                  const svgH = nums.length * (barH + gap)
+
+                  return (
+                    <div key={s.playerId} style={{ marginBottom: sortedLeg.length > 1 ? 16 : 0 }}>
+                      {sortedLeg.length > 1 && (
+                        <div style={{ fontSize: 12, fontWeight: 700, color: playerColorMap.get(s.playerId) ?? colors.fg, marginBottom: 6 }}>
+                          {s.name}
+                        </div>
+                      )}
+                      <svg width="100%" viewBox={`0 0 ${labelW2 + chartW2 + valueW2} ${svgH}`} style={{ maxWidth: 500, display: 'block' }}>
+                        {nums.map((num, i) => {
+                          const field = s.fields.find(f => f.targetNumber === num)
+                          const darts = field?.totalDarts ?? 0
+                          const barW = maxDarts > 0 ? (darts / maxDarts) * chartW2 : 0
+                          const y = i * (barH + gap)
+                          const ratio = darts > 0 ? Math.min(3 / darts, 1) : 0
+                          const barColor = ratio >= 0.8 ? (colors.success ?? '#22c55e')
+                            : ratio >= 0.5 ? (colors.warning ?? '#f59e0b')
+                            : (colors.error ?? '#ef4444')
+
+                          return (
+                            <g key={num}>
+                              <text x={labelW2 - 6} y={y + barH / 2 + 4} textAnchor="end" fontSize={12} fontWeight={600} fill={colors.fgDim}>
+                                {formatTarget(num)}
+                              </text>
+                              <rect x={labelW2} y={y + 2} width={barW} height={barH - 4} rx={4} fill={barColor} opacity={0.85} />
+                              <text x={labelW2 + chartW2 + 4} y={y + barH / 2 + 4} fontSize={11} fontWeight={600} fill={colors.fg}>
+                                {darts > 0 ? darts : '—'}
+                              </text>
+                            </g>
+                          )
+                        })}
+                      </svg>
+                      <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 4 }}>
+                        Darts pro Feld (weniger = besser)
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Hit Rate Progression (Leg) */}
+            {(() => {
+              const playerRoundsLeg: { playerId: string; name: string; color: string; rounds: { turnIndex: number; cumHitRate: number }[] }[] = []
+              for (const p of match.players) {
+                const pTurns = selectedLeg.turns.filter(t => t.playerId === p.playerId)
+                let cumDarts = 0
+                let cumHits = 0
+                const rounds = pTurns.map((t, i) => {
+                  cumDarts += t.darts.length
+                  cumHits += t.hits
+                  return { turnIndex: i + 1, cumHitRate: cumDarts > 0 ? (cumHits / cumDarts) * 100 : 0 }
+                })
+                playerRoundsLeg.push({
+                  playerId: p.playerId,
+                  name: p.name,
+                  color: playerColorMap.get(p.playerId) ?? colors.fg,
+                  rounds,
+                })
+              }
+
+              const maxRoundsLeg = Math.max(...playerRoundsLeg.map(pr => pr.rounds.length))
+              if (maxRoundsLeg < 2) return null
+
+              const cW = 460
+              const cH = 160
+              const pL = 36
+              const pR = 10
+              const pT = 10
+              const pB = 24
+              const pW = cW - pL - pR
+              const pH = cH - pT - pB
+
+              return (
+                <div style={{ ...styles.card, marginBottom: 16 }}>
+                  <div style={{ ...styles.sub, marginBottom: 12, fontWeight: 700, color: colors.fg }}>
+                    Hit Rate Verlauf
+                  </div>
+                  <svg width="100%" viewBox={`0 0 ${cW} ${cH}`} style={{ maxWidth: 500, display: 'block' }}>
+                    {[0, 25, 50, 75, 100].map(v => {
+                      const yPos = pT + pH - (v / 100) * pH
+                      return (
+                        <g key={v}>
+                          <line x1={pL} y1={yPos} x2={pL + pW} y2={yPos} stroke={colors.border} strokeWidth={0.5} />
+                          <text x={pL - 4} y={yPos + 3} textAnchor="end" fontSize={9} fill={colors.fgDim}>{v}%</text>
+                        </g>
+                      )
+                    })}
+                    {playerRoundsLeg.map(pr => {
+                      if (pr.rounds.length < 2) return null
+                      const pts = pr.rounds.map((r, idx) => {
+                        const xPos = pL + (idx / (maxRoundsLeg - 1)) * pW
+                        const yPos = pT + pH - (r.cumHitRate / 100) * pH
+                        return `${xPos},${yPos}`
+                      }).join(' ')
+                      return (
+                        <polyline
+                          key={pr.playerId}
+                          points={pts}
+                          fill="none"
+                          stroke={pr.color}
+                          strokeWidth={2}
+                          strokeLinejoin="round"
+                        />
+                      )
+                    })}
+                    {Array.from({ length: Math.min(maxRoundsLeg, 10) }).map((_, idx) => {
+                      const rIdx = maxRoundsLeg <= 10 ? idx : Math.round((idx / 9) * (maxRoundsLeg - 1))
+                      const xPos = pL + (rIdx / (maxRoundsLeg - 1)) * pW
+                      return (
+                        <text key={idx} x={xPos} y={cH - 4} textAnchor="middle" fontSize={9} fill={colors.fgDim}>
+                          {rIdx + 1}
+                        </text>
+                      )
+                    })}
+                  </svg>
+                  {match.players.length > 1 && (
+                    <div style={{ display: 'flex', gap: 16, marginTop: 4, justifyContent: 'center' }}>
+                      {playerRoundsLeg.map(pr => (
+                        <div key={pr.playerId} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                          <div style={{ width: 12, height: 3, background: pr.color, borderRadius: 1 }} />
+                          <span style={{ color: pr.color }}>{pr.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 4, textAlign: 'center' }}>
+                    Kumulative Hit Rate pro Runde
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Turn-Verlauf */}
             <div style={{ ...styles.card, overflowX: 'auto' }}>
               <div style={{ ...styles.sub, marginBottom: 8, fontWeight: 700, color: colors.fg }}>
@@ -421,7 +635,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                       <tr key={i}>
                         <td style={{ ...labelStyle, fontWeight: 600 }}>{i + 1}</td>
                         <td style={{ ...labelStyle, color: pColor, fontWeight: 600 }}>{pName}</td>
-                        <td style={labelStyle}>T{turn.targetNumber}</td>
+                        <td style={labelStyle}>{formatTarget(turn.targetNumber)}</td>
                         <td style={labelStyle}>{dartsDisplay}</td>
                         <td style={tdStyle(turn.hits > 0 ? colors.success : undefined)}>
                           {turn.hits}/{turn.darts.length}
@@ -557,13 +771,63 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     </td>
                   ))}
                 </tr>
+                <tr>
+                  <td style={labelStyle}>Treffer / Fehl</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(undefined)}>
+                      <span style={{ color: colors.success }}>{s.totalHits}</span>
+                      {' / '}
+                      <span style={{ color: colors.error }}>{s.totalMisses}</span>
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={labelStyle}>Beste Runde</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(colors.accent)}>
+                      {s.bestRound ? `${s.bestRound.hits}/${s.bestRound.darts}` : '—'}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={labelStyle}>Schlechteste Runde</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(undefined)}>
+                      {s.worstRound ? `${s.worstRound.hits}/${s.worstRound.darts}` : '—'}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={labelStyle}>Ø Treffer/Runde</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(undefined)}>
+                      {s.avgHitsPerRound.toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={labelStyle}>Längste Serie</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(colors.accent)}>
+                      {s.longestHitStreak}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={labelStyle}>1. Dart Trefferquote</td>
+                  {sorted.map(s => (
+                    <td key={s.playerId} style={tdStyle(undefined)}>
+                      {s.firstDartHitRate.toFixed(1)}%
+                    </td>
+                  ))}
+                </tr>
                 {isMultiField && (
                   <tr>
                     <td style={labelStyle}>Schwerstes Feld</td>
                     {sorted.map(s => (
                       <td key={s.playerId} style={tdStyle(colors.error)}>
                         {s.hardestField
-                          ? `T${s.hardestField.number} (${isMultiLeg ? `Ø ${s.hardestField.avgDarts.toFixed(1)}` : `${s.hardestField.avgDarts}`}D)`
+                          ? `${formatTarget(s.hardestField.number)} (${isMultiLeg ? `Ø ${s.hardestField.avgDarts.toFixed(1)}` : `${s.hardestField.avgDarts}`}D)`
                           : '—'}
                       </td>
                     ))}
@@ -617,9 +881,9 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   )}
                 </thead>
                 <tbody>
-                  {([17, 18, 19, 20] as StrTargetNumber[]).map(num => (
+                  {getAllNumbers(includeBull).map(num => (
                     <tr key={num}>
-                      <td style={{ ...labelStyle, fontWeight: 600 }}>T{num}</td>
+                      <td style={{ ...labelStyle, fontWeight: 600 }}>{formatTarget(num)}</td>
                       {sorted.length === 1 ? (() => {
                         const af = sorted[0].avgFields.find(f => f.targetNumber === num)
                         return (
@@ -648,6 +912,166 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
               </table>
             </div>
           )}
+
+          {/* Per-Number Efficiency Chart (SVG Bars) */}
+          {isMultiField && (
+            <div style={{ ...styles.card, marginBottom: 16 }}>
+              <div style={{ ...styles.sub, marginBottom: 12, fontWeight: 700, color: colors.fg }}>
+                Effizienz pro Feld
+              </div>
+              {sorted.map((s, sIdx) => {
+                const nums = getAllNumbers(includeBull)
+                const maxDarts = Math.max(...nums.map(n => {
+                  const af = s.avgFields.find(f => f.targetNumber === n)
+                  return af?.avgDarts ?? 0
+                }), 3)
+                const barH = 22
+                const gap = 6
+                const chartW = 400
+                const labelW = 50
+                const valueW = 45
+                const svgH = nums.length * (barH + gap)
+
+                return (
+                  <div key={s.playerId} style={{ marginBottom: sorted.length > 1 ? 16 : 0 }}>
+                    {sorted.length > 1 && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: playerColorMap.get(s.playerId) ?? colors.fg, marginBottom: 6 }}>
+                        {s.name}
+                      </div>
+                    )}
+                    <svg width="100%" viewBox={`0 0 ${labelW + chartW + valueW} ${svgH}`} style={{ maxWidth: 500, display: 'block' }}>
+                      {nums.map((num, i) => {
+                        const af = s.avgFields.find(f => f.targetNumber === num)
+                        const darts = af?.avgDarts ?? 0
+                        const barW = maxDarts > 0 ? (darts / maxDarts) * chartW : 0
+                        const y = i * (barH + gap)
+                        const ratio = darts > 0 ? Math.min(3 / darts, 1) : 0
+                        const barColor = ratio >= 0.8 ? (colors.success ?? '#22c55e')
+                          : ratio >= 0.5 ? (colors.warning ?? '#f59e0b')
+                          : (colors.error ?? '#ef4444')
+
+                        return (
+                          <g key={num}>
+                            <text x={labelW - 6} y={y + barH / 2 + 4} textAnchor="end" fontSize={12} fontWeight={600} fill={colors.fgDim}>
+                              {formatTarget(num)}
+                            </text>
+                            <rect x={labelW} y={y + 2} width={barW} height={barH - 4} rx={4} fill={barColor} opacity={0.85} />
+                            <text x={labelW + chartW + 4} y={y + barH / 2 + 4} fontSize={11} fontWeight={600} fill={colors.fg}>
+                              {darts > 0 ? (isMultiLeg ? darts.toFixed(1) : darts.toFixed(0)) : '—'}
+                            </text>
+                          </g>
+                        )
+                      })}
+                    </svg>
+                    <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 4 }}>
+                      {isMultiLeg ? 'Ø Darts pro Feld' : 'Darts pro Feld'} (weniger = besser)
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Hit Rate Progression Chart */}
+          {!isMultiLeg && (() => {
+            // For single-leg matches, compute round-by-round data from first leg
+            const firstLeg = legs[0]
+            if (!firstLeg || firstLeg.turns.length < 2) return null
+
+            // Build per-player round data
+            const playerRounds: { playerId: string; name: string; color: string; rounds: { turnIndex: number; cumHitRate: number }[] }[] = []
+            for (const p of match.players) {
+              const pTurns = firstLeg.turns.filter(t => t.playerId === p.playerId)
+              let cumDarts = 0
+              let cumHits = 0
+              const rounds = pTurns.map((t, i) => {
+                cumDarts += t.darts.length
+                cumHits += t.hits
+                return { turnIndex: i + 1, cumHitRate: cumDarts > 0 ? (cumHits / cumDarts) * 100 : 0 }
+              })
+              playerRounds.push({
+                playerId: p.playerId,
+                name: p.name,
+                color: playerColorMap.get(p.playerId) ?? colors.fg,
+                rounds,
+              })
+            }
+
+            const maxRounds = Math.max(...playerRounds.map(pr => pr.rounds.length))
+            if (maxRounds < 2) return null
+
+            const chartW = 460
+            const chartH = 160
+            const padL = 36
+            const padR = 10
+            const padT = 10
+            const padB = 24
+            const plotW = chartW - padL - padR
+            const plotH = chartH - padT - padB
+
+            return (
+              <div style={{ ...styles.card, marginBottom: 16 }}>
+                <div style={{ ...styles.sub, marginBottom: 12, fontWeight: 700, color: colors.fg }}>
+                  Hit Rate Verlauf
+                </div>
+                <svg width="100%" viewBox={`0 0 ${chartW} ${chartH}`} style={{ maxWidth: 500, display: 'block' }}>
+                  {/* Y axis labels */}
+                  {[0, 25, 50, 75, 100].map(v => {
+                    const y = padT + plotH - (v / 100) * plotH
+                    return (
+                      <g key={v}>
+                        <line x1={padL} y1={y} x2={padL + plotW} y2={y} stroke={colors.border} strokeWidth={0.5} />
+                        <text x={padL - 4} y={y + 3} textAnchor="end" fontSize={9} fill={colors.fgDim}>{v}%</text>
+                      </g>
+                    )
+                  })}
+                  {/* Lines per player */}
+                  {playerRounds.map(pr => {
+                    if (pr.rounds.length < 2) return null
+                    const points = pr.rounds.map((r, i) => {
+                      const x = padL + (i / (maxRounds - 1)) * plotW
+                      const y = padT + plotH - (r.cumHitRate / 100) * plotH
+                      return `${x},${y}`
+                    }).join(' ')
+                    return (
+                      <polyline
+                        key={pr.playerId}
+                        points={points}
+                        fill="none"
+                        stroke={pr.color}
+                        strokeWidth={2}
+                        strokeLinejoin="round"
+                      />
+                    )
+                  })}
+                  {/* X axis labels */}
+                  {Array.from({ length: Math.min(maxRounds, 10) }).map((_, i) => {
+                    const rIdx = maxRounds <= 10 ? i : Math.round((i / 9) * (maxRounds - 1))
+                    const x = padL + (rIdx / (maxRounds - 1)) * plotW
+                    return (
+                      <text key={i} x={x} y={chartH - 4} textAnchor="middle" fontSize={9} fill={colors.fgDim}>
+                        {rIdx + 1}
+                      </text>
+                    )
+                  })}
+                </svg>
+                {/* Legend */}
+                {match.players.length > 1 && (
+                  <div style={{ display: 'flex', gap: 16, marginTop: 4, justifyContent: 'center' }}>
+                    {playerRounds.map(pr => (
+                      <div key={pr.playerId} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                        <div style={{ width: 12, height: 3, background: pr.color, borderRadius: 1 }} />
+                        <span style={{ color: pr.color }}>{pr.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 4, textAlign: 'center' }}>
+                  Kumulative Hit Rate pro Runde
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Leg-Verlauf */}
           {legs.length > 0 && (

@@ -17,6 +17,16 @@ export type StrFieldStat = {
   score: number
 }
 
+export type StrRoundStat = {
+  turnIndex: number
+  targetNumber: StrTargetNumber
+  darts: ('hit' | 'miss')[]
+  hits: number
+  misses: number
+  hitRate: number
+  cumulativeHitRate: number
+}
+
 export type StrPlayerLegStat = {
   playerId: string
   name: string
@@ -28,6 +38,12 @@ export type StrPlayerLegStat = {
   fields: StrFieldStat[]
   hardestField: { number: StrTargetNumber; darts: number } | null
   totalScore: number
+  bestRound: { turnIndex: number; hits: number; darts: number } | null
+  worstRound: { turnIndex: number; hits: number; darts: number } | null
+  avgHitsPerRound: number
+  longestHitStreak: number
+  firstDartHitRate: number
+  rounds: StrRoundStat[]
 }
 
 export type StrAvgFieldStat = {
@@ -55,6 +71,11 @@ export type StrPlayerMatchStat = {
   hardestField: { number: StrTargetNumber; avgDarts: number } | null
   totalScore: number
   avgScorePerLeg: number
+  bestRound: { turnIndex: number; hits: number; darts: number } | null
+  worstRound: { turnIndex: number; hits: number; darts: number } | null
+  avgHitsPerRound: number
+  longestHitStreak: number
+  firstDartHitRate: number
 }
 
 // ===== Leg-Stats =====
@@ -122,6 +143,65 @@ export function computeStrLegStats(
 
     const totalScore = fields.reduce((sum, f) => sum + f.score, 0)
 
+    // Best/Worst Round
+    let bestRound: { turnIndex: number; hits: number; darts: number } | null = null
+    let worstRound: { turnIndex: number; hits: number; darts: number } | null = null
+    for (let i = 0; i < playerTurns.length; i++) {
+      const t = playerTurns[i]
+      const entry = { turnIndex: i + 1, hits: t.hits, darts: t.darts.length }
+      if (!bestRound || t.hits > bestRound.hits || (t.hits === bestRound.hits && t.darts.length < bestRound.darts)) {
+        bestRound = entry
+      }
+      if (!worstRound || t.hits < worstRound.hits || (t.hits === worstRound.hits && t.darts.length > worstRound.darts)) {
+        worstRound = entry
+      }
+    }
+
+    const avgHitsPerRound = playerTurns.length > 0 ? totalHits / playerTurns.length : 0
+
+    // Longest hit streak
+    let longestHitStreak = 0
+    let currentStreak = 0
+    for (const t of playerTurns) {
+      for (const d of t.darts) {
+        if (d === 'hit') {
+          currentStreak++
+          if (currentStreak > longestHitStreak) longestHitStreak = currentStreak
+        } else {
+          currentStreak = 0
+        }
+      }
+    }
+
+    // First-dart hit rate
+    let firstDartAttempts = 0
+    let firstDartHits = 0
+    for (const t of playerTurns) {
+      if (t.darts.length > 0) {
+        firstDartAttempts++
+        if (t.darts[0] === 'hit') firstDartHits++
+      }
+    }
+    const firstDartHitRate = firstDartAttempts > 0 ? (firstDartHits / firstDartAttempts) * 100 : 0
+
+    // Round-by-round stats
+    let cumDarts = 0
+    let cumHits = 0
+    const rounds: StrRoundStat[] = playerTurns.map((t, i) => {
+      cumDarts += t.darts.length
+      cumHits += t.hits
+      const misses = t.darts.length - t.hits
+      return {
+        turnIndex: i + 1,
+        targetNumber: t.targetNumber,
+        darts: t.darts as ('hit' | 'miss')[],
+        hits: t.hits,
+        misses,
+        hitRate: t.darts.length > 0 ? (t.hits / t.darts.length) * 100 : 0,
+        cumulativeHitRate: cumDarts > 0 ? (cumHits / cumDarts) * 100 : 0,
+      }
+    })
+
     return {
       playerId: p.playerId,
       name: p.name,
@@ -133,6 +213,12 @@ export function computeStrLegStats(
       fields,
       hardestField,
       totalScore,
+      bestRound,
+      worstRound,
+      avgHitsPerRound,
+      longestHitStreak,
+      firstDartHitRate,
+      rounds,
     }
   })
 }
@@ -146,7 +232,6 @@ export function computeStrMatchStats(
   allEvents: StrEvent[],
   players: { playerId: string; name: string }[],
 ): StrPlayerMatchStat[] {
-  // Alle Legs finden
   const legIds: string[] = []
   for (const e of allEvents) {
     if (e.type === 'StrLegStarted') legIds.push(e.legId)
@@ -156,14 +241,12 @@ export function computeStrMatchStats(
     (e): e is StrTurnAddedEvent => e.type === 'StrTurnAdded'
   )
 
-  // Per-Leg Stats berechnen
   const perLegStats: StrPlayerLegStat[][] = legIds.map(legId => {
     const legTurns = allTurns.filter(t => t.legId === legId)
     return computeStrLegStats(legTurns, players)
   })
 
   return players.map((p, playerIdx) => {
-    // Gesamtwerte über alle Turns
     const allPlayerTurns = allTurns.filter(t => t.playerId === p.playerId)
     const totalDarts = allPlayerTurns.reduce((sum, t) => sum + t.darts.length, 0)
     const totalHits = allPlayerTurns.reduce((sum, t) => sum + t.hits, 0)
@@ -171,24 +254,17 @@ export function computeStrMatchStats(
     const hitRate = totalDarts > 0 ? (totalHits / totalDarts) * 100 : 0
     const totalTurns = allPlayerTurns.length
 
-    // Legs mit Beteiligung
     const legsPlayed = perLegStats.filter(leg => (leg[playerIdx]?.totalDarts ?? 0) > 0).length
 
-    // Ø Darts to Triple über alle Legs (nur single-field mode sinnvoll als Gesamtwert)
     const avgDartsToTriple: [number | null, number | null, number | null] = [null, null, null]
     for (let i = 0; i < 3; i++) {
       const values: number[] = []
       for (const legStat of perLegStats) {
         const ps = legStat[playerIdx]
         if (!ps) continue
-        // Bei single mode: nur ein Feld
-        // Bei all mode: Summe aller Felder
         if (ps.fields.length === 1) {
           const v = ps.fields[0].dartsToTriple[i]
           if (v != null) values.push(v)
-        } else {
-          // Für 'all' mode: diesen Wert nicht als Gesamt-Durchschnitt verwenden
-          // (wird per-Feld in avgFields gezeigt)
         }
       }
       if (values.length > 0) {
@@ -196,7 +272,6 @@ export function computeStrMatchStats(
       }
     }
 
-    // Per-Feld Durchschnitte über alle Legs
     const allFieldNumbers = new Set<StrTargetNumber>()
     for (const leg of perLegStats) {
       for (const f of leg[playerIdx]?.fields ?? []) {
@@ -236,7 +311,6 @@ export function computeStrMatchStats(
       return { targetNumber: num, avgDarts, avgDartsToTriple: avgDartsToTripleFld, timesPlayed, avgScore }
     })
 
-    // Schwerstes Feld (höchster Ø Darts)
     let hardestField: { number: StrTargetNumber; avgDarts: number } | null = null
     for (const f of avgFields) {
       if (f.avgDarts > 0 && (!hardestField || f.avgDarts > hardestField.avgDarts)) {
@@ -244,12 +318,50 @@ export function computeStrMatchStats(
       }
     }
 
-    // Gesamt-Score über alle Legs
     const legScores = perLegStats
       .map(leg => leg[playerIdx]?.totalScore ?? 0)
       .filter(s => s > 0)
     const totalScore = legScores.reduce((s, v) => s + v, 0)
     const avgScorePerLeg = legScores.length > 0 ? totalScore / legScores.length : 0
+
+    // Best/Worst Round across entire match
+    let bestRound: { turnIndex: number; hits: number; darts: number } | null = null
+    let worstRound: { turnIndex: number; hits: number; darts: number } | null = null
+    for (let i = 0; i < allPlayerTurns.length; i++) {
+      const t = allPlayerTurns[i]
+      const entry = { turnIndex: i + 1, hits: t.hits, darts: t.darts.length }
+      if (!bestRound || t.hits > bestRound.hits || (t.hits === bestRound.hits && t.darts.length < bestRound.darts)) {
+        bestRound = entry
+      }
+      if (!worstRound || t.hits < worstRound.hits || (t.hits === worstRound.hits && t.darts.length > worstRound.darts)) {
+        worstRound = entry
+      }
+    }
+
+    const avgHitsPerRound = totalTurns > 0 ? totalHits / totalTurns : 0
+
+    let longestHitStreak = 0
+    let currentStreak = 0
+    for (const t of allPlayerTurns) {
+      for (const d of t.darts) {
+        if (d === 'hit') {
+          currentStreak++
+          if (currentStreak > longestHitStreak) longestHitStreak = currentStreak
+        } else {
+          currentStreak = 0
+        }
+      }
+    }
+
+    let firstDartAttempts = 0
+    let firstDartHits = 0
+    for (const t of allPlayerTurns) {
+      if (t.darts.length > 0) {
+        firstDartAttempts++
+        if (t.darts[0] === 'hit') firstDartHits++
+      }
+    }
+    const firstDartHitRate = firstDartAttempts > 0 ? (firstDartHits / firstDartAttempts) * 100 : 0
 
     return {
       playerId: p.playerId,
@@ -267,6 +379,11 @@ export function computeStrMatchStats(
       hardestField,
       totalScore,
       avgScorePerLeg,
+      bestRound,
+      worstRound,
+      avgHitsPerRound,
+      longestHitStreak,
+      firstDartHitRate,
     }
   })
 }
