@@ -10,12 +10,13 @@ import { query, queryOne } from '../index'
 
 export type FieldAccuracy = {
   field: number | 'BULL'
-  totalAttempts: number
-  hits: number
-  hitRate: number
+  totalAttempts: number // how many darts landed on this field
+  hits: number // same as totalAttempts (kept for compat)
+  hitRate: number // NOT a real hit rate — use distributionPct instead
   avgScore: number
   triplePct: number
   doublePct: number
+  distributionPct: number // % of all darts that landed on this field
 }
 
 /**
@@ -66,15 +67,19 @@ export async function getFieldAccuracy(playerId: string): Promise<FieldAccuracy[
       if (dart.mult === 2) fields[field].doubles++
     }
 
+    // Total darts thrown (including misses) for distribution calculation
+    const totalDartsThrown = darts.length
+
     return Object.entries(fields)
       .map(([key, d]) => ({
         field: key === 'BULL' ? 'BULL' as const : parseInt(key, 10),
         totalAttempts: d.attempts,
         hits: d.hits,
-        hitRate: d.attempts > 0 ? Math.round(d.hits / d.attempts * 1000) / 10 : 0,
+        hitRate: totalDartsThrown > 0 ? Math.round(d.attempts / totalDartsThrown * 1000) / 10 : 0,
         avgScore: d.attempts > 0 ? Math.round(d.totalScore / d.attempts * 100) / 100 : 0,
         triplePct: d.hits > 0 ? Math.round(d.triples / d.hits * 1000) / 10 : 0,
         doublePct: d.hits > 0 ? Math.round(d.doubles / d.hits * 1000) / 10 : 0,
+        distributionPct: totalDartsThrown > 0 ? Math.round(d.attempts / totalDartsThrown * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.totalAttempts - a.totalAttempts)
   } catch (e) {

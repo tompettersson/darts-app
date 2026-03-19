@@ -140,9 +140,12 @@ export async function getX01SegmentAccuracy(playerId: string): Promise<SegmentAc
       }
     }
 
+    const totalAllDarts = Object.values(segments).reduce((sum, s) => sum + s.totalAttempts, 0)
     const result = Object.values(segments).filter(s => s.totalAttempts > 0)
     for (const s of result) {
-      s.hitRate = Math.round(s.totalHits / s.totalAttempts * 1000) / 10
+      // hitRate = distribution percentage (what % of all darts landed on this field)
+      // Note: without aim data, we cannot compute true hit-vs-miss rate per field
+      s.hitRate = totalAllDarts > 0 ? Math.round(s.totalAttempts / totalAllDarts * 1000) / 10 : 0
     }
     return result.sort((a, b) => b.totalAttempts - a.totalAttempts)
   } catch (e) {

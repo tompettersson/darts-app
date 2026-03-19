@@ -428,31 +428,38 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
   const doubleSuccessPerField = data.doubleSuccessPerField ?? []
 
   // Compute per-field data from segment accuracy
+  // Note: "hitRate" from segmentAccuracy is always ~100% because we don't track aim vs hit.
+  // Instead, use totalAttempts as distribution indicator (how often was each field hit).
+  const totalDarts = useMemo(() => segments.reduce((sum, s) => sum + s.totalAttempts, 0), [segments])
+
   const fieldData = useMemo(() => {
     if (segments.length === 0) return []
     return segments.map(s => ({
       field: s.field,
-      hitRate: s.hitRate,
+      count: s.totalAttempts,
+      distributionPct: totalDarts > 0 ? Math.round(s.totalAttempts / totalDarts * 1000) / 10 : 0,
       tripleRate: trebleRates.find(t => t.field === `T${s.field}`)?.hitRate ?? 0,
       doubleRate: doubleRates.find(d => d.field === `D${s.field}`)?.hitRate ?? 0,
+      triplePct: s.totalAttempts > 0 ? Math.round(s.tripleHits / s.totalAttempts * 1000) / 10 : 0,
+      doublePct: s.totalAttempts > 0 ? Math.round(s.doubleHits / s.totalAttempts * 1000) / 10 : 0,
     }))
-  }, [segments, doubleRates, trebleRates])
+  }, [segments, doubleRates, trebleRates, totalDarts])
 
-  // Best/Worst fields
-  const sortedByHitRate = useMemo(() => {
-    return [...fieldData].sort((a, b) => b.hitRate - a.hitRate)
+  // Best/Worst fields by how often they are hit (distribution)
+  const sortedByCount = useMemo(() => {
+    return [...fieldData].sort((a, b) => b.count - a.count)
   }, [fieldData])
 
-  const bestFields = sortedByHitRate.slice(0, 3)
-  const worstFields = sortedByHitRate.slice(-3).reverse()
+  const bestFields = sortedByCount.slice(0, 3)
+  const worstFields = sortedByCount.slice(-3).reverse()
 
   // Max for heatmap color scaling
-  const maxHitRate = fieldData.length > 0 ? Math.max(...fieldData.map(f => f.hitRate)) : 100
+  const maxCount = fieldData.length > 0 ? Math.max(...fieldData.map(f => f.count)) : 1
 
-  // Heat color with better gradient
-  const getHeatColor = (rate: number) => {
-    if (maxHitRate === 0) return colors.bgDim
-    const intensity = rate / maxHitRate
+  // Heat color based on distribution (count-based, not rate)
+  const getHeatColor = (count: number) => {
+    if (maxCount === 0) return colors.bgDim
+    const intensity = count / maxCount
     if (intensity <= 0.2) return '#ef444440'
     if (intensity <= 0.4) return '#f9731644'
     if (intensity <= 0.6) return '#eab30855'
@@ -491,18 +498,21 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {/* Enhanced Field Heatmap */}
+      {/* Enhanced Field Heatmap — shows distribution (how often each field was hit) */}
       {fieldData.length > 0 && (
-        <Section title="Feld-Heatmap" colors={colors}>
+        <Section title="Feld-Verteilung (X01)" colors={colors}>
+          <div style={{ fontSize: 11, color: colors.fgDim, marginBottom: 8 }}>
+            Wie oft jedes Feld getroffen wird — {totalDarts} Darts insgesamt
+          </div>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(7, 1fr)',
             gap: 4,
           }}>
             {fieldData.map(f => (
-              <div key={f.field} title={`Feld ${f.field}: ${f.hitRate.toFixed(1)}% Treffer`} style={{
+              <div key={f.field} title={`Feld ${f.field}: ${f.count}× (${f.distributionPct}%) · T${f.triplePct}% · D${f.doublePct}%`} style={{
                 padding: '10px 4px', borderRadius: 8, textAlign: 'center',
-                background: getHeatColor(f.hitRate),
+                background: getHeatColor(f.count),
                 border: `1px solid ${colors.border}`,
                 cursor: 'default',
                 transition: 'transform 0.15s, box-shadow 0.15s',
@@ -515,19 +525,19 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
                 <div style={{
                   fontSize: 11, color: colors.fg, fontWeight: 600, marginTop: 2,
                   opacity: 0.85,
-                }}>{f.hitRate.toFixed(0)}%</div>
+                }}>{f.distributionPct.toFixed(0)}%</div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 3 }}>
-                  {f.tripleRate > 0 && (
+                  {f.triplePct > 0 && (
                     <span style={{
                       fontSize: 9, color: '#a855f7', fontWeight: 600,
                       background: '#a855f715', padding: '0 3px', borderRadius: 3,
-                    }}>T{f.tripleRate.toFixed(0)}</span>
+                    }}>T{f.triplePct.toFixed(0)}%</span>
                   )}
-                  {f.doubleRate > 0 && (
+                  {f.doublePct > 0 && (
                     <span style={{
                       fontSize: 9, color: '#3b82f6', fontWeight: 600,
                       background: '#3b82f615', padding: '0 3px', borderRadius: 3,
-                    }}>D{f.doubleRate.toFixed(0)}</span>
+                    }}>D{f.doublePct.toFixed(0)}%</span>
                   )}
                 </div>
               </div>
@@ -539,13 +549,13 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
             display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
             justifyContent: 'center', flexWrap: 'wrap',
           }}>
-            <span style={{ fontSize: 10, color: colors.fgDim, marginRight: 4 }}>Legende:</span>
+            <span style={{ fontSize: 10, color: colors.fgDim, marginRight: 4 }}>Häufigkeit:</span>
             {[
-              { label: 'Niedrig', color: '#ef444440' },
-              { label: '', color: '#f97316044' },
+              { label: 'Selten', color: '#ef444440' },
+              { label: '', color: '#f9731644' },
               { label: 'Mittel', color: '#eab30855' },
               { label: '', color: '#84cc1666' },
-              { label: 'Hoch', color: '#22c55e88' },
+              { label: 'Häufig', color: '#22c55e88' },
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                 <div style={{
@@ -560,16 +570,16 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
           </div>
 
           <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, color: colors.fgDim, justifyContent: 'center' }}>
-            <span style={{ color: '#a855f7' }}>T = Triple%</span>
-            <span style={{ color: '#3b82f6' }}>D = Double%</span>
+            <span style={{ color: '#a855f7' }}>T = Triple-Anteil</span>
+            <span style={{ color: '#3b82f6' }}>D = Double-Anteil</span>
           </div>
         </Section>
       )}
 
-      {/* Best/Worst Fields */}
+      {/* Most/Least Hit Fields */}
       {bestFields.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-          <Section title="Beste Felder" colors={colors}>
+          <Section title="Meistgetroffen" colors={colors}>
             {bestFields.map((f, i) => (
               <div key={f.field} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -577,11 +587,11 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
                 borderBottom: i < bestFields.length - 1 ? `1px solid ${colors.border}22` : 'none',
               }}>
                 <span style={{ fontWeight: 700, fontSize: 16, color: '#22c55e' }}>{f.field}</span>
-                <span style={{ fontSize: 13, color: colors.fg }}>{f.hitRate.toFixed(1)}%</span>
+                <span style={{ fontSize: 13, color: colors.fg }}>{f.count}× ({f.distributionPct}%)</span>
               </div>
             ))}
           </Section>
-          <Section title="Schwachstellen" colors={colors}>
+          <Section title="Selten getroffen" colors={colors}>
             {worstFields.map((f, i) => (
               <div key={f.field} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -589,7 +599,7 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
                 borderBottom: i < worstFields.length - 1 ? `1px solid ${colors.border}22` : 'none',
               }}>
                 <span style={{ fontWeight: 700, fontSize: 16, color: '#ef4444' }}>{f.field}</span>
-                <span style={{ fontSize: 13, color: colors.fg }}>{f.hitRate.toFixed(1)}%</span>
+                <span style={{ fontSize: 13, color: colors.fg }}>{f.count}× ({f.distributionPct}%)</span>
               </div>
             ))}
           </Section>
