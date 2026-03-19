@@ -48,6 +48,7 @@ import {
   playTriple20Sound,
 } from '../speech'
 import { computeATBDetailedStats, type ATBDetailedStats } from '../stats/computeATBStats'
+import { PLAYER_COLORS } from '../playerColors'
 
 // Intermission-Typ für Leg-Zusammenfassung
 type ATBIntermission = {
@@ -59,18 +60,6 @@ type ATBIntermission = {
   winnerDarts: number
   pendingNextEvents: ATBEvent[]
 }
-
-// Spielerfarben (hell & leuchtend)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500)
-  '#22c55e', // Grün (500)
-  '#f97316', // Orange (500)
-  '#ef4444', // Rot (500)
-  '#a855f7', // Violett (500)
-  '#14b8a6', // Türkis (500)
-  '#eab308', // Gelb (500)
-  '#ec4899', // Pink (500)
-]
 
 // Farben - werden jetzt über Theme-System bezogen (siehe useTheme im Component)
 
@@ -293,6 +282,10 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
 
   // Holt das aktuelle Ziel-Label (mit Multiplier wenn extended)
   const getPreviewTargetLabel = (playerId: string): string | null => {
+    // Bull Heavy: Wenn Bull benötigt wird, zeige "Bull" als Ziel
+    const specialState = state.specialStateByPlayer[playerId]
+    if (specialState?.needsBull) return 'Bull'
+
     const idx = getPreviewIndex(playerId)
     if (idx >= totalFields) return null
     return getTargetLabel(idx, state.match!.sequence, extSeq)
@@ -300,6 +293,10 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
 
   // Holt die Zahl des Ziels (für Dartboard-Highlighting)
   const getPreviewTargetNumber = (playerId: string): number | 'BULL' | null => {
+    // Bull Heavy: Wenn Bull benötigt wird, zeige Bull als Ziel
+    const specialState = state.specialStateByPlayer[playerId]
+    if (specialState?.needsBull) return 'BULL'
+
     const idx = getPreviewIndex(playerId)
     if (extSeq) {
       if (idx >= extSeq.length) return null
@@ -1124,6 +1121,15 @@ function LegIntermissionModal({
   config: ATBMatchConfig
   onContinue: () => void
 }) {
+  // Enter-Taste zum Weitergehen
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') onContinue()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onContinue])
+
   // Stats für dieses Leg berechnen
   const legStats = useMemo(() => {
     // Erstelle ein temporäres Match-Objekt für die Stats-Berechnung

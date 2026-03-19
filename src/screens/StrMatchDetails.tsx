@@ -25,16 +25,12 @@ import {
 } from '../stats/computeStraeusschenStats'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
+import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
   matchId: string
   onBack: () => void
 }
-
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#8b5cf6', '#14b8a6', '#eab308', '#ec4899',
-]
 
 type LegInfo = {
   legId: string

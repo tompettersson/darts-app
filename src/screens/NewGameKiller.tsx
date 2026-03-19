@@ -232,10 +232,10 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
   // ===== RENDER =====
   return (
     <div style={styles.page}>
-      <div style={styles.headerRow}>
+      <div style={{ ...styles.headerRow, justifyContent: 'center', position: 'relative' as const }}>
         <h2 style={{ margin: 0, color: ACCENT }}>Killer</h2>
         <button
-          style={styles.backBtn}
+          style={{ ...styles.backBtn, position: 'absolute' as const, right: 0 }}
           onClick={() => {
             if (step === 1) onBack()
             else if (step === 3) setStep(2)
@@ -458,7 +458,7 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ ...styles.sub, marginBottom: 4 }}>Friendly Fire</div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={togglePill(friendlyFire)} onClick={() => setFriendlyFire(true)}>
+                    <button style={togglePill(friendlyFire)} onClick={() => { setFriendlyFire(true); setSelfHeal(false) }}>
                       An
                     </button>
                     <button style={togglePill(!friendlyFire)} onClick={() => setFriendlyFire(false)}>
@@ -474,7 +474,7 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ ...styles.sub, marginBottom: 4 }}>Self Heal</div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={togglePill(selfHeal)} onClick={() => setSelfHeal(true)}>
+                    <button style={togglePill(selfHeal)} onClick={() => { setSelfHeal(true); setFriendlyFire(false) }}>
                       An
                     </button>
                     <button style={togglePill(!selfHeal)} onClick={() => setSelfHeal(false)}>

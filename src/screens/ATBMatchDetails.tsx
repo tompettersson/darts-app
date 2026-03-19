@@ -12,23 +12,12 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
+import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
   matchId: string
   onBack: () => void
 }
-
-// Spielerfarben (satte Farben)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500))
-  '#22c55e', // Grün (500))
-  '#f97316', // Orange (500))
-  '#ef4444', // Rot (500))
-  '#a855f7', // Violett (500))
-  '#14b8a6', // Türkis (500))
-  '#eab308', // Gelb (500))
-  '#ec4899', // Pink (500))
-]
 
 function fmtDate(s?: string) {
   if (!s) return '—'

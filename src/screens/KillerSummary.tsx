@@ -8,21 +8,24 @@ import { getKillerMatchById } from '../storage'
 import { applyKillerEvents, formatDuration, formatDart } from '../dartsKiller'
 import { computeKillerMatchStats } from '../stats/computeKillerStats'
 import type { KillerStoredMatch, KillerLogEntry } from '../types/killer'
-
-// Spielerfarben (konsistent mit anderen Screens)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau
-  '#22c55e', // Gruen
-  '#f97316', // Orange
-  '#ef4444', // Rot
-  '#a855f7', // Violett
-  '#14b8a6', // Tuerkis
-  '#eab308', // Gelb
-  '#ec4899', // Pink
-]
+import { PLAYER_COLORS } from '../playerColors'
 
 // Medaillen fuer Top 3
 const MEDALS = ['\u{1F947}', '\u{1F948}', '\u{1F949}']
+
+// Hilfsfunktion: Beste Zelle pro Zeile hervorheben
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 // Log-Farben (konsistent mit GameKiller)
 const LOG_COLORS: Record<KillerLogEntry['type'], string> = {
@@ -361,95 +364,152 @@ function KillerSummaryContent({
           </div>
 
           {/* ============================================================ */}
-          {/* 3. Per-Player Stats Cards */}
+          {/* 3. Spieler-Statistiken (Vergleichstabelle) */}
           {/* ============================================================ */}
-          <div style={{ ...styles.card, marginBottom: 16 }}>
-            <div style={{ ...styles.sub, marginBottom: 12 }}>Spieler-Statistiken</div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {playerStats.map((p) => {
-                const s = p.stats
-                if (!s) return null
+          {(() => {
+            const validPlayers = playerStats.filter(p => p.stats != null)
+            if (validPlayers.length === 0) return null
 
-                return (
-                  <div
-                    key={p.playerId}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: 10,
-                      background: p.isWinner ? colors.successBg : colors.bgMuted,
-                      border: p.isWinner ? `2px solid ${colors.success}` : `1px solid ${colors.border}`,
-                      borderLeft: `4px solid ${p.color}`,
-                    }}
-                  >
-                    {/* Name + Position */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <span style={{
-                        fontWeight: 700,
-                        fontSize: 15,
-                        color: p.isWinner ? colors.success : p.color,
-                      }}>
-                        {p.name}
-                      </span>
-                      <span style={{ fontSize: 12, color: colors.fgMuted }}>
-                        Platz {s.finalPosition}
-                      </span>
-                    </div>
+            const pIds = validPlayers.map(p => p.playerId)
+            const colorMap: Record<string, string> = {}
+            validPlayers.forEach(p => { colorMap[p.playerId] = p.color })
 
-                    {/* Stats Grid */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '6px 16px',
-                      fontSize: 12,
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Zielzahl</span>
-                        <span style={{ fontWeight: 600 }}>{s.targetNumber ?? '?'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Qualifiziert</span>
-                        <span style={{ fontWeight: 600, color: s.qualifiedInRound ? colors.success : colors.fgDim }}>
-                          {s.qualifiedInRound ? `Runde ${s.qualifiedInRound}` : '\u2013'}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Total Kills</span>
-                        <span style={{ fontWeight: 600, color: s.totalKills > 0 ? colors.error : colors.fgDim }}>
-                          {s.totalKills}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Ueberlebte Runden</span>
-                        <span style={{ fontWeight: 600 }}>{s.survivedRounds}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Geworfene Darts</span>
-                        <span style={{ fontWeight: 600 }}>{s.totalDartsThrown}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Trefferquote</span>
-                        <span style={{ fontWeight: 600, color: colors.accent }}>
-                          {s.hitRate.toFixed(0)}%
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Leben verloren</span>
-                        <span style={{ fontWeight: 600, color: s.livesLost > 0 ? colors.error : colors.fgDim }}>
-                          {s.livesLost}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: colors.fgMuted }}>Leben geheilt</span>
-                        <span style={{ fontWeight: 600, color: s.livesHealed > 0 ? colors.success : colors.fgDim }}>
-                          {s.livesHealed}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+            const isSelfHealMode = config.selfHeal
+            const isFriendlyFireMode = config.friendlyFire
+            const hasSelfEffect = isSelfHealMode
+              ? validPlayers.some(p => p.stats!.livesHealed > 0)
+              : isFriendlyFireMode
+                ? validPlayers.some(p => p.stats!.selfKills > 0)
+                : false
+
+            const killsWin = getStatWinnerColors(validPlayers.map(p => p.stats!.totalKills), pIds, 'high', colorMap)
+            const hitsDealtWin = getStatWinnerColors(validPlayers.map(p => p.stats!.hitsDealt), pIds, 'high', colorMap)
+            const survivedWin = getStatWinnerColors(validPlayers.map(p => p.stats!.survivedRounds), pIds, 'high', colorMap)
+            const dartsWin = getStatWinnerColors(validPlayers.map(p => p.stats!.totalDartsThrown), pIds, 'low', colorMap)
+            const hitRateWin = getStatWinnerColors(validPlayers.map(p => p.stats!.hitRate), pIds, 'high', colorMap)
+            const livesLostWin = getStatWinnerColors(validPlayers.map(p => p.stats!.livesLost), pIds, 'low', colorMap)
+            const selfEffectWin = hasSelfEffect
+              ? isSelfHealMode
+                ? getStatWinnerColors(validPlayers.map(p => p.stats!.livesHealed), pIds, 'high', colorMap)
+                : getStatWinnerColors(validPlayers.map(p => p.stats!.selfKills), pIds, 'low', colorMap)
+              : []
+
+            const thStyle: React.CSSProperties = {
+              textAlign: 'right',
+              padding: '6px 8px',
+              borderBottom: `1px solid ${colors.border}`,
+              color: colors.fgMuted,
+              fontWeight: 600,
+            }
+            const tdStyle: React.CSSProperties = {
+              textAlign: 'right',
+              padding: '6px 8px',
+              borderBottom: `1px solid ${colors.border}`,
+              fontSize: 13,
+            }
+            const tdLabelStyle: React.CSSProperties = {
+              ...tdStyle,
+              textAlign: 'left',
+              color: colors.fgMuted,
+              fontWeight: 500,
+            }
+
+            return (
+              <div style={{ ...styles.card, marginBottom: 16 }}>
+                <div style={{ ...styles.sub, marginBottom: 8 }}>Spieler-Statistiken</div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>Stat</th>
+                        {validPlayers.map(p => (
+                          <th key={p.playerId} style={{ ...thStyle, color: p.isWinner ? colors.success : p.color }}>
+                            {p.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={tdLabelStyle}>Zielzahl</td>
+                        {validPlayers.map(p => (
+                          <td key={p.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {p.stats!.targetNumber ?? '?'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Qualifiziert</td>
+                        {validPlayers.map(p => (
+                          <td key={p.playerId} style={{ ...tdStyle, fontWeight: 600, color: p.stats!.qualifiedInRound ? colors.success : colors.fgDim }}>
+                            {p.stats!.qualifiedInRound ? `Runde ${p.stats!.qualifiedInRound}` : '\u2013'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Total Kills</td>
+                        {validPlayers.map((p, i) => (
+                          <td key={p.playerId} style={killsWin[i] ? { ...tdStyle, fontWeight: 700, color: killsWin[i] } : { ...tdStyle, fontWeight: 600 }}>
+                            {p.stats!.totalKills}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Treffer</td>
+                        {validPlayers.map((p, i) => (
+                          <td key={p.playerId} style={hitsDealtWin[i] ? { ...tdStyle, fontWeight: 700, color: hitsDealtWin[i] } : { ...tdStyle, fontWeight: 600 }}>
+                            {p.stats!.hitsDealt}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Ueberlebte Runden</td>
+                        {validPlayers.map((p, i) => (
+                          <td key={p.playerId} style={survivedWin[i] ? { ...tdStyle, fontWeight: 700, color: survivedWin[i] } : { ...tdStyle, fontWeight: 600 }}>
+                            {p.stats!.survivedRounds}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Darts</td>
+                        {validPlayers.map((p, i) => (
+                          <td key={p.playerId} style={dartsWin[i] ? { ...tdStyle, fontWeight: 700, color: dartsWin[i] } : { ...tdStyle, fontWeight: 600 }}>
+                            {p.stats!.totalDartsThrown}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Trefferquote</td>
+                        {validPlayers.map((p, i) => (
+                          <td key={p.playerId} style={hitRateWin[i] ? { ...tdStyle, fontWeight: 700, color: hitRateWin[i] } : { ...tdStyle, fontWeight: 600, color: colors.accent }}>
+                            {p.stats!.hitRate.toFixed(1)}%
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Leben verloren</td>
+                        {validPlayers.map((p, i) => (
+                          <td key={p.playerId} style={livesLostWin[i] ? { ...tdStyle, fontWeight: 700, color: livesLostWin[i] } : { ...tdStyle, fontWeight: 600 }}>
+                            {p.stats!.livesLost}
+                          </td>
+                        ))}
+                      </tr>
+                      {hasSelfEffect && (
+                        <tr>
+                          <td style={tdLabelStyle}>{isSelfHealMode ? 'Leben geheilt' : 'Selbst-Kill'}</td>
+                          {validPlayers.map((p, i) => (
+                            <td key={p.playerId} style={selfEffectWin[i] ? { ...tdStyle, fontWeight: 700, color: selfEffectWin[i] } : { ...tdStyle, fontWeight: 600 }}>
+                              {isSelfHealMode ? p.stats!.livesHealed : p.stats!.selfKills}
+                            </td>
+                          ))}
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ============================================================ */}
           {/* 4. Game Log (collapsible) */}
@@ -491,9 +551,16 @@ function KillerSummaryContent({
                         background: colors.bgMuted,
                         color: LOG_COLORS[entry.type] ?? colors.fgMuted,
                         fontFamily: 'monospace',
+                        display: 'flex',
+                        gap: 6,
                       }}
                     >
-                      {entry.text}
+                      {entry.round != null && (
+                        <span style={{ color: colors.fgDim, minWidth: 32, flexShrink: 0 }}>
+                          R{entry.round}
+                        </span>
+                      )}
+                      <span>{entry.text}</span>
                     </div>
                   ))}
                 </div>

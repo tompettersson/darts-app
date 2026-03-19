@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import PartySocket from 'partysocket'
-import type { DartsEvent, PlayerRef } from '../darts501'
+import type { PlayerRef } from '../darts501'
 import type {
   ClientMessage,
   ServerMessage,
@@ -18,14 +18,14 @@ export type MultiplayerState = {
   status: ConnectionStatus
   players: RoomPlayer[]
   phase: RoomPhase
-  events: DartsEvent[]
+  events: any[]
   error: string | null
 }
 
 export type MultiplayerActions = {
-  createRoom: (matchId: string, hostPlayer: PlayerRef, initialEvents: DartsEvent[]) => void
+  createRoom: (matchId: string, gameType: string, hostPlayer: PlayerRef, initialEvents: any[]) => void
   joinRoom: (matchId: string, player: PlayerRef) => void
-  submitEvents: (events: DartsEvent[]) => void
+  submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   playerReady: (playerId: string) => void
   requestSync: () => void
@@ -36,13 +36,13 @@ const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999'
 
 export function useMultiplayerRoom(
   roomId: string | null,
-  onRemoteEvents?: (events: DartsEvent[], fromIndex: number) => void,
-  onRemoteUndo?: (events: DartsEvent[]) => void,
+  onRemoteEvents?: (events: any[], fromIndex: number) => void,
+  onRemoteUndo?: (events: any[]) => void,
 ): [MultiplayerState, MultiplayerActions] {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [players, setPlayers] = useState<RoomPlayer[]>([])
   const [phase, setPhase] = useState<RoomPhase>('lobby')
-  const [events, setEvents] = useState<DartsEvent[]>([])
+  const [events, setEvents] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const socketRef = useRef<PartySocket | null>(null)
@@ -164,11 +164,11 @@ export function useMultiplayerRoom(
   }, [])
 
   // Actions
-  const createRoom = useCallback((matchId: string, hostPlayer: PlayerRef, initialEvents: DartsEvent[]) => {
+  const createRoom = useCallback((matchId: string, gameType: string, hostPlayer: PlayerRef, initialEvents: any[]) => {
     sendMsg({
       type: 'create-room',
       matchId,
-      gameType: 'x01',
+      gameType,
       hostPlayer,
       events: initialEvents,
     })
@@ -182,7 +182,7 @@ export function useMultiplayerRoom(
     })
   }, [sendMsg])
 
-  const submitEvents = useCallback((evts: DartsEvent[]) => {
+  const submitEvents = useCallback((evts: any[]) => {
     sendMsg({ type: 'submit-events', events: evts })
   }, [sendMsg])
 

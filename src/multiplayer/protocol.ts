@@ -2,7 +2,7 @@
 // Shared protocol types for PartyKit multiplayer communication.
 // Used by both server (party/) and client (src/) code.
 
-import type { DartsEvent, PlayerRef } from '../darts501'
+import type { PlayerRef } from '../darts501'
 
 // ---- Client → Server Messages ----
 
@@ -10,10 +10,10 @@ import type { DartsEvent, PlayerRef } from '../darts501'
 export type CreateRoomMsg = {
   type: 'create-room'
   matchId: string
-  gameType: 'x01'
+  gameType: string
   hostPlayer: PlayerRef
-  /** Initial events (MatchStarted, LegStarted) */
-  events: DartsEvent[]
+  /** Initial events (MatchStarted, LegStarted, etc.) */
+  events: any[]
 }
 
 /** Guest joins an existing room */
@@ -26,7 +26,7 @@ export type JoinRoomMsg = {
 /** Player submits new events (VisitAdded, LegFinished, etc.) */
 export type SubmitEventsMsg = {
   type: 'submit-events'
-  events: DartsEvent[]
+  events: any[]
 }
 
 /** Player sends undo (removes last visit) */
@@ -60,7 +60,7 @@ export type ClientMessage =
 /** Full state sync (on connect/reconnect) */
 export type SyncMsg = {
   type: 'sync'
-  events: DartsEvent[]
+  events: any[]
   players: RoomPlayer[]
   phase: RoomPhase
 }
@@ -68,7 +68,7 @@ export type SyncMsg = {
 /** New events broadcast to all clients */
 export type EventsBroadcastMsg = {
   type: 'events'
-  events: DartsEvent[]
+  events: any[]
   /** Index in the full event log where these events start */
   fromIndex: number
 }
@@ -78,7 +78,7 @@ export type UndoBroadcastMsg = {
   type: 'undo'
   /** New total event count after undo */
   eventCount: number
-  events: DartsEvent[]
+  events: any[]
 }
 
 /** Player joined/left/ready update */

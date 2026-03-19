@@ -12,6 +12,10 @@ import {
   getCTFMatches,
   getShanghaiMatches,
   getKillerMatches,
+  getBobs27Matches,
+  getOperationMatches,
+  repairBobs27Matches,
+  repairOperationMatches,
   type StoredMatch,
   type CricketStoredMatch,
 } from '../storage'
@@ -21,12 +25,16 @@ import type { HighscoreStoredMatch } from '../types/highscore'
 import type { CTFStoredMatch } from '../types/captureTheField'
 import type { ShanghaiStoredMatch } from '../types/shanghai'
 import type { KillerStoredMatch } from '../types/killer'
+import type { Bobs27StoredMatch } from '../types/bobs27'
+import type { OperationStoredMatch } from '../types/operation'
 import { getModeLabel, getDirectionLabel, formatDuration, DEFAULT_ATB_CONFIG } from '../dartsAroundTheBlock'
 import { formatDuration as formatStrDuration } from '../dartsStraeusschen'
 import { formatDuration as formatHsDuration } from '../dartsHighscore'
 import { formatDuration as formatCTFDuration } from '../dartsCaptureTheField'
 import { formatDuration as formatShanghaiDuration } from '../dartsShanghai'
 import { formatDuration as formatKillerDuration } from '../dartsKiller'
+import { formatDuration as formatBobs27Duration } from '../dartsBobs27'
+import { formatDuration as formatOperationDuration } from '../dartsOperation'
 
 type Props = {
   onBack: () => void
@@ -38,9 +46,11 @@ type Props = {
   onOpenCTFMatch?: (matchId: string) => void
   onOpenShanghaiMatch?: (matchId: string) => void
   onOpenKillerMatch?: (matchId: string) => void
+  onOpenBobs27Match?: (matchId: string) => void
+  onOpenOperationMatch?: (matchId: string) => void
 }
 
-type Filter = 'all' | 'x01' | '121' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'
+type Filter = 'all' | 'x01' | '121' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation'
 
 function fmtDate(s?: string) {
   if (!s) return '—'
@@ -374,7 +384,47 @@ function getKillerInfo(m: KillerStoredMatch) {
   return { mode, playerNames, winnerName, result, duration }
 }
 
-export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatch, onOpenATBMatch, onOpenStrMatch, onOpenHighscoreMatch, onOpenCTFMatch, onOpenShanghaiMatch, onOpenKillerMatch }: Props) {
+function getBobs27Info(m: Bobs27StoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : undefined
+
+  const mode = "Bob's 27"
+
+  let result = ''
+  if (m.finished && m.finalScores) {
+    result = players.map((p) => m.finalScores?.[p.playerId] ?? 0).join(':')
+  }
+
+  const duration = m.durationMs ? formatBobs27Duration(m.durationMs) : ''
+
+  return { mode, playerNames, winnerName, result, duration }
+}
+
+function getOperationInfo(m: OperationStoredMatch) {
+  const players = m.players ?? []
+  const playerNames = players.map((p) => p.name)
+  const winnerName = m.winnerId
+    ? players.find((p) => p.playerId === m.winnerId)?.name
+    : undefined
+
+  const targetLabel = m.config?.targetMode === 'BULL' ? 'Bull' :
+    m.config?.targetMode === 'RANDOM_NUMBER' ? 'Zufall' : 'Manuell'
+  const mode = `Operation: EFKG (${targetLabel})`
+
+  let result = ''
+  if (m.finished && m.finalScores) {
+    result = players.map((p) => m.finalScores?.[p.playerId] ?? 0).join(':')
+  }
+
+  const duration = m.durationMs ? formatOperationDuration(m.durationMs) : ''
+
+  return { mode, playerNames, winnerName, result, duration }
+}
+
+export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatch, onOpenATBMatch, onOpenStrMatch, onOpenHighscoreMatch, onOpenCTFMatch, onOpenShanghaiMatch, onOpenKillerMatch, onOpenBobs27Match, onOpenOperationMatch }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -409,6 +459,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   const ctf = useMemo(() => getCTFMatches(), [])
   const shanghai = useMemo(() => getShanghaiMatches(), [])
   const killer = useMemo(() => getKillerMatches(), [])
+  const bobs27 = useMemo(() => { repairBobs27Matches(); return getBobs27Matches() }, [])
+  const operation = useMemo(() => { repairOperationMatches(); return getOperationMatches() }, [])
 
   const items = useMemo(() => {
     const x01Items = x01.map((m) => {
@@ -542,8 +594,40 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       }
     })
 
+    const bobs27Items = bobs27.map((m) => {
+      const info = getBobs27Info(m)
+      return {
+        kind: 'bobs27' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: !!m.finished,
+        mode: info.mode,
+        matchName: undefined as string | undefined,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+      }
+    })
+
+    const operationItems = operation.map((m) => {
+      const info = getOperationInfo(m)
+      return {
+        kind: 'operation' as const,
+        id: m.id,
+        createdAt: m.createdAt,
+        finished: !!m.finished,
+        mode: info.mode,
+        matchName: undefined as string | undefined,
+        playerNames: info.playerNames,
+        winnerName: info.winnerName,
+        result: info.result,
+        duration: info.duration,
+      }
+    })
+
     // Beendete/Unbeendete Matches anzeigen basierend auf Toggle
-    let merged = [...x01Items, ...cricketItems, ...atbItems, ...strItems, ...highscoreItems, ...ctfItems, ...shanghaiItems, ...killerItems]
+    let merged = [...x01Items, ...cricketItems, ...atbItems, ...strItems, ...highscoreItems, ...ctfItems, ...shanghaiItems, ...killerItems, ...bobs27Items, ...operationItems]
     if (!showUnfinished) {
       merged = merged.filter((m) => m.finished)
     }
@@ -557,6 +641,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
     if (filter === 'ctf') merged = merged.filter((x) => x.kind === 'ctf')
     if (filter === 'shanghai') merged = merged.filter((x) => x.kind === 'shanghai')
     if (filter === 'killer') merged = merged.filter((x) => x.kind === 'killer')
+    if (filter === 'bobs27') merged = merged.filter((x) => x.kind === 'bobs27')
+    if (filter === 'operation') merged = merged.filter((x) => x.kind === 'operation')
 
     // Suchfilter: Name, Datum, Spielernamen
     if (search.trim()) {
@@ -577,7 +663,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
 
     merged.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
     return merged
-  }, [x01, cricket, atb, str, highscore, ctf, shanghai, killer, filter, search, showUnfinished])
+  }, [x01, cricket, atb, str, highscore, ctf, shanghai, killer, bobs27, operation, filter, search, showUnfinished])
 
   return (
     <div style={styles.page}>
@@ -594,7 +680,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
           {/* Filter Buttons */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700, color: colors.fg }}>Filter:</span>
-            {(['all', 'x01', '121', 'cricket', 'atb', 'ctf', 'shanghai', 'killer', 'str', 'highscore'] as const).map((f) => (
+            {(['all', 'x01', '121', 'cricket', 'atb', 'ctf', 'shanghai', 'killer', 'bobs27', 'operation', 'str', 'highscore'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -613,7 +699,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                   fontWeight: 800,
                 }}
               >
-                {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : f === '121' ? '121' : f === 'cricket' ? 'Cricket' : f === 'atb' ? 'ATB' : f === 'ctf' ? 'CTF' : f === 'shanghai' ? 'Shanghai' : f === 'killer' ? 'Killer' : f === 'str' ? 'Str' : 'HS'}
+                {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : f === '121' ? '121' : f === 'cricket' ? 'Cricket' : f === 'atb' ? 'ATB' : f === 'ctf' ? 'CTF' : f === 'shanghai' ? 'Shanghai' : f === 'killer' ? 'Killer' : f === 'bobs27' ? "B27" : f === 'operation' ? 'OP' : f === 'str' ? 'Str' : 'HS'}
               </button>
             ))}
 
@@ -714,6 +800,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                 else if (m.kind === 'ctf' && onOpenCTFMatch) onOpenCTFMatch(m.id)
                 else if (m.kind === 'shanghai' && onOpenShanghaiMatch) onOpenShanghaiMatch(m.id)
                 else if (m.kind === 'killer' && onOpenKillerMatch) onOpenKillerMatch(m.id)
+                else if (m.kind === 'bobs27' && onOpenBobs27Match) onOpenBobs27Match(m.id)
+                else if (m.kind === 'operation' && onOpenOperationMatch) onOpenOperationMatch(m.id)
               }}
               style={{
                 display: 'flex',

@@ -45,12 +45,7 @@ import {
   announceStrMatchWinner,
   playTriple20Sound,
 } from '../speech'
-
-// Spielerfarben
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#8b5cf6', '#14b8a6', '#eab308', '#ec4899',
-]
+import { PLAYER_COLORS } from '../playerColors'
 
 // Leg-Zusammenfassung Typ
 type StrIntermission = {
@@ -922,6 +917,15 @@ function PlayerDoneModal({
   formatTarget: (num: StrTargetNumber) => string
   onContinue: () => void
 }) {
+  // Enter-Taste zum Weitergehen
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') onContinue()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onContinue])
+
   const playerStats = useMemo(() => {
     const legTurns = events.filter(
       (e): e is StrTurnAddedEvent =>
@@ -1104,6 +1108,15 @@ function LegIntermissionModal({
   playerColors: Record<string, string>
   onContinue: () => void
 }) {
+  // Enter-Taste zum Weitergehen
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') onContinue()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onContinue])
+
   const legScore = match.players.map((p: any) => legWinsByPlayer[p.playerId] || 0).join(' : ')
 
   // Leg-Stats berechnen

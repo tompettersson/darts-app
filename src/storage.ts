@@ -41,6 +41,10 @@ import {
   dbSaveKillerMatch,
   dbUpdateKillerEvents,
   dbFinishKillerMatch,
+  dbSaveBobs27Match,
+  dbUpdateBobs27Events,
+  dbSaveOperationMatch,
+  dbUpdateOperationEvents,
   type DBProfile,
   type DBX01Match,
   type DBCricketMatch,
@@ -50,6 +54,18 @@ import {
   type DBHighscoreMatch,
   type DBShanghaiMatch,
   type DBKillerMatch,
+  type DBBobs27Match,
+  type DBOperationMatch,
+  dbSaveX01PlayerStats,
+  dbLoadAllX01PlayerStats,
+  dbSave121PlayerStats,
+  dbLoadAll121PlayerStats,
+  dbSaveX01Leaderboards,
+  dbLoadX01Leaderboards,
+  dbSaveCricketLeaderboards,
+  dbLoadCricketLeaderboards,
+  dbGetMeta,
+  dbSetMeta,
 } from './db/storage'
 
 import {
@@ -158,6 +174,34 @@ const LS_X01_PLAYERSTATS = 'x01.playerStats.v1'
 const LS_121_PLAYERSTATS = '121.playerStats.v1'
 
 /* -------------------------------------------------
+   In-Memory Cache für Stats & Leaderboards
+   Wird beim App-Start aus SQLite befüllt.
+   Ersetzt LS als Cache → spart Quota.
+------------------------------------------------- */
+const memCache = {
+  x01PlayerStats: null as Record<string, X01PlayerLongTermStats> | null,
+  leaderboards: null as Leaderboards | null,
+  cricketLeaderboards: null as CricketLeaderboards | null,
+}
+
+/** Befüllt den Memory-Cache (wird von db/init.ts aufgerufen) */
+export function warmMemCache(data: {
+  x01PlayerStats?: Record<string, any>
+  leaderboards?: any
+  cricketLeaderboards?: any
+}) {
+  if (data.x01PlayerStats && Object.keys(data.x01PlayerStats).length > 0) {
+    memCache.x01PlayerStats = data.x01PlayerStats
+  }
+  if (data.leaderboards) {
+    memCache.leaderboards = data.leaderboards
+  }
+  if (data.cricketLeaderboards) {
+    memCache.cricketLeaderboards = data.cricketLeaderboards
+  }
+}
+
+/* -------------------------------------------------
    Helper: read / write JSON
 ------------------------------------------------- */
 function readJSON<T>(key: string, fallback: T): T {
@@ -176,16 +220,25 @@ function writeJSON<T>(key: string, value: T) {
 
 /**
  * Schreibt JSON mit automatischem Cleanup bei Quota-Fehler.
- * Löscht die ältesten Einträge bis genug Platz ist.
+ * Match-Keys werden debounced (2s), alles andere sofort.
  */
 function writeJSONSafe<T>(key: string, value: T, pruneCallback?: () => boolean): boolean {
+  // Match-Keys debounced schreiben (SQLite hat die Daten sofort)
+  if (key.includes('.matches.')) {
+    writeJSONSafeDebounced(key, value, pruneCallback)
+    return true
+  }
+
+  return writeJSONSafeImmediate(key, value, pruneCallback)
+}
+
+function writeJSONSafeImmediate<T>(key: string, value: T, pruneCallback?: () => boolean): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value))
     return true
   } catch (e) {
     if (e instanceof DOMException && e.name === 'QuotaExceededError') {
       console.warn(`[Storage] Quota exceeded for ${key}, attempting cleanup...`)
-      // Versuche Cleanup und nochmal schreiben
       if (pruneCallback && pruneCallback()) {
         try {
           localStorage.setItem(key, JSON.stringify(value))
@@ -197,6 +250,56 @@ function writeJSONSafe<T>(key: string, value: T, pruneCallback?: () => boolean):
     }
     throw e
   }
+}
+
+/* -------------------------------------------------
+   Debounced LS-Write: Sammelt Writes und schreibt
+   nur alle 2s in LS. SQLite schreibt sofort.
+   Verhindert JSON.stringify bei jedem Dart-Wurf.
+------------------------------------------------- */
+const debouncedTimers: Record<string, number> = {}
+const debouncedValues: Record<string, { value: any; pruneCallback?: () => boolean }> = {}
+
+function writeJSONSafeDebounced<T>(key: string, value: T, pruneCallback?: () => boolean): void {
+  debouncedValues[key] = { value, pruneCallback }
+
+  if (debouncedTimers[key]) return // Timer läuft bereits
+
+  debouncedTimers[key] = window.setTimeout(() => {
+    delete debouncedTimers[key]
+    const pending = debouncedValues[key]
+    if (pending) {
+      delete debouncedValues[key]
+      try {
+        writeJSONSafeImmediate(key, pending.value, pending.pruneCallback)
+      } catch {
+        console.warn(`[Storage] Debounced write failed for ${key}, SQLite has the data`)
+      }
+    }
+  }, 2000)
+}
+
+/** Sofortiges Flush aller ausstehenden debounced Writes (z.B. beim Tab-Wechsel/Schließen) */
+export function flushDebouncedWrites(): void {
+  for (const key of Object.keys(debouncedTimers)) {
+    window.clearTimeout(debouncedTimers[key])
+    delete debouncedTimers[key]
+    const pending = debouncedValues[key]
+    if (pending) {
+      delete debouncedValues[key]
+      try {
+        writeJSONSafeImmediate(key, pending.value, pending.pruneCallback)
+      } catch { /* ignore */ }
+    }
+  }
+}
+
+// Flush bei Tab-Wechsel und Schließen
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushDebouncedWrites)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushDebouncedWrites()
+  })
 }
 
 /**
@@ -256,14 +359,17 @@ export function pruneOldCricketMatches(keepCount: number = 50): boolean {
  * Gibt true zurück wenn Speicher freigegeben wurde.
  */
 export function pruneAllOldMatches(): boolean {
+  // SQLite ist Source of Truth → LS nur noch Cache mit kleinem Limit
   let freed = false
-  freed = pruneOldATBMatches(20) || freed
-  freed = pruneOldX01Matches(50) || freed
-  freed = pruneOldCricketMatches(50) || freed
-  freed = pruneOldHighscoreMatches(50) || freed
-  freed = pruneOldCTFMatches(20) || freed
-  freed = pruneOldShanghaiMatches(20) || freed
-  freed = pruneOldKillerMatches(20) || freed
+  freed = pruneOldATBMatches(15) || freed
+  freed = pruneOldX01Matches(20) || freed
+  freed = pruneOldCricketMatches(20) || freed
+  freed = pruneOldHighscoreMatches(15) || freed
+  freed = pruneOldCTFMatches(15) || freed
+  freed = pruneOldShanghaiMatches(15) || freed
+  freed = pruneOldKillerMatches(15) || freed
+  freed = pruneOldBobs27Matches(15) || freed
+  freed = pruneOldOperationMatches(15) || freed
   return freed
 }
 
@@ -339,6 +445,14 @@ function getPlayerUsageCounts(): Record<string, number> {
     // Killer
     const killer = readJSON<{ players?: { playerId: string }[] }[]>(LS_KILLER_MATCHES, [])
     for (const m of killer) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // Bob's 27
+    const bobs27 = readJSON<{ players?: { playerId: string }[] }[]>(LS_BOBS27.matches, [])
+    for (const m of bobs27) for (const p of (m.players ?? [])) bump(p.playerId)
+
+    // Operation
+    const operation = readJSON<{ players?: { playerId: string }[] }[]>(LS_OPERATION.matches, [])
+    for (const m of operation) for (const p of (m.players ?? [])) bump(p.playerId)
 
     // Highscore
     const highscore = readJSON<{ players?: { playerId: string }[] }[]>(LS_HIGHSCORE.matches, [])
@@ -1057,14 +1171,32 @@ export type X01PlayerLongTermStats = {
 }
 
 function loadX01PlayerStatsStore(): Record<string, X01PlayerLongTermStats> {
+  if (memCache.x01PlayerStats) return memCache.x01PlayerStats
   return readJSON<Record<string, X01PlayerLongTermStats>>(LS_X01_PLAYERSTATS, {})
 }
 
 function saveX01PlayerStatsStore(store: Record<string, X01PlayerLongTermStats>) {
+  memCache.x01PlayerStats = store
   writeJSON(LS_X01_PLAYERSTATS, store)
 }
 
 export function getGlobalX01PlayerStats(): Record<string, X01PlayerLongTermStats> {
+  return loadX01PlayerStatsStore()
+}
+
+/** Async SQLite-first version */
+export async function getGlobalX01PlayerStatsAsync(): Promise<Record<string, X01PlayerLongTermStats>> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const migrated = await dbGetMeta('x01_stats_ls_migrated')
+      if (migrated === 'true') {
+        return await dbLoadAllX01PlayerStats()
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite X01 PlayerStats load failed:', e)
+  }
   return loadX01PlayerStatsStore()
 }
 
@@ -1246,6 +1378,14 @@ export function updateGlobalX01PlayerStatsFromMatch(matchId: string, events: Dar
     }
 
     saveX01PlayerStatsStore(store)
+
+    // Dual-Write: SQLite (fire-and-forget)
+    for (const pStats of bundle.players) {
+      const s = store[pStats.playerId]
+      if (s) {
+        dbSaveX01PlayerStats(s).catch(e => trackDBError('x01_player_stats', pStats.playerId, e))
+      }
+    }
   } catch (err) {
     console.error('updateGlobalX01PlayerStatsFromMatch failed:', err)
   }
@@ -1283,6 +1423,39 @@ export function save121PlayerStatsStore(store: Record<string, Stats121LongTerm>)
 export function get121PlayerStats(playerId: string): Stats121LongTerm | null {
   const store = load121PlayerStatsStore()
   return store[playerId] ?? null
+}
+
+/** Async SQLite-first version */
+export async function get121PlayerStatsAsync(playerId: string): Promise<Stats121LongTerm | null> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const migrated = await dbGetMeta('stats_121_ls_migrated')
+      if (migrated === 'true') {
+        const all = await dbLoadAll121PlayerStats()
+        return all[playerId] ?? null
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite 121 PlayerStats load failed:', e)
+  }
+  return get121PlayerStats(playerId)
+}
+
+/** Async SQLite-first: load all 121 stats */
+export async function load121PlayerStatsStoreAsync(): Promise<Record<string, Stats121LongTerm>> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const migrated = await dbGetMeta('stats_121_ls_migrated')
+      if (migrated === 'true') {
+        return await dbLoadAll121PlayerStats()
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite 121 PlayerStats load failed:', e)
+  }
+  return load121PlayerStatsStore()
 }
 
 /**
@@ -1357,6 +1530,14 @@ export function updateGlobal121PlayerStatsFromMatch(matchId: string, events: Dar
     }
 
     save121PlayerStatsStore(store)
+
+    // Dual-Write: SQLite (fire-and-forget)
+    for (const player of startEvt.players) {
+      const s = store[player.playerId]
+      if (s) {
+        dbSave121PlayerStats(player.playerId, s).catch(e => trackDBError('stats_121', player.playerId, e))
+      }
+    }
   } catch (err) {
     console.error('updateGlobal121PlayerStatsFromMatch failed:', err)
   }
@@ -1412,6 +1593,8 @@ export type Leaderboards = {
 }
 
 export function loadLeaderboards(): Leaderboards {
+  if (memCache.leaderboards) return memCache.leaderboards
+
   const raw = readJSON<Leaderboards>(LS_KEYS.leaderboards, {
     highVisits: [],
     highCheckouts: [],
@@ -1431,6 +1614,7 @@ export function loadLeaderboards(): Leaderboards {
 }
 
 export function saveLeaderboards(lb: Leaderboards) {
+  memCache.leaderboards = lb
   writeJSON(LS_KEYS.leaderboards, lb)
 }
 
@@ -1606,6 +1790,9 @@ export function updateLeaderboardsWithMatch(finished: {
   lb.processedMatchIds.push(finished.id)
 
   saveLeaderboards(lb)
+
+  // Dual-Write: SQLite (fire-and-forget)
+  dbSaveX01Leaderboards(lb).catch(e => trackDBError('x01_leaderboards', finished.id, e))
 }
 
 /** komplette X01-Leaderboards neu aufbauen */
@@ -2062,6 +2249,8 @@ export type CricketLeaderboards = {
 }
 
 export function loadCricketLeaderboards(): CricketLeaderboards {
+  if (memCache.cricketLeaderboards) return memCache.cricketLeaderboards
+
   return readJSON<CricketLeaderboards>(
     LS_CRICKET_LB,
     {
@@ -2078,6 +2267,7 @@ export function loadCricketLeaderboards(): CricketLeaderboards {
 export function saveCricketLeaderboards(
   lb: CricketLeaderboards
 ) {
+  memCache.cricketLeaderboards = lb
   writeJSON(LS_CRICKET_LB, lb)
 }
 
@@ -2195,6 +2385,9 @@ export function updateCricketLeaderboardsWithMatch(
   lb.processedMatchIds.push(match.id)
 
   saveCricketLeaderboards(lb)
+
+  // Dual-Write: SQLite (fire-and-forget)
+  dbSaveCricketLeaderboards(lb).catch(e => trackDBError('cricket_leaderboards', match.id, e))
 }
 
 export function rebuildCricketLeaderboards() {
@@ -2218,11 +2411,31 @@ export function rebuildCricketLeaderboards() {
 
 export function getCricketLeaderboards(): CricketLeaderboardsUI {
   const lb = loadCricketLeaderboards()
+  return cricketLbToUI(lb)
+}
 
+/** Async SQLite-first version */
+export async function getCricketLeaderboardsAsync(): Promise<CricketLeaderboardsUI> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const migrated = await dbGetMeta('cricket_lb_ls_migrated')
+      if (migrated === 'true') {
+        const dbLb = await dbLoadCricketLeaderboards()
+        if (dbLb) return cricketLbToUI(dbLb)
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Cricket Leaderboards load failed:', e)
+  }
+  return getCricketLeaderboards()
+}
+
+function cricketLbToUI(lb: CricketLeaderboards): CricketLeaderboardsUI {
   const bullMaster = lb.bullMaster.map(entry => ({
     playerId: entry.playerId,
     name: entry.playerName,
-    bullPct: entry.value, // Prozent als Zahl (z.B. 42.5)
+    bullPct: entry.value,
   }))
 
   const tripleHunter = lb.tripleHunter.map(entry => ({
@@ -2245,17 +2458,32 @@ export function getCricketLeaderboards(): CricketLeaderboardsUI {
     marksTotal: entry.marks,
   }))
 
-  return {
-    bullMaster,
-    tripleHunter,
-    bestTurn,
-    fastestLeg,
-  }
+  return { bullMaster, tripleHunter, bestTurn, fastestLeg }
 }
 
 export function getX01Leaderboards(): X01LeaderboardsUI {
   const lb = loadLeaderboards()
+  return x01LbToUI(lb)
+}
 
+/** Async SQLite-first version */
+export async function getX01LeaderboardsAsync(): Promise<X01LeaderboardsUI> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const migrated = await dbGetMeta('x01_lb_ls_migrated')
+      if (migrated === 'true') {
+        const dbLb = await dbLoadX01Leaderboards()
+        if (dbLb) return x01LbToUI(dbLb)
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite X01 Leaderboards load failed:', e)
+  }
+  return getX01Leaderboards()
+}
+
+function x01LbToUI(lb: Leaderboards): X01LeaderboardsUI {
   return {
     highVisits: lb.highVisits.map(v => ({
       playerId: v.playerId,
@@ -2264,7 +2492,6 @@ export function getX01Leaderboards(): X01LeaderboardsUI {
       value: v.value,
       ts: v.ts,
     })),
-
     highCheckouts: lb.highCheckouts.map(v => ({
       playerId: v.playerId,
       playerName: v.playerName,
@@ -2272,7 +2499,6 @@ export function getX01Leaderboards(): X01LeaderboardsUI {
       value: v.value,
       ts: v.ts,
     })),
-
     bestLegs: lb.bestLegs.map(l => ({
       playerId: l.playerId,
       playerName: l.playerName,
@@ -2280,7 +2506,6 @@ export function getX01Leaderboards(): X01LeaderboardsUI {
       darts: l.darts,
       ts: l.ts,
     })),
-
     worstLegs: lb.worstLegs.map(l => ({
       playerId: l.playerId,
       playerName: l.playerName,
@@ -2288,7 +2513,6 @@ export function getX01Leaderboards(): X01LeaderboardsUI {
       darts: l.darts,
       ts: l.ts,
     })),
-
     bestCheckoutPct: lb.bestCheckoutPct.map(p => ({
       playerId: p.playerId,
       playerName: p.playerName,
@@ -2296,7 +2520,6 @@ export function getX01Leaderboards(): X01LeaderboardsUI {
       attempts: p.attempts,
       made: p.made,
     })),
-
     worstCheckoutPct: lb.worstCheckoutPct.map(p => ({
       playerId: p.playerId,
       playerName: p.playerName,
@@ -2671,13 +2894,13 @@ export function importBackupMerge(
    Last Activity (Start Menu → "Spiel fortsetzen")
 ------------------------------------------------- */
 type LastActivityInfo = {
-  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'
+  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation'
   matchId: string
   ts: string
 }
 
 export function setLastActivity(
-  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer',
+  kind: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation',
   matchId: string
 ) {
   const data: LastActivityInfo = {
@@ -2812,9 +3035,41 @@ export function getLastActivity():
       matchExists: true,
       finished: !!m.finished,
     }
-  } else {
-    // Killer
+  } else if (raw.kind === 'killer') {
     const m = getKillerMatches().find(
+      mm => mm.id === raw.matchId
+    )
+    if (!m) {
+      return {
+        ...raw,
+        matchExists: false,
+        finished: true,
+      }
+    }
+    return {
+      ...raw,
+      matchExists: true,
+      finished: !!m.finished,
+    }
+  } else if (raw.kind === 'bobs27') {
+    const m = getBobs27Matches().find(
+      mm => mm.id === raw.matchId
+    )
+    if (!m) {
+      return {
+        ...raw,
+        matchExists: false,
+        finished: true,
+      }
+    }
+    return {
+      ...raw,
+      matchExists: true,
+      finished: !!m.finished,
+    }
+  } else {
+    // operation
+    const m = getOperationMatches().find(
       mm => mm.id === raw.matchId
     )
     if (!m) {
@@ -3407,7 +3662,7 @@ function savePausedMatchesMap(map: PausedMatchesMap) {
 /**
  * Markiert ein Match als pausiert.
  */
-export function setMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer', paused: boolean) {
+export function setMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation', paused: boolean) {
   const key = `${gameType}:${matchId}`
   const map = getPausedMatchesMap()
   if (paused) {
@@ -3421,7 +3676,7 @@ export function setMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'a
 /**
  * Prüft ob ein Match als pausiert markiert ist.
  */
-export function isMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'): boolean {
+export function isMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation'): boolean {
   const key = `${gameType}:${matchId}`
   const map = getPausedMatchesMap()
   return !!map[key]
@@ -3430,7 +3685,7 @@ export function isMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'at
 /**
  * Löscht den Pause-Status für ein Match.
  */
-export function clearMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer') {
+export function clearMatchPaused(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation') {
   setMatchPaused(matchId, gameType, false)
 }
 
@@ -3459,7 +3714,7 @@ function saveElapsedTimeMap(map: ElapsedTimeMap) {
 /**
  * Speichert die verstrichene Zeit für ein Match (in ms).
  */
-export function setMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer', elapsedMs: number) {
+export function setMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation', elapsedMs: number) {
   const key = `${gameType}:${matchId}`
   const map = getElapsedTimeMap()
   map[key] = elapsedMs
@@ -3470,7 +3725,7 @@ export function setMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket'
  * Holt die gespeicherte verstrichene Zeit für ein Match (in ms).
  * Gibt 0 zurück wenn keine Zeit gespeichert ist.
  */
-export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer'): number {
+export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation'): number {
   const key = `${gameType}:${matchId}`
   const map = getElapsedTimeMap()
   return map[key] ?? 0
@@ -3479,7 +3734,7 @@ export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket'
 /**
  * Löscht die gespeicherte Zeit für ein Match.
  */
-export function clearMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer') {
+export function clearMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation') {
   const key = `${gameType}:${matchId}`
   const map = getElapsedTimeMap()
   delete map[key]
@@ -4318,6 +4573,508 @@ export function getKillerInfo(match: KillerStoredMatch): { players: number; winn
 }
 
 /* -------------------------------------------------
+   Bob's 27 Storage
+------------------------------------------------- */
+import type { Bobs27StoredMatch, Bobs27Event, Bobs27Config, Bobs27Target } from './types/bobs27'
+import type { Bobs27Player } from './types/bobs27'
+import { id as bobs27Id, now as bobs27Now, generateTargets, DEFAULT_CONFIG as BOBS27_DEFAULT_CONFIG, applyBobs27Events } from './dartsBobs27'
+
+const LS_BOBS27 = {
+  matches: 'bobs27.matches.v1',
+  lastOpenMatchId: 'bobs27.lastOpenMatchId.v1',
+} as const
+
+let bobs27MatchesCache: Bobs27StoredMatch[] | null = null
+
+export function getBobs27Matches(): Bobs27StoredMatch[] {
+  if (bobs27MatchesCache) return bobs27MatchesCache
+  return readJSON<Bobs27StoredMatch[]>(LS_BOBS27.matches, [])
+}
+
+export function getBobs27MatchById(matchId: string): Bobs27StoredMatch | null {
+  const matches = getBobs27Matches()
+  return matches.find(m => m.id === matchId) ?? null
+}
+
+export function getOpenBobs27Match(): Bobs27StoredMatch | undefined {
+  const lastId = localStorage.getItem(LS_BOBS27.lastOpenMatchId)
+  if (!lastId) return undefined
+  const matches = getBobs27Matches()
+  return matches.find(m => m.id === lastId && !m.finished)
+}
+
+export function setLastOpenBobs27MatchId(matchId: string) {
+  localStorage.setItem(LS_BOBS27.lastOpenMatchId, matchId)
+}
+
+export function createBobs27MatchShell(args: {
+  players: Bobs27Player[]
+  config?: Partial<Bobs27Config>
+}): Bobs27StoredMatch {
+  const matchId = bobs27Id()
+  const config: Bobs27Config = {
+    ...BOBS27_DEFAULT_CONFIG,
+    ...args.config,
+  }
+  const targets = generateTargets(config)
+
+  const title = `Bob's 27 – ${args.players.map(p => p.name).join(' vs ')}`
+
+  const startEvent: Bobs27Event = {
+    type: 'Bobs27MatchStarted',
+    eventId: bobs27Id(),
+    matchId,
+    ts: bobs27Now(),
+    players: args.players,
+    config,
+    targets,
+  }
+
+  const stored: Bobs27StoredMatch = {
+    id: matchId,
+    title,
+    createdAt: bobs27Now(),
+    players: args.players,
+    config,
+    targets,
+    events: [startEvent],
+  }
+
+  const all = getBobs27Matches()
+  all.push(stored)
+  bobs27MatchesCache = all
+  writeJSONSafe(LS_BOBS27.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbSaveBobs27Match({
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    players: stored.players,
+    events: stored.events,
+    config: stored.config,
+    targets: stored.targets,
+  }).catch(err => trackDBError('bobs27-save', stored.id, err))
+
+  return stored
+}
+
+export function persistBobs27Events(matchId: string, events: Bobs27Event[]) {
+  const all = getBobs27Matches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].events = events
+  bobs27MatchesCache = all
+  writeJSONSafe(LS_BOBS27.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateBobs27Events(matchId, events).catch(err => trackDBError('bobs27-events', matchId, err))
+}
+
+export function finishBobs27Match(
+  matchId: string,
+  winnerId: string | null,
+  winnerDarts: number,
+  durationMs: number,
+  finalScores?: Record<string, number>
+) {
+  const all = getBobs27Matches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].finished = true
+  all[idx].finishedAt = bobs27Now()
+  all[idx].winnerId = winnerId
+  all[idx].winnerDarts = winnerDarts
+  all[idx].durationMs = durationMs
+  if (finalScores) all[idx].finalScores = finalScores
+
+  bobs27MatchesCache = all
+  writeJSONSafe(LS_BOBS27.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  const match = all[idx]
+  dbSaveBobs27Match({
+    id: match.id,
+    title: match.title,
+    createdAt: match.createdAt,
+    finished: true,
+    finishedAt: match.finishedAt ?? null,
+    durationMs,
+    winnerId,
+    winnerDarts,
+    players: match.players,
+    events: match.events,
+    config: match.config,
+    targets: match.targets,
+    finalScores: match.finalScores,
+  }).catch(err => trackDBError('bobs27-finish', matchId, err))
+}
+
+export function deleteBobs27Match(matchId: string) {
+  const all = getBobs27Matches()
+  const filtered = all.filter(m => m.id !== matchId)
+  bobs27MatchesCache = filtered
+  writeJSONSafe(LS_BOBS27.matches, filtered)
+  clearMatchPaused(matchId, 'bobs27')
+  clearMatchElapsedTime(matchId, 'bobs27')
+}
+
+/**
+ * Repariert Bob's 27 Matches:
+ * 1. Events enthalten MatchFinished aber Match-Shell ist nicht finished
+ * 2. Kein MatchFinished Event, aber alle Spieler fertig → aus Event-Log rekonstruieren
+ * 3. Solo-Matches die finished sind aber winnerId = null haben
+ */
+export function repairBobs27Matches(): number {
+  const all = getBobs27Matches()
+  let repaired = 0
+
+  for (const m of all) {
+    let needsSave = false
+
+    if (!m.finished) {
+      // Fall 1: Events enthalten MatchFinished aber Match-Shell ist nicht finished
+      const finishEvent = m.events?.find(e => e.type === 'Bobs27MatchFinished') as any
+      if (finishEvent) {
+        m.finished = true
+        m.finishedAt = finishEvent.ts
+        m.winnerId = finishEvent.winnerId ?? null
+        m.winnerDarts = finishEvent.totalDarts ?? 0
+        m.durationMs = finishEvent.durationMs ?? 0
+        m.finalScores = finishEvent.finalScores
+        needsSave = true
+      } else if (m.events && m.events.length > 1) {
+        // Fall 2: Kein MatchFinished aber alle Spieler fertig (eliminiert oder alle Targets durch)
+        try {
+          const state = applyBobs27Events(m.events)
+          if (state.match) {
+            const allDone = state.match.players.every(p => {
+              const ps = state.playerStates[p.playerId]
+              return ps?.finished === true
+            })
+            if (allDone) {
+              const finalScores: Record<string, number> = {}
+              for (const p of state.match.players) {
+                finalScores[p.playerId] = state.playerStates[p.playerId]?.score ?? 0
+              }
+              // Ranking: Fortschritt absteigend, dann Score absteigend
+              const ranking = state.match.players.map(p => {
+                const ps = state.playerStates[p.playerId]
+                return {
+                  pid: p.playerId,
+                  progress: ps?.eliminated ? (ps.eliminatedAtTarget ?? 0) : (ps?.currentTargetIndex ?? 0),
+                  score: finalScores[p.playerId] ?? 0,
+                }
+              }).sort((a, b) => b.progress - a.progress || b.score - a.score)
+
+              let winnerId: string | null = ranking[0]?.pid ?? null
+              if (ranking.length > 1 &&
+                  ranking[0].progress === ranking[1].progress &&
+                  ranking[0].score === ranking[1].score) {
+                winnerId = null
+              }
+
+              const totalDarts = Object.values(state.playerStates).reduce((s, ps) => s + ps.totalDarts, 0)
+              const lastEventTs = m.events[m.events.length - 1]?.ts ?? bobs27Now()
+
+              m.finished = true
+              m.finishedAt = lastEventTs
+              m.winnerId = winnerId
+              m.winnerDarts = totalDarts
+              m.durationMs = m.durationMs ?? 0
+              m.finalScores = finalScores
+              needsSave = true
+              console.log(`[Storage] Repaired Bob's 27 match ${m.id} from event log (no MatchFinished event)`)
+            }
+          }
+        } catch (e) {
+          console.warn(`[Storage] Failed to replay Bob's 27 events for ${m.id}:`, e)
+        }
+      }
+    }
+
+    // Fall 3: Solo-Match ist finished aber winnerId ist null → Solo-Spieler ist Winner
+    if (m.finished && !m.winnerId && m.players?.length === 1) {
+      m.winnerId = m.players[0].playerId
+      needsSave = true
+    }
+
+    if (!needsSave) continue
+
+    // SQLite Dual-Write
+    dbSaveBobs27Match({
+      id: m.id,
+      title: m.title,
+      createdAt: m.createdAt,
+      finished: true,
+      finishedAt: m.finishedAt ?? null,
+      durationMs: m.durationMs ?? 0,
+      winnerId: m.winnerId ?? null,
+      winnerDarts: m.winnerDarts ?? 0,
+      players: m.players,
+      events: m.events,
+      config: m.config,
+      targets: m.targets,
+      finalScores: m.finalScores,
+    }).catch(err => trackDBError('bobs27-repair', m.id, err))
+
+    repaired++
+  }
+
+  if (repaired > 0) {
+    bobs27MatchesCache = all
+    writeJSONSafe(LS_BOBS27.matches, all)
+    console.log(`[Storage] Repaired ${repaired} Bob's 27 match(es)`)
+  }
+  return repaired
+}
+
+export function pruneOldBobs27Matches(keepCount: number = 20): boolean {
+  const all = getBobs27Matches()
+  if (all.length <= keepCount) return false
+  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+  const toDelete = all.length - keepCount
+  const pruned = all.slice(toDelete)
+  console.log(`[Storage] Pruning ${toDelete} old Bob's 27 matches, keeping ${pruned.length}`)
+  writeJSON(LS_BOBS27.matches, pruned)
+  bobs27MatchesCache = pruned
+  return true
+}
+
+/* -------------------------------------------------
+   Operation Storage
+------------------------------------------------- */
+import type { OperationStoredMatch, OperationEvent, OperationConfig, OperationPlayer } from './types/operation'
+import { id as operationId, now as operationNow } from './dartsOperation'
+
+const LS_OPERATION = {
+  matches: 'operation.matches.v1',
+  lastOpenMatchId: 'operation.lastOpenMatchId.v1',
+} as const
+
+let operationMatchesCache: OperationStoredMatch[] | null = null
+
+export function getOperationMatches(): OperationStoredMatch[] {
+  if (operationMatchesCache) return operationMatchesCache
+  return readJSON<OperationStoredMatch[]>(LS_OPERATION.matches, [])
+}
+
+export function getOperationMatchById(matchId: string): OperationStoredMatch | null {
+  const matches = getOperationMatches()
+  return matches.find(m => m.id === matchId) ?? null
+}
+
+export function getOpenOperationMatch(): OperationStoredMatch | undefined {
+  const lastId = localStorage.getItem(LS_OPERATION.lastOpenMatchId)
+  if (!lastId) return undefined
+  const matches = getOperationMatches()
+  return matches.find(m => m.id === lastId && !m.finished)
+}
+
+export function setLastOpenOperationMatchId(matchId: string) {
+  localStorage.setItem(LS_OPERATION.lastOpenMatchId, matchId)
+}
+
+export function createOperationMatchShell(args: {
+  players: OperationPlayer[]
+  config: OperationConfig
+}): OperationStoredMatch {
+  const matchId = operationId()
+  const config = args.config
+
+  const title = `Operation – ${args.players.map(p => p.name).join(' vs ')}`
+
+  const startEvent: OperationEvent = {
+    type: 'OperationMatchStarted',
+    eventId: operationId(),
+    matchId,
+    ts: operationNow(),
+    players: args.players,
+    config,
+  }
+
+  const stored: OperationStoredMatch = {
+    id: matchId,
+    title,
+    createdAt: operationNow(),
+    players: args.players,
+    config,
+    events: [startEvent],
+  }
+
+  const all = getOperationMatches()
+  all.push(stored)
+  operationMatchesCache = all
+  writeJSONSafe(LS_OPERATION.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbSaveOperationMatch({
+    id: stored.id,
+    title: stored.title,
+    createdAt: stored.createdAt,
+    finished: false,
+    finishedAt: null,
+    durationMs: null,
+    winnerId: null,
+    winnerDarts: null,
+    legsCount: config.legsCount,
+    targetMode: config.targetMode,
+    players: stored.players,
+    events: stored.events,
+    config: stored.config,
+  }).catch(err => trackDBError('operation-save', stored.id, err))
+
+  return stored
+}
+
+export function persistOperationEvents(matchId: string, events: OperationEvent[]) {
+  const all = getOperationMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].events = events
+  operationMatchesCache = all
+  writeJSONSafe(LS_OPERATION.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  dbUpdateOperationEvents(matchId, events).catch(err => trackDBError('operation-events', matchId, err))
+}
+
+export function finishOperationMatch(
+  matchId: string,
+  winnerId: string | null,
+  durationMs: number,
+  finalScores?: Record<string, number>,
+  legWins?: Record<string, number>
+) {
+  const all = getOperationMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].finished = true
+  all[idx].finishedAt = operationNow()
+  all[idx].winnerId = winnerId
+  all[idx].durationMs = durationMs
+  if (finalScores) all[idx].finalScores = finalScores
+  if (legWins) all[idx].legWins = legWins
+
+  operationMatchesCache = all
+  writeJSONSafe(LS_OPERATION.matches, all, () => pruneAllOldMatches())
+
+  // SQLite Dual-Write
+  const match = all[idx]
+  dbSaveOperationMatch({
+    id: match.id,
+    title: match.title,
+    createdAt: match.createdAt,
+    finished: true,
+    finishedAt: match.finishedAt ?? null,
+    durationMs: match.durationMs ?? null,
+    winnerId: match.winnerId ?? null,
+    winnerDarts: null,
+    legsCount: match.config.legsCount,
+    targetMode: match.config.targetMode,
+    players: match.players,
+    events: match.events,
+    config: match.config,
+    finalScores: match.finalScores,
+    legWins: match.legWins,
+  }).catch(err => trackDBError('operation-finish', matchId, err))
+}
+
+export function deleteOperationMatch(matchId: string) {
+  const all = getOperationMatches()
+  const filtered = all.filter(m => m.id !== matchId)
+  operationMatchesCache = filtered
+  writeJSONSafe(LS_OPERATION.matches, filtered)
+  clearMatchPaused(matchId, 'operation')
+  clearMatchElapsedTime(matchId, 'operation')
+}
+
+/**
+ * Repariert Operation Matches:
+ * 1. Events enthalten MatchFinished aber Match-Shell ist nicht finished
+ * 2. Solo-Matches die finished sind aber winnerId = null haben
+ */
+export function repairOperationMatches(): number {
+  const all = getOperationMatches()
+  let repaired = 0
+
+  for (const m of all) {
+    let needsSave = false
+
+    // Fall 1: Events enthalten MatchFinished aber Match nicht als finished markiert
+    if (!m.finished) {
+      const finishEvent = m.events?.find(e => e.type === 'OperationMatchFinished') as any
+      if (!finishEvent) continue
+
+      m.finished = true
+      m.finishedAt = finishEvent.ts
+      m.winnerId = finishEvent.winnerId ?? null
+      m.durationMs = finishEvent.durationMs ?? 0
+      m.finalScores = finishEvent.finalScores
+      m.legWins = finishEvent.legWins
+      needsSave = true
+    }
+
+    // Fall 2: Solo-Match ist finished aber winnerId ist null → Solo-Spieler ist Winner
+    if (m.finished && !m.winnerId && m.players?.length === 1) {
+      m.winnerId = m.players[0].playerId
+      needsSave = true
+    }
+
+    if (!needsSave) continue
+
+    // SQLite Dual-Write
+    dbSaveOperationMatch({
+      id: m.id,
+      title: m.title,
+      createdAt: m.createdAt,
+      finished: true,
+      finishedAt: m.finishedAt ?? null,
+      durationMs: m.durationMs ?? null,
+      winnerId: m.winnerId ?? null,
+      winnerDarts: null,
+      legsCount: m.config?.legsCount ?? 1,
+      targetMode: m.config?.targetMode ?? 'RANDOM_NUMBER',
+      players: m.players,
+      events: m.events,
+      config: m.config,
+      finalScores: m.finalScores,
+      legWins: m.legWins,
+    }).catch(err => trackDBError('operation-repair', m.id, err))
+
+    repaired++
+  }
+
+  if (repaired > 0) {
+    operationMatchesCache = all
+    writeJSONSafe(LS_OPERATION.matches, all)
+    console.log(`[Storage] Repaired ${repaired} Operation match(es)`)
+  }
+  return repaired
+}
+
+export function pruneOldOperationMatches(keepCount: number = 20): boolean {
+  const all = getOperationMatches()
+  if (all.length <= keepCount) return false
+  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+  const toDelete = all.length - keepCount
+  const pruned = all.slice(toDelete)
+  console.log(`[Storage] Pruning ${toDelete} old Operation matches, keeping ${pruned.length}`)
+  writeJSON(LS_OPERATION.matches, pruned)
+  operationMatchesCache = pruned
+  return true
+}
+
+/* -------------------------------------------------
    Migration: ATB Capture/Pirate → CTF
 ------------------------------------------------- */
 
@@ -4685,6 +5442,32 @@ export function cleanupStaleUnfinishedMatches(): void {
       killerMatchesCache = filtered
       writeJSON(LS_KILLER_MATCHES, filtered)
       console.log(`[Cleanup] Deleted ${deleted} stale Killer matches`)
+    }
+  }
+
+  // Bob's 27
+  {
+    const all = getBobs27Matches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      bobs27MatchesCache = filtered
+      writeJSON(LS_BOBS27.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Bob's 27 matches`)
+    }
+  }
+
+  // Operation
+  {
+    const all = getOperationMatches()
+    const filtered = all.filter(m => !isStale(m.createdAt, m.finished))
+    if (filtered.length < all.length) {
+      const deleted = all.length - filtered.length
+      totalDeleted += deleted
+      operationMatchesCache = filtered
+      writeJSON(LS_OPERATION.matches, filtered)
+      console.log(`[Cleanup] Deleted ${deleted} stale Operation matches`)
     }
   }
 

@@ -16,16 +16,12 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader from '../components/LegHeader'
+import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
   matchId: string
   onBack: () => void
 }
-
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#a855f7', '#14b8a6', '#eab308', '#ec4899',
-]
 
 type LegInfo = {
   legId: string

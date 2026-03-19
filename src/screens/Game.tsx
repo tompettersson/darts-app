@@ -2,7 +2,7 @@
 // Spielscreen – modernisierte UI (weiche Cards, Chips, große Live-Zahl, Dart-Pills rechts)
 // Styling komplett via game.css
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from '../ThemeProvider'
 import {
   loadMatchById,
@@ -672,6 +672,20 @@ type MultiplayerProps = {
   playerCount: number
 }
 
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
+
 type Props = {
   matchId: string
   onExit: () => void
@@ -851,23 +865,32 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       // Just set local state optimistically
       setEvents(finalEvents)
     } else {
-      persistEvents(matchStoredNonNull.id, finalEvents)
+      // React-State zuerst setzen, dann persist versuchen
       setEvents(finalEvents)
+      try {
+        persistEvents(matchStoredNonNull.id, finalEvents)
+      } catch (persistErr) {
+        console.warn('finalizeIfFinished persist failed:', persistErr)
+      }
     }
     setCurrent([])
 
-    finishMatch(matchStoredNonNull.id)
+    try { finishMatch(matchStoredNonNull.id) } catch (e) { console.warn('finishMatch failed:', e) }
 
-    finishMatchUpload(
-      { ...matchStoredNonNull, events: finalEvents },
-      matchNonNull.players.map((p) => ({ id: p.playerId, name: p.name ?? p.playerId }))
-    )
+    try {
+      finishMatchUpload(
+        { ...matchStoredNonNull, events: finalEvents },
+        matchNonNull.players.map((p) => ({ id: p.playerId, name: p.name ?? p.playerId }))
+      )
+    } catch (e) { console.warn('finishMatchUpload failed:', e) }
 
-    updateLeaderboardsWithMatch({
-      id: matchStoredNonNull.id,
-      events: finalEvents,
-      finishedAt: now(),
-    })
+    try {
+      updateLeaderboardsWithMatch({
+        id: matchStoredNonNull.id,
+        events: finalEvents,
+        finishedAt: now(),
+      })
+    } catch (e) { console.warn('updateLeaderboardsWithMatch failed:', e) }
 
     updateGlobalX01PlayerStatsFromMatch(matchStoredNonNull.id, finalEvents)
 
@@ -896,6 +919,10 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
   const [flashByPlayer, setFlashByPlayer] = useState<Record<string, string | null>>({})
   const flashTimerRef = useRef<Record<string, number>>({})
   const [lastVisitByPlayer, setLastVisitByPlayer] = useState<Record<string, Visit | null>>({})
+
+  // Score Popup (zentrale Einblendung nach Visit)
+  const [scorePopup, setScorePopup] = useState<{ label: string; bust: boolean; key: number } | null>(null)
+  const scorePopupTimerRef = useRef<number>(0)
 
   // --- Pause-Modus ---
   const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'x01'))
@@ -1056,8 +1083,9 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
     const players = match.players
     const headerCells = players.map((p) => p.name ?? p.playerId)
 
-    type Row = { label: string; values: React.ReactNode[] }
+    type Row = { label: string; values: React.ReactNode[]; compareValues?: number[]; better?: 'high' | 'low' }
     const rows: Row[] = []
+    const pids = players.map(p => p.playerId)
 
     // Platzierung berechnen (nach Sets oder Legs sortiert)
     const scoreForRank = isSets ? setsWon : legsWonCurrent
@@ -1089,27 +1117,30 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       rows.push({
         label: 'Sets gewonnen',
         values: players.map((p) => <span key={p.playerId}>{setsWon[p.playerId] ?? 0}</span>),
+        compareValues: players.map(p => setsWon[p.playerId] ?? 0), better: 'high',
       })
     }
 
     rows.push({
       label: 'Legs gewonnen (aktuelles/letztes Set)',
       values: players.map((p) => <span key={p.playerId}>{legsWonCurrent[p.playerId] ?? 0}</span>),
+      compareValues: players.map(p => legsWonCurrent[p.playerId] ?? 0), better: 'high',
     })
 
+    const checkoutPcts = players.map(p => {
+      const s: any = statsByPlayer[p.playerId] ?? {}
+      const made = s.doublesHitDart ?? 0
+      const att = s.doubleAttemptsDart ?? 0
+      return { pct: att > 0 ? (made / att) * 100 : 0, made, att }
+    })
     rows.push({
       label: 'Checkout-Quote (Darts)',
-      values: players.map((p) => {
-        const s: any = statsByPlayer[p.playerId] ?? {}
-        const made = s.doublesHitDart ?? 0
-        const att = s.doubleAttemptsDart ?? 0
-        const pct = att > 0 ? (made / att) * 100 : 0
-        return (
-          <span key={p.playerId}>
-            {pct.toFixed(1)}% <span className="g-dim">({made}/{att})</span>
-          </span>
-        )
-      }),
+      values: players.map((p, i) => (
+        <span key={p.playerId}>
+          {checkoutPcts[i].pct.toFixed(1)}% <span className="g-dim">({checkoutPcts[i].made}/{checkoutPcts[i].att})</span>
+        </span>
+      )),
+      compareValues: checkoutPcts.map(c => c.pct), better: 'high',
     })
 
     rows.push({
@@ -1117,6 +1148,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       values: players.map((p) => (
         <span key={p.playerId}>{(statsByPlayer[p.playerId]?.threeDartAvg ?? 0).toFixed(2)}</span>
       )),
+      compareValues: players.map(p => statsByPlayer[p.playerId]?.threeDartAvg ?? 0), better: 'high',
     })
 
     rows.push({
@@ -1124,11 +1156,14 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       values: players.map((p) => (
         <span key={p.playerId}>{(statsByPlayer[p.playerId]?.first9OverallAvg ?? 0).toFixed(2)}</span>
       )),
+      compareValues: players.map(p => statsByPlayer[p.playerId]?.first9OverallAvg ?? 0), better: 'high',
     })
 
+    const pointsPerLeg = players.map(p => computePointsPerLegAvg(events, p.playerId))
     rows.push({
       label: 'Punkte pro Leg (Ø)',
-      values: players.map((p) => <span key={p.playerId}>{computePointsPerLegAvg(events, p.playerId).toFixed(1)}</span>),
+      values: players.map((p, i) => <span key={p.playerId}>{pointsPerLeg[i].toFixed(1)}</span>),
+      compareValues: pointsPerLeg, better: 'high',
     })
 
     // Höchste Aufnahme pro Spieler (über alle Legs)
@@ -1146,6 +1181,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         const hv = highestVisitMatch[p.playerId] ?? 0
         return <span key={p.playerId}>{hv > 0 ? hv : '—'}</span>
       }),
+      compareValues: players.map(p => highestVisitMatch[p.playerId] ?? 0), better: 'high',
     })
 
     rows.push({
@@ -1154,6 +1190,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         const best = statsByPlayer[p.playerId]?.bestLegDarts
         return <span key={p.playerId}>{best ? `${best} Darts` : '—'}</span>
       }),
+      compareValues: players.map(p => statsByPlayer[p.playerId]?.bestLegDarts ?? Infinity), better: 'low',
     })
 
     rows.push({
@@ -1201,18 +1238,23 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, ri) => (
-                <tr key={ri}>
-                  <td className="g-tdh" style={{ fontWeight: 700 }}>
-                    {r.label}
-                  </td>
-                  {r.values.map((v, ci) => (
-                    <td key={ci} className="g-td">
-                      {v}
+              {rows.map((r, ri) => {
+                const winColors = r.better && r.compareValues
+                  ? getStatWinnerColors(r.compareValues, pids, r.better, playerColors)
+                  : undefined
+                return (
+                  <tr key={ri}>
+                    <td className="g-tdh" style={{ fontWeight: 700 }}>
+                      {r.label}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {r.values.map((v, ci) => (
+                      <td key={ci} className="g-td" style={winColors?.[ci] ? { color: winColors[ci], fontWeight: 700 } : undefined}>
+                        {v}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -1402,8 +1444,13 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           // Optimistic local update
           setEvents(allEvents)
         } else {
-          persistEvents(matchStored.id, allEvents)
+          // React-State zuerst setzen, damit das Spiel auch bei LS-Fehler weitergeht
           setEvents(allEvents)
+          try {
+            persistEvents(matchStored.id, allEvents)
+          } catch (persistErr) {
+            console.warn('persistEvents failed (LS quota?), game continues in-memory:', persistErr)
+          }
         }
       }
 
@@ -1414,6 +1461,15 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
       const lastLegTmp = tmp1.legs[tmp1.legs.length - 1]
       const firstVisitEvt = visitEvents.find(isVisitAdded)
+
+      // Score Popup für ALLE Pfade (auch Leg/Match-Finish mit early return)
+      if (firstVisitEvt) {
+        const popLabel = firstVisitEvt.bust ? 'BUST' : String(firstVisitEvt.visitScore ?? 0)
+        if (scorePopupTimerRef.current) window.clearTimeout(scorePopupTimerRef.current)
+        setScorePopup({ label: popLabel, bust: !!firstVisitEvt.bust, key: Date.now() })
+        scorePopupTimerRef.current = window.setTimeout(() => setScorePopup(null), 800)
+      }
+
       const engineSetLegFinished = !!lastLegTmp?.winnerPlayerId && lastLegTmp.legId === leg.legId
       const activeIsZero = lastLegTmp?.remainingByPlayer?.[activePlayerId] === 0
 
@@ -1503,7 +1559,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
             setTimeout(() => announceLegDart(), 800)
           }
 
-          const totalLegsStarted = applyEvents(newEvents).legs.length
+          const totalLegsStarted = tmp1.legs.length
           const starter = nextLegStarter(match, totalLegsStarted)
 
           const nextLegEvt: LegStarted = {
@@ -1542,8 +1598,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           const needLegs = requiredToWinLocal(legsPerSet)
           const needSets = requiredToWinLocal(bestOfSets)
 
-          const tmpApplied2 = applyEvents(newEvents)
-          const tmpSets = tmpApplied2.sets
+          const tmpSets = tmp1.sets
           const curSet = tmpSets[tmpSets.length - 1]
           const curSetIndex = curSet?.setIndex ?? tmpSets.length ?? 1
 
@@ -1569,8 +1624,8 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
             }
             newEvents.push(setFinishedEvt)
 
-            const afterSetsApplied: any = applyEvents(newEvents)
-            const afterSets: any[] = afterSetsApplied.sets || []
+            tmp1 = applyEvents(newEvents)
+            const afterSets: any[] = tmp1.sets || []
             const setsWonCount: Record<string, number> = Object.fromEntries(match.players.map((p) => [p.playerId, 0]))
             for (const s of afterSets) if (s.winnerPlayerId) setsWonCount[s.winnerPlayerId]++
 
@@ -1614,7 +1669,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
             // Nächstes Set + nächstes Leg vorbereiten (Start erst nach "Weiter")
             const nextSetIdx = curSetIndex + 1
 
-            const totalLegsStarted = applyEvents(newEvents).legs.length
+            const totalLegsStarted = tmp1.legs.length
             const starter = nextLegStarter(match, totalLegsStarted)
 
             const nextSetEvt: SetStarted = {
@@ -1665,7 +1720,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
             setTimeout(() => announceLegDart(), 800)
           }
 
-          const totalLegsStarted = applyEvents(newEvents).legs.length
+          const totalLegsStarted = tmp1.legs.length
           const starter = nextLegStarter(match, totalLegsStarted)
 
           const nextLegEvt: LegStarted = {
@@ -1719,8 +1774,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         announceScore(visitScore, isBust)
 
         // Nächsten Spieler ermitteln und ansagen
-        const tmpState = applyEvents(newEvents)
-        const tmpLeg = tmpState.legs[tmpState.legs.length - 1]
+        const tmpLeg = tmp1.legs[tmp1.legs.length - 1]
         if (tmpLeg) {
           const nextPlayerId = getCurrentPlayerId(match, tmpLeg, newEvents)
           const nextPlayerName = match.players.find((p) => p.playerId === nextPlayerId)?.name ?? nextPlayerId
@@ -1757,7 +1811,9 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
       setCurrent([])
     } catch (err) {
       console.error('Visit bestätigen fehlgeschlagen:', err)
-      alert('Unerwarteter Fehler beim Speichern des Wurfs. Details in der Konsole.')
+      console.error('Stack:', (err as Error)?.stack)
+      console.error('Events count:', events.length, 'Match:', matchStored?.id)
+      alert(`Unerwarteter Fehler beim Speichern des Wurfs:\n${(err as Error)?.message ?? err}\n\nDetails in der Konsole (F12).`)
     }
   }
 
@@ -1810,6 +1866,43 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
     }
   }, [leg, match, live.remaining, activePlayerId, current.length, current])
 
+  // Enter-Taste zum Weitergehen bei Intermission
+  const continueFromIntermission = useCallback(() => {
+    if (!intermission || !matchStored) return
+    try {
+      const next = [...events, ...(intermission.pendingNextEvents ?? [])]
+      if (multiplayer?.enabled) {
+        const delta = intermission.pendingNextEvents ?? []
+        if (delta.length > 0) multiplayer.submitEvents(delta)
+        setEvents(next)
+      } else {
+        // Events zuerst in React-State setzen, dann persist versuchen
+        setEvents(next)
+        try {
+          persistEvents(matchStored.id, next)
+        } catch (persistErr) {
+          console.warn('Intermission persist failed (LS quota?), continuing in-memory:', persistErr)
+        }
+      }
+      setCurrent([])
+      setIntermission(null)
+      setShowDetails(false)
+      legWonAnnouncedRef.current = false
+    } catch (err) {
+      console.error('continueFromIntermission failed:', err)
+      alert(`Fehler beim Fortsetzen: ${(err as Error)?.message ?? err}`)
+    }
+  }, [intermission, events, multiplayer, matchStored])
+
+  useEffect(() => {
+    if (!intermission) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') continueFromIntermission()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [intermission, continueFromIntermission])
+
   // Error-Screen anzeigen wenn nötig (nach allen Hooks!)
   if (errorScreen) {
     return errorScreen
@@ -1841,6 +1934,13 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
   return (
     <div className="g-page" style={backgroundStyle}>
+      {/* Score Popup (nur Classic-Modus, Arcade nutzt CenterScore) */}
+      {scorePopup && !isArcade && (
+        <div key={scorePopup.key} className={`g-scorePopup${scorePopup.bust ? ' bust' : ''}`}>
+          {scorePopup.label}
+        </div>
+      )}
+
       {/* Intermission Overlay (Leg/Set Summary) */}
       {intermission && (
         <div className="g-overlay" role="dialog" aria-modal="true">
@@ -1861,22 +1961,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                 </button>
                 <button
                   className="g-btn"
-                  onClick={() => {
-                    const next = [...events, ...(intermission.pendingNextEvents ?? [])]
-                    if (multiplayer?.enabled) {
-                      const delta = intermission.pendingNextEvents ?? []
-                      if (delta.length > 0) multiplayer.submitEvents(delta)
-                      setEvents(next)
-                    } else {
-                      persistEvents(matchStored.id, next)
-                      setEvents(next)
-                    }
-                    setCurrent([])
-                    setIntermission(null)
-                    setShowDetails(false)
-                    // Ansagen-Refs zurücksetzen für nächstes Leg
-                    legWonAnnouncedRef.current = false
-                  }}
+                  onClick={continueFromIntermission}
                 >
                   Weiter →
                 </button>
@@ -1960,6 +2045,19 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                 const thRight: React.CSSProperties = { textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#0f172a', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
                 const tdLeft: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151' }
                 const tdRight: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }
+                const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
+
+                // Winner-Farben für Leg-Statistik
+                const legPids = match.players.map(p => p.playerId)
+                const avgWin = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.threeDartAvg ?? 0), legPids, 'high', playerColors)
+                const f9Win = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.first9OverallAvg ?? 0), legPids, 'high', playerColors)
+                const w180 = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.bins?._180 ?? 0), legPids, 'high', playerColors)
+                const w140 = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.bins?._140plus ?? 0), legPids, 'high', playerColors)
+                const w100 = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.bins?._100plus ?? 0), legPids, 'high', playerColors)
+                const w61 = getStatWinnerColors(match.players.map(p => bins61plus[p.playerId] ?? 0), legPids, 'high', playerColors)
+                const hvWin = getStatWinnerColors(match.players.map(p => highestVisit[p.playerId] ?? 0), legPids, 'high', playerColors)
+                const coWin = getStatWinnerColors(match.players.map(p => legStats[p.playerId]?.doublePctDart ?? 0), legPids, 'high', playerColors)
+                const restWin = getStatWinnerColors(match.players.map(p => restByPlayer[p.playerId]), legPids, 'low', playerColors)
 
                 return (
                   <>
@@ -2000,44 +2098,44 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                         <tbody>
                           <tr>
                             <td style={tdLeft}>Average</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(avgWin[i])}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>First Nine</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(f9Win[i])}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>180s</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(w180[i])}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>140+</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(w140[i])}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>100+</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(w100[i])}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>61+</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{bins61plus[p.playerId] ?? 0}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(w61[i])}>{bins61plus[p.playerId] ?? 0}</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>Höchste Aufnahme</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{highestVisit[p.playerId] ?? 0}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>
                             ))}
                           </tr>
                           <tr>
@@ -2072,14 +2170,14 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                           </tr>
                           <tr>
                             <td style={tdLeft}>Checkout Quote</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(coWin[i])}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
                             ))}
                           </tr>
                           <tr>
                             <td style={tdLeft}>Rest</td>
-                            {match.players.map((p) => (
-                              <td key={p.playerId} style={tdRight}>{restByPlayer[p.playerId]}</td>
+                            {match.players.map((p, i) => (
+                              <td key={p.playerId} style={tdWin(restWin[i])}>{restByPlayer[p.playerId]}</td>
                             ))}
                           </tr>
 
@@ -2779,6 +2877,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                   setupShot={setupShot ?? null}
                   bust={live.bust}
                   showSets={isSets}
+                  confirmedScore={scorePopup ? { value: Number(scorePopup.label) || 0, bust: scorePopup.bust, key: scorePopup.key } : null}
                 />
 
                 {/* Chart/Legverlauf + Action Buttons + Tastenfeld nebeneinander */}

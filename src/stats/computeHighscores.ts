@@ -93,7 +93,7 @@ export function computeAllHighscores(): HighscoreCategory[] {
 
 // Einträge für eine Kategorie berechnen
 function computeCategoryEntries(
-  categoryId: HighscoreCategoryId,
+  categoryId: string,
   profiles: Profile[],
   x01Matches: StoredMatch[],
   cricketMatches: CricketStoredMatch[],

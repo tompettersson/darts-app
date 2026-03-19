@@ -12,18 +12,21 @@ import {
   getDirectionLabel,
 } from '../dartsAroundTheBlock'
 import { computeATBMatchStats } from '../stats/computeATBStats'
+import { PLAYER_COLORS } from '../playerColors'
 
-// Spielerfarben (satte Farben, konsistent mit GameATB)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500))
-  '#22c55e', // Grün (500))
-  '#f97316', // Orange (500))
-  '#ef4444', // Rot (500))
-  '#a855f7', // Violett (500))
-  '#14b8a6', // Türkis (500))
-  '#eab308', // Gelb (500))
-  '#ec4899', // Pink (500))
-]
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
@@ -61,6 +64,11 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
   const winner = match.players.find(p => p.playerId === storedMatch.winnerId)
   const totalFields = match.sequence.length
   const matchStats = computeATBMatchStats(storedMatch)
+
+  // Spielerfarben-Map
+  const playerColorMap: Record<string, string> = {}
+  match.players.forEach((p, i) => { playerColorMap[p.playerId] = PLAYER_COLORS[i % PLAYER_COLORS.length] })
+
   // Spieler nach Fortschritt sortieren (Gewinner zuerst)
   const sortedPlayers = [...match.players].sort((a, b) => {
     const progressA = state.currentIndexByPlayer[a.playerId] ?? 0
@@ -190,62 +198,33 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }}>Total Darts</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, fontWeight: 600 }}>
-                        {s.totalDarts}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }}>Triples</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.warning, fontWeight: 600 }}>
-                        {s.triples}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }}>Doubles</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.accent, fontWeight: 600 }}>
-                        {s.doubles}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }}>Singles</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}` }}>
-                        {s.singles}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }}>Misses</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.error }}>
-                        {s.misses}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }}>Hit Rate</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.success, fontWeight: 600 }}>
-                        {s.hitRate.toFixed(1)}%
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '6px 8px', color: colors.fgMuted }}>Ø Darts/Feld</td>
-                    {matchStats.map(s => (
-                      <td key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>
-                        {s.avgDartsPerField.toFixed(2)}
-                      </td>
-                    ))}
-                  </tr>
+                  {(() => {
+                    const tdBase: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, fontWeight: 600 }
+                    const tdLabel: React.CSSProperties = { padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted }
+                    const pids = matchStats.map(s => s.playerId)
+                    type StatRow = { label: string; values: (string | number)[]; compareValues?: number[]; better?: 'high' | 'low' }
+                    const statRows: StatRow[] = [
+                      { label: 'Total Darts', values: matchStats.map(s => s.totalDarts), better: 'low' },
+                      { label: 'Triples', values: matchStats.map(s => s.triples), better: 'high' },
+                      { label: 'Doubles', values: matchStats.map(s => s.doubles), better: 'high' },
+                      { label: 'Singles', values: matchStats.map(s => s.singles), better: 'high' },
+                      { label: 'Misses', values: matchStats.map(s => s.misses), better: 'low' },
+                      { label: 'Hit Rate', values: matchStats.map(s => `${s.hitRate.toFixed(1)}%`), compareValues: matchStats.map(s => s.hitRate), better: 'high' },
+                      { label: 'Ø Darts/Feld', values: matchStats.map(s => s.avgDartsPerField.toFixed(2)), compareValues: matchStats.map(s => s.avgDartsPerField), better: 'low' },
+                    ]
+                    return statRows.map((row, i) => {
+                      const nums = row.compareValues ?? row.values.map(v => typeof v === 'number' ? v : 0)
+                      const winColors = row.better ? getStatWinnerColors(nums, pids, row.better, playerColorMap) : undefined
+                      return (
+                        <tr key={i}>
+                          <td style={i < statRows.length - 1 ? tdLabel : { ...tdLabel, borderBottom: 'none' }}>{row.label}</td>
+                          {row.values.map((v, j) => (
+                            <td key={j} style={{ ...tdBase, ...(i === statRows.length - 1 ? { borderBottom: 'none' } : {}), ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
+                          ))}
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>

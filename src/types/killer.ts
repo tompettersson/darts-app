@@ -142,6 +142,7 @@ export type KillerLogEntry = {
   ts: string
   text: string
   type: 'qualifying' | 'hit' | 'kill' | 'heal' | 'info'
+  round?: number
 }
 
 export type KillerState = {

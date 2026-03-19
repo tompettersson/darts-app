@@ -7,14 +7,16 @@ import { computeCTFMatchStats } from '../stats/computeCTFStats'
 
 // Chart-Komponenten
 import { BarChart, GaugeChart, ProgressBar, CheckoutHeatmap } from '../components/charts'
+import Accordion from '../components/Accordion'
 
-// SQL Stats Tab
+// SQL Stats Tabs
 import SQLStatsTab from './stats/SQLStatsTab'
+import AdvancedStatsTab from './stats/AdvancedStatsTab'
 
 // SQL Stats Hook
 import { useSQLStats, formatDuration } from '../hooks/useSQLStats'
 
-type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'speziell' | 'trends'
+type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'speziell' | 'trends' | 'analyse' | 'erfolge' | 'training'
 
 export default function StatsProfile({
   onOpenMatch,
@@ -24,6 +26,7 @@ export default function StatsProfile({
   const [profiles, setProfiles] = useState<Profile[]>(() => getProfiles())
   const [cursor, setCursor] = useState(0)
   const [activeTab, setActiveTab] = useState<Tab>('allgemein')
+  const [x01Variant, setX01Variant] = useState<301 | 501 | 701 | 901>(501)
 
   // Theme System
   const { isArcade, colors } = useTheme()
@@ -237,6 +240,9 @@ export default function StatsProfile({
     { key: 'ctf', label: 'CTF' },
     { key: 'speziell', label: 'Speziell' },
     { key: 'trends', label: 'Trends' },
+    { key: 'analyse', label: 'Analyse' },
+    { key: 'erfolge', label: 'Erfolge' },
+    { key: 'training', label: 'Training' },
   ]
 
   const prevPlayer = () => {
@@ -658,556 +664,823 @@ export default function StatsProfile({
           </>
         )})()}
 
-        {/* ============ X01 (SQL) ============ */}
-        {activeTab === 'x01' && !sqlStats.loading && !sqlStats.data.x01 && (
-          <div style={s.statsCard}>
-            <div style={s.noData as React.CSSProperties}>
-              Keine X01-Statistiken vorhanden.
-            </div>
-          </div>
-        )}
-        {activeTab === 'x01' && !sqlStats.loading && sqlStats.data.x01 && (() => {
-          const x01 = sqlStats.data.x01
+        {/* ============ X01 (SQL) — Redesigned with Accordions ============ */}
+        {activeTab === 'x01' && !sqlStats.loading && (() => {
+          const x01v = sqlStats.data.x01ByScore[x01Variant]
+          const variants = [301, 501, 701, 901] as const
+
           return (
-          <>
-            {/* Übersicht */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gespielt</span>
-                <span style={s.statsValue}>{x01.matchesPlayed}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gewonnen</span>
-                <span style={s.statsValueGood}>{x01.matchesWon}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Match-Quote</span>
-                <span style={s.statsValueHighlight}>{formatPct(x01.matchWinRate)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gespielt</span>
-                <span style={s.statsValue}>{x01.legsPlayed}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gewonnen</span>
-                <span style={s.statsValue}>{x01.legsWon}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Leg-Quote</span>
-                <span style={s.statsValue}>{formatPct(x01.legWinRate)}</span>
-              </div>
+          <div style={{ maxWidth: 520, margin: '0 auto' }}>
+            {/* Score-Variant Switcher */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: `1px solid ${colors.border}` }}>
+              {variants.map(v => (
+                <button
+                  key={v}
+                  onClick={() => setX01Variant(v)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 0',
+                    fontSize: 14,
+                    fontWeight: x01Variant === v ? 700 : 500,
+                    background: x01Variant === v ? colors.accent : colors.bgCard,
+                    color: x01Variant === v ? (isArcade ? '#0a0a0a' : '#fff') : colors.fg,
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background .12s, color .12s',
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
             </div>
 
-            {/* Scoring */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Scoring</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>3-Dart-Average</span>
-                <span style={s.statsValueHighlight}>{formatNum(x01.threeDartAvg)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Höchste Aufnahme</span>
-                <span style={s.statsValue}>{x01.highestVisit}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Punkte gesamt</span>
-                <span style={s.statsValue}>{x01.totalPoints.toLocaleString('de-DE')}</span>
-              </div>
-              {/* Power-Scoring Balkendiagramm */}
-              <div style={{ marginTop: 12, marginBottom: 8 }}>
-                <BarChart
-                  data={[
-                    { label: '180', value: x01.count180, color: '#ef4444' },
-                    { label: '140+', value: x01.count140plus, color: '#f59e0b' },
-                    { label: '100+', value: x01.count100plus, color: '#10b981' },
-                    { label: '60+', value: x01.count60plus, color: '#3b82f6' },
-                  ]}
-                  height={20}
-                />
-              </div>
-            </div>
-
-            {/* Checkout */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Checkout</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Checkout-Quote</span>
-                <span style={s.statsValueHighlight}>{formatPct(x01.checkoutPercent)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Versuche / Treffer</span>
-                <span style={s.statsValue}>{x01.checkoutAttempts} / {x01.checkoutsMade}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Höchstes Checkout</span>
-                <span style={s.statsValueHighlight}>{x01.highestCheckout || '—'}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Ø Checkout</span>
-                <span style={s.statsValue}>{x01.avgCheckout || '—'}</span>
-              </div>
-            </div>
-
-            {/* Checkout-Heatmap */}
-            {x01Career?.finishingDoubles && Object.keys(x01Career.finishingDoubles).length > 0 && (
-              <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Checkout-Profil</div>
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
-                  <CheckoutHeatmap finishingDoubles={x01Career.finishingDoubles} />
-                </div>
-                <div style={{ fontSize: 11, color: colors.fgDim, textAlign: 'center', marginTop: 8 }}>
-                  Häufigste Doppelfelder beim Auschecken
-                </div>
+            {/* Empty State */}
+            {(!x01v || x01v.matchesPlayed === 0) && (
+              <div style={{ ...s.noData as React.CSSProperties, padding: 40 }}>
+                Noch keine {x01Variant}-Spiele gespielt
               </div>
             )}
 
-            {/* Busts */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Busts</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Anzahl Busts</span>
-                <span style={s.statsValueBad}>{x01.bustCount}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Bust-Quote</span>
-                <span style={s.statsValue}>{formatPct(x01.bustRate)}</span>
-              </div>
-            </div>
-
-            {/* Effizienz */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Effizienz</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gewonnen</span>
-                <span style={s.statsValue}>{x01.legsWon}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Ø Darts pro Leg</span>
-                <span style={s.statsValue}>{formatNum(x01.avgDartsPerLeg)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Bestes Leg</span>
-                <span style={s.statsValueGood}>{x01.bestLegDarts ?? '—'} {x01.bestLegDarts ? 'Darts' : ''}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Darts gesamt</span>
-                <span style={s.statsValue}>{x01.totalDarts.toLocaleString('de-DE')}</span>
-              </div>
-            </div>
-
-          </>
-        )})()}
-
-        {/* ============ 121 SPRINT (SQL) ============ */}
-        {activeTab === '121' && !sqlStats.loading && (
-          <div style={s.statsCard}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: colors.fg }}>Sprint 121</div>
-          </div>
-        )}
-        {activeTab === '121' && !sqlStats.loading && sqlStats.data.stats121 && sqlStats.data.stats121.totalLegs > 0 && (() => {
-          const s121 = sqlStats.data.stats121
-          return (
-          <>
-            {/* 121 Übersicht */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gespielt</span>
-                <span style={s.statsValue}>{s121.totalLegs}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gewonnen</span>
-                <span style={s.statsValueGood}>{s121.legsWon}</span>
-              </div>
-              {s121.matchesPlayed > 0 && (<>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gespielt</span>
-                <span style={s.statsValue}>{s121.matchesPlayed}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gewonnen</span>
-                <span style={s.statsValueGood}>{s121.matchesWon}</span>
-              </div>
-              </>)}
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Gewinnquote</span>
-                <span style={s.statsValueHighlight}>{formatPct(s121.winRate)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Ø Darts bis Finish</span>
-                <span style={s.statsValueHighlight}>{formatNum(s121.avgDartsToFinish)}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Persönliche Bestleistung</span>
-                <span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span>
-              </div>
-            </div>
-
-            {/* 121 Checkout-Analyse */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Checkout-Analyse</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Checkout-Quote</span>
-                <span style={s.statsValueHighlight}>{formatPct(s121.checkoutPct)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Checkout-Versuche / Treffer</span>
-                <span style={s.statsValue}>{s121.checkoutAttempts} / {s121.checkoutsMade}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Darts gesamt</span>
-                <span style={s.statsValue}>{s121.totalDarts}</span>
-              </div>
-            </div>
-
-            {/* 121 Konsistenz */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Konsistenz</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Beste Runde</span>
-                <span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Schlechteste Runde</span>
-                <span style={s.statsValueBad}>{s121.worstDarts ?? '—'} Darts</span>
-              </div>
-            </div>
-
-            {/* 121 Busts */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Busts</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Busts gesamt</span>
-                <span style={s.statsValueBad}>{s121.bustCount}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Bust-Quote</span>
-                <span style={s.statsValue}>{formatPct(s121.bustRate)}</span>
-              </div>
-            </div>
-
-            {/* 121 Skill-Score */}
-            <div style={s.statsCardLast}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Skill-Score</div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                padding: 20,
-              }}>
-                <div style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: '50%',
-                  background: s121.skillScore >= 70 ? colors.successBg :
-                             s121.skillScore >= 40 ? colors.warningBg : colors.errorBg,
-                  border: `4px solid ${s121.skillScore >= 70 ? colors.success :
-                           s121.skillScore >= 40 ? colors.warning : colors.error}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}>
-                  <span style={{
-                    fontSize: 28,
-                    fontWeight: 800,
-                    color: s121.skillScore >= 70 ? colors.success :
-                           s121.skillScore >= 40 ? colors.warning : colors.error,
-                  }}>
-                    {s121.skillScore}
+            {/* Stats Accordions */}
+            {x01v && x01v.matchesPlayed > 0 && (
+            <>
+              {/* 1. Allgemeine Matchdaten */}
+              <Accordion title="Allgemeine Matchdaten" defaultOpen>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Matches gespielt</span>
+                  <span style={s.statsValue}>{x01v.multiMatchesPlayed}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Siege</span>
+                  <span style={s.statsValueGood}>{x01v.multiMatchesWon}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Niederlagen</span>
+                  <span style={s.statsValueBad}>{x01v.multiMatchesLost}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Siegquote</span>
+                  <span style={s.statsValueHighlight}>
+                    {x01v.multiMatchesPlayed > 0
+                      ? formatPct(Math.round(x01v.multiMatchesWon / x01v.multiMatchesPlayed * 100))
+                      : '—'}
                   </span>
-                  <span style={{ fontSize: 10, color: colors.fgDim }}>/ 100</span>
                 </div>
-              </div>
-              <div style={{ fontSize: 12, color: colors.fgDim, textAlign: 'center', marginTop: 8 }}>
-                Gewichtung: 40% Checkout-Quote, 25% Darts bis Finish, 20% Double-Effizienz, 15% Konstanz
-              </div>
-            </div>
-          </>
-        )})()}
-        {activeTab === '121' && !sqlStats.loading && (!sqlStats.data.stats121 || sqlStats.data.stats121.totalLegs === 0) && (
-          <div style={s.statsCard}>
-            <div style={{ color: colors.fgDim, fontSize: 13, textAlign: 'center' }}>Keine 121-Statistiken vorhanden.</div>
-          </div>
-        )}
-
-        {/* ============ STRÄUSSCHEN (LocalStorage) ============ */}
-        {activeTab === '121' && !sqlStats.loading && selected && (() => {
-          const allStrMatches = getStrMatches()
-          // Alle Matches filtern, in denen der Spieler teilgenommen hat
-          const playerMatches = allStrMatches.filter(m =>
-            m.finished && m.players.some(p => p.playerId === selected.id)
-          )
-          if (playerMatches.length === 0) return (
-            <>
-              <div style={s.statsCard}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: colors.fg, marginBottom: 4 }}>Sträußchen</div>
-              </div>
-              <div style={s.statsCard}>
-                <div style={{ color: colors.fgDim, fontSize: 13, textAlign: 'center' }}>Keine Sträußchen-Statistiken vorhanden.</div>
-              </div>
-            </>
-          )
-
-          // Matches in Solo und Mehrspieler aufteilen
-          const multiMatches = playerMatches.filter(m => m.players.length > 1)
-          const soloMatches = playerMatches.filter(m => m.players.length <= 1)
-
-          // Aggregierte Stats (über alle Matches für Leistungs-Stats)
-          let totalLegs = 0
-          let totalDarts = 0
-          let totalHits = 0
-          let totalMisses = 0
-          let totalScore = 0
-          let bestLegDarts: number | null = null
-
-          // Gewinnquote nur aus Mehrspieler
-          let multiTotal = multiMatches.length
-          let multiWon = 0
-
-          for (const m of playerMatches) {
-            if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
-
-            const players = m.players.map(p => ({ playerId: p.playerId, name: p.name }))
-            const matchStats = computeStrMatchStats(m.events, players)
-            const ps = matchStats.find(s => s.playerId === selected.id)
-            if (!ps) continue
-
-            totalLegs += ps.legsPlayed
-            totalDarts += ps.totalDarts
-            totalHits += ps.totalHits
-            totalMisses += ps.totalMisses
-            totalScore += ps.totalScore
-
-            // Bestes Leg: minimalste Darts in einem Leg
-            const legStartEvents = m.events.filter(e => e.type === 'StrLegStarted')
-            for (const legStart of legStartEvents) {
-              if (legStart.type !== 'StrLegStarted') continue
-              const legFinish = m.events.find(e => e.type === 'StrLegFinished' && (e as any).legId === legStart.legId) as any
-              if (!legFinish) continue
-              const result = legFinish.results?.find((r: any) => r.playerId === selected.id)
-              if (result && (bestLegDarts === null || result.totalDarts < bestLegDarts)) {
-                bestLegDarts = result.totalDarts
-              }
-            }
-          }
-
-          const hitRate = totalDarts > 0 ? (totalHits / (totalHits + totalMisses)) * 100 : 0
-          const avgScorePerLeg = totalLegs > 0 ? totalScore / totalLegs : 0
-          const avgDartsPerLeg = totalLegs > 0 ? totalDarts / totalLegs : 0
-          const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
-
-          return (
-            <>
-              <div style={s.statsCard}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: colors.fg }}>Sträußchen</div>
-              </div>
-
-              <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                <div style={{ height: 8 }} />
                 <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Matches gesamt</span>
-                  <span style={s.statsValue}>{playerMatches.length}</span>
-                </div>
-                {multiTotal > 0 && (
-                  <>
-                    <div style={s.statsRow}>
-                      <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
-                      <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
-                    </div>
-                    <div style={s.statsRow}>
-                      <span style={s.statsLabel}>Gewinnquote</span>
-                      <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
-                    </div>
-                  </>
-                )}
-                {soloMatches.length > 0 && (
-                  <div style={s.statsRow}>
-                    <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                    <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
-                  </div>
-                )}
-                <div style={s.statsRowLast}>
-                  <span style={s.statsLabel}>Legs gespielt</span>
-                  <span style={s.statsValue}>{totalLegs}</span>
-                </div>
-              </div>
-
-              <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
-                <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Ø Score pro Leg</span>
-                  <span style={s.statsValueHighlight}>{avgScorePerLeg.toFixed(1)}</span>
+                  <span style={s.statsLabel}>Darts gesamt</span>
+                  <span style={s.statsValue}>{x01v.totalDarts.toLocaleString('de-DE')}</span>
                 </div>
                 <div style={s.statsRow}>
                   <span style={s.statsLabel}>Ø Darts pro Leg</span>
-                  <span style={s.statsValue}>{avgDartsPerLeg.toFixed(1)}</span>
+                  <span style={s.statsValue}>{formatNum(x01v.avgDartsPerLeg)}</span>
                 </div>
-                <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Hit Rate</span>
-                  <span style={s.statsValueGood}>{formatPct(hitRate)}</span>
-                </div>
-                <div style={s.statsRowLast}>
-                  <span style={s.statsLabel}>Bestes Leg</span>
-                  <span style={s.statsValueGood}>{bestLegDarts ?? '—'} Darts</span>
-                </div>
-              </div>
-            </>
-          )
-        })()}
-
-        {/* ============ HIGHSCORE (LocalStorage) ============ */}
-        {activeTab === '121' && !sqlStats.loading && selected && (() => {
-          const allHsMatches = getHighscoreMatches()
-          // Alle Matches filtern, in denen der Spieler teilgenommen hat
-          const playerMatches = allHsMatches.filter(m =>
-            m.finished && m.players.some(p => p.id === selected.id)
-          )
-          if (playerMatches.length === 0) return (
-            <>
-              <div style={s.statsCard}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: colors.fg, marginBottom: 4 }}>Highscore</div>
-              </div>
-              <div style={s.statsCard}>
-                <div style={{ color: colors.fgDim, fontSize: 13, textAlign: 'center' }}>Keine Highscore-Statistiken vorhanden.</div>
-              </div>
-            </>
-          )
-
-          // Matches in Solo und Mehrspieler aufteilen
-          const multiMatches = playerMatches.filter(m => m.players.length > 1)
-          const soloMatches = playerMatches.filter(m => m.players.length <= 1)
-
-          // Aggregierte Stats
-          let totalLegs = 0
-          let totalDarts = 0
-          let totalPoints = 0
-          let total180s = 0
-          let total140plus = 0
-          let total100plus = 0
-          let bestAvg: number | null = null
-
-          // Gewinnquote nur aus Mehrspieler
-          let multiTotal = multiMatches.length
-          let multiWon = 0
-
-          for (const m of playerMatches) {
-            if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
-
-            // Turns des Spielers zählen
-            const playerTurns = m.events.filter(
-              (e: any) => e.type === 'HighscoreTurnAdded' && e.playerId === selected.id
-            ) as any[]
-
-            let legPoints = 0
-            let legDarts = 0
-            for (const turn of playerTurns) {
-              totalDarts += turn.darts?.length ?? 0
-              legDarts += turn.darts?.length ?? 0
-              totalPoints += turn.turnScore ?? 0
-              legPoints += turn.turnScore ?? 0
-
-              if (turn.turnScore === 180) total180s++
-              else if (turn.turnScore >= 140) total140plus++
-              else if (turn.turnScore >= 100) total100plus++
-            }
-
-            // Legs zählen
-            const legFinishes = m.events.filter(
-              (e: any) => e.type === 'HighscoreLegFinished'
-            )
-            totalLegs += legFinishes.length
-
-            // Bester Average im Match
-            if (legDarts > 0) {
-              const avg = (legPoints / legDarts) * 3
-              if (bestAvg === null || avg > bestAvg) bestAvg = avg
-            }
-          }
-
-          const avgPerDart = totalDarts > 0 ? totalPoints / totalDarts : 0
-          const avgPerTurn = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0
-          const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
-
-          return (
-            <>
-              <div style={s.statsCard}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: colors.fg }}>Highscore</div>
-              </div>
-
-              <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-                <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Matches gesamt</span>
-                  <span style={s.statsValue}>{playerMatches.length}</span>
-                </div>
-                {multiTotal > 0 && (
-                  <>
-                    <div style={s.statsRow}>
-                      <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
-                      <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
-                    </div>
-                    <div style={s.statsRow}>
-                      <span style={s.statsLabel}>Gewinnquote</span>
-                      <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
-                    </div>
-                  </>
-                )}
-                {soloMatches.length > 0 && (
-                  <div style={s.statsRow}>
-                    <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                    <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
+                {x01v.soloMatches > 0 && (
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Solo Spiele</span>
+                    <span style={s.statsValue}>{x01v.soloMatches}</span>
                   </div>
                 )}
-                <div style={s.statsRowLast}>
-                  <span style={s.statsLabel}>Legs gespielt</span>
-                  <span style={s.statsValue}>{totalLegs}</span>
-                </div>
-              </div>
+              </Accordion>
 
-              <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Scoring</div>
+              {/* 2. Scoring */}
+              <Accordion title="Scoring" defaultOpen>
                 <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Punkte gesamt</span>
-                  <span style={s.statsValueHighlight}>{totalPoints.toLocaleString('de-DE')}</span>
+                  <span style={s.statsLabel}>Höchste Aufnahme</span>
+                  <span style={s.statsValueHighlight}>{x01v.highestVisit}</span>
                 </div>
-                <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Darts gesamt</span>
-                  <span style={s.statsValue}>{totalDarts.toLocaleString('de-DE')}</span>
-                </div>
-                <div style={s.statsRow}>
-                  <span style={s.statsLabel}>Ø pro Dart</span>
-                  <span style={s.statsValueHighlight}>{formatNum(avgPerDart, 2)}</span>
-                </div>
-                <div style={s.statsRowLast}>
-                  <span style={s.statsLabel}>Ø pro Turn (3 Darts)</span>
-                  <span style={s.statsValueHighlight}>{formatNum(avgPerTurn, 1)}</span>
-                </div>
-              </div>
-
-              <div style={s.statsCardLast}>
-                <div style={s.statsCardTitle as React.CSSProperties}>High Scores</div>
                 <div style={s.statsRow}>
                   <span style={s.statsLabel}>180er</span>
-                  <span style={{ ...s.statsValueHighlight, color: '#fbbf24' }}>{total180s}</span>
+                  <span style={s.statsValue}>{x01v.count180}</span>
                 </div>
                 <div style={s.statsRow}>
                   <span style={s.statsLabel}>140+</span>
-                  <span style={s.statsValue}>{total140plus}</span>
+                  <span style={s.statsValue}>{x01v.count140plus}</span>
                 </div>
                 <div style={s.statsRow}>
                   <span style={s.statsLabel}>100+</span>
-                  <span style={s.statsValue}>{total100plus}</span>
+                  <span style={s.statsValue}>{x01v.count100plus}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>60+</span>
+                  <span style={s.statsValue}>{x01v.count60plus}</span>
+                </div>
+                <div style={{ marginTop: 12, marginBottom: 8 }}>
+                  <BarChart
+                    data={[
+                      { label: '180', value: x01v.count180, color: '#ef4444' },
+                      { label: '140+', value: x01v.count140plus, color: '#f59e0b' },
+                      { label: '100+', value: x01v.count100plus, color: '#10b981' },
+                      { label: '60+', value: x01v.count60plus, color: '#3b82f6' },
+                    ]}
+                    height={20}
+                  />
                 </div>
                 <div style={s.statsRowLast}>
-                  <span style={s.statsLabel}>Bester Match-Avg</span>
-                  <span style={s.statsValueGood}>{bestAvg ? formatNum(bestAvg, 1) : '—'}</span>
+                  <span style={s.statsLabel}>Punkte gesamt</span>
+                  <span style={s.statsValue}>{x01v.totalPoints.toLocaleString('de-DE')}</span>
                 </div>
-              </div>
+              </Accordion>
+
+              {/* 3. Averages */}
+              <Accordion title="Averages">
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>3-Dart-Average</span>
+                  <span style={s.statsValueHighlight}>{formatNum(x01v.threeDartAvg)}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>First-9-Average</span>
+                  <span style={s.statsValue}>—</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Bester Match-Average</span>
+                  <span style={s.statsValueGood}>{x01v.bestMatchAvg != null ? formatNum(x01v.bestMatchAvg) : '—'}</span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Niedrigster Match-Average</span>
+                  <span style={s.statsValueBad}>{x01v.worstMatchAvg != null ? formatNum(x01v.worstMatchAvg) : '—'}</span>
+                </div>
+              </Accordion>
+
+              {/* 4. Checkouts / Finishing */}
+              <Accordion title="Checkouts / Finishing" defaultOpen>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Checkout-Quote</span>
+                  <span style={s.statsValueHighlight}>{formatPct(x01v.checkoutPercent)}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Getroffen / Versucht</span>
+                  <span style={s.statsValue}>{x01v.checkoutsMade} / {x01v.checkoutAttempts}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Höchstes Finish</span>
+                  <span style={s.statsValueHighlight}>{x01v.highestCheckout || '—'}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Ø Checkout</span>
+                  <span style={s.statsValue}>{x01v.avgCheckout || '—'}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>100+ Checkouts</span>
+                  <span style={s.statsValue}>{x01v.checkouts100plus}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Ø Darts pro Checkout</span>
+                  <span style={s.statsValue}>{x01v.dartsPerCheckout != null ? formatNum(x01v.dartsPerCheckout) : '—'}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Meistgenutztes Gewinn-Doppel</span>
+                  <span style={s.statsValueHighlight}>{x01v.topFinishingDouble ?? '—'}</span>
+                </div>
+
+                {/* Checkout-Bereiche Tabelle */}
+                {x01v.checkoutRanges.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: colors.fgMuted, marginBottom: 8 }}>Checkout-Bereiche</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${colors.bgMuted}` }}>
+                          <th style={{ textAlign: 'left', padding: '4px 0', fontWeight: 600, color: colors.fgDim }}>Range</th>
+                          <th style={{ textAlign: 'right', padding: '4px 0', fontWeight: 600, color: colors.fgDim }}>Versuche</th>
+                          <th style={{ textAlign: 'right', padding: '4px 0', fontWeight: 600, color: colors.fgDim }}>Getroffen</th>
+                          <th style={{ textAlign: 'right', padding: '4px 0', fontWeight: 600, color: colors.fgDim }}>Quote</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {x01v.checkoutRanges.map(cr => (
+                          <tr key={cr.range} style={{ borderBottom: `1px solid ${colors.bgMuted}` }}>
+                            <td style={{ padding: '6px 0', color: colors.fg }}>{cr.range}</td>
+                            <td style={{ textAlign: 'right', padding: '6px 0', color: colors.fgDim }}>{cr.attempts}</td>
+                            <td style={{ textAlign: 'right', padding: '6px 0', color: colors.fg, fontWeight: 600 }}>{cr.made}</td>
+                            <td style={{ textAlign: 'right', padding: '6px 0', color: colors.fg, fontWeight: 600 }}>{cr.percent.toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Checkout-Heatmap (aus LocalStorage) */}
+                {x01Career?.finishingDoubles && Object.keys(x01Career.finishingDoubles).length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: colors.fgMuted, marginBottom: 8 }}>Checkout-Profil</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+                      <CheckoutHeatmap finishingDoubles={x01Career.finishingDoubles} />
+                    </div>
+                    <div style={{ fontSize: 11, color: colors.fgDim, textAlign: 'center', marginTop: 4 }}>
+                      Häufigste Doppelfelder beim Auschecken (alle Varianten)
+                    </div>
+                  </div>
+                )}
+              </Accordion>
+
+              {/* 5. Highscores / Bestleistungen */}
+              <Accordion title="Highscores / Bestleistungen">
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Bestes Leg (wenigste Darts)</span>
+                  <span style={s.statsValueGood}>{x01v.bestLegDarts != null ? `${x01v.bestLegDarts} Darts` : '—'}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Meiste 180er in einem Match</span>
+                  <span style={s.statsValue}>{x01v.most180sInMatch}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Bester Match-Average</span>
+                  <span style={s.statsValueGood}>{x01v.bestMatchAvg != null ? formatNum(x01v.bestMatchAvg) : '—'}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Beste Checkout-Quote (Match)</span>
+                  <span style={s.statsValue}>{x01v.bestCheckoutPctInMatch != null ? `${x01v.bestCheckoutPctInMatch.toFixed(1)}%` : '—'}</span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Meiste 140+ in einem Match</span>
+                  <span style={s.statsValue}>{x01v.best140plusInMatch}</span>
+                </div>
+              </Accordion>
+
+              {/* 6. Legs */}
+              <Accordion title="Legs">
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Legs gespielt</span>
+                  <span style={s.statsValue}>{x01v.legsPlayed}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Legs gewonnen</span>
+                  <span style={s.statsValueGood}>{x01v.legsWon}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Leg-Differenz</span>
+                  <span style={x01v.legDifference >= 0 ? s.statsValueGood : s.statsValueBad}>
+                    {x01v.legDifference > 0 ? '+' : ''}{x01v.legDifference}
+                  </span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Leg-Siegquote</span>
+                  <span style={s.statsValue}>{formatPct(x01v.legWinRate)}</span>
+                </div>
+                <div style={{ height: 8 }} />
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>
+                    Gewonnen mit ≤{x01Variant >= 901 ? 30 : x01Variant >= 701 ? 25 : 15} Darts
+                  </span>
+                  <span style={s.statsValue}>
+                    {x01Variant >= 901 ? x01v.legsWonUnder30 : x01Variant >= 701 ? x01v.legsWonUnder25 : x01v.legsWonUnder15}
+                  </span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>
+                    Gewonnen mit ≤{x01Variant >= 901 ? 35 : x01Variant >= 701 ? 30 : 18} Darts
+                  </span>
+                  <span style={s.statsValue}>
+                    {x01Variant >= 901 ? x01v.legsWonUnder35 : x01Variant >= 701 ? x01v.legsWonUnder30 : x01v.legsWonUnder18}
+                  </span>
+                </div>
+                <div style={{ height: 8 }} />
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Schnellstes Leg (wenigste Darts)</span>
+                  <span style={s.statsValueGood}>{x01v.bestLegDarts != null ? `${x01v.bestLegDarts} Darts` : '—'}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Längstes Leg (meiste Darts)</span>
+                  <span style={s.statsValue}>{x01v.longestLegDarts != null ? `${x01v.longestLegDarts} Darts` : '—'}</span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Ø Darts im gewonnenen Leg</span>
+                  <span style={s.statsValue}>{x01v.avgDartsWonLeg != null ? formatNum(x01v.avgDartsWonLeg) : '—'}</span>
+                </div>
+              </Accordion>
             </>
+            )}
+          </div>
           )
         })()}
+
+        {/* ============ TRAININGSSPIELE (Accordions) ============ */}
+        {activeTab === '121' && !sqlStats.loading && (
+          <>
+          {/* --- Sprint 121 --- */}
+          <Accordion title="Sprint 121" defaultOpen={false}>
+            {sqlStats.data.stats121 && sqlStats.data.stats121.totalLegs > 0 ? (() => {
+              const s121 = sqlStats.data.stats121
+              return (
+              <>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Legs gespielt</span>
+                    <span style={s.statsValue}>{s121.totalLegs}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Legs gewonnen</span>
+                    <span style={s.statsValueGood}>{s121.legsWon}</span>
+                  </div>
+                  {s121.matchesPlayed > 0 && (<>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gespielt</span>
+                    <span style={s.statsValue}>{s121.matchesPlayed}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gewonnen</span>
+                    <span style={s.statsValueGood}>{s121.matchesWon}</span>
+                  </div>
+                  </>)}
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewinnquote</span>
+                    <span style={s.statsValueHighlight}>{formatPct(s121.winRate)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Darts bis Finish</span>
+                    <span style={s.statsValueHighlight}>{formatNum(s121.avgDartsToFinish)}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Persönliche Bestleistung</span>
+                    <span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span>
+                  </div>
+                </div>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Checkout-Analyse</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Checkout-Quote</span>
+                    <span style={s.statsValueHighlight}>{formatPct(s121.checkoutPct)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Checkout-Versuche / Treffer</span>
+                    <span style={s.statsValue}>{s121.checkoutAttempts} / {s121.checkoutsMade}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Darts gesamt</span>
+                    <span style={s.statsValue}>{s121.totalDarts}</span>
+                  </div>
+                </div>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Konsistenz</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Beste Runde</span>
+                    <span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Schlechteste Runde</span>
+                    <span style={s.statsValueBad}>{s121.worstDarts ?? '—'} Darts</span>
+                  </div>
+                </div>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Busts</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Busts gesamt</span>
+                    <span style={s.statsValueBad}>{s121.bustCount}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Bust-Quote</span>
+                    <span style={s.statsValue}>{formatPct(s121.bustRate)}</span>
+                  </div>
+                </div>
+                <div style={s.statsCardLast}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Skill-Score</div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 20,
+                  }}>
+                    <div style={{
+                      width: 100,
+                      height: 100,
+                      borderRadius: '50%',
+                      background: s121.skillScore >= 70 ? colors.successBg :
+                                 s121.skillScore >= 40 ? colors.warningBg : colors.errorBg,
+                      border: `4px solid ${s121.skillScore >= 70 ? colors.success :
+                               s121.skillScore >= 40 ? colors.warning : colors.error}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{
+                        fontSize: 28,
+                        fontWeight: 800,
+                        color: s121.skillScore >= 70 ? colors.success :
+                               s121.skillScore >= 40 ? colors.warning : colors.error,
+                      }}>
+                        {s121.skillScore}
+                      </span>
+                      <span style={{ fontSize: 10, color: colors.fgDim }}>/ 100</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: colors.fgDim, textAlign: 'center', marginTop: 8 }}>
+                    Gewichtung: 40% Checkout-Quote, 25% Darts bis Finish, 20% Double-Effizienz, 15% Konstanz
+                  </div>
+                </div>
+              </>
+            )})() : (
+              <div style={s.noData as React.CSSProperties}>Keine Sprint 121-Statistiken vorhanden.</div>
+            )}
+          </Accordion>
+
+          {/* --- Sträußchen --- */}
+          <Accordion title="Sträußchen" defaultOpen={false}>
+            {selected && (() => {
+              const allStrMatches = getStrMatches()
+              const playerMatches = allStrMatches.filter(m =>
+                m.finished && m.players.some(p => p.playerId === selected.id)
+              )
+              if (playerMatches.length === 0) return (
+                <div style={s.noData as React.CSSProperties}>Keine Sträußchen-Statistiken vorhanden.</div>
+              )
+
+              const multiMatches = playerMatches.filter(m => m.players.length > 1)
+              const soloMatches = playerMatches.filter(m => m.players.length <= 1)
+
+              let totalLegs = 0
+              let totalDarts = 0
+              let totalHits = 0
+              let totalMisses = 0
+              let totalScore = 0
+              let bestLegDarts: number | null = null
+              let multiTotal = multiMatches.length
+              let multiWon = 0
+
+              for (const m of playerMatches) {
+                if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
+                const players = m.players.map(p => ({ playerId: p.playerId, name: p.name }))
+                const matchStats = computeStrMatchStats(m.events, players)
+                const ps = matchStats.find(s => s.playerId === selected.id)
+                if (!ps) continue
+                totalLegs += ps.legsPlayed
+                totalDarts += ps.totalDarts
+                totalHits += ps.totalHits
+                totalMisses += ps.totalMisses
+                totalScore += ps.totalScore
+                const legStartEvents = m.events.filter(e => e.type === 'StrLegStarted')
+                for (const legStart of legStartEvents) {
+                  if (legStart.type !== 'StrLegStarted') continue
+                  const legFinish = m.events.find(e => e.type === 'StrLegFinished' && (e as any).legId === legStart.legId) as any
+                  if (!legFinish) continue
+                  const result = legFinish.results?.find((r: any) => r.playerId === selected.id)
+                  if (result && (bestLegDarts === null || result.totalDarts < bestLegDarts)) {
+                    bestLegDarts = result.totalDarts
+                  }
+                }
+              }
+
+              const hitRate = totalDarts > 0 ? (totalHits / (totalHits + totalMisses)) * 100 : 0
+              const avgScorePerLeg = totalLegs > 0 ? totalScore / totalLegs : 0
+              const avgDartsPerLeg = totalLegs > 0 ? totalDarts / totalLegs : 0
+              const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
+
+              return (
+                <>
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Matches gesamt</span>
+                      <span style={s.statsValue}>{playerMatches.length}</span>
+                    </div>
+                    {multiTotal > 0 && (
+                      <>
+                        <div style={s.statsRow}>
+                          <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
+                          <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
+                        </div>
+                        <div style={s.statsRow}>
+                          <span style={s.statsLabel}>Gewinnquote</span>
+                          <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
+                        </div>
+                      </>
+                    )}
+                    {soloMatches.length > 0 && (
+                      <div style={s.statsRow}>
+                        <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                        <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
+                      </div>
+                    )}
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Legs gespielt</span>
+                      <span style={s.statsValue}>{totalLegs}</span>
+                    </div>
+                  </div>
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Ø Score pro Leg</span>
+                      <span style={s.statsValueHighlight}>{avgScorePerLeg.toFixed(1)}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Ø Darts pro Leg</span>
+                      <span style={s.statsValue}>{avgDartsPerLeg.toFixed(1)}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Hit Rate</span>
+                      <span style={s.statsValueGood}>{formatPct(hitRate)}</span>
+                    </div>
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Bestes Leg</span>
+                      <span style={s.statsValueGood}>{bestLegDarts ?? '—'} Darts</span>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+          </Accordion>
+
+          {/* --- Highscore --- */}
+          <Accordion title="Highscore" defaultOpen={false}>
+            {selected && (() => {
+              const allHsMatches = getHighscoreMatches()
+              const playerMatches = allHsMatches.filter(m =>
+                m.finished && m.players.some(p => p.id === selected.id)
+              )
+              if (playerMatches.length === 0) return (
+                <div style={s.noData as React.CSSProperties}>Keine Highscore-Statistiken vorhanden.</div>
+              )
+
+              const multiMatches = playerMatches.filter(m => m.players.length > 1)
+              const soloMatches = playerMatches.filter(m => m.players.length <= 1)
+
+              let totalLegs = 0
+              let totalDarts = 0
+              let totalPoints = 0
+              let total180s = 0
+              let total140plus = 0
+              let total100plus = 0
+              let bestAvg: number | null = null
+              let multiTotal = multiMatches.length
+              let multiWon = 0
+
+              for (const m of playerMatches) {
+                if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
+                const playerTurns = m.events.filter(
+                  (e: any) => e.type === 'HighscoreTurnAdded' && e.playerId === selected.id
+                ) as any[]
+                let legPoints = 0
+                let legDarts = 0
+                for (const turn of playerTurns) {
+                  totalDarts += turn.darts?.length ?? 0
+                  legDarts += turn.darts?.length ?? 0
+                  totalPoints += turn.turnScore ?? 0
+                  legPoints += turn.turnScore ?? 0
+                  if (turn.turnScore === 180) total180s++
+                  else if (turn.turnScore >= 140) total140plus++
+                  else if (turn.turnScore >= 100) total100plus++
+                }
+                const legFinishes = m.events.filter(
+                  (e: any) => e.type === 'HighscoreLegFinished'
+                )
+                totalLegs += legFinishes.length
+                if (legDarts > 0) {
+                  const avg = (legPoints / legDarts) * 3
+                  if (bestAvg === null || avg > bestAvg) bestAvg = avg
+                }
+              }
+
+              const avgPerDart = totalDarts > 0 ? totalPoints / totalDarts : 0
+              const avgPerTurn = totalDarts > 0 ? (totalPoints / totalDarts) * 3 : 0
+              const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
+
+              return (
+                <>
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Matches gesamt</span>
+                      <span style={s.statsValue}>{playerMatches.length}</span>
+                    </div>
+                    {multiTotal > 0 && (
+                      <>
+                        <div style={s.statsRow}>
+                          <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
+                          <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
+                        </div>
+                        <div style={s.statsRow}>
+                          <span style={s.statsLabel}>Gewinnquote</span>
+                          <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
+                        </div>
+                      </>
+                    )}
+                    {soloMatches.length > 0 && (
+                      <div style={s.statsRow}>
+                        <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                        <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
+                      </div>
+                    )}
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Legs gespielt</span>
+                      <span style={s.statsValue}>{totalLegs}</span>
+                    </div>
+                  </div>
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Scoring</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Punkte gesamt</span>
+                      <span style={s.statsValueHighlight}>{totalPoints.toLocaleString('de-DE')}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Darts gesamt</span>
+                      <span style={s.statsValue}>{totalDarts.toLocaleString('de-DE')}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Ø pro Dart</span>
+                      <span style={s.statsValueHighlight}>{formatNum(avgPerDart, 2)}</span>
+                    </div>
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Ø pro Turn (3 Darts)</span>
+                      <span style={s.statsValueHighlight}>{formatNum(avgPerTurn, 1)}</span>
+                    </div>
+                  </div>
+                  <div style={s.statsCardLast}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>High Scores</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>180er</span>
+                      <span style={{ ...s.statsValueHighlight, color: '#fbbf24' }}>{total180s}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>140+</span>
+                      <span style={s.statsValue}>{total140plus}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>100+</span>
+                      <span style={s.statsValue}>{total100plus}</span>
+                    </div>
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Bester Match-Avg</span>
+                      <span style={s.statsValueGood}>{bestAvg ? formatNum(bestAvg, 1) : '—'}</span>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+          </Accordion>
+
+          {/* --- Bob's 27 --- */}
+          <Accordion title="Bob's 27" defaultOpen={false}>
+            {sqlStats.data.bobs27 && sqlStats.data.bobs27.matchesPlayed > 0 ? (() => {
+              const b27 = sqlStats.data.bobs27
+              return (
+              <>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gespielt</span>
+                    <span style={s.statsValueHighlight}>{b27.matchesPlayed}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Endstand</span>
+                    <span style={s.statsValueHighlight}>{b27.avgFinalScore.toFixed(1)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Bester Endstand</span>
+                    <span style={s.statsValueGood}>{b27.bestScore}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Schlechtester Endstand</span>
+                    <span style={s.statsValueBad}>{b27.worstScore}</span>
+                  </div>
+                </div>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Hit-Rate</span>
+                    <span style={s.statsValueHighlight}>{formatPct(b27.avgHitRate)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Targets abgeschlossen</span>
+                    <span style={s.statsValue}>{b27.avgTargetsCompleted.toFixed(1)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Durchlaufquote</span>
+                    <span style={s.statsValue}>{formatPct(b27.completionRate)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Darts gesamt</span>
+                    <span style={s.statsValue}>{b27.totalDarts.toLocaleString('de-DE')}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Ø Darts pro Match</span>
+                    <span style={s.statsValue}>{b27.avgDartsPerMatch.toFixed(1)}</span>
+                  </div>
+                </div>
+              </>
+            )})() : (
+              <div style={s.noData as React.CSSProperties}>Keine Bob's 27-Statistiken vorhanden.</div>
+            )}
+          </Accordion>
+
+          {/* --- Operation: EFKG --- */}
+          <Accordion title="Operation: EFKG" defaultOpen={false}>
+            {sqlStats.data.operation && sqlStats.data.operation.matchesPlayed > 0 ? (() => {
+              const op = sqlStats.data.operation
+              return (
+              <>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gespielt</span>
+                    <span style={s.statsValueHighlight}>{op.matchesPlayed}</span>
+                  </div>
+                  {op.multiMatchesPlayed > 0 && (
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Win / Loss</span>
+                    <span style={s.statsValueHighlight}>{op.multiMatchesWon} / {op.multiMatchesPlayed - op.multiMatchesWon}</span>
+                  </div>
+                  )}
+                  {op.soloMatchesPlayed > 0 && (
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Solo Spiele</span>
+                    <span style={s.statsValue}>{op.soloMatchesPlayed}</span>
+                  </div>
+                  )}
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Score</span>
+                    <span style={s.statsValueHighlight}>{op.avgScore.toFixed(1)}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Bester Score</span>
+                    <span style={s.statsValueGood}>{op.bestScore}</span>
+                  </div>
+                </div>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Hit-Rate</span>
+                    <span style={s.statsValueHighlight}>{formatPct(op.avgHitRate)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Punkte/Dart</span>
+                    <span style={s.statsValueHighlight}>{op.avgPointsPerDart.toFixed(2)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Darts gesamt</span>
+                    <span style={s.statsValue}>{op.totalDarts.toLocaleString('de-DE')}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Beste Trefferserie</span>
+                    <span style={s.statsValueGood}>{op.bestStreak || '—'}</span>
+                  </div>
+                </div>
+              </>
+            )})() : (
+              <div style={s.noData as React.CSSProperties}>Keine Operation: EFKG-Statistiken vorhanden.</div>
+            )}
+          </Accordion>
+
+          {/* --- Killer --- */}
+          <Accordion title="Killer" defaultOpen={false}>
+            {sqlStats.data.killer && sqlStats.data.killer.matchesPlayed > 0 ? (() => {
+              const k = sqlStats.data.killer
+              return (
+              <>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gespielt</span>
+                    <span style={s.statsValueHighlight}>{k.matchesPlayed}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gewonnen</span>
+                    <span style={s.statsValueGood}>{k.matchesWon}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Siegquote</span>
+                    <span style={s.statsValueHighlight}>{formatPct(k.winRate)}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Ø Platzierung</span>
+                    <span style={s.statsValueHighlight}>{k.avgPlacement.toFixed(1)}</span>
+                  </div>
+                </div>
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Hit-Rate</span>
+                    <span style={s.statsValueHighlight}>{formatPct(k.avgHitRate)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Darts pro Match</span>
+                    <span style={s.statsValue}>{k.avgDartsPerMatch.toFixed(1)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Darts gesamt</span>
+                    <span style={s.statsValue}>{k.totalDarts.toLocaleString('de-DE')}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Kills gesamt</span>
+                    <span style={s.statsValueHighlight}>{k.totalKills}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Kills pro Match</span>
+                    <span style={s.statsValue}>{k.avgKillsPerMatch.toFixed(1)}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Ø Runden pro Match</span>
+                    <span style={s.statsValue}>{k.avgRoundsPerMatch.toFixed(1)}</span>
+                  </div>
+                </div>
+              </>
+            )})() : (
+              <div style={s.noData as React.CSSProperties}>Keine Killer-Statistiken vorhanden.</div>
+            )}
+          </Accordion>
+          </>
+        )}
 
         {/* ============ CRICKET (SQL) ============ */}
         {activeTab === 'cricket' && !sqlStats.loading && sqlStats.data.cricket && (() => {
@@ -1642,9 +1915,6 @@ export default function StatsProfile({
         {/* Keine Daten */}
         {activeTab === 'allgemein' && !sqlStats.loading && !sqlStats.data.general && (
           <div style={s.noData as React.CSSProperties}>Keine Statistiken vorhanden.</div>
-        )}
-        {activeTab === 'x01' && !sqlStats.loading && !sqlStats.data.x01 && (
-          <div style={s.noData as React.CSSProperties}>Keine X01-Statistiken vorhanden.</div>
         )}
         {activeTab === 'cricket' && !sqlStats.loading && !sqlStats.data.cricket && (
           <div style={s.noData as React.CSSProperties}>Keine Cricket-Statistiken vorhanden.</div>

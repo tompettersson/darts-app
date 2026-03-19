@@ -15,7 +15,27 @@ const GAME_TYPE_LABELS: Record<HighscoreGameType, string> = {
   all: 'Allgemein',
   x01: 'X01',
   cricket: 'Cricket',
-  atb: 'Around the Block',
+  atb: 'ATB',
+  bobs27: "Bob's 27",
+  operation: 'Operation: EFKG',
+}
+
+// Deduplizierung: gleicher Spieler + gleicher Wert → nur einmal
+function deduplicateEntries(cats: HighscoreCategory[]): HighscoreCategory[] {
+  return cats.map(cat => {
+    const seen = new Set<string>()
+    const filtered = cat.entries.filter(e => {
+      const key = `${e.playerId}::${e.value}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    // Ränge neu vergeben
+    return {
+      ...cat,
+      entries: filtered.map((e, i) => ({ ...e, rank: i + 1 })),
+    }
+  })
 }
 
 export default function HallOfFame({ onBack }: Props) {
@@ -34,7 +54,7 @@ export default function HallOfFame({ onBack }: Props) {
     setLoading(true)
     getAllHighscoresSQL().then(cats => {
       if (!cancelled) {
-        setAllCategories(cats)
+        setAllCategories(deduplicateEntries(cats))
         setLoading(false)
       }
     }).catch(() => {
@@ -86,13 +106,36 @@ export default function HallOfFame({ onBack }: Props) {
     }
   }
 
-  // Medaillen für Top 3
-  const getMedal = (rank: number): string => {
-    if (rank === 1) return '🥇'
-    if (rank === 2) return '🥈'
-    if (rank === 3) return '🥉'
-    return ''
+  // Pokale für Top 3 (Gold, Silber, Bronze)
+  const getTrophy = (rank: number): React.ReactNode => {
+    const trophyColors: Record<number, string> = {
+      1: '#FFD700', // Gold
+      2: '#C0C0C0', // Silber
+      3: '#CD7F32', // Bronze
+    }
+    const color = trophyColors[rank]
+    if (!color) return null
+    return <span style={{ fontSize: rank === 1 ? 18 : rank === 2 ? 16 : 15 }}>🏆</span>
   }
+
+  const getTrophyBg = (rank: number): string => {
+    if (rank === 1) return '#FFD70015'
+    if (rank === 2) return '#C0C0C015'
+    if (rank === 3) return '#CD7F3215'
+    return 'transparent'
+  }
+
+  // Shimmer-Animation per <style> tag
+  const shimmerCSS = `
+    @keyframes hof-shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    @keyframes hof-sparkle {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+  `
 
   // Styles
   const s = {
@@ -102,6 +145,32 @@ export default function HallOfFame({ onBack }: Props) {
       padding: '16px 16px 40px',
       background: 'transparent',
     } as React.CSSProperties,
+
+    // Hero Title
+    heroWrap: {
+      textAlign: 'center',
+      marginBottom: 20,
+      padding: '20px 0 12px',
+    } as React.CSSProperties,
+    heroTitle: {
+      fontSize: 32,
+      fontWeight: 900,
+      letterSpacing: '0.02em',
+      background: `linear-gradient(90deg, ${colors.accent}, #FFD700, ${colors.accent}, #FFD700, ${colors.accent})`,
+      backgroundSize: '200% auto',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      backgroundClip: 'text',
+      animation: 'hof-shimmer 3s linear infinite',
+      display: 'inline-block',
+    } as React.CSSProperties,
+    heroSparkle: (delay: number) => ({
+      display: 'inline-block',
+      animation: `hof-sparkle 2s ease-in-out ${delay}s infinite`,
+      fontSize: 20,
+      verticalAlign: 'middle',
+      margin: '0 6px',
+    }) as React.CSSProperties,
 
     // Tab Bar
     tabBar: {
@@ -192,19 +261,19 @@ export default function HallOfFame({ onBack }: Props) {
     } as React.CSSProperties,
 
     // Table Row
-    tableRow: (isTop3: boolean) => ({
+    tableRow: (isTop3: boolean, rank: number) => ({
       display: 'grid',
       gridTemplateColumns: '40px 1fr 80px',
       padding: '12px 16px',
       borderBottom: `1px solid ${colors.border}`,
-      background: isTop3 ? colors.warningBg : colors.bgCard,
+      background: isTop3 ? getTrophyBg(rank) : colors.bgCard,
       alignItems: 'center',
     }) as React.CSSProperties,
-    tableRowLast: (isTop3: boolean) => ({
+    tableRowLast: (isTop3: boolean, rank: number) => ({
       display: 'grid',
       gridTemplateColumns: '40px 1fr 80px',
       padding: '12px 16px',
-      background: isTop3 ? colors.warningBg : colors.bgCard,
+      background: isTop3 ? getTrophyBg(rank) : colors.bgCard,
       alignItems: 'center',
     }) as React.CSSProperties,
 
@@ -272,11 +341,24 @@ export default function HallOfFame({ onBack }: Props) {
     } as React.CSSProperties,
   }
 
+  // Hero Title Block (wiederverwendbar)
+  const heroTitle = (
+    <>
+      <style>{shimmerCSS}</style>
+      <div style={s.heroWrap}>
+        <span style={s.heroSparkle(0)}>✨</span>
+        <span style={s.heroTitle}>Highscores</span>
+        <span style={s.heroSparkle(0.7)}>✨</span>
+      </div>
+    </>
+  )
+
   // Loading State
   if (loading) {
     return (
       <div style={styles.page}>
         <div style={s.shell}>
+          {heroTitle}
           <div style={s.contentBox}>
             <div style={s.emptyState as React.CSSProperties}>
               Lade Highscores…
@@ -291,6 +373,7 @@ export default function HallOfFame({ onBack }: Props) {
     return (
       <div style={styles.page}>
         <div style={s.shell}>
+          {heroTitle}
           <div style={s.contentBox}>
             <div style={s.emptyState as React.CSSProperties}>
               Keine Highscore-Daten vorhanden.
@@ -304,9 +387,11 @@ export default function HallOfFame({ onBack }: Props) {
   return (
     <div style={styles.page}>
       <div style={s.shell}>
+        {heroTitle}
+
         {/* Tab Bar */}
         <div style={s.tabBar}>
-          {(['all', 'x01', 'cricket', 'atb'] as HighscoreGameType[]).map(tab => (
+          {(['all', 'x01', 'cricket', 'atb', 'bobs27', 'operation'] as HighscoreGameType[]).map(tab => (
             <button
               key={tab}
               style={s.tab(activeTab === tab)}
@@ -325,7 +410,7 @@ export default function HallOfFame({ onBack }: Props) {
 
           <div style={s.categoryInfo as React.CSSProperties}>
             <div style={s.categoryTitle as React.CSSProperties}>
-              {currentCategory?.title ?? '—'}
+              {currentCategory?.icon ? `${currentCategory.icon} ` : ''}{currentCategory?.title ?? '—'}
             </div>
             {currentCategory?.subtitle && (
               <div style={s.categorySubtitle as React.CSSProperties}>
@@ -363,14 +448,14 @@ export default function HallOfFame({ onBack }: Props) {
             currentCategory.entries.map((entry, i) => {
               const isLast = i === currentCategory.entries.length - 1
               const isTop3 = entry.rank <= 3
-              const rowStyle = isLast ? s.tableRowLast(isTop3) : s.tableRow(isTop3)
-              const medal = getMedal(entry.rank)
+              const rowStyle = isLast ? s.tableRowLast(isTop3, entry.rank) : s.tableRow(isTop3, entry.rank)
+              const trophy = getTrophy(entry.rank)
 
               return (
-                <div key={entry.playerId} style={rowStyle}>
+                <div key={`${entry.playerId}-${entry.matchId ?? ''}-${i}`} style={rowStyle}>
                   {/* Rank */}
-                  <div style={medal ? s.rankMedal : s.rank}>
-                    {medal || entry.rank}
+                  <div style={trophy ? s.rankMedal : s.rank}>
+                    {trophy || entry.rank}
                   </div>
 
                   {/* Player */}

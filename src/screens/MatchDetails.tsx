@@ -109,6 +109,20 @@ function computeMostCommonScoreForLegs(allEvents: DartsEvent[], legIds: string[]
   return `${sorted[0][0]} (${sorted[0][1]}×)`
 }
 
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
+
 export default function MatchDetails({ matchId, onBack }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -183,6 +197,8 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     const profile = profiles.find((pr) => pr.id === p.playerId)
     playerColors[p.playerId] = profile?.color ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
   })
+  const pids = match.players.map(p => p.playerId)
+  const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
 
   const isSets = match.structure.kind === 'sets'
   const finishedEvt = state.events.find((e) => e.type === 'MatchFinished') as MatchFinished | undefined
@@ -266,46 +282,47 @@ export default function MatchDetails({ matchId, onBack }: Props) {
   })
 
   // Statistik-Zeilen
-  const statRows = [
-    { label: '3-Dart-Average', getValue: (pid: string) => (statsByPlayer[pid]?.threeDartAvg ?? 0).toFixed(2) },
-    { label: 'First-9 Average', getValue: (pid: string) => (statsByPlayer[pid]?.first9OverallAvg ?? 0).toFixed(2) },
-    { label: 'Höchste Aufnahme', getValue: (pid: string) => String(highestVisitByPlayer[pid] || 0) },
-    { label: 'Höchstes Checkout', getValue: (pid: string) => highestCheckoutByPlayer[pid] ? String(highestCheckoutByPlayer[pid]) : '–' },
-    { label: 'Checkout %', getValue: (pid: string) => {
+  type StatRow = { label: string; getValue: (pid: string) => string; getCompareValue?: (pid: string) => number; better?: 'high' | 'low' }
+  const statRows: StatRow[] = [
+    { label: '3-Dart-Average', getValue: (pid) => (statsByPlayer[pid]?.threeDartAvg ?? 0).toFixed(2), getCompareValue: (pid) => statsByPlayer[pid]?.threeDartAvg ?? 0, better: 'high' },
+    { label: 'First-9 Average', getValue: (pid) => (statsByPlayer[pid]?.first9OverallAvg ?? 0).toFixed(2), getCompareValue: (pid) => statsByPlayer[pid]?.first9OverallAvg ?? 0, better: 'high' },
+    { label: 'Höchste Aufnahme', getValue: (pid) => String(highestVisitByPlayer[pid] || 0), getCompareValue: (pid) => highestVisitByPlayer[pid] || 0, better: 'high' },
+    { label: 'Höchstes Checkout', getValue: (pid) => highestCheckoutByPlayer[pid] ? String(highestCheckoutByPlayer[pid]) : '–', getCompareValue: (pid) => highestCheckoutByPlayer[pid] || 0, better: 'high' },
+    { label: 'Checkout %', getValue: (pid) => {
       const sp = statsByPlayer[pid]
       const made = sp?.doublesHitDart ?? 0
       const att = sp?.doubleAttemptsDart ?? 0
       const pct = att > 0 ? (made / att) * 100 : 0
       return `${pct.toFixed(1)}% (${made}/${att})`
-    }},
-    { label: 'Darts geworfen', getValue: (pid: string) => String(statsByPlayer[pid]?.dartsThrown ?? 0) },
-    { label: 'Punkte erzielt', getValue: (pid: string) => String(statsByPlayer[pid]?.pointsScored ?? 0) },
-    { label: 'Legs gewonnen', getValue: (pid: string) => {
+    }, getCompareValue: (pid) => { const sp = statsByPlayer[pid]; const m = sp?.doublesHitDart ?? 0; const a = sp?.doubleAttemptsDart ?? 0; return a > 0 ? (m / a) * 100 : 0 }, better: 'high' },
+    { label: 'Darts geworfen', getValue: (pid) => String(statsByPlayer[pid]?.dartsThrown ?? 0) },
+    { label: 'Punkte erzielt', getValue: (pid) => String(statsByPlayer[pid]?.pointsScored ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.pointsScored ?? 0, better: 'high' },
+    { label: 'Legs gewonnen', getValue: (pid) => {
       let count = 0
       legFinished.forEach((lf) => { if (lf.winnerPlayerId === pid) count++ })
       return String(count)
-    }},
+    }, getCompareValue: (pid) => legFinished.filter(lf => lf.winnerPlayerId === pid).length, better: 'high' },
     // === Scoring-Bins ===
-    { label: '180er', getValue: (pid: string) => String(statsByPlayer[pid]?.bins._180 ?? 0) },
-    { label: '140+', getValue: (pid: string) => String(statsByPlayer[pid]?.bins._140plus ?? 0) },
-    { label: '100+', getValue: (pid: string) => String(statsByPlayer[pid]?.bins._100plus ?? 0) },
-    { label: '61+', getValue: (pid: string) => String(statsByPlayer[pid]?.bins._61plus ?? 0) },
+    { label: '180er', getValue: (pid) => String(statsByPlayer[pid]?.bins._180 ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._180 ?? 0, better: 'high' },
+    { label: '140+', getValue: (pid) => String(statsByPlayer[pid]?.bins._140plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._140plus ?? 0, better: 'high' },
+    { label: '100+', getValue: (pid) => String(statsByPlayer[pid]?.bins._100plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._100plus ?? 0, better: 'high' },
+    { label: '61+', getValue: (pid) => String(statsByPlayer[pid]?.bins._61plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._61plus ?? 0, better: 'high' },
     // === Checkout-Details ===
-    { label: 'Double-Versuche', getValue: (pid: string) => String(statsByPlayer[pid]?.doubleAttemptsDart ?? 0) },
-    { label: 'Lieblingsdoppel', getValue: (pid: string) => {
+    { label: 'Double-Versuche', getValue: (pid) => String(statsByPlayer[pid]?.doubleAttemptsDart ?? 0) },
+    { label: 'Lieblingsdoppel', getValue: (pid) => {
       const doubles = statsByPlayer[pid]?.finishingDoubles ?? {}
       const sorted = Object.entries(doubles).sort(([, a], [, b]) => b - a)
       return sorted.length > 0 ? sorted[0][0] : '–'
     }},
     // === Effizienz ===
-    { label: 'Bestes Leg', getValue: (pid: string) => {
+    { label: 'Bestes Leg', getValue: (pid) => {
       const best = statsByPlayer[pid]?.bestLegDarts
       return best ? `${best} Darts` : '–'
-    }},
-    { label: 'Busts', getValue: (pid: string) => String(statsByPlayer[pid]?.busts ?? 0) },
+    }, getCompareValue: (pid) => statsByPlayer[pid]?.bestLegDarts ?? Infinity, better: 'low' },
+    { label: 'Busts', getValue: (pid) => String(statsByPlayer[pid]?.busts ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.busts ?? 0, better: 'low' },
     // === Feld- & Score-Analyse ===
-    { label: 'Meistes Feld', getValue: (pid: string) => computeMostHitField(events, null, pid) },
-    { label: 'Häufigste Punktzahl', getValue: (pid: string) => computeMostCommonScore(events, null, pid) },
+    { label: 'Meistes Feld', getValue: (pid) => computeMostHitField(events, null, pid) },
+    { label: 'Häufigste Punktzahl', getValue: (pid) => computeMostCommonScore(events, null, pid) },
   ]
 
   if (isSets) {
@@ -451,6 +468,21 @@ export default function MatchDetails({ matchId, onBack }: Props) {
       })
     })
 
+    // Winner-Farben für Set-Statistik
+    const setAvgWin = getStatWinnerColors(match.players.map(p => setStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0), pids, 'high', playerColors)
+    const setF9Win = getStatWinnerColors(match.players.map(p => setStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0), pids, 'high', playerColors)
+    const setHvWin = getStatWinnerColors(match.players.map(p => setHighestVisit[p.playerId] || 0), pids, 'high', playerColors)
+    const set180Win = getStatWinnerColors(match.players.map(p => setStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0), pids, 'high', playerColors)
+    const set140Win = getStatWinnerColors(match.players.map(p => setStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0), pids, 'high', playerColors)
+    const set100Win = getStatWinnerColors(match.players.map(p => setStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0), pids, 'high', playerColors)
+    const set61Win = getStatWinnerColors(match.players.map(p => setBins61plus[p.playerId] ?? 0), pids, 'high', playerColors)
+    const setCoHWin = getStatWinnerColors(match.players.map(p => setCheckoutInfo[p.playerId]?.height ?? 0), pids, 'high', playerColors)
+    const setCoQWin = getStatWinnerColors(match.players.map(p => setStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0), pids, 'high', playerColors)
+    const setLegsWin = getStatWinnerColors(match.players.map(p => {
+      const legsInSet = legFinished.filter((lf: any) => legIds.includes(lf.legId))
+      return legsInSet.filter((lf: any) => lf.winnerPlayerId === p.playerId).length
+    }), pids, 'high', playerColors)
+
     // Set-Spielzeit berechnen
     const firstLegInSet = legIds[0]
     const setStartEvent = events.find((e): e is LegStarted => isLegStarted(e) && e.legId === firstLegInSet)
@@ -535,20 +567,20 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 <tbody>
                   <tr>
                     <td style={tdLeft}>Average</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{(setStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(setAvgWin[i])}>{(setStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>First Nine</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{(setStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(setF9Win[i])}>{(setStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>Höchste Aufnahme</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{setHighestVisit[p.playerId] || 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(setHvWin[i])}>{setHighestVisit[p.playerId] || 0}</td>
                     ))}
                   </tr>
                   <tr>
@@ -565,26 +597,26 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   <tr>
                     <td style={tdLeft}>180s</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{setStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(set180Win[i])}>{setStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>140+</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{setStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(set140Win[i])}>{setStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>100+</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{setStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(set100Win[i])}>{setStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>61+</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{setBins61plus[p.playerId] ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(set61Win[i])}>{setBins61plus[p.playerId] ?? 0}</td>
                     ))}
                   </tr>
 
@@ -592,10 +624,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                   <tr>
                     <td style={tdLeft}>Höchster Checkout</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const info = setCheckoutInfo[p.playerId]
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(setCoHWin[i])}>
                           {info ? `${info.height} (${info.lastDart})` : '–'}
                         </td>
                       )
@@ -611,16 +643,16 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   <tr>
                     <td style={tdLeft}>Checkout Quote</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{(setStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(setCoQWin[i])}>{(setStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>Legs gewonnen</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       let count = 0
                       legsInSelectedSet.forEach((lf: any) => { if (lf.winnerPlayerId === p.playerId) count++ })
-                      return <td key={p.playerId} style={tdRight}>{count}</td>
+                      return <td key={p.playerId} style={tdWin(setLegsWin[i])}>{count}</td>
                     })}
                   </tr>
                 </tbody>
@@ -740,6 +772,18 @@ export default function MatchDetails({ matchId, onBack }: Props) {
       restByPlayer[v.playerId] = v.remainingAfter
     })
 
+    // Winner-Farben für Leg-Statistik
+    const legAvgWin = getStatWinnerColors(match.players.map(p => legStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0), pids, 'high', playerColors)
+    const legF9Win = getStatWinnerColors(match.players.map(p => legStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0), pids, 'high', playerColors)
+    const legHvWin = getStatWinnerColors(match.players.map(p => highestVisitInLeg[p.playerId] || 0), pids, 'high', playerColors)
+    const leg180Win = getStatWinnerColors(match.players.map(p => legStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0), pids, 'high', playerColors)
+    const leg140Win = getStatWinnerColors(match.players.map(p => legStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0), pids, 'high', playerColors)
+    const leg100Win = getStatWinnerColors(match.players.map(p => legStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0), pids, 'high', playerColors)
+    const leg61Win = getStatWinnerColors(match.players.map(p => bins61plus[p.playerId] ?? 0), pids, 'high', playerColors)
+    const legCoHWin = getStatWinnerColors(match.players.map(p => checkoutInfo[p.playerId]?.height ?? 0), pids, 'high', playerColors)
+    const legCoQWin = getStatWinnerColors(match.players.map(p => legStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0), pids, 'high', playerColors)
+    const legRestWin = getStatWinnerColors(match.players.map(p => restByPlayer[p.playerId]), pids, 'low', playerColors)
+
     // Spielzeit berechnen
     const legStartEvent = events.find((e): e is LegStarted => isLegStarted(e) && e.legId === selectedLegId)
     const legEndEvent = selectedLegFinish
@@ -810,20 +854,20 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Scoring Stats */}
                   <tr>
                     <td style={tdLeft}>Average</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{(legStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(legAvgWin[i])}>{(legStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>First Nine</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{(legStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(legF9Win[i])}>{(legStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>Höchste Aufnahme</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{highestVisitInLeg[p.playerId] || 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(legHvWin[i])}>{highestVisitInLeg[p.playerId] || 0}</td>
                     ))}
                   </tr>
                   <tr>
@@ -840,26 +884,26 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   <tr>
                     <td style={tdLeft}>180s</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{legStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(leg180Win[i])}>{legStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>140+</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{legStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(leg140Win[i])}>{legStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>100+</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{legStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(leg100Win[i])}>{legStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>61+</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{bins61plus[p.playerId] ?? 0}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(leg61Win[i])}>{bins61plus[p.playerId] ?? 0}</td>
                     ))}
                   </tr>
 
@@ -869,10 +913,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Checkout Stats */}
                   <tr>
                     <td style={tdLeft}>Checkout Höhe</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const info = checkoutInfo[p.playerId]
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(legCoHWin[i])}>
                           {info ? `${info.height} (${info.lastDart})` : '–'}
                         </td>
                       )
@@ -888,14 +932,14 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   <tr>
                     <td style={tdLeft}>Checkout Quote</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{(legStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(legCoQWin[i])}>{(legStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>Rest</td>
-                    {match.players.map((p) => (
-                      <td key={p.playerId} style={tdRight}>{restByPlayer[p.playerId]}</td>
+                    {match.players.map((p, i) => (
+                      <td key={p.playerId} style={tdWin(legRestWin[i])}>{restByPlayer[p.playerId]}</td>
                     ))}
                   </tr>
                 </tbody>
@@ -903,7 +947,15 @@ export default function MatchDetails({ matchId, onBack }: Props) {
             </div>
 
             {/* 121-spezifische Stats (nur bei 121-Spielen) */}
-            {is121Game && stats121ByPlayer && (
+            {is121Game && stats121ByPlayer && (() => {
+              // Winner-Farben für 121 Leg-Statistik
+              const leg121DartsWin = getStatWinnerColors(match.players.map(p => stats121ByPlayer[p.playerId]?.dartsToFinish ?? Infinity), pids, 'low', playerColors)
+              const leg121DartsOnDblWin = getStatWinnerColors(match.players.map(p => stats121ByPlayer[p.playerId]?.dartsOnDouble ?? Infinity), pids, 'low', playerColors)
+              const leg121MissedDblWin = getStatWinnerColors(match.players.map(p => stats121ByPlayer[p.playerId]?.missedDoubleDarts ?? Infinity), pids, 'low', playerColors)
+              const leg121BustsWin = getStatWinnerColors(match.players.map(p => stats121ByPlayer[p.playerId]?.bustCount ?? Infinity), pids, 'low', playerColors)
+              const leg121StreakWin = getStatWinnerColors(match.players.map(p => stats121ByPlayer[p.playerId]?.longestStreakWithoutBust ?? 0), pids, 'high', playerColors)
+              const leg121MissedCoWin = getStatWinnerColors(match.players.map(p => stats121ByPlayer[p.playerId]?.missedCheckoutsCount ?? Infinity), pids, 'low', playerColors)
+              return (
               <div style={styles.card}>
                 <div style={{
                   fontWeight: 700,
@@ -935,10 +987,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Darts to Finish */}
                     <tr>
                       <td style={tdLeft}>Darts bis Finish</td>
-                      {match.players.map((p) => {
+                      {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
-                          <td key={p.playerId} style={tdRight}>
+                          <td key={p.playerId} style={tdWin(leg121DartsWin[i])}>
                             {s?.dartsToFinish != null ? s.dartsToFinish : '–'}
                           </td>
                         )
@@ -974,10 +1026,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Darts auf Double */}
                     <tr>
                       <td style={tdLeft}>Darts auf Double</td>
-                      {match.players.map((p) => {
+                      {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
-                          <td key={p.playerId} style={tdRight}>
+                          <td key={p.playerId} style={tdWin(leg121DartsOnDblWin[i])}>
                             {s?.dartsOnDouble ?? 0}
                           </td>
                         )
@@ -999,11 +1051,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Verpasste Double-Darts */}
                     <tr>
                       <td style={tdLeft}>Verpasste Double-Darts</td>
-                      {match.players.map((p) => {
+                      {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         const missed = s?.missedDoubleDarts ?? 0
+                        const winColor = leg121MissedDblWin[i]
                         return (
-                          <td key={p.playerId} style={{ ...tdRight, color: missed > 0 ? colors.error : colors.fgDim }}>
+                          <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: missed > 0 ? colors.error : colors.fgDim }}>
                             {missed}
                           </td>
                         )
@@ -1028,11 +1081,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Busts */}
                     <tr>
                       <td style={tdLeft}>Busts</td>
-                      {match.players.map((p) => {
+                      {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         const busts = s?.bustCount ?? 0
+                        const winColor = leg121BustsWin[i]
                         return (
-                          <td key={p.playerId} style={{ ...tdRight, color: busts > 0 ? colors.error : colors.success }}>
+                          <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: busts > 0 ? colors.error : colors.success }}>
                             {busts}
                           </td>
                         )
@@ -1041,10 +1095,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Längste Serie ohne Bust */}
                     <tr>
                       <td style={tdLeft}>Längste Serie ohne Bust</td>
-                      {match.players.map((p) => {
+                      {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
-                          <td key={p.playerId} style={tdRight}>
+                          <td key={p.playerId} style={tdWin(leg121StreakWin[i])}>
                             {s?.longestStreakWithoutBust ?? 0} Visits
                           </td>
                         )
@@ -1053,11 +1107,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Verpasste Checkouts */}
                     <tr>
                       <td style={tdLeft}>Verpasste Checkouts</td>
-                      {match.players.map((p) => {
+                      {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         const missed = s?.missedCheckoutsCount ?? 0
+                        const winColor = leg121MissedCoWin[i]
                         return (
-                          <td key={p.playerId} style={{ ...tdRight, color: missed > 0 ? colors.warning : colors.fgDim }}>
+                          <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: missed > 0 ? colors.warning : colors.fgDim }}>
                             {missed}
                           </td>
                         )
@@ -1122,7 +1177,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tbody>
                 </table>
               </div>
-            )}
+              )})()}
 
             {/* Score Progression Chart */}
             <div style={styles.card}>
@@ -1261,21 +1316,40 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {statRows.map((row) => (
-                    <tr key={row.label}>
-                      <td style={tdLeft}>{row.label}</td>
-                      {match.players.map((p) => (
-                        <td key={p.playerId} style={tdRight}>{row.getValue(p.playerId)}</td>
-                      ))}
-                    </tr>
-                  ))}
+                  {statRows.map((row) => {
+                    const winColors = row.better && row.getCompareValue
+                      ? getStatWinnerColors(match.players.map(p => row.getCompareValue!(p.playerId)), pids, row.better, playerColors)
+                      : undefined
+                    return (
+                      <tr key={row.label}>
+                        <td style={tdLeft}>{row.label}</td>
+                        {match.players.map((p, i) => (
+                          <td key={p.playerId} style={tdWin(winColors?.[i])}>{row.getValue(p.playerId)}</td>
+                        ))}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           )}
 
           {/* 121 Sprint Match-Statistik (nur bei 121-Spielen) */}
-          {is121Game && stats121MatchByPlayer && (
+          {is121Game && stats121MatchByPlayer && (() => {
+            // Winner-Farben für 121 Match-Statistik
+            const m121LegsWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.legsWon ?? 0), pids, 'high', playerColors)
+            const m121AvgDartsWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.avgDartsToFinish ?? Infinity), pids, 'low', playerColors)
+            const m121BestLegWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.bestLegDarts ?? Infinity), pids, 'low', playerColors)
+            const m121WorstLegWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.worstLegDarts ?? Infinity), pids, 'low', playerColors)
+            const m121CoQWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.checkoutPct ?? 0), pids, 'high', playerColors)
+            const m121FtcWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.firstTurnCheckouts ?? 0), pids, 'high', playerColors)
+            const m121AvgDblWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.avgDartsOnDouble ?? Infinity), pids, 'low', playerColors)
+            const m121FaDblWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.firstAttemptDoubleHits ?? 0), pids, 'high', playerColors)
+            const m121BustsWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.totalBusts ?? Infinity), pids, 'low', playerColors)
+            const m121AvgBustsWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.avgBustsPerLeg ?? Infinity), pids, 'low', playerColors)
+            const m121StabWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.avgStabilityIndex ?? 0), pids, 'high', playerColors)
+            const m121OptimalWin = getStatWinnerColors(match.players.map(p => stats121MatchByPlayer[p.playerId]?.optimalRouteCount ?? 0), pids, 'high', playerColors)
+            return (
             <div style={styles.card}>
               <div style={{
                 fontWeight: 700,
@@ -1307,10 +1381,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Legs */}
                   <tr>
                     <td style={tdLeft}>Legs gewonnen</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(m121LegsWin[i])}>
                           {s?.legsWon ?? 0} / {s?.legsPlayed ?? 0}
                         </td>
                       )
@@ -1319,12 +1393,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Durchschnitt Darts bis Finish */}
                   <tr>
                     <td style={tdLeft}>Ø Darts bis Finish</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const avg = s?.avgDartsToFinish ?? 0
-                      const color = avg > 0 ? (avg <= 6 ? colors.success : avg <= 9 ? colors.warning : colors.error) : colors.fgDim
+                      const winColor = m121AvgDartsWin[i]
                       return (
-                        <td key={p.playerId} style={{ ...tdRight, color, fontWeight: 700 }}>
+                        <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: avg > 0 ? (avg <= 6 ? colors.success : avg <= 9 ? colors.warning : colors.error) : colors.fgDim, fontWeight: 700 }}>
                           {avg > 0 ? avg.toFixed(1) : '–'}
                         </td>
                       )
@@ -1333,12 +1407,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Bestes Leg */}
                   <tr>
                     <td style={tdLeft}>Bestes Leg</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const best = s?.bestLegDarts
-                      const color = best != null ? (best <= 6 ? colors.success : best <= 9 ? colors.warning : colors.error) : colors.fgDim
+                      const winColor = m121BestLegWin[i]
                       return (
-                        <td key={p.playerId} style={{ ...tdRight, color, fontWeight: 700 }}>
+                        <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: best != null ? (best <= 6 ? colors.success : best <= 9 ? colors.warning : colors.error) : colors.fgDim, fontWeight: 700 }}>
                           {best != null ? `${best} Darts` : '–'}
                         </td>
                       )
@@ -1347,11 +1421,11 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Schlechtestes Leg */}
                   <tr>
                     <td style={tdLeft}>Schlechtestes Leg</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const worst = s?.worstLegDarts
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(m121WorstLegWin[i])}>
                           {worst != null ? `${worst} Darts` : '–'}
                         </td>
                       )
@@ -1364,11 +1438,11 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Checkout Quote */}
                   <tr>
                     <td style={tdLeft}>Checkout-Quote</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const pct = s?.checkoutPct ?? 0
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(m121CoQWin[i])}>
                           {pct.toFixed(1)}% ({s?.checkoutsMade ?? 0}/{s?.checkoutAttempts ?? 0})
                         </td>
                       )
@@ -1377,11 +1451,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* First-Turn Checkouts */}
                   <tr>
                     <td style={tdLeft}>First-Turn Checkouts</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const ftc = s?.firstTurnCheckouts ?? 0
+                      const winColor = m121FtcWin[i]
                       return (
-                        <td key={p.playerId} style={{ ...tdRight, color: ftc > 0 ? colors.success : colors.fgDim, fontWeight: ftc > 0 ? 700 : 400 }}>
+                        <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: ftc > 0 ? colors.success : colors.fgDim, fontWeight: ftc > 0 ? 700 : 400 }}>
                           {ftc}
                         </td>
                       )
@@ -1390,12 +1465,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Ø Darts auf Double */}
                   <tr>
                     <td style={tdLeft}>Ø Darts auf Double</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const avg = s?.avgDartsOnDouble ?? 0
-                      const color = avg > 0 ? (avg <= 1.5 ? colors.success : avg <= 3 ? colors.warning : colors.error) : colors.fgDim
+                      const winColor = m121AvgDblWin[i]
                       return (
-                        <td key={p.playerId} style={{ ...tdRight, color }}>
+                        <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: avg > 0 ? (avg <= 1.5 ? colors.success : avg <= 3 ? colors.warning : colors.error) : colors.fgDim }}>
                           {avg > 0 ? avg.toFixed(1) : '–'}
                         </td>
                       )
@@ -1404,10 +1479,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* First-Attempt Double Hits */}
                   <tr>
                     <td style={tdLeft}>First-Attempt Double Hits</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(m121FaDblWin[i])}>
                           {s?.firstAttemptDoubleHits ?? 0}
                         </td>
                       )
@@ -1432,11 +1507,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Busts */}
                   <tr>
                     <td style={tdLeft}>Busts gesamt</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const busts = s?.totalBusts ?? 0
+                      const winColor = m121BustsWin[i]
                       return (
-                        <td key={p.playerId} style={{ ...tdRight, color: busts > 0 ? colors.error : colors.success }}>
+                        <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: busts > 0 ? colors.error : colors.success }}>
                           {busts}
                         </td>
                       )
@@ -1445,11 +1521,11 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Ø Busts pro Leg */}
                   <tr>
                     <td style={tdLeft}>Ø Busts pro Leg</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const avg = s?.avgBustsPerLeg ?? 0
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(m121AvgBustsWin[i])}>
                           {avg.toFixed(2)}
                         </td>
                       )
@@ -1462,12 +1538,12 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Stabilitätsindex */}
                   <tr>
                     <td style={tdLeft}>Ø Stabilität</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const stability = s?.avgStabilityIndex ?? 0
-                      const color = stability >= 70 ? colors.success : stability >= 40 ? colors.warning : colors.error
+                      const winColor = m121StabWin[i]
                       return (
-                        <td key={p.playerId} style={{ ...tdRight, color, fontWeight: 700 }}>
+                        <td key={p.playerId} style={winColor ? tdWin(winColor) : { ...tdRight, color: stability >= 70 ? colors.success : stability >= 40 ? colors.warning : colors.error, fontWeight: 700 }}>
                           {stability.toFixed(0)}%
                         </td>
                       )
@@ -1476,13 +1552,13 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   {/* Optimale Routen */}
                   <tr>
                     <td style={tdLeft}>Optimale Routen</td>
-                    {match.players.map((p) => {
+                    {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const optimal = s?.optimalRouteCount ?? 0
                       const alt = s?.alternativeRouteCount ?? 0
                       const total = optimal + alt
                       return (
-                        <td key={p.playerId} style={tdRight}>
+                        <td key={p.playerId} style={tdWin(m121OptimalWin[i])}>
                           {total > 0 ? `${optimal}/${total}` : '–'}
                         </td>
                       )
@@ -1491,7 +1567,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 </tbody>
               </table>
             </div>
-          )}
+            )})()}
 
           {/* === LEG-CHART CAROUSEL === */}
           {legFinished.length > 0 && (

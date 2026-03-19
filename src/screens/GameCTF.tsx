@@ -48,6 +48,7 @@ import {
   announceCTFLastRounds,
   announceCTFWinner,
   announceCTFMatchEndRankings,
+  cancelPendingSpeech,
 } from '../speech'
 import ATBCaptureScoreChart from '../components/ATBCaptureScoreChart'
 
@@ -133,6 +134,18 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
   const numBufferRef = useRef('')
   const numTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Speech-Timer-IDs fuer Cleanup bei Undo
+  const speechTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const scheduleSpeech = (fn: () => void, delay: number) => {
+    const id = setTimeout(fn, delay)
+    speechTimersRef.current.push(id)
+    return id
+  }
+  const clearSpeechTimers = () => {
+    speechTimersRef.current.forEach(id => clearTimeout(id))
+    speechTimersRef.current = []
+  }
+
   // Fuer Sprachansagen: letztes angesagtes Ziel/Spieler merken
   const lastAnnouncedTargetRef = useRef<number | 'BULL' | null>(null)
   const lastAnnouncedPlayerRef = useRef<string | null>(null)
@@ -167,7 +180,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
       if (firstTarget) {
         lastAnnouncedPlayerRef.current = activePlayerId
         lastAnnouncedTargetRef.current = firstTarget
-        setTimeout(() => {
+        scheduleSpeech(() => {
           announceCTFNewRound(activePlayer.name, firstTarget, 1)
         }, 1200)
       }
@@ -212,7 +225,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
       lastAnnouncedPlayerRef.current = activePlayerId
 
       // Kurze Verzoegerung fuer natuerlichen Fluss
-      setTimeout(() => {
+      scheduleSpeech(() => {
         announceCTFPlayerTurn(activePlayer.name)
       }, 300)
     }
@@ -316,13 +329,13 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
         ? players.find(p => p.playerId === result.roundFinished!.winnerId)
         : null
 
-      setTimeout(() => {
+      scheduleSpeech(() => {
         announceCTFRoundResult(winnerPlayer?.name ?? null, result.roundFinished!.fieldNumber)
       }, 800)
 
       // Nur bei den letzten 3 Runden die verbleibenden Runden ansagen
       const nextRoundIndex = result.roundFinished.fieldIndex + 1
-      setTimeout(() => {
+      scheduleSpeech(() => {
         announceCTFLastRounds(nextRoundIndex, seqLen)
       }, 1600)
 
@@ -337,7 +350,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
         if (nextTarget && nextPlayer) {
           lastAnnouncedTargetRef.current = nextTarget
           lastAnnouncedPlayerRef.current = nextPlayer.playerId
-          setTimeout(() => {
+          scheduleSpeech(() => {
             announceCTFNewRound(nextPlayer.name, nextTarget, newFieldIndex + 1)
           }, 2000)
         }
@@ -427,6 +440,10 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
     }
 
     if (lastTurnIndex === -1) return // Kein Turn zum Rueckgaengigmachen
+
+    // Ausstehende Sprachansagen abbrechen
+    clearSpeechTimers()
+    cancelPendingSpeech()
 
     // Entferne alle Events ab dem letzten Turn (inkl. eventueller RoundFinished/LegFinished etc.)
     const newEvents = events.slice(0, lastTurnIndex)
@@ -672,7 +689,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
         background: playerColorBgEnabled && activePlayerColor
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
           : c.bg,
-        minHeight: '100vh',
+        height: '100vh',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         color: c.textBright,
@@ -847,8 +865,10 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 50,
-          padding: 20,
+          gap: 24,
+          padding: '8px 16px',
+          minHeight: 0,
+          overflow: 'hidden',
         }}
       >
         {/* Dartboard mit fieldOwners Overlay */}
@@ -856,38 +876,40 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
           <ATBDartboard
             currentTarget={currentTargetNumber}
             players={dartboardPlayers}
-            size={420}
+            size={320}
             activePlayerColor={activePlayerColor}
             fieldOwners={fieldOwners}
           />
 
-          {/* Aktuelles Ziel gross unter der Dartscheibe */}
+          {/* Aktuelles Ziel unter der Dartscheibe */}
           {activePlayer && currentTargetLabel && (
             <div
               style={{
                 position: 'absolute',
-                bottom: -70,
+                bottom: -50,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 textAlign: 'center',
+                whiteSpace: 'nowrap',
               }}
             >
-              <div style={{ fontSize: 13, color: c.textDim, marginBottom: 4 }}>
-                Runde {currentFieldIndex + 1} von {seqLen} - {activePlayer.name} wirft
+              <div style={{ fontSize: 11, color: c.textDim, marginBottom: 2 }}>
+                Runde {currentFieldIndex + 1}/{seqLen} - {activePlayer.name} wirft
               </div>
               <div
                 style={{
-                  fontSize: 56,
+                  fontSize: 40,
                   fontWeight: 700,
                   color: c.ledOn,
                   textShadow: `0 0 25px ${c.ledGlow}`,
+                  lineHeight: 1,
                 }}
               >
                 {currentTargetLabel}
               </div>
               {/* Punkte in dieser Runde */}
               {Object.keys(captureState.currentRoundTurns).length > 0 && (
-                <div style={{ fontSize: 12, color: c.textDim, marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: c.textDim, marginTop: 4 }}>
                   {Object.entries(captureState.currentRoundTurns).map(([pid, turn]) => {
                     const player = players.find(p => p.playerId === pid)
                     return (
@@ -903,26 +925,25 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
         </div>
 
         {/* Rechte Seite: Controls + Spieler */}
-        <div style={{ minWidth: 300 }}>
+        <div style={{ minWidth: 280, maxHeight: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Multiplier-Anzeige */}
           <div
             style={{
               background: c.cardBg,
-              borderRadius: 12,
-              padding: '14px 18px',
-              marginBottom: 16,
+              borderRadius: 10,
+              padding: '10px 14px',
               border: '1px solid #222',
             }}
           >
-            <div style={{ fontSize: 11, color: c.textDim, marginBottom: 10, textAlign: 'center' }}>MULTIPLIER</div>
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 10, color: c.textDim, marginBottom: 6, textAlign: 'center' }}>MULTIPLIER</div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
               {([1, 2, 3] as const).map(m => (
                 <div
                   key={m}
                   onClick={() => setMult(m)}
                   style={{
-                    width: 70,
-                    height: 44,
+                    width: 60,
+                    height: 34,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -940,13 +961,13 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                   {m === 1 ? 'Single' : m === 2 ? 'Double' : 'Triple'}
                 </div>
               ))}
-              {/* Undo Button - macht letzten kompletten Zug rueckgaengig */}
+              {/* Undo Button */}
               <button
                 onClick={undoLastTurn}
                 disabled={!canUndo}
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 30,
+                  height: 30,
                   borderRadius: '50%',
                   border: canUndo ? '1px solid #666' : '1px solid #333',
                   background: canUndo ? '#2a2a2a' : '#1a1a1a',
@@ -967,9 +988,9 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
             </div>
 
             {/* Nummernpad - Dart-Eingabe */}
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 8 }}>
               {NUMBER_PAD.map((row, rowIdx) => (
-                <div key={rowIdx} style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 4 }}>
+                <div key={rowIdx} style={{ display: 'flex', gap: 3, justifyContent: 'center', marginBottom: 3 }}>
                   {row.map(num => {
                     const isCurrentTarget = currentTargetNumber === num
                     return (
@@ -978,8 +999,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                         onClick={() => addDart(num)}
                         disabled={current.length >= 3}
                         style={{
-                          width: 48,
-                          height: 36,
+                          width: 42,
+                          height: 30,
                           borderRadius: 6,
                           border: isCurrentTarget ? `2px solid ${c.ledOn}` : '1px solid #333',
                           background: isCurrentTarget ? '#1a2a3a' : '#1a1a1a',
@@ -999,13 +1020,13 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                 </div>
               ))}
               {/* Bull + Miss Zeile */}
-              <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 3, justifyContent: 'center', marginTop: 3 }}>
                 <button
                   onClick={() => addDart('BULL')}
                   disabled={current.length >= 3}
                   style={{
-                    width: 100,
-                    height: 36,
+                    width: 86,
+                    height: 30,
                     borderRadius: 6,
                     border: currentTargetNumber === 'BULL' ? `2px solid ${c.ledOn}` : '1px solid #333',
                     background: currentTargetNumber === 'BULL' ? '#2a1a1a' : '#1a1a1a',
@@ -1024,8 +1045,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                   onClick={addMiss}
                   disabled={current.length >= 3}
                   style={{
-                    width: 100,
-                    height: 36,
+                    width: 86,
+                    height: 30,
                     borderRadius: 6,
                     border: '1px solid #333',
                     background: '#1a1a1a',
@@ -1043,15 +1064,15 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
             </div>
 
             {/* Aktuelle Wuerfe */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14 }}>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 8 }}>
               {[0, 1, 2].map(i => {
                 const dart = current[i]
                 return (
                   <div
                     key={i}
                     style={{
-                      width: 70,
-                      height: 36,
+                      width: 60,
+                      height: 30,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1070,19 +1091,19 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
             </div>
 
             {/* Bestaetigen + Rueckgaengig Buttons */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6 }}>
               <button
                 onClick={() => setCurrent(prev => prev.slice(0, -1))}
                 disabled={current.length === 0}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
+                  padding: '5px 10px',
                   borderRadius: 6,
                   border: '1px solid #333',
                   background: '#1a1a1a',
                   color: current.length > 0 ? c.textBright : c.textDim,
                   fontWeight: 600,
-                  fontSize: 13,
+                  fontSize: 12,
                   cursor: current.length > 0 ? 'pointer' : 'not-allowed',
                   opacity: current.length > 0 ? 1 : 0.4,
                 }}
@@ -1094,7 +1115,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                 disabled={current.length === 0}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
+                  padding: '5px 10px',
                   borderRadius: 6,
                   border: 'none',
                   background: current.length > 0
@@ -1102,7 +1123,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                     : '#1a1a1a',
                   color: current.length > 0 ? '#fff' : c.textDim,
                   fontWeight: 700,
-                  fontSize: 13,
+                  fontSize: 12,
                   cursor: current.length > 0 ? 'pointer' : 'not-allowed',
                   boxShadow: current.length > 0 ? '0 2px 10px rgba(34, 197, 94, 0.3)' : 'none',
                 }}
@@ -1111,8 +1132,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
               </button>
             </div>
 
-            <div style={{ fontSize: 11, color: c.textDim, marginTop: 12, textAlign: 'center' }}>
-              [Space] Treffer  [D+Space] Double  [T+Space] Triple  [1-20] Feld  [0] Miss  [B] Bull  [Enter] OK
+            <div style={{ fontSize: 10, color: c.textDim, marginTop: 6, textAlign: 'center' }}>
+              [Space] Treffer  [D/T] Double/Triple  [1-20] Feld  [0] Miss  [B] Bull  [Enter] OK
             </div>
           </div>
 
@@ -1120,19 +1141,19 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
           <div
             style={{
               background: c.cardBg,
-              borderRadius: 12,
-              padding: 16,
+              borderRadius: 10,
+              padding: '6px 10px',
               border: '1px solid #222',
+              flex: 1,
+              minHeight: 0,
             }}
           >
-            <div style={{ fontSize: 11, color: c.textDim, marginBottom: 12 }}>SPIELER</div>
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'grid', gap: 3 }}>
               {players.map((p, index) => {
                 const isActive = p.playerId === activePlayerId
                 const darts = state.dartsUsedByPlayer[p.playerId] ?? 0
                 const color = playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length]
 
-                // Capture the Field: Feldpunkte und Wurfpunkte berechnen
                 const captureFieldPoints = captureState.totalFieldPointsByPlayer[p.playerId] ?? 0
                 const captureFieldsWon = Object.values(captureState.fieldWinners).filter(w => w === p.playerId).length
                 const captureTotalScore = captureState.totalScoreByPlayer[p.playerId] ?? 0
@@ -1142,40 +1163,59 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
                   <div
                     key={p.playerId}
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 8px',
+                      borderRadius: 5,
                       background: isActive ? '#1a1a1a' : 'transparent',
-                      borderLeft: `4px solid ${color}`,
-                      boxShadow: isActive ? `0 0 20px ${color}30` : 'none',
+                      borderLeft: `3px solid ${color}`,
+                      boxShadow: isActive ? `0 0 12px ${color}30` : 'none',
+                      fontSize: 12,
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: color,
-                            boxShadow: isActive ? `0 0 10px ${color}` : 'none',
-                          }}
-                        />
-                        <span style={{ fontWeight: isActive ? 700 : 500, color: isActive ? color : c.textBright }}>
-                          {p.name}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: 12, color: c.yellow, fontWeight: 700 }}>
-                        {captureFieldPoints} FP
-                      </span>
-                    </div>
-
-                    {/* Capture the Field: Punkte und Status anzeigen */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.textDim }}>
-                      <span>{captureFieldsWon} Felder | {captureTotalScore} Pkt | {darts} Darts</span>
-                      <span style={{ color: captureHasThrownThisRound ? c.green : color }}>
-                        {captureHasThrownThisRound ? 'Geworfen' : isActive ? 'Am Wurf' : 'Wartet...'}
-                      </span>
-                    </div>
+                    {/* Farbpunkt */}
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: color,
+                        flexShrink: 0,
+                        boxShadow: isActive ? `0 0 8px ${color}` : 'none',
+                      }}
+                    />
+                    {/* Name */}
+                    <span style={{
+                      fontWeight: isActive ? 700 : 500,
+                      color: isActive ? color : c.textBright,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flex: 1,
+                    }}>
+                      {p.name}
+                    </span>
+                    {/* Stats kompakt */}
+                    <span style={{ color: c.textDim, fontSize: 10, flexShrink: 0 }}>
+                      {captureFieldsWon}F {captureTotalScore}P {darts}D
+                    </span>
+                    {/* Feldpunkte */}
+                    <span style={{ color: c.yellow, fontWeight: 700, fontSize: 12, flexShrink: 0, minWidth: 32, textAlign: 'right' }}>
+                      {captureFieldPoints} FP
+                    </span>
+                    {/* Status */}
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      flexShrink: 0,
+                      minWidth: 52,
+                      textAlign: 'right',
+                      color: captureHasThrownThisRound ? c.green : isActive ? color : c.textDim,
+                    }}>
+                      {captureHasThrownThisRound ? '\u2713 Done' : isActive ? '\u25B6 Wurf' : 'Wartet'}
+                    </span>
                   </div>
                 )
               })}
@@ -1188,20 +1228,21 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
       {captureRounds.length > 0 && (
         <div
           style={{
-            padding: '12px 20px 20px',
+            padding: '6px 16px 10px',
             borderTop: `1px solid ${c.border}`,
             background: c.cardBg,
+            flexShrink: 0,
           }}
         >
-          <div style={{ fontSize: 11, color: c.textDim, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: c.textDim, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             Leg-Verlauf
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
             <ATBCaptureScoreChart
               rounds={captureRounds}
               players={chartPlayers}
-              minGroupWidth={Math.max(30, Math.min(50, 800 / Math.max(captureRounds.length, 1)))}
-              height={200}
+              minGroupWidth={Math.max(24, Math.min(40, 800 / Math.max(captureRounds.length, 1)))}
+              height={130}
             />
           </div>
         </div>

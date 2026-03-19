@@ -13,23 +13,26 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
+import { PLAYER_COLORS } from '../playerColors'
+
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
   onBack: () => void
 }
-
-// Spielerfarben (satte Farben)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500)
-  '#22c55e', // Gruen (500)
-  '#f97316', // Orange (500)
-  '#ef4444', // Rot (500)
-  '#a855f7', // Violett (500)
-  '#14b8a6', // Tuerkis (500)
-  '#eab308', // Gelb (500)
-  '#ec4899', // Pink (500)
-]
 
 // Statistik-Typ fuer einen Spieler
 type PlayerStats = {
@@ -275,6 +278,8 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
     const profile = profiles.find((pr) => pr.id === p.playerId)
     playerColors[p.playerId] = profile?.color ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
   })
+  const pids = match.players.map(p => p.playerId)
+  const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
 
   // Alle Turn-Events fuer Match-Gesamtstatistik
   const allTurnEvents = match.events.filter(
@@ -399,60 +404,72 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             />
 
             {/* Leg Statistik */}
-            <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Leg-Statistiken</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={thLeft}></th>
-                    {legStats.map((ps) => (
-                      <th key={ps.playerId} style={{ ...thRight, color: playerColors[ps.playerId] }}>
-                        {ps.name} {ps.isWinner && '\u{1F3C6}'}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ ...tdLeft, fontWeight: 700 }}>Feldpunkte</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.warning, fontWeight: 800, fontSize: 16 }}>{ps.fieldPoints}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Felder gewonnen</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.fieldsWon}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Wurfpunkte</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalScore}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Darts</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
-                  </tr>
-                  <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
-                  <tr>
-                    <td style={tdLeft}>Triples</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.triples}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Doubles</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.doubles}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Singles</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.singles}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Misses</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.misses}</td>)}
-                  </tr>
-                  <tr>
-                    <td style={tdLeft}>Trefferquote</td>
-                    {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {(() => {
+              const legFpWin = getStatWinnerColors(legStats.map(ps => ps.fieldPoints), pids, 'high', playerColors)
+              const legFwWin = getStatWinnerColors(legStats.map(ps => ps.fieldsWon), pids, 'high', playerColors)
+              const legWpWin = getStatWinnerColors(legStats.map(ps => ps.totalScore), pids, 'high', playerColors)
+              const legTriWin = getStatWinnerColors(legStats.map(ps => ps.triples), pids, 'high', playerColors)
+              const legDblWin = getStatWinnerColors(legStats.map(ps => ps.doubles), pids, 'high', playerColors)
+              const legSglWin = getStatWinnerColors(legStats.map(ps => ps.singles), pids, 'high', playerColors)
+              const legMissWin = getStatWinnerColors(legStats.map(ps => ps.misses), pids, 'low', playerColors)
+              const legHrWin = getStatWinnerColors(legStats.map(ps => ps.hitRate), pids, 'high', playerColors)
+              return (
+              <div style={styles.card}>
+                <div style={{ fontWeight: 700, marginBottom: 12 }}>Leg-Statistiken</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={thLeft}></th>
+                      {legStats.map((ps) => (
+                        <th key={ps.playerId} style={{ ...thRight, color: playerColors[ps.playerId] }}>
+                          {ps.name} {ps.isWinner && '\u{1F3C6}'}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ ...tdLeft, fontWeight: 700 }}>Feldpunkte</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={legFpWin[i] ? { ...tdRight, color: legFpWin[i], fontWeight: 800, fontSize: 16 } : { ...tdRight, color: colors.warning, fontWeight: 800, fontSize: 16 }}>{ps.fieldPoints}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Felder gewonnen</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legFwWin[i])}>{ps.fieldsWon}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Wurfpunkte</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legWpWin[i])}>{ps.totalScore}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Darts</td>
+                      {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
+                    </tr>
+                    <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
+                    <tr>
+                      <td style={tdLeft}>Triples</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legTriWin[i])}>{ps.triples}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Doubles</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legDblWin[i])}>{ps.doubles}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Singles</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legSglWin[i])}>{ps.singles}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Misses</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legMissWin[i])}>{ps.misses}</td>)}
+                    </tr>
+                    <tr>
+                      <td style={tdLeft}>Trefferquote</td>
+                      {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legHrWin[i])}>{ps.hitRate.toFixed(1)}%</td>)}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              )
+            })()}
 
             {/* Feldverteilung */}
             {legChartData.length > 0 && (
@@ -468,51 +485,58 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             {legDetailedStats.length > 0 && (
               <>
                 {/* Detailstatistiken */}
-                <div style={styles.card}>
-                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th style={thLeft}></th>
-                        {legDetailedStats.map((ps) => (
-                          <th key={ps.playerId} style={{ ...thRight, color: playerColors[ps.playerId] }}>
-                            {ps.playerName}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style={tdLeft}>Bestes Feld</td>
-                        {legDetailedStats.map((ps) => (
-                          <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>
-                            {ps.bestField ? `${ps.bestField.field} (${ps.bestField.score} Pkt)` : '\u2014'}
-                          </td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Schwerstes Feld</td>
-                        {legDetailedStats.map((ps) => (
-                          <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>
-                            {ps.worstField ? `${ps.worstField.field} (${ps.worstField.score} Pkt)` : '\u2014'}
-                          </td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Perfekte Runden</td>
-                        {legDetailedStats.map((ps) => (
-                          <td key={ps.playerId} style={tdRight}>{ps.perfectTurns}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>\u00D8 Punkte/Feld</td>
-                        {legDetailedStats.map((ps) => (
-                          <td key={ps.playerId} style={tdRight}>{ps.avgScorePerField.toFixed(2)}</td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                {(() => {
+                  const ldPids = legDetailedStats.map(ps => ps.playerId)
+                  const ldPerfWin = getStatWinnerColors(legDetailedStats.map(ps => ps.perfectTurns), ldPids, 'high', playerColors)
+                  const ldAvgWin = getStatWinnerColors(legDetailedStats.map(ps => ps.avgScorePerField), ldPids, 'high', playerColors)
+                  return (
+                  <div style={styles.card}>
+                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={thLeft}></th>
+                          {legDetailedStats.map((ps) => (
+                            <th key={ps.playerId} style={{ ...thRight, color: playerColors[ps.playerId] }}>
+                              {ps.playerName}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={tdLeft}>Bestes Feld</td>
+                          {legDetailedStats.map((ps) => (
+                            <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>
+                              {ps.bestField ? `${ps.bestField.field} (${ps.bestField.score} Pkt)` : '\u2014'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Schwerstes Feld</td>
+                          {legDetailedStats.map((ps) => (
+                            <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>
+                              {ps.worstField ? `${ps.worstField.field} (${ps.worstField.score} Pkt)` : '\u2014'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Perfekte Runden</td>
+                          {legDetailedStats.map((ps, i) => (
+                            <td key={ps.playerId} style={tdWin(ldPerfWin[i])}>{ps.perfectTurns}</td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>{'\u00D8'} Punkte/Feld</td>
+                          {legDetailedStats.map((ps, i) => (
+                            <td key={ps.playerId} style={tdWin(ldAvgWin[i])}>{ps.avgScorePerField.toFixed(2)}</td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  )
+                })()}
 
                 {/* Punkte pro Feld Chart */}
                 <div style={styles.card}>
@@ -696,68 +720,80 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
           />
 
           {/* Match-Statistik */}
-          <div style={styles.card}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>Match-Statistik</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={thLeft}></th>
-                  {matchStats.map((ps) => (
-                    <th key={ps.playerId} style={{ ...thRight, color: playerColors[ps.playerId] }}>
-                      {ps.name} {ps.isWinner && '\u{1F3C6}'}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ ...tdLeft, fontWeight: 700 }}>Feldpunkte</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.warning, fontWeight: 800, fontSize: 16 }}>{ps.fieldPoints}</td>)}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Felder gewonnen</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.fieldsWon}</td>)}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Wurfpunkte</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalScore}</td>)}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Darts</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
-                </tr>
-                <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
-                <tr>
-                  <td style={tdLeft}>Triples</td>
-                  {matchStats.map((ps) => (
-                    <td key={ps.playerId} style={tdRight}>
-                      {ps.triples} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.tripleRate.toFixed(1)}%)</span>
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Doubles</td>
-                  {matchStats.map((ps) => (
-                    <td key={ps.playerId} style={tdRight}>
-                      {ps.doubles} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.doubleRate.toFixed(1)}%)</span>
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Singles</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.singles}</td>)}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Misses</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.misses}</td>)}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Trefferquote</td>
-                  {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            const mFpWin = getStatWinnerColors(matchStats.map(ps => ps.fieldPoints), pids, 'high', playerColors)
+            const mFwWin = getStatWinnerColors(matchStats.map(ps => ps.fieldsWon), pids, 'high', playerColors)
+            const mWpWin = getStatWinnerColors(matchStats.map(ps => ps.totalScore), pids, 'high', playerColors)
+            const mTriWin = getStatWinnerColors(matchStats.map(ps => ps.triples), pids, 'high', playerColors)
+            const mDblWin = getStatWinnerColors(matchStats.map(ps => ps.doubles), pids, 'high', playerColors)
+            const mSglWin = getStatWinnerColors(matchStats.map(ps => ps.singles), pids, 'high', playerColors)
+            const mMissWin = getStatWinnerColors(matchStats.map(ps => ps.misses), pids, 'low', playerColors)
+            const mHrWin = getStatWinnerColors(matchStats.map(ps => ps.hitRate), pids, 'high', playerColors)
+            return (
+            <div style={styles.card}>
+              <div style={{ fontWeight: 700, marginBottom: 12 }}>Match-Statistik</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={thLeft}></th>
+                    {matchStats.map((ps) => (
+                      <th key={ps.playerId} style={{ ...thRight, color: playerColors[ps.playerId] }}>
+                        {ps.name} {ps.isWinner && '\u{1F3C6}'}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ ...tdLeft, fontWeight: 700 }}>Feldpunkte</td>
+                    {matchStats.map((ps, i) => <td key={ps.playerId} style={mFpWin[i] ? { ...tdRight, color: mFpWin[i], fontWeight: 800, fontSize: 16 } : { ...tdRight, color: colors.warning, fontWeight: 800, fontSize: 16 }}>{ps.fieldPoints}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Felder gewonnen</td>
+                    {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mFwWin[i])}>{ps.fieldsWon}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Wurfpunkte</td>
+                    {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mWpWin[i])}>{ps.totalScore}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Darts</td>
+                    {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
+                  </tr>
+                  <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
+                  <tr>
+                    <td style={tdLeft}>Triples</td>
+                    {matchStats.map((ps, i) => (
+                      <td key={ps.playerId} style={tdWin(mTriWin[i])}>
+                        {ps.triples} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.tripleRate.toFixed(1)}%)</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Doubles</td>
+                    {matchStats.map((ps, i) => (
+                      <td key={ps.playerId} style={tdWin(mDblWin[i])}>
+                        {ps.doubles} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.doubleRate.toFixed(1)}%)</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Singles</td>
+                    {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mSglWin[i])}>{ps.singles}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Misses</td>
+                    {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mMissWin[i])}>{ps.misses}</td>)}
+                  </tr>
+                  <tr>
+                    <td style={tdLeft}>Trefferquote</td>
+                    {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mHrWin[i])}>{ps.hitRate.toFixed(1)}%</td>)}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            )
+          })()}
 
           {/* Feldverteilung */}
           {matchChartData.length > 0 && (
@@ -770,7 +806,11 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
           )}
 
           {/* Erweiterte Statistiken */}
-          {detailedStats.length > 0 && (
+          {detailedStats.length > 0 && (() => {
+            const mdPids = detailedStats.map(ps => ps.playerId)
+            const mdPerfWin = getStatWinnerColors(detailedStats.map(ps => ps.perfectTurns), mdPids, 'high', playerColors)
+            const mdAvgWin = getStatWinnerColors(detailedStats.map(ps => ps.avgScorePerField), mdPids, 'high', playerColors)
+            return (
             <div style={styles.card}>
               <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -803,20 +843,21 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   <tr>
                     <td style={tdLeft}>Perfekte Runden</td>
-                    {detailedStats.map((ps) => (
-                      <td key={ps.playerId} style={tdRight}>{ps.perfectTurns}</td>
+                    {detailedStats.map((ps, i) => (
+                      <td key={ps.playerId} style={tdWin(mdPerfWin[i])}>{ps.perfectTurns}</td>
                     ))}
                   </tr>
                   <tr>
                     <td style={tdLeft}>{'\u00D8'} Punkte/Feld</td>
-                    {detailedStats.map((ps) => (
-                      <td key={ps.playerId} style={tdRight}>{ps.avgScorePerField.toFixed(2)}</td>
+                    {detailedStats.map((ps, i) => (
+                      <td key={ps.playerId} style={tdWin(mdAvgWin[i])}>{ps.avgScorePerField.toFixed(2)}</td>
                     ))}
                   </tr>
                 </tbody>
               </table>
             </div>
-          )}
+            )
+          })()}
 
           {/* Legs Liste */}
           <div style={styles.card}>

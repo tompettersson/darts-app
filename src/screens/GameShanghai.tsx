@@ -32,6 +32,7 @@ import {
   type ShanghaiTurnResult,
 } from '../dartsShanghai'
 import ATBDartboard from '../components/ATBDartboard'
+import ShanghaiHitChart from '../components/ShanghaiHitChart'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import {
   initSpeech,
@@ -43,7 +44,9 @@ import {
   announceShanghaiHits,
   announceShanghai,
   playTriple20Sound,
+  playShanghaiDrumRoll,
 } from '../speech'
+import { PLAYER_COLORS } from '../playerColors'
 
 // Intermission-Typ fuer Leg-Zusammenfassung
 type ShanghaiIntermission = {
@@ -56,18 +59,6 @@ type ShanghaiIntermission = {
   shanghaiWin: boolean
   pendingNextEvents: ShanghaiEvent[]
 }
-
-// Spielerfarben (hell & leuchtend)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500)
-  '#22c55e', // Gruen (500)
-  '#f97316', // Orange (500)
-  '#ef4444', // Rot (500)
-  '#a855f7', // Violett (500)
-  '#14b8a6', // Tuerkis (500)
-  '#eab308', // Gelb (500)
-  '#ec4899', // Pink (500)
-]
 
 // Nummernpad-Layout fuer Dartfeld-Eingabe
 const NUMBER_PAD = [
@@ -231,6 +222,23 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
 
     if (dartTarget === 20 && currentMult === 3) playTriple20Sound()
 
+    // Trommelwirbel-Check: Wenn nach diesem Dart 2 Darts auf dem Target liegen
+    // mit 2 verschiedenen Multipliern, ist ein Shanghai moeglich
+    const newCurrent = [...current, dart]
+    if (newCurrent.length === 2) {
+      const hitsOnTarget = newCurrent.filter(d => d.target !== 'MISS' && d.target === targetNumber)
+      if (hitsOnTarget.length === 2) {
+        const mults = new Set(hitsOnTarget.map(d => d.mult))
+        if (mults.size === 2) {
+          const turnKey = `${activePlayerId}-${currentRound}-${targetNumber}`
+          if (drumRollPlayedRef.current !== turnKey) {
+            drumRollPlayedRef.current = turnKey
+            playShanghaiDrumRoll()
+          }
+        }
+      }
+    }
+
     setCurrent(prev => {
       if (prev.length >= 3) return prev
       return [...prev, dart]
@@ -243,7 +251,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
 
     // Nach jedem Wurf zurueck auf Single
     setMult(1)
-  }, [activePlayerId, current, state, gamePaused])
+  }, [activePlayerId, current, state, gamePaused, targetNumber, currentRound])
 
   // Miss hinzufuegen
   const addMiss = useCallback(() => {
@@ -261,6 +269,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
   const addMissRef = useRef(addMiss)
   useEffect(() => { addDartRef.current = addDart }, [addDart])
   useEffect(() => { addMissRef.current = addMiss }, [addMiss])
+
+  // Ref fuer Trommelwirbel-Dedup (wird in addDart genutzt)
+  const drumRollPlayedRef = useRef<string>('')
 
   // Nummern-Buffer leeren und als Dart verarbeiten
   const flushNumBuffer = useCallback(() => {
@@ -289,8 +300,10 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
     const result = recordShanghaiTurn(state, activePlayerId, darts)
     const newEvents: ShanghaiEvent[] = [...events, result.turnEvent]
 
-    // Treffer-Anzahl berechnen und ansagen
-    const hitCount = darts.filter(d => d.target !== 'MISS' && d.target === result.turnEvent.targetNumber).length
+    // Gewichtete Treffer-Anzahl berechnen (Single=1, Double=2, Triple=3)
+    const hitCount = darts
+      .filter(d => d.target !== 'MISS' && d.target === result.turnEvent.targetNumber)
+      .reduce((sum, d) => sum + d.mult, 0)
 
     // Shanghai-Flash anzeigen
     if (result.turnEvent.isShanghai) {
@@ -1047,6 +1060,21 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
         </div>
       </div>
 
+      {/* Trefferwerte-Diagramm */}
+      {currentRound > 1 && (
+        <div style={{ padding: '0 20px 16px' }}>
+          <ShanghaiHitChart
+            events={events}
+            players={players.map((p, idx) => ({
+              playerId: p.playerId,
+              name: p.name,
+              color: playerColors[p.playerId] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length],
+            }))}
+            currentRound={currentRound}
+          />
+        </div>
+      )}
+
       {/* Leg-Zusammenfassung (Intermission) */}
       {intermission && (
         <ShanghaiLegIntermissionModal
@@ -1082,6 +1110,15 @@ function ShanghaiLegIntermissionModal({
   playerColors: string[]
   onContinue: () => void
 }) {
+  // Enter-Taste zum Weitergehen
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') onContinue()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onContinue])
+
   // Leg-Score berechnen (kumulativ bis zu diesem Leg)
   const legWins: Record<string, number> = {}
   match.players.forEach((p: any) => { legWins[p.playerId] = 0 })

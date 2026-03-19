@@ -35,12 +35,7 @@ import { playTriple20Sound, announceGameStart, announceNextPlayer, announceScore
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
-
-// Spielerfarben
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#8b5cf6', '#14b8a6', '#eab308', '#ec4899',
-]
+import { PLAYER_COLORS } from '../playerColors'
 
 // Leg-Zusammenfassung Typ
 type HighscoreIntermission = {
@@ -305,6 +300,16 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
     setLegStartElapsedMs(elapsedMs)
     setIntermission(null)
   }, [intermission, events, matchId, elapsedMs])
+
+  // Enter-Taste zum Weitergehen bei Intermission
+  useEffect(() => {
+    if (!intermission) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') continueFromIntermission()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [intermission, continueFromIntermission])
 
   // Match abbrechen
   const handleAbort = useCallback(() => {

@@ -16,6 +16,7 @@ import type { DartsEvent, MatchStarted, VisitAdded, MatchFinished, LegFinished }
 import type { CricketMatchStarted, CricketTurnAdded, CricketMatchFinished, CricketEvent } from '../dartsCricket'
 import { computeStats } from '../darts501'
 import { computeCricketStats } from './computeCricketStats'
+import { dbSaveCricketPlayerStats } from '../db/storage'
 
 // ============================================================
 // ALLGEMEINE STATISTIKEN
@@ -1444,6 +1445,17 @@ export function updateGlobalCricketPlayerStatsFromMatch(matchId: string, events:
     }
 
     saveCricketPlayerStatsStore(store)
+
+    // Dual-Write: SQLite (fire-and-forget)
+    for (const player of startEvt.players) {
+      if (player.isGuest) continue
+      const s = store[player.playerId]
+      if (s) {
+        dbSaveCricketPlayerStats(s).catch(e =>
+          console.error('[KRITISCH] DB-Fehler (cricket_player_stats):', player.playerId, e)
+        )
+      }
+    }
   } catch (err) {
     console.error('updateGlobalCricketPlayerStatsFromMatch failed:', err)
   }

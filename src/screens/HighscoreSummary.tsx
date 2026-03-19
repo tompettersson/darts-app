@@ -12,17 +12,27 @@ import {
 import { computeHighscoreMatchStats } from '../stats/computeHighscoreStats'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import type { HighscoreEvent, HighscoreTurnAddedEvent } from '../types/highscore'
+import { PLAYER_COLORS } from '../playerColors'
+
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
   onBackToMenu: () => void
   onRematch: (matchId: string) => void
 }
-
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#8b5cf6', '#14b8a6', '#eab308', '#ec4899',
-]
 
 export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: Props) {
   const { isArcade, colors } = useTheme()
@@ -108,6 +118,24 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: P
     })
     return map
   }, [players, profiles])
+
+  // Record-Version für getStatWinnerColors
+  const playerColorRecord: Record<string, string> = {}
+  players.forEach((p, i) => {
+    const profile = profiles.find(pr => pr.id === p.id)
+    playerColorRecord[p.id] = profile?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length]
+  })
+  const pids = sorted.map(s => s.playerId)
+
+  // Winner-Farben pro Statistik-Zeile
+  const endscoreWin = getStatWinnerColors(sorted.map(s => s.finalScore), pids, 'high', playerColorRecord)
+  const dartsWin = getStatWinnerColors(sorted.map(s => s.dartsThrown), pids, 'low', playerColorRecord)
+  const turnsWin = getStatWinnerColors(sorted.map(s => s.turnsPlayed), pids, 'low', playerColorRecord)
+  const avgPerDartWin = getStatWinnerColors(sorted.map(s => s.avgPointsPerDart), pids, 'high', playerColorRecord)
+  const avg3DartWin = getStatWinnerColors(sorted.map(s => s.avgPointsPerTurn), pids, 'high', playerColorRecord)
+  const bestTurnWin = getStatWinnerColors(sorted.map(s => s.bestTurn), pids, 'high', playerColorRecord)
+  const speedWin = getStatWinnerColors(sorted.map(s => s.speedRating), pids, 'high', playerColorRecord)
+  const equiv999Win = getStatWinnerColors(sorted.map(s => s.normalized999Darts ?? Infinity), pids, 'low', playerColorRecord)
 
   // State für ausgewählten Leg-Index
   const [selectedLegIndex, setSelectedLegIndex] = useState(0)
@@ -270,56 +298,56 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: P
               <tbody>
                 <tr>
                   <td style={labelStyle}>Endscore</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(endscoreWin[i] ?? undefined)}>
                       {s.finalScore}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td style={labelStyle}>Darts</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(dartsWin[i] ?? undefined)}>
                       {s.dartsThrown}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td style={labelStyle}>Turns</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(turnsWin[i] ?? undefined)}>
                       {s.turnsPlayed}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td style={labelStyle}>Ø per Dart</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(avgPerDartWin[i] ?? undefined)}>
                       {s.avgPointsPerDart.toFixed(1)}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td style={labelStyle}>3-Dart Avg</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(avg3DartWin[i] ?? undefined)}>
                       {s.avgPointsPerTurn.toFixed(1)}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td style={labelStyle}>Best Turn</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(bestTurnWin[i] ?? undefined)}>
                       {s.bestTurn}
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td style={labelStyle}>Speed Rating</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(speedWin[i] ?? undefined)}>
                       {s.speedRating.toFixed(2)}
                     </td>
                   ))}
@@ -327,8 +355,8 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: P
                 {sorted[0]?.normalized999Darts != null && (
                   <tr>
                     <td style={labelStyle}>999-Equivalent</td>
-                    {sorted.map(s => (
-                      <td key={s.playerId} style={tdStyle(playerColorMap.get(s.playerId))}>
+                    {sorted.map((s, i) => (
+                      <td key={s.playerId} style={tdStyle(equiv999Win[i] ?? undefined)}>
                         {s.normalized999Darts?.toFixed(0) ?? '—'}
                       </td>
                     ))}

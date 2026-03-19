@@ -8,12 +8,14 @@ export type KillerMatchStats = {
   qualifiedInRound: number | null
   isKiller: boolean
   totalKills: number
+  hitsDealt: number // Treffer auf gegnerische Zahlen
   survivedRounds: number
   finalPosition: number
   totalDartsThrown: number
-  hitRate: number // Prozent qualifizierende Treffer
+  hitRate: number // Prozent effektive Treffer (qualifying + killer)
   livesLost: number
   livesHealed: number
+  selfKills: number // Leben durch eigene Zahl verloren (friendlyFire)
 }
 
 export function computeKillerMatchStats(
@@ -43,6 +45,9 @@ export function computeKillerMatchStats(
   let livesLost = 0
   let livesHealed = 0
 
+  let hitsDealt = 0
+  let selfKills = 0
+
   for (const turn of turns) {
     totalDartsThrown += turn.darts.length
 
@@ -56,11 +61,17 @@ export function computeKillerMatchStats(
     // Kills zaehlen
     totalKills += turn.eliminations.length
 
-    // Leben-Aenderungen fuer diesen Spieler
+    // Treffer in der Killer-Phase aufschluesseln
     for (const lc of turn.livesChanges) {
       if (lc.playerId === playerId) {
-        if (lc.delta < 0) livesLost += Math.abs(lc.delta)
+        if (lc.delta < 0) {
+          livesLost += Math.abs(lc.delta)
+          selfKills += Math.abs(lc.delta)
+        }
         if (lc.delta > 0) livesHealed += lc.delta
+      } else {
+        // Treffer auf gegnerische Zahlen
+        hitsDealt += Math.abs(lc.delta)
       }
     }
   }
@@ -94,19 +105,22 @@ export function computeKillerMatchStats(
     allTurns.length > 0 ? allTurns[allTurns.length - 1].roundNumber : 0
   )
 
-  // Hit rate: qualifizierende Darts / total Darts
-  const hitRate = totalDartsThrown > 0 ? (qualifyingHits / totalDartsThrown) * 100 : 0
+  // Hit rate: effektive Treffer (qualifying + gegnerische Treffer + self) / total Darts
+  const effectiveHits = qualifyingHits + hitsDealt + selfKills + livesHealed
+  const hitRate = totalDartsThrown > 0 ? (effectiveHits / totalDartsThrown) * 100 : 0
 
   return {
     targetNumber,
     qualifiedInRound,
     isKiller,
     totalKills,
+    hitsDealt,
     survivedRounds: lastRound,
     finalPosition,
     totalDartsThrown,
     hitRate,
     livesLost,
     livesHealed,
+    selfKills,
   }
 }

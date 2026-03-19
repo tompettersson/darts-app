@@ -15,17 +15,27 @@ import {
 import type { StrTargetNumber, StrRingMode } from '../types/straeusschen'
 import { computeStrMatchStats, computeStrLegStats, type StrPlayerMatchStat, type StrPlayerLegStat } from '../stats/computeStraeusschenStats'
 import type { StrTurnAddedEvent, StrEvent } from '../dartsStraeusschen'
+import { PLAYER_COLORS } from '../playerColors'
+
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
   onBackToMenu: () => void
   onRematch: (matchId: string) => void
 }
-
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#8b5cf6', '#14b8a6', '#eab308', '#ec4899',
-]
 
 export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }: Props) {
   const { isArcade, colors } = useTheme()
@@ -135,6 +145,33 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
   const playerColorMap = new Map<string, string>()
   match.players.forEach((p, i) => playerColorMap.set(p.playerId, PLAYER_COLORS[i % PLAYER_COLORS.length]))
 
+  // Record-Version für getStatWinnerColors
+  const playerColorRecord: Record<string, string> = {}
+  match.players.forEach((p, i) => { playerColorRecord[p.playerId] = PLAYER_COLORS[i % PLAYER_COLORS.length] })
+  const pids = sorted.map(s => s.playerId)
+
+  // Winner-Farben pro Statistik-Zeile vorberechnen
+  const scoreWin = getStatWinnerColors(
+    sorted.map(s => isMultiLeg ? s.avgScorePerLeg : s.totalScore), pids, 'high', playerColorRecord
+  )
+  const turnsWin = getStatWinnerColors(sorted.map(s => s.totalTurns), pids, 'low', playerColorRecord)
+  const dartsWin = getStatWinnerColors(sorted.map(s => s.totalDarts), pids, 'low', playerColorRecord)
+  const hitRateWin = getStatWinnerColors(sorted.map(s => s.hitRate), pids, 'high', playerColorRecord)
+
+  // Single-leg Triple winners
+  const singleLegSorted = singleLegStats ? sortedLegStats(singleLegStats, sorted) : []
+  const triple1Win = singleLegSorted.length > 0
+    ? getStatWinnerColors(singleLegSorted.map(ps => ps.fields[0]?.dartsToTriple[0] ?? Infinity), pids, 'low', playerColorRecord) : []
+  const triple2Win = singleLegSorted.length > 0
+    ? getStatWinnerColors(singleLegSorted.map(ps => ps.fields[0]?.dartsToTriple[1] ?? Infinity), pids, 'low', playerColorRecord) : []
+  const triple3Win = singleLegSorted.length > 0
+    ? getStatWinnerColors(singleLegSorted.map(ps => ps.fields[0]?.dartsToTriple[2] ?? Infinity), pids, 'low', playerColorRecord) : []
+  // Multi-leg Ø Triple winners
+  const avgTriple1Win = getStatWinnerColors(sorted.map(s => s.avgDartsToTriple[0] ?? Infinity), pids, 'low', playerColorRecord)
+  const avgTriple2Win = getStatWinnerColors(sorted.map(s => s.avgDartsToTriple[1] ?? Infinity), pids, 'low', playerColorRecord)
+  const avgTriple3Win = getStatWinnerColors(sorted.map(s => s.avgDartsToTriple[2] ?? Infinity), pids, 'low', playerColorRecord)
+  const avgDartsPerLegWin = getStatWinnerColors(sorted.map(s => s.avgDartsPerLeg > 0 ? s.avgDartsPerLeg : Infinity), pids, 'low', playerColorRecord)
+
   return (
     <div style={styles.page}>
       <div style={styles.headerRow}>
@@ -236,8 +273,8 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
                 {/* Score */}
                 <tr>
                   <td style={labelStyle}>{isMultiLeg ? 'Ø Score' : 'Score'}</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle('#0ea5e9')}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(scoreWin[i] ?? '#0ea5e9')}>
                       {isMultiLeg ? s.avgScorePerLeg.toFixed(1) : s.totalScore.toFixed(1)}
                     </td>
                   ))}
@@ -245,12 +282,12 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
                 {/* Aufnahmen */}
                 <tr>
                   <td style={labelStyle}>Aufnahmen</td>
-                  {sorted.map(s => <td key={s.playerId} style={tdStyle(undefined)}>{s.totalTurns}</td>)}
+                  {sorted.map((s, i) => <td key={s.playerId} style={tdStyle(turnsWin[i] ?? undefined)}>{s.totalTurns}</td>)}
                 </tr>
                 {/* Darts */}
                 <tr>
                   <td style={labelStyle}>Darts</td>
-                  {sorted.map(s => <td key={s.playerId} style={tdStyle(undefined)}>{s.totalDarts}</td>)}
+                  {sorted.map((s, i) => <td key={s.playerId} style={tdStyle(dartsWin[i] ?? undefined)}>{s.totalDarts}</td>)}
                 </tr>
 
                 {/* Darts to Triple/Double (für Single-Mode oder Single-Leg) */}
@@ -258,24 +295,24 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
                   <>
                     <tr>
                       <td style={labelStyle}>{"1. " + ringLabel}</td>
-                      {sortedLegStats(singleLegStats, sorted).map(ps => (
-                        <td key={ps.playerId} style={tdStyle(colors.accent)}>
+                      {sortedLegStats(singleLegStats, sorted).map((ps, i) => (
+                        <td key={ps.playerId} style={tdStyle(triple1Win[i] ?? undefined)}>
                           {ps.fields[0]?.dartsToTriple[0] ?? '—'}
                         </td>
                       ))}
                     </tr>
                     <tr>
                       <td style={labelStyle}>{"2. " + ringLabel}</td>
-                      {sortedLegStats(singleLegStats, sorted).map(ps => (
-                        <td key={ps.playerId} style={tdStyle(colors.accent)}>
+                      {sortedLegStats(singleLegStats, sorted).map((ps, i) => (
+                        <td key={ps.playerId} style={tdStyle(triple2Win[i] ?? undefined)}>
                           {ps.fields[0]?.dartsToTriple[1] ?? '—'}
                         </td>
                       ))}
                     </tr>
                     <tr>
                       <td style={labelStyle}>{"3. " + ringLabel}</td>
-                      {sortedLegStats(singleLegStats, sorted).map(ps => (
-                        <td key={ps.playerId} style={tdStyle(colors.accent)}>
+                      {sortedLegStats(singleLegStats, sorted).map((ps, i) => (
+                        <td key={ps.playerId} style={tdStyle(triple3Win[i] ?? undefined)}>
                           {ps.fields[0]?.dartsToTriple[2] ?? '—'}
                         </td>
                       ))}
@@ -288,32 +325,32 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
                   <>
                     <tr>
                       <td style={labelStyle}>{"Ø 1. " + ringLabel}</td>
-                      {sorted.map(s => (
-                        <td key={s.playerId} style={tdStyle(colors.accent)}>
+                      {sorted.map((s, i) => (
+                        <td key={s.playerId} style={tdStyle(avgTriple1Win[i] ?? undefined)}>
                           {s.avgDartsToTriple[0] != null ? s.avgDartsToTriple[0].toFixed(1) : '—'}
                         </td>
                       ))}
                     </tr>
                     <tr>
                       <td style={labelStyle}>{"Ø 2. " + ringLabel}</td>
-                      {sorted.map(s => (
-                        <td key={s.playerId} style={tdStyle(colors.accent)}>
+                      {sorted.map((s, i) => (
+                        <td key={s.playerId} style={tdStyle(avgTriple2Win[i] ?? undefined)}>
                           {s.avgDartsToTriple[1] != null ? s.avgDartsToTriple[1].toFixed(1) : '—'}
                         </td>
                       ))}
                     </tr>
                     <tr>
                       <td style={labelStyle}>{"Ø 3. " + ringLabel}</td>
-                      {sorted.map(s => (
-                        <td key={s.playerId} style={tdStyle(colors.accent)}>
+                      {sorted.map((s, i) => (
+                        <td key={s.playerId} style={tdStyle(avgTriple3Win[i] ?? undefined)}>
                           {s.avgDartsToTriple[2] != null ? s.avgDartsToTriple[2].toFixed(1) : '—'}
                         </td>
                       ))}
                     </tr>
                     <tr>
                       <td style={labelStyle}>Ø Darts/Leg</td>
-                      {sorted.map(s => (
-                        <td key={s.playerId} style={tdStyle(undefined)}>
+                      {sorted.map((s, i) => (
+                        <td key={s.playerId} style={tdStyle(avgDartsPerLegWin[i] ?? undefined)}>
                           {s.avgDartsPerLeg > 0 ? s.avgDartsPerLeg.toFixed(1) : '—'}
                         </td>
                       ))}
@@ -324,8 +361,8 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
                 {/* Hit Rate */}
                 <tr>
                   <td style={labelStyle}>Hit Rate</td>
-                  {sorted.map(s => (
-                    <td key={s.playerId} style={tdStyle(colors.success)}>
+                  {sorted.map((s, i) => (
+                    <td key={s.playerId} style={tdStyle(hitRateWin[i] ?? undefined)}>
                       {s.hitRate.toFixed(1)}%
                     </td>
                   ))}

@@ -42,25 +42,30 @@ import {
   announceKillerSetWin,
   playKillerHitSound,
   playKillerEliminatedSound,
+  playTriple20Sound,
   setSpeechEnabled,
   isSpeechEnabled,
   initSpeech,
-  getVoiceLang,
 } from '../speech'
+import { computeKillerMatchStats } from '../stats/computeKillerStats'
+import type { KillerStoredMatch } from '../types/killer'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import KillerDartboard from '../components/KillerDartboard'
+import { PLAYER_COLORS } from '../playerColors'
 
-// Spielerfarben (hell & leuchtend)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau
-  '#22c55e', // Gruen
-  '#f97316', // Orange
-  '#ef4444', // Rot
-  '#a855f7', // Violett
-  '#14b8a6', // Tuerkis
-  '#eab308', // Gelb
-  '#ec4899', // Pink
-]
+// Hilfsfunktion: Beste Zelle pro Zeile hervorheben
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 // Nummernpad-Layout
 const NUMBER_PAD = [
@@ -264,6 +269,8 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
 
     const currentMult = multRef.current
     const dart: KillerDart = { target: dartTarget, mult: currentMult }
+
+    if (dartTarget === 20 && currentMult === 3) playTriple20Sound()
 
     setCurrent(prev => {
       if (prev.length >= 3) return prev
@@ -481,6 +488,26 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
     setLegManualTargets({})
     prevActiveRef.current = null // Reset speech tracking
   }, [intermission, events, matchId, legManualTargets, state.playerOrder])
+
+  // Enter-Taste zum Weitergehen bei Intermission
+  useEffect(() => {
+    if (!intermission) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return
+      // Prüfe ob Button disabled wäre (manuelle Zuweisung nötig aber nicht vollständig)
+      if (intermission.needsManualAssignment) {
+        const assigned = state.playerOrder.every(pid =>
+          legManualTargets[pid] != null && legManualTargets[pid] >= 1 && legManualTargets[pid] <= 20
+        )
+        if (!assigned) return
+        const nums = state.playerOrder.map(pid => legManualTargets[pid])
+        if (new Set(nums).size !== nums.length) return
+      }
+      continueNextLeg()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [intermission, continueNextLeg, state.playerOrder, legManualTargets])
 
   // Auto-Confirm bei 3 Darts
   useEffect(() => {
@@ -1301,6 +1328,115 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
                 </div>
               )}
             </div>
+
+            {/* Leg-Stats Vergleichstabelle */}
+            {(() => {
+              // Temporaeres KillerStoredMatch fuer computeKillerMatchStats
+              const tmpMatch: KillerStoredMatch = {
+                id: matchId ?? '',
+                title: 'Killer',
+                players: state.playerOrder.map(pid => ({
+                  playerId: pid,
+                  name: playerNames[pid] ?? pid,
+                })),
+                config: state.config,
+                events,
+                winnerId: state.winnerId ?? undefined,
+                createdAt: new Date().toISOString(),
+              }
+
+              const pIds = state.playerOrder
+              const colorMap: Record<string, string> = {}
+              pIds.forEach(pid => { colorMap[pid] = playerColors[pid] ?? '#e5e7eb' })
+
+              const statsArr = pIds.map(pid => ({
+                pid,
+                stats: computeKillerMatchStats(tmpMatch, pid),
+              })).filter(x => x.stats != null) as { pid: string; stats: NonNullable<ReturnType<typeof computeKillerMatchStats>> }[]
+
+              if (statsArr.length < 2) return null
+
+              const sPids = statsArr.map(x => x.pid)
+              const killsWin = getStatWinnerColors(statsArr.map(x => x.stats.totalKills), sPids, 'high', colorMap)
+              const hitsDealtWin = getStatWinnerColors(statsArr.map(x => x.stats.hitsDealt), sPids, 'high', colorMap)
+              const survivedWin = getStatWinnerColors(statsArr.map(x => x.stats.survivedRounds), sPids, 'high', colorMap)
+              const hitRateWin = getStatWinnerColors(statsArr.map(x => x.stats.hitRate), sPids, 'high', colorMap)
+              const livesLostWin = getStatWinnerColors(statsArr.map(x => x.stats.livesLost), sPids, 'low', colorMap)
+
+              const thS: React.CSSProperties = { textAlign: 'right', padding: '5px 6px', borderBottom: '1px solid #333', color: '#9ca3af', fontWeight: 600, fontSize: 11 }
+              const tdS: React.CSSProperties = { textAlign: 'right', padding: '5px 6px', borderBottom: '1px solid #333', fontSize: 12 }
+              const tdL: React.CSSProperties = { ...tdS, textAlign: 'left', color: '#9ca3af', fontWeight: 500 }
+
+              return (
+                <div style={{
+                  background: '#23272b',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 20,
+                  border: '1px solid #333',
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8, color: '#eab308', textAlign: 'center', fontSize: 13 }}>
+                    Leg-Statistiken
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ ...thS, textAlign: 'left' }}>Stat</th>
+                          {statsArr.map(x => (
+                            <th key={x.pid} style={{ ...thS, color: colorMap[x.pid] }}>
+                              {playerNames[x.pid] ?? x.pid}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={tdL}>Total Kills</td>
+                          {statsArr.map((x, i) => (
+                            <td key={x.pid} style={killsWin[i] ? { ...tdS, fontWeight: 700, color: killsWin[i] } : { ...tdS, fontWeight: 600, color: '#e5e7eb' }}>
+                              {x.stats.totalKills}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdL}>Treffer</td>
+                          {statsArr.map((x, i) => (
+                            <td key={x.pid} style={hitsDealtWin[i] ? { ...tdS, fontWeight: 700, color: hitsDealtWin[i] } : { ...tdS, fontWeight: 600, color: '#e5e7eb' }}>
+                              {x.stats.hitsDealt}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdL}>Runden ueberlebt</td>
+                          {statsArr.map((x, i) => (
+                            <td key={x.pid} style={survivedWin[i] ? { ...tdS, fontWeight: 700, color: survivedWin[i] } : { ...tdS, fontWeight: 600, color: '#e5e7eb' }}>
+                              {x.stats.survivedRounds}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdL}>Trefferquote</td>
+                          {statsArr.map((x, i) => (
+                            <td key={x.pid} style={hitRateWin[i] ? { ...tdS, fontWeight: 700, color: hitRateWin[i] } : { ...tdS, fontWeight: 600, color: '#e5e7eb' }}>
+                              {x.stats.hitRate.toFixed(1)}%
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdL}>Leben verloren</td>
+                          {statsArr.map((x, i) => (
+                            <td key={x.pid} style={livesLostWin[i] ? { ...tdS, fontWeight: 700, color: livesLostWin[i] } : { ...tdS, fontWeight: 600, color: '#e5e7eb' }}>
+                              {x.stats.livesLost}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Manual Target Picker */}
             {intermission.needsManualAssignment && (

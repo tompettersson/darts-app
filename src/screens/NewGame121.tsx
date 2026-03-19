@@ -11,6 +11,7 @@ import {
   getProfiles, getMatches, saveMatches, setLastOpenMatchId,
   type Profile, type StoredMatch,
 } from '../storage'
+import { dbSaveX01Match } from '../db/storage'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 
@@ -179,6 +180,20 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
     all.unshift(stored)
     saveMatches(all)
     setLastOpenMatchId(matchId)
+
+    // Match auch in SQLite speichern (fire-and-forget)
+    dbSaveX01Match({
+      id: stored.id,
+      title: stored.title,
+      matchName: null,
+      notes: null,
+      createdAt: stored.createdAt,
+      finished: false,
+      finishedAt: null,
+      events: stored.events,
+      playerIds: stored.playerIds,
+    }).catch(err => console.warn('[NewGame121] SQLite save failed:', err))
+
     onStarted?.(matchId)
   }
 

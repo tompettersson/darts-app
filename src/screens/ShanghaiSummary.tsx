@@ -7,18 +7,21 @@ import { useTheme } from '../ThemeProvider'
 import { getShanghaiMatchById } from '../storage'
 import { applyShanghaiEvents, formatDuration } from '../dartsShanghai'
 import { computeShanghaiMatchStats } from '../stats/computeShanghaiStats'
+import { PLAYER_COLORS } from '../playerColors'
 
-// Spielerfarben (satte Farben, konsistent mit anderen Screens)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500)
-  '#22c55e', // Gruen (500)
-  '#f97316', // Orange (500)
-  '#ef4444', // Rot (500)
-  '#a855f7', // Violett (500)
-  '#14b8a6', // Tuerkis (500)
-  '#eab308', // Gelb (500)
-  '#ec4899', // Pink (500)
-]
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Spalte
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
@@ -312,46 +315,60 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch }: Pr
           <div style={{ ...styles.card, marginBottom: 16 }}>
             <div style={{ ...styles.sub, marginBottom: 8 }}>Spieler-Statistiken</div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', color: colors.fgMuted }}>Spieler</th>
-                    <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Avg/R</th>
-                    <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Beste</th>
-                    <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Schw.</th>
-                    <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>T/D/S</th>
-                    <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Miss</th>
-                    <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Hit%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rankings.map((p) => (
-                    <tr key={p.playerId} style={{ borderBottom: `1px solid ${colors.border}` }}>
-                      <td style={{ padding: '6px 8px', fontWeight: 600 }}>
-                        <span style={{ color: p.color }}>{p.name}</span>
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                        {p.avgPerRound.toFixed(1)}
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '6px 8px', color: colors.success }}>
-                        {p.bestRound.score > 0 ? `${p.bestRound.score} (R${p.bestRound.round})` : '-'}
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '6px 8px', color: colors.error }}>
-                        {p.worstRound.round > 0 ? `${p.worstRound.score} (R${p.worstRound.round})` : '-'}
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                        {p.triples}/{p.doubles}/{p.singles}
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgDim }}>
-                        {p.misses}
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>
-                        {p.hitRate.toFixed(0)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {(() => {
+                // Per-Column Winner berechnen
+                const pids = rankings.map(p => p.playerId)
+                const colorMap: Record<string, string> = {}
+                rankings.forEach(p => { colorMap[p.playerId] = p.color })
+                const avgWin = getStatWinnerColors(rankings.map(p => p.avgPerRound), pids, 'high', colorMap)
+                const bestWin = getStatWinnerColors(rankings.map(p => p.bestRound.score), pids, 'high', colorMap)
+                const worstWin = getStatWinnerColors(rankings.map(p => p.worstRound.score), pids, 'high', colorMap)
+                const missWin = getStatWinnerColors(rankings.map(p => p.misses), pids, 'low', colorMap)
+                const hitWin = getStatWinnerColors(rankings.map(p => p.hitRate), pids, 'high', colorMap)
+
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', color: colors.fgMuted }}>Spieler</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Avg/R</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Beste</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Schw.</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>T/D/S</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Miss</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: colors.fgMuted }}>Hit%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankings.map((p, i) => (
+                        <tr key={p.playerId} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                          <td style={{ padding: '6px 8px', fontWeight: 600 }}>
+                            <span style={{ color: p.color }}>{p.name}</span>
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(avgWin[i] ? { color: avgWin[i], fontWeight: 700 } : {}) }}>
+                            {p.avgPerRound.toFixed(1)}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(bestWin[i] ? { color: bestWin[i], fontWeight: 700 } : { color: colors.success }) }}>
+                            {p.bestRound.score > 0 ? `${p.bestRound.score} (R${p.bestRound.round})` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(worstWin[i] ? { color: worstWin[i], fontWeight: 700 } : { color: colors.error }) }}>
+                            {p.worstRound.round > 0 ? `${p.worstRound.score} (R${p.worstRound.round})` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '6px 8px' }}>
+                            {p.triples}/{p.doubles}/{p.singles}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '6px 8px', ...(missWin[i] ? { color: missWin[i], fontWeight: 700 } : { color: colors.fgDim }) }}>
+                            {p.misses}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600, ...(hitWin[i] ? { color: hitWin[i], fontWeight: 700 } : {}) }}>
+                            {p.hitRate.toFixed(0)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              })()}
             </div>
           </div>
 

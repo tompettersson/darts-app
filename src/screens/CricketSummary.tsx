@@ -29,6 +29,20 @@ function fmtFixed2(n: number | null | undefined): string {
   return n.toFixed(2)
 }
 
+// Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
+
 function computeLegDuration(events: CricketEvent[], legIndex: number): string {
   let currentLeg = 0
   let legStartTs: string | null = null
@@ -342,16 +356,19 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
       totalMarks: number
       totalPoints: number
       turns: number
+      totalDarts: number
       triplesHit: number
       doublesHit: number
       bestTurnMarks: number
       bestTurnPoints: number
       bullHits: number
       doubleBullHits: number
+      hits: number
+      misses: number
     }
     const legStatsByPlayer: Record<string, LegPlayerStats> = {}
     allPlayerIds.forEach(pid => {
-      legStatsByPlayer[pid] = { totalMarks: 0, totalPoints: 0, turns: 0, triplesHit: 0, doublesHit: 0, bestTurnMarks: 0, bestTurnPoints: 0, bullHits: 0, doubleBullHits: 0 }
+      legStatsByPlayer[pid] = { totalMarks: 0, totalPoints: 0, turns: 0, totalDarts: 0, triplesHit: 0, doublesHit: 0, bestTurnMarks: 0, bestTurnPoints: 0, bullHits: 0, doubleBullHits: 0, hits: 0, misses: 0 }
     })
 
     // Marks-Tracking für alle Spieler im Leg
@@ -416,6 +433,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
       ps.totalMarks += totalNewMarks
       ps.totalPoints += newPoints
       ps.turns++
+      ps.totalDarts += turn.darts.length
       if (totalNewMarks > ps.bestTurnMarks) ps.bestTurnMarks = totalNewMarks
       if (newPoints > ps.bestTurnPoints) ps.bestTurnPoints = newPoints
       for (const d of turn.darts) {
@@ -428,6 +446,12 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
           } else {
             ps.bullHits++
           }
+        }
+        // Treffer / Misses
+        if (d.target !== 'MISS' && validTargets.has(String(d.target))) {
+          ps.hits++
+        } else {
+          ps.misses++
         }
       }
 
@@ -514,62 +538,38 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={tdLeft}>Total Marks</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].totalMarks}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Punkte</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].totalPoints}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Marks/Turn</td>
-                  {allPlayerIds.map(pid => {
-                    const s = legStatsByPlayer[pid]
-                    const mpt = s.turns > 0 ? s.totalMarks / s.turns : 0
-                    return <td key={pid} style={tdCenter}>{mpt.toFixed(2)}</td>
-                  })}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Höchste Aufnahme (Marks)</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].bestTurnMarks}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Höchste Aufnahme (Punkte)</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].bestTurnPoints}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Triples</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].triplesHit}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Doubles</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].doublesHit}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Single Bull</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].bullHits}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td style={tdLeft}>Double Bull</td>
-                  {allPlayerIds.map(pid => (
-                    <td key={pid} style={tdCenter}>{legStatsByPlayer[pid].doubleBullHits}</td>
-                  ))}
-                </tr>
+                {(() => {
+                  type LegRow = { label: string; values: (string | number)[]; compareValues?: number[]; better?: 'high' | 'low' }
+                  const legRows: LegRow[] = [
+                    { label: 'Darts', values: allPlayerIds.map(pid => legStatsByPlayer[pid].totalDarts), better: 'low' },
+                    { label: 'Total Marks', values: allPlayerIds.map(pid => legStatsByPlayer[pid].totalMarks), better: 'high' },
+                    { label: 'Punkte', values: allPlayerIds.map(pid => legStatsByPlayer[pid].totalPoints), better: 'high' },
+                    { label: 'Marks/Turn', values: allPlayerIds.map(pid => {
+                      const s = legStatsByPlayer[pid]; return s.turns > 0 ? (s.totalMarks / s.turns).toFixed(2) : '0.00'
+                    }), compareValues: allPlayerIds.map(pid => {
+                      const s = legStatsByPlayer[pid]; return s.turns > 0 ? s.totalMarks / s.turns : 0
+                    }), better: 'high' },
+                    { label: 'Höchste Aufnahme (Marks)', values: allPlayerIds.map(pid => legStatsByPlayer[pid].bestTurnMarks), better: 'high' },
+                    { label: 'Höchste Aufnahme (Punkte)', values: allPlayerIds.map(pid => legStatsByPlayer[pid].bestTurnPoints), better: 'high' },
+                    { label: 'Treffer / Misses', values: allPlayerIds.map(pid => `${legStatsByPlayer[pid].hits} / ${legStatsByPlayer[pid].misses}`), compareValues: allPlayerIds.map(pid => legStatsByPlayer[pid].hits), better: 'high' },
+                    { label: 'Triples', values: allPlayerIds.map(pid => legStatsByPlayer[pid].triplesHit), better: 'high' },
+                    { label: 'Doubles', values: allPlayerIds.map(pid => legStatsByPlayer[pid].doublesHit), better: 'high' },
+                    { label: 'Single Bull', values: allPlayerIds.map(pid => legStatsByPlayer[pid].bullHits), better: 'high' },
+                    { label: 'Double Bull', values: allPlayerIds.map(pid => legStatsByPlayer[pid].doubleBullHits), better: 'high' },
+                  ]
+                  return legRows.map((row, i) => {
+                    const nums = row.compareValues ?? row.values.map(v => typeof v === 'number' ? v : 0)
+                    const winColors = row.better ? getStatWinnerColors(nums, allPlayerIds, row.better, playerColors) : undefined
+                    return (
+                      <tr key={i}>
+                        <td style={tdLeft}>{row.label}</td>
+                        {row.values.map((v, j) => (
+                          <td key={j} style={{ ...tdCenter, ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
+                        ))}
+                      </tr>
+                    )
+                  })
+                })()}
               </tbody>
             </table>
           </div>
@@ -660,18 +660,38 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
     }
   })
 
+  // Treffer / Misses pro Spieler berechnen (Dart auf gültiges Cricket-Target = Treffer)
+  const hitsPerPlayer: Record<string, number> = {}
+  const missesPerPlayer: Record<string, number> = {}
+  allPlayerIds.forEach(pid => { hitsPerPlayer[pid] = 0; missesPerPlayer[pid] = 0 })
+  for (const ev of events) {
+    if (ev.type !== 'CricketTurnAdded') continue
+    const turn = ev as CricketTurnAdded
+    for (const d of turn.darts) {
+      if (d.target !== 'MISS' && validTargets.has(String(d.target))) {
+        hitsPerPlayer[turn.playerId] = (hitsPerPlayer[turn.playerId] ?? 0) + 1
+      } else {
+        missesPerPlayer[turn.playerId] = (missesPerPlayer[turn.playerId] ?? 0) + 1
+      }
+    }
+  }
+
   // Statistik-Zeilen
-  type Row = { label: string; values: (string | number)[] }
+  type Row = { label: string; values: (string | number)[]; compareValues?: number[]; better?: 'high' | 'low' }
   const rows: Row[] = [
-    { label: 'Bestes Leg', values: players.map(p => bestLegByPlayer[p.playerId] ? `${bestLegByPlayer[p.playerId]} Darts` : '—') },
-    { label: 'Total Marks', values: players.map(p => p.totalMarks) },
-    { label: 'Marks/Turn', values: players.map(p => fmtFixed2(p.marksPerTurn)) },
-    { label: 'Marks/Dart', values: players.map(p => fmtFixed2(p.marksPerDart)) },
-    { label: 'No-Score Turns', values: players.map(p => p.turnsWithNoScore) },
-    { label: 'Triples', values: players.map(p => p.triplesHit) },
-    { label: 'Doubles', values: players.map(p => p.doublesHit) },
-    { label: 'Single Bull', values: players.map(p => p.bullHitsSingle) },
-    { label: 'Double Bull', values: players.map(p => p.bullHitsDouble) },
+    { label: 'Darts', values: players.map(p => (hitsPerPlayer[p.playerId] ?? 0) + (missesPerPlayer[p.playerId] ?? 0)) },
+    { label: 'Bestes Leg', values: players.map(p => bestLegByPlayer[p.playerId] ? `${bestLegByPlayer[p.playerId]} Darts` : '—'), compareValues: players.map(p => bestLegByPlayer[p.playerId] ?? Infinity), better: 'low' },
+    { label: 'Total Marks', values: players.map(p => p.totalMarks), better: 'high' },
+    { label: 'Marks/Turn', values: players.map(p => fmtFixed2(p.marksPerTurn)), compareValues: players.map(p => p.marksPerTurn), better: 'high' },
+    { label: 'Marks/Dart', values: players.map(p => fmtFixed2(p.marksPerDart)), compareValues: players.map(p => p.marksPerDart), better: 'high' },
+    { label: 'Höchste Aufnahme (Marks)', values: players.map(p => p.bestTurnMarks), better: 'high' },
+    { label: 'Höchste Aufnahme (Punkte)', values: players.map(p => p.bestTurnPoints), better: 'high' },
+    { label: 'No-Score Turns', values: players.map(p => p.turnsWithNoScore), better: 'low' },
+    { label: 'Treffer / Misses', values: players.map(p => `${hitsPerPlayer[p.playerId] ?? 0} / ${missesPerPlayer[p.playerId] ?? 0}`), compareValues: players.map(p => hitsPerPlayer[p.playerId] ?? 0), better: 'high' },
+    { label: 'Triples', values: players.map(p => p.triplesHit), better: 'high' },
+    { label: 'Doubles', values: players.map(p => p.doublesHit), better: 'high' },
+    { label: 'Single Bull', values: players.map(p => p.bullHitsSingle), better: 'high' },
+    { label: 'Double Bull', values: players.map(p => p.bullHitsDouble), better: 'high' },
   ]
 
   // Match-Spielzeit berechnen
@@ -728,14 +748,19 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr key={i}>
-                  <td style={tdLeft}>{row.label}</td>
-                  {row.values.map((v, j) => (
-                    <td key={j} style={{ ...tdCenter, fontWeight: i === 0 ? 700 : 400 }}>{v}</td>
-                  ))}
-                </tr>
-              ))}
+              {rows.map((row, i) => {
+                const pids = players.map(p => p.playerId)
+                const nums = row.compareValues ?? row.values.map(v => typeof v === 'number' ? v : 0)
+                const winColors = row.better ? getStatWinnerColors(nums, pids, row.better, playerColors) : undefined
+                return (
+                  <tr key={i}>
+                    <td style={tdLeft}>{row.label}</td>
+                    {row.values.map((v, j) => (
+                      <td key={j} style={{ ...tdCenter, fontWeight: i === 0 ? 700 : 400, ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
+                    ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

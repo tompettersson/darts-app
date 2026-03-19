@@ -34,11 +34,19 @@ type Props = {
   onSelectShanghai?: () => void
   /** Killer Auswahl */
   onSelectKiller?: () => void
+  /** Bob's 27 Auswahl */
+  onSelectBobs27?: () => void
+  /** Operation Auswahl */
+  onSelectOperation?: () => void
+  /** Multiplayer Host */
+  onMultiplayerHost?: () => void
+  /** Multiplayer Join */
+  onMultiplayerJoin?: () => void
 }
 
-type Step = 'type' | 'preset' | 'cricket' | 'training'
+type Step = 'type' | 'preset' | 'cricket' | 'training' | 'board' | 'online'
 
-export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller }: Props) {
+export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onMultiplayerHost, onMultiplayerJoin }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -47,6 +55,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
   const [pickerIndex, setPickerIndex] = useState(0)
   const [presetPickerIndex, setPresetPickerIndex] = useState(0)
   const [trainingPickerIndex, setTrainingPickerIndex] = useState(0)
+  const [boardPickerIndex, setBoardPickerIndex] = useState(0)
+  const [onlinePickerIndex, setOnlinePickerIndex] = useState(0)
 
   // Arcade Picker items
   const pickerItems: PickerItem[] = useMemo(() => [
@@ -54,10 +64,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     { id: 'x01', label: 'X01', sub: '301 / 501 / 701 / 901' },
     { id: 'cricket', label: 'Cricket', sub: 'Short / Long & Cutthroat' },
     { id: 'training', label: 'Trainingspiele', sub: '121 Sprint & mehr' },
-    { id: 'atb', label: 'Around the Block', sub: '1-20 + Bull treffen' },
-    { id: 'ctf', label: 'Capture the Field', sub: 'Felder erobern!' },
-    { id: 'shanghai', label: 'Shanghai', sub: '1-20 punkten, Shanghai = Sofortsieg!' },
-    { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!' },
+    { id: 'board', label: 'Rund ums Board', sub: 'ATB, Capture the Field, Shanghai' },
+    { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten' },
   ], [])
 
   const handlePickerConfirm = (index: number) => {
@@ -66,10 +74,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     else if (id === 'x01') setStep('preset')
     else if (id === 'cricket') setStep('cricket')
     else if (id === 'training') setStep('training')
-    else if (id === 'atb') onSelectATB?.({ mode: 'ascending', direction: 'forward' })
-    else if (id === 'ctf') onSelectCTF?.()
-    else if (id === 'shanghai') onSelectShanghai?.()
-    else if (id === 'killer') onSelectKiller?.()
+    else if (id === 'board') setStep('board')
+    else if (id === 'online') setStep('online')
   }
 
   // Preset Picker items (X01)
@@ -91,7 +97,35 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     { id: 'str', label: 'Sträußchen', sub: '3× Triple auf 17/18/19/20' },
     { id: 'highscore', label: 'Highscore', sub: 'Erreiche als Erster das Target!' },
     { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!' },
+    { id: 'bobs27', label: "Bob's 27", sub: 'Doubles Training D1-D20' },
+    { id: 'operation', label: 'Operation: EFKG', sub: 'Ein Feld, keine Gnade' },
   ], [])
+
+  // Board Picker items (Rund ums Board)
+  const boardItems: PickerItem[] = useMemo(() => [
+    { id: 'atb', label: 'Around the Block', sub: '1-20 + Bull treffen' },
+    { id: 'ctf', label: 'Capture the Field', sub: 'Felder erobern!' },
+    { id: 'shanghai', label: 'Shanghai', sub: '1-20 punkten, Shanghai = Sofortsieg!' },
+  ], [])
+
+  const handleBoardConfirm = (index: number) => {
+    const id = boardItems[index].id
+    if (id === 'atb') onSelectATB?.({ mode: 'ascending', direction: 'forward' })
+    else if (id === 'ctf') onSelectCTF?.()
+    else if (id === 'shanghai') onSelectShanghai?.()
+  }
+
+  // Online Picker items
+  const onlineItems: PickerItem[] = useMemo(() => [
+    { id: 'host', label: 'Match hosten', sub: 'Remote-Spiel erstellen' },
+    { id: 'join', label: 'Match beitreten', sub: 'Code eingeben' },
+  ], [])
+
+  const handleOnlineConfirm = (index: number) => {
+    const id = onlineItems[index].id
+    if (id === 'host') onMultiplayerHost?.()
+    else if (id === 'join') onMultiplayerJoin?.()
+  }
 
   const handleTrainingConfirm = (index: number) => {
     const id = trainingItems[index].id
@@ -99,6 +133,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     else if (id === 'str') onSelectStraeusschen?.()
     else if (id === 'highscore') onSelectHighscore?.()
     else if (id === 'killer') onSelectKiller?.()
+    else if (id === 'bobs27') onSelectBobs27?.()
+    else if (id === 'operation') onSelectOperation?.()
   }
 
   // Tastatur: ESC = zurück
@@ -107,7 +143,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
       if (e.key === 'Escape' || e.key === 'Backspace') {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
         e.preventDefault()
-        if (step === 'preset' || step === 'cricket' || step === 'training') setStep('type')
+        if (step === 'preset' || step === 'cricket' || step === 'training' || step === 'board' || step === 'online') setStep('type')
         else if (onBack) onBack()
       }
     }
@@ -179,44 +215,24 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                 <div style={styles.sub}>121 Sprint & mehr</div>
               </button>
 
-              {/* Around the Block - direkt zur erweiterten Konfiguration */}
+              {/* Rund ums Board */}
               <button
                 style={{ ...styles.tile, textAlign: 'center' }}
-                onClick={() => onSelectATB?.({ mode: 'ascending', direction: 'forward' })}
-                aria-label="Around the Block auswählen"
+                onClick={() => setStep('board')}
+                aria-label="Rund ums Board"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Around the Block</div>
-                <div style={styles.sub}>1-20 + Bull treffen</div>
+                <div style={{ ...styles.title, marginBottom: 4 }}>Rund ums Board</div>
+                <div style={styles.sub}>ATB, Capture the Field, Shanghai</div>
               </button>
 
-              {/* Capture the Field */}
+              {/* Online spielen */}
               <button
                 style={{ ...styles.tile, textAlign: 'center' }}
-                onClick={() => onSelectCTF?.()}
-                aria-label="Capture the Field auswählen"
+                onClick={() => setStep('online')}
+                aria-label="Online spielen"
               >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Capture the Field</div>
-                <div style={styles.sub}>Felder erobern!</div>
-              </button>
-
-              {/* Shanghai */}
-              <button
-                style={{ ...styles.tile, textAlign: 'center' }}
-                onClick={() => onSelectShanghai?.()}
-                aria-label="Shanghai auswählen"
-              >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Shanghai</div>
-                <div style={styles.sub}>1-20 punkten, Shanghai = Sofortsieg!</div>
-              </button>
-
-              {/* Killer */}
-              <button
-                style={{ ...styles.tile, textAlign: 'center' }}
-                onClick={() => onSelectKiller?.()}
-                aria-label="Killer auswählen"
-              >
-                <div style={{ ...styles.title, marginBottom: 4 }}>Killer</div>
-                <div style={styles.sub}>Eliminiere alle Gegner!</div>
+                <div style={{ ...styles.title, marginBottom: 4 }}>Online spielen</div>
+                <div style={styles.sub}>Match hosten oder beitreten</div>
               </button>
             </div>
           )
@@ -336,6 +352,120 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                   aria-label="Killer auswählen"
                 >
                   auswählen
+                </button>
+              </div>
+
+              <div style={styles.rowCard}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
+                    Bob's 27
+                  </div>
+                  <div style={styles.sub}>Doubles Training D1-D20</div>
+                </div>
+                <button
+                  style={styles.pill}
+                  onClick={() => onSelectBobs27?.()}
+                  aria-label="Bob's 27 auswählen"
+                >
+                  auswählen
+                </button>
+              </div>
+
+              <div style={styles.rowCard}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>
+                    Operation: EFKG
+                  </div>
+                  <div style={styles.sub}>Ein Feld, keine Gnade</div>
+                </div>
+                <button
+                  style={styles.pill}
+                  onClick={() => onSelectOperation?.()}
+                  aria-label="Operation auswählen"
+                >
+                  auswählen
+                </button>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Step: Rund ums Board */}
+        {step === 'board' && (
+          isArcade ? (
+            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+              <h1 style={titleStyle}>Rund ums Board</h1>
+              <ArcadeScrollPicker
+                items={boardItems}
+                selectedIndex={boardPickerIndex}
+                onChange={setBoardPickerIndex}
+                onConfirm={handleBoardConfirm}
+                colors={colors}
+              />
+            </div>
+          ) : (
+            <div style={styles.centerInner}>
+              <h1 style={titleStyle}>Rund ums Board</h1>
+              <button
+                style={{ ...styles.tile, textAlign: 'center' }}
+                onClick={() => onSelectATB?.({ mode: 'ascending', direction: 'forward' })}
+                aria-label="Around the Block auswählen"
+              >
+                <div style={{ ...styles.title, marginBottom: 4 }}>Around the Block</div>
+                <div style={styles.sub}>1-20 + Bull treffen</div>
+              </button>
+              <button
+                style={{ ...styles.tile, textAlign: 'center' }}
+                onClick={() => onSelectCTF?.()}
+                aria-label="Capture the Field auswählen"
+              >
+                <div style={{ ...styles.title, marginBottom: 4 }}>Capture the Field</div>
+                <div style={styles.sub}>Felder erobern!</div>
+              </button>
+              <button
+                style={{ ...styles.tile, textAlign: 'center' }}
+                onClick={() => onSelectShanghai?.()}
+                aria-label="Shanghai auswählen"
+              >
+                <div style={{ ...styles.title, marginBottom: 4 }}>Shanghai</div>
+                <div style={styles.sub}>1-20 punkten, Shanghai = Sofortsieg!</div>
+              </button>
+            </div>
+          )
+        )}
+
+        {/* Step: Online spielen */}
+        {step === 'online' && (
+          isArcade ? (
+            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+              <h1 style={titleStyle}>Online spielen</h1>
+              <ArcadeScrollPicker
+                items={onlineItems}
+                selectedIndex={onlinePickerIndex}
+                onChange={setOnlinePickerIndex}
+                onConfirm={handleOnlineConfirm}
+                colors={colors}
+              />
+            </div>
+          ) : (
+            <div style={styles.centerInner}>
+              <h1 style={titleStyle}>Online spielen</h1>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <button
+                  style={{ ...styles.tile, textAlign: 'center' }}
+                  onClick={() => onMultiplayerHost?.()}
+                  aria-label="Match hosten"
+                >
+                  <div style={{ ...styles.title, marginBottom: 4 }}>Match hosten</div>
+                  <div style={styles.sub}>Remote-Spiel erstellen</div>
+                </button>
+                <button
+                  style={{ ...styles.tile, textAlign: 'center' }}
+                  onClick={() => onMultiplayerJoin?.()}
+                  aria-label="Match beitreten"
+                >
+                  <div style={{ ...styles.title, marginBottom: 4 }}>Match beitreten</div>
+                  <div style={styles.sub}>Code eingeben</div>
                 </button>
               </div>
             </div>

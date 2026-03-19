@@ -119,6 +119,9 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
   const state = createEmptyState()
   state.events = events
 
+  // Runden-Tracking: wenn ein Spieler erneut dran ist, hat eine neue Runde begonnen
+  let playedThisRound = new Set<string>()
+
   for (const event of events) {
     switch (event.type) {
       case 'KillerMatchStarted': {
@@ -163,6 +166,15 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
         state.dartsUsedByPlayer[event.playerId] =
           (state.dartsUsedByPlayer[event.playerId] ?? 0) + event.darts.length
 
+        // Runde berechnen: Wenn dieser Spieler schon gespielt hat, neue Runde
+        if (playedThisRound.has(event.playerId)) {
+          state.roundNumber++
+          playedThisRound.clear()
+        }
+        playedThisRound.add(event.playerId)
+
+        const turnRound = state.roundNumber
+
         // Qualifying-Fortschritt
         if (event.qualifyingHitsGained > 0) {
           ps.qualifyingHits += event.qualifyingHitsGained
@@ -171,6 +183,7 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
             ts: event.ts,
             text: `${playerName} qualifiziert ${ps.qualifyingHits}/${state.config.hitsToBecomeKiller}`,
             type: 'qualifying',
+            round: turnRound,
           })
         }
 
@@ -181,6 +194,7 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
             ts: event.ts,
             text: `${playerName} ist jetzt KILLER!`,
             type: 'info',
+            round: turnRound,
           })
         }
 
@@ -197,12 +211,14 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
                   ts: event.ts,
                   text: `${playerName} trifft eigene Zahl! -${Math.abs(lc.delta)} Leben`,
                   type: 'hit',
+                  round: turnRound,
                 })
               } else {
                 state.log.push({
                   ts: event.ts,
                   text: `${playerName} trifft ${targetName}! -${Math.abs(lc.delta)} Leben`,
                   type: 'hit',
+                  round: turnRound,
                 })
               }
             } else if (lc.delta > 0) {
@@ -210,6 +226,7 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
                 ts: event.ts,
                 text: `${playerName} heilt sich! +${lc.delta} Leben`,
                 type: 'heal',
+                round: turnRound,
               })
             }
           }
@@ -220,7 +237,7 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
           const elim = state.players.find(p => p.playerId === elimId)
           if (elim) {
             elim.isEliminated = true
-            elim.eliminatedInRound = event.roundNumber
+            elim.eliminatedInRound = turnRound
           }
         }
 
@@ -231,9 +248,6 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
 
         // Naechster aktiver Spieler
         advanceTurnIndex(state)
-
-        // Runde pruefen
-        state.roundNumber = event.roundNumber
         break
       }
 
@@ -241,12 +255,13 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
         const elim = state.players.find(p => p.playerId === event.playerId)
         if (elim) {
           elim.isEliminated = true
-          elim.eliminatedInRound = event.roundNumber
+          elim.eliminatedInRound = state.roundNumber
           const playerName = getPlayerName(state, event.playerId)
           state.log.push({
             ts: event.ts,
             text: `${playerName} ist eliminiert!`,
             type: 'kill',
+            round: state.roundNumber,
           })
         }
         break
@@ -260,6 +275,7 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
         state.turnIndex = event.startingPlayerIndex ?? 0
         state.legStartingPlayerIndex = event.startingPlayerIndex ?? 0
         state.roundNumber = 1
+        playedThisRound = new Set()
         for (const ps of state.players) {
           ps.targetNumber = null
           ps.qualifyingHits = 0
@@ -484,7 +500,7 @@ export function recordKillerTurn(
     becameKiller,
     livesChanges,
     eliminations,
-    roundNumber: state.roundNumber,
+    roundNumber,
   }
 
   // Elimination-Events

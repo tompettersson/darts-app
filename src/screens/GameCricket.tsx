@@ -31,7 +31,7 @@ import CricketProgressChart, { prepareCricketChartData, CRICKET_TARGETS } from '
 import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '../components/CricketGanttChart'
 import CricketTurnList, { formatDartLabel, computeMarksDetail, type CricketTurnEntry } from '../components/CricketTurnList'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
-import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyTarget, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound } from '../speech'
+import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound } from '../speech'
 
 type Props = {
   matchId: string
@@ -1509,6 +1509,16 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
         transition: 'background 0.5s ease',
       }
     : ui.page
+
+  // Enter-Taste zum Weitergehen bei Leg-Summary
+  useEffect(() => {
+    if (!legSummary) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') setLegSummary(null)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [legSummary])
 
   return (
     <div style={backgroundStyle}>

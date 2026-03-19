@@ -11,17 +11,12 @@ import MatchHeader from '../components/MatchHeader'
 import LegHeader from '../components/LegHeader'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
+import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
   matchId: string
   onBack: () => void
 }
-
-// Spielerfarben
-const PLAYER_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#8b5cf6', '#14b8a6', '#eab308', '#ec4899',
-]
 
 function fmtDate(s?: string) {
   if (!s) return '—'

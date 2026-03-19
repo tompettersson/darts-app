@@ -274,6 +274,124 @@ describe('Special Rules', () => {
       const result = recordATBTurn(state, 'p1', darts)
       expect(result.turnEvent.specialEffects?.needsBull).toBe(true)
     })
+
+    it('should clear needsBull when bull is hit', () => {
+      const config: ATBMatchConfig = {
+        sequenceMode: 'ascending',
+        targetMode: 'any',
+        multiplierMode: 'standard',
+        specialRule: 'bullHeavy',
+      }
+      const players = [{ playerId: 'p1', name: 'Player 1' }]
+      const startEvent = createATBMatchStartEvent(players, 'ascending', 'forward', { kind: 'legs', bestOfLegs: 1 }, config)
+      const legEvent = createATBLegStartEvent(startEvent.matchId, 1)
+
+      // Turn 1: Hit field 1 → needsBull becomes true
+      let state = applyATBEvents([startEvent, legEvent])
+      const result1 = recordATBTurn(state, 'p1', [
+        { target: 1, mult: 1 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result1.turnEvent.specialEffects?.needsBull).toBe(true)
+      expect(result1.turnEvent.newIndex).toBe(1)
+
+      // Turn 2: Hit Bull → needsBull clears, no advance (still at index 1)
+      state = applyATBEvents([startEvent, legEvent, result1.turnEvent])
+      expect(state.specialStateByPlayer['p1']?.needsBull).toBe(true)
+
+      const result2 = recordATBTurn(state, 'p1', [
+        { target: 'BULL', mult: 1 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result2.turnEvent.specialEffects?.needsBull).toBe(false)
+      expect(result2.turnEvent.specialEffects?.bullHit).toBe(true)
+      expect(result2.turnEvent.newIndex).toBe(1) // Stays at same index
+
+      // Turn 3: Now can advance normally to field 2
+      state = applyATBEvents([startEvent, legEvent, result1.turnEvent, result2.turnEvent])
+      expect(state.specialStateByPlayer['p1']?.needsBull).toBe(false)
+
+      const result3 = recordATBTurn(state, 'p1', [
+        { target: 2, mult: 1 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result3.turnEvent.newIndex).toBe(2)
+      expect(result3.turnEvent.specialEffects?.needsBull).toBe(true) // Need bull again
+    })
+
+    it('should block progress when bull is needed but not hit', () => {
+      const config: ATBMatchConfig = {
+        sequenceMode: 'ascending',
+        targetMode: 'any',
+        multiplierMode: 'standard',
+        specialRule: 'bullHeavy',
+      }
+      const players = [{ playerId: 'p1', name: 'Player 1' }]
+      const startEvent = createATBMatchStartEvent(players, 'ascending', 'forward', { kind: 'legs', bestOfLegs: 1 }, config)
+      const legEvent = createATBLegStartEvent(startEvent.matchId, 1)
+
+      // Turn 1: Hit field 1 → needsBull
+      let state = applyATBEvents([startEvent, legEvent])
+      const result1 = recordATBTurn(state, 'p1', [
+        { target: 1, mult: 1 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+
+      // Turn 2: Try to hit field 2 without hitting Bull → blocked
+      state = applyATBEvents([startEvent, legEvent, result1.turnEvent])
+      const result2 = recordATBTurn(state, 'p1', [
+        { target: 2, mult: 1 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result2.turnEvent.newIndex).toBe(1) // Still at index 1, blocked
+      expect(result2.turnEvent.specialEffects?.needsBull).toBe(true)
+    })
+
+    it('should work with double target mode', () => {
+      const config: ATBMatchConfig = {
+        sequenceMode: 'ascending',
+        targetMode: 'double',
+        multiplierMode: 'standard',
+        specialRule: 'bullHeavy',
+      }
+      const players = [{ playerId: 'p1', name: 'Player 1' }]
+      const startEvent = createATBMatchStartEvent(players, 'ascending', 'forward', { kind: 'legs', bestOfLegs: 1 }, config)
+      const legEvent = createATBLegStartEvent(startEvent.matchId, 1)
+
+      // Turn 1: Hit D1 → needsBull
+      let state = applyATBEvents([startEvent, legEvent])
+      const result1 = recordATBTurn(state, 'p1', [
+        { target: 1, mult: 2 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result1.turnEvent.specialEffects?.needsBull).toBe(true)
+      expect(result1.turnEvent.newIndex).toBe(1)
+
+      // Turn 2: Hit Bull (single) → clears needsBull
+      state = applyATBEvents([startEvent, legEvent, result1.turnEvent])
+      const result2 = recordATBTurn(state, 'p1', [
+        { target: 'BULL', mult: 1 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result2.turnEvent.specialEffects?.needsBull).toBe(false)
+      expect(result2.turnEvent.specialEffects?.bullHit).toBe(true)
+
+      // Turn 3: Hit D2 → advance
+      state = applyATBEvents([startEvent, legEvent, result1.turnEvent, result2.turnEvent])
+      const result3 = recordATBTurn(state, 'p1', [
+        { target: 2, mult: 2 },
+        { target: 'MISS', mult: 1 },
+        { target: 'MISS', mult: 1 },
+      ])
+      expect(result3.turnEvent.newIndex).toBe(2)
+    })
   })
 
   describe('Miss 3 Back (previous)', () => {

@@ -7,18 +7,7 @@ import { useTheme } from '../ThemeProvider'
 import { getCTFMatchById } from '../storage'
 import { applyCTFEvents, formatDuration, calculateFieldPoints } from '../dartsCaptureTheField'
 import ATBDartboard from '../components/ATBDartboard'
-
-// Spielerfarben (satte Farben, konsistent mit anderen Screens)
-const PLAYER_COLORS = [
-  '#3b82f6', // Blau (500)
-  '#22c55e', // Gruen (500)
-  '#f97316', // Orange (500)
-  '#ef4444', // Rot (500)
-  '#a855f7', // Violett (500)
-  '#14b8a6', // Tuerkis (500)
-  '#eab308', // Gelb (500)
-  '#ec4899', // Pink (500)
-]
+import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
   matchId: string
