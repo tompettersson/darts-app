@@ -11,13 +11,12 @@ import Accordion from '../components/Accordion'
 
 // SQL Stats Tabs
 import SQLStatsTab from './stats/SQLStatsTab'
-import AdvancedStatsTab from './stats/AdvancedStatsTab'
 const PlayerInsightsTab = React.lazy(() => import('./stats/PlayerInsightsTab'))
 
 // SQL Stats Hook
 import { useSQLStats, formatDuration } from '../hooks/useSQLStats'
 
-type Tab = 'allgemein' | 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'speziell' | 'trends' | 'analyse' | 'erfolge' | 'training' | 'insights'
+type Tab = 'uebersicht' | 'x01' | 'cricketco' | 'insights' | 'trends' | 'analyse' | 'erfolge'
 
 export default function StatsProfile({
   onOpenMatch,
@@ -26,7 +25,7 @@ export default function StatsProfile({
 }) {
   const [profiles, setProfiles] = useState<Profile[]>(() => getProfiles())
   const [cursor, setCursor] = useState(0)
-  const [activeTab, setActiveTab] = useState<Tab>('allgemein')
+  const [activeTab, setActiveTab] = useState<Tab>('uebersicht')
   const [x01Variant, setX01Variant] = useState<301 | 501 | 701 | 901>(501)
 
   // Theme System
@@ -233,18 +232,13 @@ export default function StatsProfile({
   }), [colors, isArcade])
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'allgemein', label: 'Allgemein' },
+    { key: 'uebersicht', label: 'Übersicht' },
     { key: 'x01', label: 'X01' },
-    { key: '121', label: 'Trainingsspiele' },
-    { key: 'cricket', label: 'Cricket' },
-    { key: 'atb', label: 'ATB' },
-    { key: 'ctf', label: 'CTF' },
-    { key: 'speziell', label: 'Speziell' },
+    { key: 'cricketco', label: 'Cricket & Co' },
     { key: 'insights', label: 'Spielerprofil' },
     { key: 'trends', label: 'Trends' },
     { key: 'analyse', label: 'Analyse' },
     { key: 'erfolge', label: 'Erfolge' },
-    { key: 'training', label: 'Training' },
   ]
 
   const prevPlayer = () => {
@@ -341,7 +335,7 @@ export default function StatsProfile({
         )}
 
         {/* ============ ALLGEMEIN (SQL) ============ */}
-        {activeTab === 'allgemein' && !sqlStats.loading && sqlStats.data.general && (() => {
+        {activeTab === 'uebersicht' && !sqlStats.loading && sqlStats.data.general && (() => {
           const gen = sqlStats.data.general
           const streaks = sqlStats.data.streaks
           const h2h = sqlStats.data.headToHead
@@ -644,7 +638,7 @@ export default function StatsProfile({
 
             {/* Besondere Leistungen (SQL) */}
             {sqlStats.data.achievements.length > 0 && (
-              <div style={s.statsCardLast}>
+              <div style={s.statsCard}>
                 <div style={s.statsCardTitle as React.CSSProperties}>Besondere Leistungen</div>
                 {sqlStats.data.achievements.map((a, i) => {
                   const medal = a.rank === 1 ? '🥇' : a.rank === 2 ? '🥈' : '🥉'
@@ -665,6 +659,36 @@ export default function StatsProfile({
                 })}
               </div>
             )}
+
+            {/* Form & Konstanz (aus Speziell) */}
+            {sqlStats.data.special && (() => {
+              const special = sqlStats.data.special
+              return (
+              <div style={s.statsCardLast}>
+                <div style={s.statsCardTitle as React.CSSProperties}>Form & Konstanz (X01)</div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Trend</span>
+                  <span style={
+                    special.averageTrend === 'rising' ? s.trendUp :
+                    special.averageTrend === 'falling' ? s.trendDown :
+                    s.trendStable
+                  }>
+                    {special.averageTrend === 'rising' ? '-> Steigend' :
+                     special.averageTrend === 'falling' ? '-> Fallend' :
+                     '-> Stabil'}
+                  </span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Letzte 5 Matches gewonnen</span>
+                  <span style={s.statsValue}>{special.last5Wins} / 5</span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Avg letzte 5 Matches</span>
+                  <span style={s.statsValueHighlight}>{formatNum(special.last5Avg)}</span>
+                </div>
+              </div>
+              )
+            })()}
           </>
         )})()}
 
@@ -953,17 +977,9 @@ export default function StatsProfile({
                   <span style={s.statsValue}>{x01v.avgDartsWonLeg != null ? formatNum(x01v.avgDartsWonLeg) : '—'}</span>
                 </div>
               </Accordion>
-            </>
-            )}
-          </div>
-          )
-        })()}
 
-        {/* ============ TRAININGSSPIELE (Accordions) ============ */}
-        {activeTab === '121' && !sqlStats.loading && (
-          <>
-          {/* --- Sprint 121 --- */}
-          <Accordion title="Sprint 121" defaultOpen={false}>
+              {/* Sprint 121 (ehemals eigener Tab) */}
+              <Accordion title="Sprint 121" defaultOpen={false}>
             {sqlStats.data.stats121 && sqlStats.data.stats121.totalLegs > 0 ? (() => {
               const s121 = sqlStats.data.stats121
               return (
@@ -1078,8 +1094,467 @@ export default function StatsProfile({
             )})() : (
               <div style={s.noData as React.CSSProperties}>Keine Sprint 121-Statistiken vorhanden.</div>
             )}
+              </Accordion>
+            </>
+            )}
+          </div>
+          )
+        })()}
+
+        {/* ============ CRICKET & CO (Cricket + ATB + CTF) ============ */}
+        {activeTab === 'cricketco' && !sqlStats.loading && (
+          <>
+          {/* --- Cricket --- */}
+          <Accordion title="Cricket" defaultOpen>
+            {sqlStats.data.cricket && (() => {
+              const cricket = sqlStats.data.cricket
+              return (
+              <>
+                {/* Übersicht */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gespielt</span>
+                    <span style={s.statsValue}>{cricket.matchesPlayed}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gewonnen</span>
+                    <span style={s.statsValueGood}>{cricket.matchesWon}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Match-Quote</span>
+                    <span style={s.statsValueHighlight}>{formatPct(cricket.matchWinRate)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Legs gespielt</span>
+                    <span style={s.statsValue}>{cricket.legsPlayed}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Legs gewonnen</span>
+                    <span style={s.statsValue}>{cricket.legsWon}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Leg-Quote</span>
+                    <span style={s.statsValue}>{formatPct(cricket.legWinRate)}</span>
+                  </div>
+                </div>
+
+                {/* Marks */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Marks</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Marks gesamt</span>
+                    <span style={s.statsValueHighlight}>{cricket.totalMarks}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Marks/Runde (MPR)</span>
+                    <span style={s.statsValue}>{formatNum(cricket.marksPerRound, 2)}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Turns gesamt</span>
+                    <span style={s.statsValue}>{cricket.totalTurns}</span>
+                  </div>
+                </div>
+
+                {/* Treffer */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Triples</span>
+                    <span style={s.statsValueHighlight}>{cricket.totalTriples}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Doubles</span>
+                    <span style={s.statsValue}>{cricket.totalDoubles}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Singles</span>
+                    <span style={s.statsValue}>{cricket.totalSingles}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Bull (Single)</span>
+                    <span style={s.statsValue}>{cricket.bullHits}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Bull (Double)</span>
+                    <span style={s.statsValue}>{cricket.doubleBullHits}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Triple-Rate</span>
+                    <span style={s.statsValue}>{formatPct(cricket.tripleRate)}</span>
+                  </div>
+
+                  {/* Treffer-Verteilung Balkendiagramm */}
+                  {cricket.totalTriples + cricket.totalDoubles > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <BarChart
+                        data={[
+                          { label: 'Triples', value: cricket.totalTriples, color: '#ef4444' },
+                          { label: 'Doubles', value: cricket.totalDoubles, color: '#f59e0b' },
+                          { label: 'Singles', value: cricket.totalSingles, color: '#6b7280' },
+                          { label: 'Bull', value: cricket.bullHits + cricket.doubleBullHits, color: '#3b82f6' },
+                        ]}
+                        height={18}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Effizienz */}
+                <div style={s.statsCardLast}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Effizienz</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Bestes Leg</span>
+                    <span style={s.statsValueGood}>{cricket.bestLegDarts ?? '—'} {cricket.bestLegDarts ? 'Darts' : ''}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>No-Score Turns</span>
+                    <span style={s.statsValueBad}>{cricket.noScoreTurns}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>No-Score Quote</span>
+                    <span style={s.statsValue}>{formatPct(cricket.noScoreRate)}</span>
+                  </div>
+                </div>
+              </>
+              )
+            })()}
+            {!sqlStats.data.cricket && (
+              <div style={s.noData as React.CSSProperties}>Keine Cricket-Statistiken vorhanden.</div>
+            )}
           </Accordion>
 
+          {/* --- ATB (Around the Block) --- */}
+          <Accordion title="Around the Block" defaultOpen={false}>
+            {sqlStats.data.atb && sqlStats.data.atb.matchesPlayed > 0 ? (() => {
+              const atb = sqlStats.data.atb
+              return (
+              <>
+                {/* Übersicht */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gespielt</span>
+                    <span style={s.statsValueHighlight}>{atb.matchesPlayed}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gewonnen</span>
+                    <span style={s.statsValueGood}>{atb.matchesWon}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Gewinnquote</span>
+                    <span style={s.statsValueHighlight}>{formatPct(atb.matchWinRate)}</span>
+                  </div>
+                </div>
+
+                {/* Leistung */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Darts gesamt</span>
+                    <span style={s.statsValue}>{atb.totalDarts}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Avg Darts pro Sieg</span>
+                    <span style={s.statsValueHighlight}>{formatNum(atb.avgDartsPerWin, 1)}</span>
+                  </div>
+                  {/* Progress-Bar für Hit-Rate */}
+                  <div style={{ marginTop: 8, marginBottom: 8 }}>
+                    <ProgressBar
+                      value={atb.hitRate}
+                      label="Trefferquote"
+                      color="#10b981"
+                      height={16}
+                    />
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Treffer</span>
+                    <span style={s.statsValue}>{atb.totalHits}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Fehlwürfe</span>
+                    <span style={s.statsValueBad}>{atb.totalMisses}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Triples</span>
+                    <span style={s.statsValue}>{atb.totalTriples}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Doubles</span>
+                    <span style={s.statsValue}>{atb.totalDoubles}</span>
+                  </div>
+                </div>
+
+                {/* Bestleistungen */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Bestleistungen</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Wenigste Darts (Sieg)</span>
+                    <span style={s.statsValueGood}>{atb.bestDarts || '—'}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Beste Zeit (Sieg)</span>
+                    <span style={s.statsValue}>
+                      {atb.bestTimeMs ? formatDuration(atb.bestTimeMs) : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Best Times pro Modus */}
+                {sqlStats.data.atbBestTimes.length > 0 && (
+                  <div style={s.statsCardLast}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Bestzeiten nach Modus</div>
+                    {sqlStats.data.atbBestTimes.map((bt, i) => {
+                      const modeLabel = bt.mode === 'classic' ? 'Klassisch' :
+                                       bt.mode === 'doubles' ? 'Doubles' :
+                                       bt.mode === 'triples' ? 'Triples' : bt.mode
+                      const dirLabel = bt.direction === 'forward' ? '->' :
+                                      bt.direction === 'backward' ? '<-' : '<->'
+                      return (
+                        <div key={`${bt.mode}-${bt.direction}`}
+                             style={i === sqlStats.data.atbBestTimes.length - 1 ? s.statsRowLast : s.statsRow}>
+                          <span style={s.statsLabel}>{modeLabel} {dirLabel}</span>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={s.statsValueGood}>{bt.bestDarts} Darts</span>
+                            <span style={{ ...s.statsValue, marginLeft: 8, color: colors.fgDim }}>
+                              ({formatDuration(bt.bestTime)})
+                            </span>
+                            <span style={{ fontSize: 11, color: colors.fgDim, marginLeft: 8 }}>
+                              {bt.attempts}x
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+              )
+            })() : (
+              <div style={s.noData as React.CSSProperties}>Keine ATB-Statistiken vorhanden.</div>
+            )}
+          </Accordion>
+
+          {/* --- CTF (Capture the Field) --- */}
+          <Accordion title="Capture the Field" defaultOpen={false}>
+            {selected && (() => {
+              const allCtfMatches = getCTFMatches()
+              const playerMatches = allCtfMatches.filter(m =>
+                m.finished && m.players.some(p => p.playerId === selected.id)
+              )
+              if (playerMatches.length === 0) return (
+                <div style={s.noData as React.CSSProperties}>Keine CTF-Statistiken vorhanden.</div>
+              )
+
+              const multiMatches = playerMatches.filter(m => m.players.length > 1)
+              const soloMatches = playerMatches.filter(m => m.players.length <= 1)
+
+              let totalDarts = 0
+              let totalTriples = 0
+              let totalDoubles = 0
+              let totalSingles = 0
+              let totalMisses = 0
+              let totalFieldsWon = 0
+              let totalScore = 0
+              let multiWon = 0
+
+              for (const m of playerMatches) {
+                if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
+                const stats = computeCTFMatchStats(m)
+                const ps = stats.find(s => s.playerId === selected.id)
+                if (!ps) continue
+                totalDarts += ps.totalDarts
+                totalTriples += ps.triples
+                totalDoubles += ps.doubles
+                totalSingles += ps.singles
+                totalMisses += ps.misses
+                totalFieldsWon += ps.fieldsWon
+                totalScore += ps.totalScore
+              }
+
+              const hits = totalDarts - totalMisses
+              const hitRate = totalDarts > 0 ? (hits / totalDarts) * 100 : 0
+              const multiTotal = multiMatches.length
+              const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
+              const avgScorePerMatch = playerMatches.length > 0 ? totalScore / playerMatches.length : 0
+              const avgFieldsPerMatch = playerMatches.length > 0 ? totalFieldsWon / playerMatches.length : 0
+
+              return (
+              <>
+                {/* Übersicht */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches gesamt</span>
+                    <span style={s.statsValueHighlight}>{playerMatches.length}</span>
+                  </div>
+                  {multiTotal > 0 && (
+                    <>
+                      <div style={s.statsRow}>
+                        <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
+                        <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
+                      </div>
+                      <div style={s.statsRow}>
+                        <span style={s.statsLabel}>Gewinnquote</span>
+                        <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
+                      </div>
+                    </>
+                  )}
+                  {soloMatches.length > 0 && (
+                    <div style={s.statsRow}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Leistung */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Darts gesamt</span>
+                    <span style={s.statsValue}>{totalDarts.toLocaleString('de-DE')}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Felder gewonnen</span>
+                    <span style={s.statsValueGood}>{totalFieldsWon}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Avg Felder pro Match</span>
+                    <span style={s.statsValueHighlight}>{formatNum(avgFieldsPerMatch, 1)}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gesamtpunkte</span>
+                    <span style={s.statsValueHighlight}>{totalScore.toLocaleString('de-DE')}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Avg Punkte pro Match</span>
+                    <span style={s.statsValue}>{formatNum(avgScorePerMatch, 1)}</span>
+                  </div>
+                </div>
+
+                {/* Treffer */}
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
+                  <div style={{ marginBottom: 8 }}>
+                    <ProgressBar
+                      value={hitRate}
+                      label="Trefferquote"
+                      color="#10b981"
+                      height={16}
+                    />
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Triples</span>
+                    <span style={s.statsValueHighlight}>{totalTriples}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Doubles</span>
+                    <span style={s.statsValue}>{totalDoubles}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Singles</span>
+                    <span style={s.statsValue}>{totalSingles}</span>
+                  </div>
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Fehlwürfe</span>
+                    <span style={s.statsValueBad}>{totalMisses}</span>
+                  </div>
+
+                  {/* Treffer-Verteilung Balkendiagramm */}
+                  {totalTriples + totalDoubles > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <BarChart
+                        data={[
+                          { label: 'Triples', value: totalTriples, color: '#ef4444' },
+                          { label: 'Doubles', value: totalDoubles, color: '#f59e0b' },
+                          { label: 'Singles', value: totalSingles, color: '#6b7280' },
+                        ]}
+                        height={18}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+              )
+            })()}
+          </Accordion>
+          </>
+        )}
+
+        {/* ============ ANALYSE (Dart-Averages, Druck + Trainingsspiele) ============ */}
+        {activeTab === 'analyse' && !sqlStats.loading && (
+          <>
+          {/* Speziell-Inhalte: Dart-Averages, Druck-Situationen */}
+          {sqlStats.data.special && (() => {
+            const special = sqlStats.data.special
+            return (
+            <>
+              {/* Treffergenauigkeit */}
+              <Accordion title="Treffergenauigkeit (Cricket)" defaultOpen>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Triple-Quote</span>
+                  <span style={s.statsValue}>{formatPct(special.tripleHitRate)}</span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Double-Quote</span>
+                  <span style={s.statsValue}>{formatPct(special.doubleHitRate)}</span>
+                </div>
+              </Accordion>
+
+              {/* Dart 1/2/3 Average */}
+              {(special.dart1Avg > 0 || special.dart2Avg > 0 || special.dart3Avg > 0) && (
+              <Accordion title="Dart-Durchschnitt (X01)" defaultOpen>
+                {(() => {
+                  const maxAvg = Math.max(special.dart1Avg, special.dart2Avg, special.dart3Avg, 1)
+                  const barColor = (val: number) => val >= maxAvg * 0.9 ? '#22c55e' : val >= maxAvg * 0.7 ? '#f59e0b' : '#ef4444'
+                  return (
+                    <>
+                      {[
+                        { label: '1. Dart', value: special.dart1Avg },
+                        { label: '2. Dart', value: special.dart2Avg },
+                        { label: '3. Dart', value: special.dart3Avg },
+                      ].map((d, i) => (
+                        <div key={i} style={{ ...s.statsRow, alignItems: 'center', ...(i === 2 ? { borderBottom: 'none' } : {}) }}>
+                          <span style={{ ...s.statsLabel, flex: '0 0 60px' }}>{d.label}</span>
+                          <div style={{ flex: 1, height: 14, background: colors.bgMuted, borderRadius: 4, overflow: 'hidden', margin: '0 8px' }}>
+                            <div style={{
+                              width: `${maxAvg > 0 ? (d.value / maxAvg) * 100 : 0}%`,
+                              height: '100%',
+                              background: barColor(d.value),
+                              borderRadius: 4,
+                              transition: 'width 0.3s ease',
+                            }} />
+                          </div>
+                          <span style={{ ...s.statsValue, flex: '0 0 40px', textAlign: 'right' }}>{formatNum(d.value)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
+              </Accordion>
+              )}
+
+              {/* Druck-Situationen */}
+              <Accordion title="Druck-Situationen" defaultOpen={false}>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Average bei Rückstand</span>
+                  <span style={s.statsValue}>
+                    {special.performanceWhenBehind > 0 ? formatNum(special.performanceWhenBehind) : '—'}
+                  </span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Average bei Führung</span>
+                  <span style={s.statsValue}>
+                    {special.performanceWhenAhead > 0 ? formatNum(special.performanceWhenAhead) : '—'}
+                  </span>
+                </div>
+              </Accordion>
+            </>
+            )
+          })()}
+
+          {/* Trainingsspiele */}
           {/* --- Sträußchen --- */}
           <Accordion title="Sträußchen" defaultOpen={false}>
             {selected && (() => {
@@ -1486,465 +1961,6 @@ export default function StatsProfile({
           </>
         )}
 
-        {/* ============ CRICKET (SQL) ============ */}
-        {activeTab === 'cricket' && !sqlStats.loading && sqlStats.data.cricket && (() => {
-          const cricket = sqlStats.data.cricket
-          return (
-          <>
-            {/* Übersicht */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gespielt</span>
-                <span style={s.statsValue}>{cricket.matchesPlayed}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gewonnen</span>
-                <span style={s.statsValueGood}>{cricket.matchesWon}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Match-Quote</span>
-                <span style={s.statsValueHighlight}>{formatPct(cricket.matchWinRate)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gespielt</span>
-                <span style={s.statsValue}>{cricket.legsPlayed}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Legs gewonnen</span>
-                <span style={s.statsValue}>{cricket.legsWon}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Leg-Quote</span>
-                <span style={s.statsValue}>{formatPct(cricket.legWinRate)}</span>
-              </div>
-            </div>
-
-            {/* Marks */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Marks</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Marks gesamt</span>
-                <span style={s.statsValueHighlight}>{cricket.totalMarks}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Marks/Runde (MPR)</span>
-                <span style={s.statsValue}>{formatNum(cricket.marksPerRound, 2)}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Turns gesamt</span>
-                <span style={s.statsValue}>{cricket.totalTurns}</span>
-              </div>
-            </div>
-
-            {/* Treffer */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Triples</span>
-                <span style={s.statsValueHighlight}>{cricket.totalTriples}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Doubles</span>
-                <span style={s.statsValue}>{cricket.totalDoubles}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Singles</span>
-                <span style={s.statsValue}>{cricket.totalSingles}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Bull (Single)</span>
-                <span style={s.statsValue}>{cricket.bullHits}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Bull (Double)</span>
-                <span style={s.statsValue}>{cricket.doubleBullHits}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Triple-Rate</span>
-                <span style={s.statsValue}>{formatPct(cricket.tripleRate)}</span>
-              </div>
-
-              {/* Treffer-Verteilung Balkendiagramm */}
-              {cricket.totalTriples + cricket.totalDoubles > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <BarChart
-                    data={[
-                      { label: 'Triples', value: cricket.totalTriples, color: '#ef4444' },
-                      { label: 'Doubles', value: cricket.totalDoubles, color: '#f59e0b' },
-                      { label: 'Singles', value: cricket.totalSingles, color: '#6b7280' },
-                      { label: 'Bull', value: cricket.bullHits + cricket.doubleBullHits, color: '#3b82f6' },
-                    ]}
-                    height={18}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Effizienz */}
-            <div style={s.statsCardLast}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Effizienz</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Bestes Leg</span>
-                <span style={s.statsValueGood}>{cricket.bestLegDarts ?? '—'} {cricket.bestLegDarts ? 'Darts' : ''}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>No-Score Turns</span>
-                <span style={s.statsValueBad}>{cricket.noScoreTurns}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>No-Score Quote</span>
-                <span style={s.statsValue}>{formatPct(cricket.noScoreRate)}</span>
-              </div>
-            </div>
-          </>
-        )})()}
-
-        {/* ============ SPEZIELL (SQL) ============ */}
-        {activeTab === 'speziell' && !sqlStats.loading && sqlStats.data.special && (() => {
-          const special = sqlStats.data.special
-          return (
-          <>
-            {/* Treffergenauigkeit */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Treffergenauigkeit (Cricket)</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Triple-Quote</span>
-                <span style={s.statsValue}>{formatPct(special.tripleHitRate)}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Double-Quote</span>
-                <span style={s.statsValue}>{formatPct(special.doubleHitRate)}</span>
-              </div>
-            </div>
-
-            {/* Dart 1/2/3 Average */}
-            {(special.dart1Avg > 0 || special.dart2Avg > 0 || special.dart3Avg > 0) && (
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Dart-Durchschnitt (X01)</div>
-              {(() => {
-                const maxAvg = Math.max(special.dart1Avg, special.dart2Avg, special.dart3Avg, 1)
-                const barColor = (val: number) => val >= maxAvg * 0.9 ? '#22c55e' : val >= maxAvg * 0.7 ? '#f59e0b' : '#ef4444'
-                return (
-                  <>
-                    {[
-                      { label: '1. Dart', value: special.dart1Avg },
-                      { label: '2. Dart', value: special.dart2Avg },
-                      { label: '3. Dart', value: special.dart3Avg },
-                    ].map((d, i) => (
-                      <div key={i} style={{ ...s.statsRow, alignItems: 'center', ...(i === 2 ? { borderBottom: 'none' } : {}) }}>
-                        <span style={{ ...s.statsLabel, flex: '0 0 60px' }}>{d.label}</span>
-                        <div style={{ flex: 1, height: 14, background: colors.bgMuted, borderRadius: 4, overflow: 'hidden', margin: '0 8px' }}>
-                          <div style={{
-                            width: `${maxAvg > 0 ? (d.value / maxAvg) * 100 : 0}%`,
-                            height: '100%',
-                            background: barColor(d.value),
-                            borderRadius: 4,
-                            transition: 'width 0.3s ease',
-                          }} />
-                        </div>
-                        <span style={{ ...s.statsValue, flex: '0 0 40px', textAlign: 'right' }}>{formatNum(d.value)}</span>
-                      </div>
-                    ))}
-                  </>
-                )
-              })()}
-            </div>
-            )}
-
-            {/* Form */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Form & Konstanz (X01)</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Trend</span>
-                <span style={
-                  special.averageTrend === 'rising' ? s.trendUp :
-                  special.averageTrend === 'falling' ? s.trendDown :
-                  s.trendStable
-                }>
-                  {special.averageTrend === 'rising' ? '↑ Steigend' :
-                   special.averageTrend === 'falling' ? '↓ Fallend' :
-                   '→ Stabil'}
-                </span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Letzte 5 Matches gewonnen</span>
-                <span style={s.statsValue}>{special.last5Wins} / 5</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Ø letzte 5 Matches</span>
-                <span style={s.statsValueHighlight}>{formatNum(special.last5Avg)}</span>
-              </div>
-            </div>
-
-            {/* Druck-Situationen */}
-            <div style={s.statsCardLast}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Druck-Situationen</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Average bei Rückstand</span>
-                <span style={s.statsValue}>
-                  {special.performanceWhenBehind > 0 ? formatNum(special.performanceWhenBehind) : '—'}
-                </span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Average bei Führung</span>
-                <span style={s.statsValue}>
-                  {special.performanceWhenAhead > 0 ? formatNum(special.performanceWhenAhead) : '—'}
-                </span>
-              </div>
-            </div>
-          </>
-        )})()}
-
-        {/* ============ ATB (SQL) ============ */}
-        {activeTab === 'atb' && !sqlStats.loading && sqlStats.data.atb && sqlStats.data.atb.matchesPlayed > 0 && (() => {
-          const atb = sqlStats.data.atb
-          return (
-          <>
-            {/* Übersicht */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gespielt</span>
-                <span style={s.statsValueHighlight}>{atb.matchesPlayed}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gewonnen</span>
-                <span style={s.statsValueGood}>{atb.matchesWon}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Gewinnquote</span>
-                <span style={s.statsValueHighlight}>{formatPct(atb.matchWinRate)}</span>
-              </div>
-            </div>
-
-            {/* Leistung */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Darts gesamt</span>
-                <span style={s.statsValue}>{atb.totalDarts}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Ø Darts pro Sieg</span>
-                <span style={s.statsValueHighlight}>{formatNum(atb.avgDartsPerWin, 1)}</span>
-              </div>
-              {/* Progress-Bar für Hit-Rate */}
-              <div style={{ marginTop: 8, marginBottom: 8 }}>
-                <ProgressBar
-                  value={atb.hitRate}
-                  label="Trefferquote"
-                  color="#10b981"
-                  height={16}
-                />
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Treffer</span>
-                <span style={s.statsValue}>{atb.totalHits}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Fehlwürfe</span>
-                <span style={s.statsValueBad}>{atb.totalMisses}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Triples</span>
-                <span style={s.statsValue}>{atb.totalTriples}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Doubles</span>
-                <span style={s.statsValue}>{atb.totalDoubles}</span>
-              </div>
-            </div>
-
-            {/* Bestleistungen */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Bestleistungen</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Wenigste Darts (Sieg)</span>
-                <span style={s.statsValueGood}>{atb.bestDarts || '—'}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Beste Zeit (Sieg)</span>
-                <span style={s.statsValue}>
-                  {atb.bestTimeMs ? formatDuration(atb.bestTimeMs) : '—'}
-                </span>
-              </div>
-            </div>
-
-            {/* Best Times pro Modus */}
-            {sqlStats.data.atbBestTimes.length > 0 && (
-              <div style={s.statsCardLast}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Bestzeiten nach Modus</div>
-                {sqlStats.data.atbBestTimes.map((bt, i) => {
-                  const modeLabel = bt.mode === 'classic' ? 'Klassisch' :
-                                   bt.mode === 'doubles' ? 'Doubles' :
-                                   bt.mode === 'triples' ? 'Triples' : bt.mode
-                  const dirLabel = bt.direction === 'forward' ? '→' :
-                                  bt.direction === 'backward' ? '←' : '↔'
-                  return (
-                    <div key={`${bt.mode}-${bt.direction}`}
-                         style={i === sqlStats.data.atbBestTimes.length - 1 ? s.statsRowLast : s.statsRow}>
-                      <span style={s.statsLabel}>{modeLabel} {dirLabel}</span>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={s.statsValueGood}>{bt.bestDarts} Darts</span>
-                        <span style={{ ...s.statsValue, marginLeft: 8, color: colors.fgDim }}>
-                          ({formatDuration(bt.bestTime)})
-                        </span>
-                        <span style={{ fontSize: 11, color: colors.fgDim, marginLeft: 8 }}>
-                          {bt.attempts}x
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </>
-        )})()}
-
-        {/* ============ CTF / Capture the Field (LocalStorage) ============ */}
-        {activeTab === 'ctf' && selected && (() => {
-          const allCtfMatches = getCTFMatches()
-          const playerMatches = allCtfMatches.filter(m =>
-            m.finished && m.players.some(p => p.playerId === selected.id)
-          )
-          if (playerMatches.length === 0) return (
-            <div style={s.noData as React.CSSProperties}>Keine CTF-Statistiken vorhanden.</div>
-          )
-
-          const multiMatches = playerMatches.filter(m => m.players.length > 1)
-          const soloMatches = playerMatches.filter(m => m.players.length <= 1)
-
-          let totalDarts = 0
-          let totalTriples = 0
-          let totalDoubles = 0
-          let totalSingles = 0
-          let totalMisses = 0
-          let totalFieldsWon = 0
-          let totalScore = 0
-          let multiWon = 0
-
-          for (const m of playerMatches) {
-            if (m.players.length > 1 && m.winnerId === selected.id) multiWon++
-            const stats = computeCTFMatchStats(m)
-            const ps = stats.find(s => s.playerId === selected.id)
-            if (!ps) continue
-            totalDarts += ps.totalDarts
-            totalTriples += ps.triples
-            totalDoubles += ps.doubles
-            totalSingles += ps.singles
-            totalMisses += ps.misses
-            totalFieldsWon += ps.fieldsWon
-            totalScore += ps.totalScore
-          }
-
-          const hits = totalDarts - totalMisses
-          const hitRate = totalDarts > 0 ? (hits / totalDarts) * 100 : 0
-          const multiTotal = multiMatches.length
-          const multiWinRate = multiTotal > 0 ? (multiWon / multiTotal) * 100 : 0
-          const avgScorePerMatch = playerMatches.length > 0 ? totalScore / playerMatches.length : 0
-          const avgFieldsPerMatch = playerMatches.length > 0 ? totalFieldsWon / playerMatches.length : 0
-
-          return (
-          <>
-            {/* Übersicht */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Matches gesamt</span>
-                <span style={s.statsValueHighlight}>{playerMatches.length}</span>
-              </div>
-              {multiTotal > 0 && (
-                <>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Gegen Gegner gewonnen</span>
-                    <span style={s.statsValueGood}>{multiWon} / {multiTotal}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Gewinnquote</span>
-                    <span style={s.statsValueHighlight}>{formatPct(multiWinRate)}</span>
-                  </div>
-                </>
-              )}
-              {soloMatches.length > 0 && (
-                <div style={s.statsRow}>
-                  <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                  <span style={{ ...s.statsValue, fontSize: 12 }}>{soloMatches.length}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Leistung */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Darts gesamt</span>
-                <span style={s.statsValue}>{totalDarts.toLocaleString('de-DE')}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Felder gewonnen</span>
-                <span style={s.statsValueGood}>{totalFieldsWon}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Ø Felder pro Match</span>
-                <span style={s.statsValueHighlight}>{formatNum(avgFieldsPerMatch, 1)}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Gesamtpunkte</span>
-                <span style={s.statsValueHighlight}>{totalScore.toLocaleString('de-DE')}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Ø Punkte pro Match</span>
-                <span style={s.statsValue}>{formatNum(avgScorePerMatch, 1)}</span>
-              </div>
-            </div>
-
-            {/* Treffer */}
-            <div style={s.statsCard}>
-              <div style={s.statsCardTitle as React.CSSProperties}>Treffer</div>
-              <div style={{ marginBottom: 8 }}>
-                <ProgressBar
-                  value={hitRate}
-                  label="Trefferquote"
-                  color="#10b981"
-                  height={16}
-                />
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Triples</span>
-                <span style={s.statsValueHighlight}>{totalTriples}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Doubles</span>
-                <span style={s.statsValue}>{totalDoubles}</span>
-              </div>
-              <div style={s.statsRow}>
-                <span style={s.statsLabel}>Singles</span>
-                <span style={s.statsValue}>{totalSingles}</span>
-              </div>
-              <div style={s.statsRowLast}>
-                <span style={s.statsLabel}>Fehlwürfe</span>
-                <span style={s.statsValueBad}>{totalMisses}</span>
-              </div>
-
-              {/* Treffer-Verteilung Balkendiagramm */}
-              {totalTriples + totalDoubles > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <BarChart
-                    data={[
-                      { label: 'Triples', value: totalTriples, color: '#ef4444' },
-                      { label: 'Doubles', value: totalDoubles, color: '#f59e0b' },
-                      { label: 'Singles', value: totalSingles, color: '#6b7280' },
-                    ]}
-                    height={18}
-                  />
-                </div>
-              )}
-            </div>
-          </>
-          )
-        })()}
-
         {/* ============ SPIELERPROFIL / INSIGHTS ============ */}
         {activeTab === 'insights' && selected && !sqlStats.loading && (
           <React.Suspense fallback={<div style={{ padding: 20, textAlign: 'center', color: colors.fgDim }}>Laden...</div>}>
@@ -1957,18 +1973,14 @@ export default function StatsProfile({
           <SQLStatsTab playerId={selected.id} playerName={selected.name} />
         )}
 
+        {/* ============ ERFOLGE (Platzhalter) ============ */}
+        {activeTab === 'erfolge' && !sqlStats.loading && (
+          <div style={s.noData as React.CSSProperties}>Noch keine Erfolge freigeschaltet.</div>
+        )}
+
         {/* Keine Daten */}
-        {activeTab === 'allgemein' && !sqlStats.loading && !sqlStats.data.general && (
+        {activeTab === 'uebersicht' && !sqlStats.loading && !sqlStats.data.general && (
           <div style={s.noData as React.CSSProperties}>Keine Statistiken vorhanden.</div>
-        )}
-        {activeTab === 'cricket' && !sqlStats.loading && !sqlStats.data.cricket && (
-          <div style={s.noData as React.CSSProperties}>Keine Cricket-Statistiken vorhanden.</div>
-        )}
-        {activeTab === 'atb' && !sqlStats.loading && (!sqlStats.data.atb || sqlStats.data.atb.matchesPlayed === 0) && (
-          <div style={s.noData as React.CSSProperties}>Keine ATB-Statistiken vorhanden.</div>
-        )}
-        {activeTab === 'speziell' && !sqlStats.loading && !sqlStats.data.special && (
-          <div style={s.noData as React.CSSProperties}>Keine speziellen Statistiken vorhanden.</div>
         )}
       </div>
     </div>

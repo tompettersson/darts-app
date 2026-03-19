@@ -1,7 +1,7 @@
 // src/components/X01EndScreen.tsx
 // Extracted end screen component for X01 matches
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   applyEvents,
   computeStats,
@@ -16,6 +16,7 @@ import {
 } from '../darts501'
 import { setMatchMetadata } from '../storage'
 import type { StoredMatch } from '../storage'
+import { checkX01PersonalBests, formatPBValue, type PersonalBestCheck } from '../stats/personalBests'
 
 // --- Helpers (moved from Game.tsx, only used in endscreen) ---
 
@@ -148,6 +149,20 @@ export default function X01EndScreen({
   const statsByPlayer = computeStats(events)
   const players = match.players
   const headerCells = players.map((p) => p.name ?? p.playerId)
+
+  // Personal Bests pro Spieler berechnen
+  const personalBests = useMemo(() => {
+    const pbMap: Record<string, PersonalBestCheck[]> = {}
+    for (const p of players) {
+      const ps = statsByPlayer[p.playerId]
+      if (!ps) continue
+      const pbs = checkX01PersonalBests(p.playerId, ps)
+      if (pbs.length > 0) {
+        pbMap[p.playerId] = pbs
+      }
+    }
+    return pbMap
+  }, [players, statsByPlayer])
 
   type Row = { label: string; values: React.ReactNode[]; compareValues?: number[]; better?: 'high' | 'low' }
   const rows: Row[] = []
@@ -313,6 +328,69 @@ export default function X01EndScreen({
           </tbody>
         </table>
       </div>
+
+      {/* Personal Bests */}
+      {Object.keys(personalBests).length > 0 && (
+        <div style={{
+          margin: '16px 8px 0',
+          padding: 16,
+          background: 'linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)',
+          borderRadius: 12,
+          border: '2px solid #f59e0b',
+          boxShadow: '0 2px 8px rgba(245,158,11,0.25)',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 12,
+            fontWeight: 700,
+            fontSize: 16,
+            color: '#92400e',
+          }}>
+            <span style={{ fontSize: 22 }}>{'\u{1F3C6}'}</span>
+            Neuer persönlicher Rekord!
+          </div>
+          {Object.entries(personalBests).map(([playerId, pbs]) => {
+            const playerName = players.find(p => p.playerId === playerId)?.name ?? playerId
+            return (
+              <div key={playerId} style={{ marginBottom: 8 }}>
+                <div style={{
+                  fontWeight: 600,
+                  fontSize: 14,
+                  color: '#78350f',
+                  marginBottom: 4,
+                }}>
+                  {playerName}
+                </div>
+                {pbs.map((pb, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 10px',
+                    background: 'rgba(255,255,255,0.6)',
+                    borderRadius: 8,
+                    marginBottom: 4,
+                    fontSize: 14,
+                  }}>
+                    <span style={{ fontSize: 16 }}>{'\u2B50'}</span>
+                    <span style={{ fontWeight: 600, color: '#92400e' }}>{pb.category}</span>
+                    <span style={{ marginLeft: 'auto', color: '#78350f' }}>
+                      <span style={{ textDecoration: 'line-through', opacity: 0.5, marginRight: 6 }}>
+                        {formatPBValue(pb.category, pb.previousBest)}
+                      </span>
+                      <span style={{ fontWeight: 700, fontSize: 16 }}>
+                        {formatPBValue(pb.category, pb.newBest)}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Spielname + Bemerkungen */}
       <div style={{ marginTop: 16, padding: '0 8px' }}>

@@ -1161,9 +1161,48 @@ function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {
               <div style={{ fontSize: 28, fontWeight: 700, color: colors.fg }}>{warmup.laterMatchesAvg.toFixed(1)}</div>
             </div>
           </div>
-          <div style={{ textAlign: 'center', fontSize: 12, color: colors.fgDim }}>
-            Basierend auf {warmup.sessionCount} Sessions
+          <div style={{ textAlign: 'center', fontSize: 12, color: colors.fgDim, marginBottom: warmup.modeEffects && warmup.modeEffects.length > 0 ? 12 : 0 }}>
+            Basierend auf {warmup.sessionCount} Sessions (X01 3-Dart Avg)
           </div>
+
+          {/* Per-mode warmup breakdown */}
+          {warmup.modeEffects && warmup.modeEffects.length > 0 && (
+            <div style={{ borderTop: `1px solid ${colors.border}33`, paddingTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: colors.fgDim, marginBottom: 8, textAlign: 'center' }}>
+                Warmup pro Spielmodus
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {warmup.modeEffects.map(me => (
+                  <div key={me.mode} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 8px', borderRadius: 8,
+                    background: `${colors.bgDim}44`,
+                  }}>
+                    <div style={{ width: 90, fontSize: 12, fontWeight: 600, color: colors.fg }}>
+                      {me.label}
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontSize: 13, color: colors.fgDim }}>
+                        {me.firstAvg.toFixed(1)}
+                      </div>
+                      <div style={{
+                        fontSize: 13, fontWeight: 700,
+                        color: me.diff > 0 ? '#22c55e' : me.diff < 0 ? '#ef4444' : colors.fgDim,
+                      }}>
+                        {me.diff > 0 ? '+' : ''}{me.diff.toFixed(1)}
+                      </div>
+                      <div style={{ fontSize: 13, color: colors.fgDim }}>
+                        {me.laterAvg.toFixed(1)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: colors.fgDim, textAlign: 'right', minWidth: 60 }}>
+                      {me.metric} | {me.sessionCount}x
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Section>
       )}
 

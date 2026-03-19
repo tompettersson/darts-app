@@ -45,6 +45,16 @@ export type SessionPerformance = {
   won: boolean
 }
 
+export type ModeWarmupEffect = {
+  mode: string
+  label: string
+  firstAvg: number
+  laterAvg: number
+  diff: number
+  metric: string  // "3-Dart Avg", "MPR", "Score", etc.
+  sessionCount: number
+}
+
 export type WarmupEffect = {
   firstMatchAvg: number
   laterMatchesAvg: number
@@ -52,6 +62,7 @@ export type WarmupEffect = {
   laterMatchesWinRate: number
   difference: number       // laterAvg - firstAvg (positive = improves)
   sessionCount: number
+  modeEffects?: ModeWarmupEffect[]
 }
 
 export type CheckoutByRemaining = {
@@ -347,6 +358,22 @@ export async function getSessionPerformance(playerId: string): Promise<{ session
     const firstMatchAvg = firstCount > 0 ? Math.round(firstMatchAvgSum / firstCount * 100) / 100 : 0
     const laterMatchesAvg = laterCount > 0 ? Math.round(laterAvgSum / laterCount * 100) / 100 : 0
 
+    // Multi-mode warmup analysis
+    const modeEffects = await getMultiModeWarmupEffects(playerId)
+
+    // Add X01 as first entry if we have data
+    const x01SessionCount = Object.keys(sessions).filter(d => sessions[d].length > 1).length
+    const allModeEffects: ModeWarmupEffect[] = []
+    if (x01SessionCount >= 2) {
+      allModeEffects.push({
+        mode: 'x01', label: 'X01',
+        firstAvg: firstMatchAvg, laterAvg: laterMatchesAvg,
+        diff: Math.round((laterMatchesAvg - firstMatchAvg) * 100) / 100,
+        metric: '3-Dart Avg', sessionCount: x01SessionCount,
+      })
+    }
+    allModeEffects.push(...modeEffects)
+
     return {
       sessions: performance,
       warmup: {
@@ -356,11 +383,192 @@ export async function getSessionPerformance(playerId: string): Promise<{ session
         laterMatchesWinRate: laterCount > 0 ? Math.round(laterWins / laterCount * 1000) / 10 : 0,
         difference: Math.round((laterMatchesAvg - firstMatchAvg) * 100) / 100,
         sessionCount: Object.keys(sessions).length,
+        modeEffects: allModeEffects.length > 0 ? allModeEffects : undefined,
       },
     }
   } catch (e) {
     console.warn('[Stats] getSessionPerformance failed:', e)
     return { sessions: [], warmup: { firstMatchAvg: 0, laterMatchesAvg: 0, firstMatchWinRate: 0, laterMatchesWinRate: 0, difference: 0, sessionCount: 0 } }
+  }
+}
+
+// ============================================================================
+// Multi-Mode Warmup Effects Helper
+// ============================================================================
+
+async function getMultiModeWarmupEffects(playerId: string): Promise<ModeWarmupEffect[]> {
+  const effects: ModeWarmupEffect[] = []
+
+  // Cricket: MPR (marks per round) comparison
+  try {
+    const cricketMatches = await query<{
+      match_id: string
+      match_date: string
+      mpr: number
+    }>(`
+      SELECT
+        m.id as match_id,
+        date(m.created_at) as match_date,
+        AVG(
+          CAST(json_extract(e.data, '$.marks') AS REAL) /
+          NULLIF(COALESCE(
+            CAST(json_extract(e.data, '$.dartCount') AS REAL),
+            json_array_length(e.data, '$.darts')
+          ), 0) * 3
+        ) as mpr
+      FROM cricket_matches m
+      JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      JOIN cricket_events e ON e.match_id = m.id AND e.type = 'CricketTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+      WHERE m.finished = 1
+      GROUP BY m.id
+      ORDER BY m.created_at ASC
+    `, [playerId, playerId])
+
+    const eff = computeModeWarmup(cricketMatches, 'cricket', 'Cricket', 'MPR')
+    if (eff) effects.push(eff)
+  } catch { /* table might not exist */ }
+
+  // Highscore: total score per match (turnScore per turn)
+  try {
+    const highscoreMatches = await query<{
+      match_id: string
+      match_date: string
+      mpr: number
+    }>(`
+      SELECT
+        m.id as match_id,
+        date(m.created_at) as match_date,
+        COALESCE(SUM(CAST(json_extract(e.data, '$.turnScore') AS REAL)), 0) as mpr
+      FROM highscore_matches m
+      JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      JOIN highscore_events e ON e.match_id = m.id AND e.type = 'HighscoreTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+      WHERE m.finished = 1
+      GROUP BY m.id
+      ORDER BY m.created_at ASC
+    `, [playerId, playerId])
+
+    const eff = computeModeWarmup(highscoreMatches, 'highscore', 'Highscore', 'Score')
+    if (eff) effects.push(eff)
+  } catch { /* table might not exist */ }
+
+  // Shanghai: total score per match (turnScore per turn)
+  try {
+    const shanghaiMatches = await query<{
+      match_id: string
+      match_date: string
+      mpr: number
+    }>(`
+      SELECT
+        m.id as match_id,
+        date(m.created_at) as match_date,
+        COALESCE(SUM(CAST(json_extract(e.data, '$.turnScore') AS REAL)), 0) as mpr
+      FROM shanghai_matches m
+      JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      JOIN shanghai_events e ON e.match_id = m.id AND e.type = 'ShanghaiTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+      WHERE m.finished = 1
+      GROUP BY m.id
+      ORDER BY m.created_at ASC
+    `, [playerId, playerId])
+
+    const eff = computeModeWarmup(shanghaiMatches, 'shanghai', 'Shanghai', 'Score')
+    if (eff) effects.push(eff)
+  } catch { /* table might not exist */ }
+
+  // Bob's 27: final score per match (from finalScores map in Bobs27MatchFinished)
+  try {
+    const bobs27Raw = await query<{
+      match_id: string
+      match_date: string
+      final_scores: string
+    }>(`
+      SELECT
+        m.id as match_id,
+        date(m.created_at) as match_date,
+        json_extract(ef.data, '$.finalScores') as final_scores
+      FROM bobs27_matches m
+      JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      JOIN bobs27_events ef ON ef.match_id = m.id AND ef.type = 'Bobs27MatchFinished'
+      WHERE m.finished = 1
+      ORDER BY m.created_at ASC
+    `, [playerId])
+
+    const bobs27Matches = bobs27Raw.map(r => {
+      let score = 0
+      try {
+        const scores = typeof r.final_scores === 'string' ? JSON.parse(r.final_scores) : r.final_scores
+        score = scores?.[playerId] ?? 0
+      } catch { /* ignore parse errors */ }
+      return { match_id: r.match_id, match_date: r.match_date, mpr: score }
+    })
+
+    const eff = computeModeWarmup(bobs27Matches, 'bobs27', "Bob's 27", 'Score')
+    if (eff) effects.push(eff)
+  } catch { /* table might not exist */ }
+
+  // ATB: hit rate (hits / totalDarts from enriched events)
+  try {
+    const atbMatches = await query<{
+      match_id: string
+      match_date: string
+      mpr: number
+    }>(`
+      SELECT
+        m.id as match_id,
+        date(m.created_at) as match_date,
+        CASE WHEN SUM(COALESCE(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER), 0)) > 0
+          THEN CAST(SUM(COALESCE(CAST(json_extract(e.data, '$.hits') AS INTEGER), 0)) AS REAL) /
+               SUM(COALESCE(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER), 0)) * 100
+          ELSE 0
+        END as mpr
+      FROM atb_matches m
+      JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      JOIN atb_events e ON e.match_id = m.id AND e.type = 'ATBTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+      WHERE m.finished = 1
+      GROUP BY m.id
+      ORDER BY m.created_at ASC
+    `, [playerId, playerId])
+
+    const eff = computeModeWarmup(atbMatches, 'atb', 'Around the Block', 'Hit Rate %')
+    if (eff) effects.push(eff)
+  } catch { /* table might not exist */ }
+
+  return effects
+}
+
+function computeModeWarmup(
+  matches: { match_id: string; match_date: string; mpr: number }[],
+  mode: string, label: string, metric: string,
+): ModeWarmupEffect | null {
+  if (matches.length < 3) return null
+
+  // Group by date
+  const byDate: Record<string, number[]> = {}
+  for (const m of matches) {
+    if (!byDate[m.match_date]) byDate[m.match_date] = []
+    byDate[m.match_date].push(m.mpr || 0)
+  }
+
+  // Only sessions with 2+ matches are relevant
+  const multiSessions = Object.values(byDate).filter(d => d.length >= 2)
+  if (multiSessions.length < 2) return null
+
+  let firstSum = 0, laterSum = 0, laterCount = 0
+
+  for (const day of multiSessions) {
+    firstSum += day[0]
+    for (let i = 1; i < day.length; i++) {
+      laterSum += day[i]
+      laterCount++
+    }
+  }
+
+  const firstAvg = Math.round(firstSum / multiSessions.length * 100) / 100
+  const laterAvg = laterCount > 0 ? Math.round(laterSum / laterCount * 100) / 100 : 0
+
+  return {
+    mode, label, firstAvg, laterAvg,
+    diff: Math.round((laterAvg - firstAvg) * 100) / 100,
+    metric, sessionCount: multiSessions.length,
   }
 }
 

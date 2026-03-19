@@ -171,8 +171,16 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
           </div>
           {data.warmupEffect && data.warmupEffect.sessionCount >= 3 && (
             <div style={{ marginTop: 8, fontSize: 12, color: colors.fgDim }}>
-              Warmup-Effekt: 1. Match Avg {data.warmupEffect.firstMatchAvg}, spätere {data.warmupEffect.laterMatchesAvg}
-              {data.warmupEffect.difference > 0 ? ` (+${data.warmupEffect.difference})` : ` (${data.warmupEffect.difference})`}
+              <div>
+                Warmup-Effekt (X01): 1. Match Avg {data.warmupEffect.firstMatchAvg}, spätere {data.warmupEffect.laterMatchesAvg}
+                {data.warmupEffect.difference > 0 ? ` (+${data.warmupEffect.difference})` : ` (${data.warmupEffect.difference})`}
+              </div>
+              {data.warmupEffect.modeEffects && data.warmupEffect.modeEffects.filter(m => m.mode !== 'x01').map(me => (
+                <div key={me.mode} style={{ marginTop: 2 }}>
+                  {me.label} ({me.metric}): {me.firstAvg.toFixed(1)} → {me.laterAvg.toFixed(1)}
+                  {me.diff > 0 ? ` (+${me.diff.toFixed(1)})` : ` (${me.diff.toFixed(1)})`}
+                </div>
+              ))}
             </div>
           )}
         </Section>
