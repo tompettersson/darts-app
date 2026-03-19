@@ -220,3 +220,79 @@ export async function getHighscoreMonthlyAvgScore(playerId: string): Promise<Tre
     return []
   }
 }
+
+// ============================================================================
+// Shanghai Monthly Trends
+// ============================================================================
+
+/**
+ * Shanghai Durchschnittlicher Total-Score pro Monat
+ */
+export async function getShanghaiMonthlyAvgScore(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      avg_score: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        AVG(CAST(json_extract(m.final_scores, '$.' || ?) AS REAL)) as avg_score,
+        COUNT(*) as match_count
+      FROM shanghai_matches m
+      JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE m.finished = 1
+        AND m.final_scores IS NOT NULL
+      GROUP BY strftime('%Y-%m', m.created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.avg_score || 0) * 10) / 10,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getShanghaiMonthlyAvgScore failed:', e)
+    return []
+  }
+}
+
+// ============================================================================
+// Killer Monthly Trends
+// ============================================================================
+
+/**
+ * Killer Win-Rate pro Monat
+ */
+export async function getKillerMonthlyWinRate(playerId: string): Promise<TrendPoint[]> {
+  try {
+    const results = await query<{
+      month: string
+      win_rate: number
+      match_count: number
+    }>(`
+      SELECT
+        strftime('%Y-%m', m.created_at) as month,
+        CAST(SUM(CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END) AS REAL) /
+          COUNT(*) * 100 as win_rate,
+        COUNT(*) as match_count
+      FROM killer_matches m
+      JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE m.finished = 1
+      GROUP BY strftime('%Y-%m', m.created_at)
+      ORDER BY month ASC
+    `, [playerId, playerId])
+
+    return results.map(r => ({
+      date: r.month + '-01',
+      month: r.month,
+      value: Math.round((r.win_rate || 0) * 10) / 10,
+      matchCount: r.match_count,
+    }))
+  } catch (e) {
+    console.warn('[Stats] getKillerMonthlyWinRate failed:', e)
+    return []
+  }
+}

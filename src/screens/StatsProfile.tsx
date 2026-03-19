@@ -1618,6 +1618,40 @@ export default function StatsProfile({
               </div>
             </div>
 
+            {/* Dart 1/2/3 Average */}
+            {(special.dart1Avg > 0 || special.dart2Avg > 0 || special.dart3Avg > 0) && (
+            <div style={s.statsCard}>
+              <div style={s.statsCardTitle as React.CSSProperties}>Dart-Durchschnitt (X01)</div>
+              {(() => {
+                const maxAvg = Math.max(special.dart1Avg, special.dart2Avg, special.dart3Avg, 1)
+                const barColor = (val: number) => val >= maxAvg * 0.9 ? '#22c55e' : val >= maxAvg * 0.7 ? '#f59e0b' : '#ef4444'
+                return (
+                  <>
+                    {[
+                      { label: '1. Dart', value: special.dart1Avg },
+                      { label: '2. Dart', value: special.dart2Avg },
+                      { label: '3. Dart', value: special.dart3Avg },
+                    ].map((d, i) => (
+                      <div key={i} style={{ ...s.statsRow, alignItems: 'center', ...(i === 2 ? { borderBottom: 'none' } : {}) }}>
+                        <span style={{ ...s.statsLabel, flex: '0 0 60px' }}>{d.label}</span>
+                        <div style={{ flex: 1, height: 14, background: colors.bgMuted, borderRadius: 4, overflow: 'hidden', margin: '0 8px' }}>
+                          <div style={{
+                            width: `${maxAvg > 0 ? (d.value / maxAvg) * 100 : 0}%`,
+                            height: '100%',
+                            background: barColor(d.value),
+                            borderRadius: 4,
+                            transition: 'width 0.3s ease',
+                          }} />
+                        </div>
+                        <span style={{ ...s.statsValue, flex: '0 0 40px', textAlign: 'right' }}>{formatNum(d.value)}</span>
+                      </div>
+                    ))}
+                  </>
+                )
+              })()}
+            </div>
+            )}
+
             {/* Form */}
             <div style={s.statsCard}>
               <div style={s.statsCardTitle as React.CSSProperties}>Form & Konstanz (X01)</div>

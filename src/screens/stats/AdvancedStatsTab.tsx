@@ -73,6 +73,69 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
         </Section>
       )}
 
+      {/* Performance Under Pressure */}
+      {data.special && (data.special.performanceWhenAhead > 0 || data.special.performanceWhenBehind > 0) && (
+        <Section title="Performance Under Pressure" colors={colors}>
+          <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 10 }}>
+            3-Dart-Average in gewonnenen vs. verlorenen Matches (nur Multiplayer)
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+            {/* Winning Average */}
+            <div style={{
+              flex: 1, padding: '12px 16px', borderRadius: 8,
+              background: '#22c55e11', border: '1px solid #22c55e33',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 11, color: '#22c55e', marginBottom: 4, fontWeight: 600 }}>Bei Sieg</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>
+                {data.special.performanceWhenAhead > 0 ? data.special.performanceWhenAhead.toFixed(1) : '\u2014'}
+              </div>
+              <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 2 }}>3-Dart-Avg</div>
+            </div>
+            {/* Losing Average */}
+            <div style={{
+              flex: 1, padding: '12px 16px', borderRadius: 8,
+              background: '#ef444411', border: '1px solid #ef444433',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 4, fontWeight: 600 }}>Bei Niederlage</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>
+                {data.special.performanceWhenBehind > 0 ? data.special.performanceWhenBehind.toFixed(1) : '\u2014'}
+              </div>
+              <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 2 }}>3-Dart-Avg</div>
+            </div>
+          </div>
+          {/* Differenz-Anzeige */}
+          {data.special.performanceWhenAhead > 0 && data.special.performanceWhenBehind > 0 && (() => {
+            const diff = data.special!.performanceWhenAhead - data.special!.performanceWhenBehind
+            const pct = data.special!.performanceWhenBehind > 0
+              ? Math.round((diff / data.special!.performanceWhenBehind) * 100)
+              : 0
+            return (
+              <div style={{
+                marginTop: 10, padding: '8px 12px', borderRadius: 6,
+                background: colors.bgDim, textAlign: 'center', fontSize: 12,
+              }}>
+                <span style={{ color: colors.fgDim }}>Differenz: </span>
+                <span style={{
+                  fontWeight: 600,
+                  color: Math.abs(diff) < 2 ? colors.fgDim : diff > 0 ? '#22c55e' : '#ef4444',
+                }}>
+                  {diff > 0 ? '+' : ''}{diff.toFixed(1)} ({pct > 0 ? '+' : ''}{pct}%)
+                </span>
+                {Math.abs(diff) >= 5 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: colors.fgDim }}>
+                    {diff > 0
+                      ? 'Du spielst deutlich besser wenn du gewinnst - bleib fokussiert unter Druck!'
+                      : 'Du spielst unter Druck sogar besser - echte Wettkampf-Mentalitaet!'}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </Section>
+      )}
+
       {/* Formkurve */}
       {data.formCurve.length > 0 && (
         <Section title="Formkurve (letzte 20 X01 Matches)" colors={colors}>

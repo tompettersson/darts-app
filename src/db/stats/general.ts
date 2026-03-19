@@ -367,6 +367,19 @@ export async function getSpecialStats(playerId: string): Promise<SpecialStatsSQL
   const tripleHitRate = totalThrows > 0 ? (cricketRates?.triple_count ?? 0) / totalThrows * 100 : 0
   const doubleHitRate = totalThrows > 0 ? (cricketRates?.double_count ?? 0) / totalThrows * 100 : 0
 
+  // Dart 1/2/3 Average aus X01 VisitAdded Events
+  const dartAvgs = await queryOne<{ dart1Avg: number; dart2Avg: number; dart3Avg: number }>(`
+    SELECT
+      AVG(CASE WHEN json_extract(d.value, '$.seq') = 1 THEN CAST(json_extract(d.value, '$.score') AS REAL) END) as dart1Avg,
+      AVG(CASE WHEN json_extract(d.value, '$.seq') = 2 THEN CAST(json_extract(d.value, '$.score') AS REAL) END) as dart2Avg,
+      AVG(CASE WHEN json_extract(d.value, '$.seq') = 3 THEN CAST(json_extract(d.value, '$.score') AS REAL) END) as dart3Avg
+    FROM x01_events e, json_each(json_extract(e.data, '$.darts')) d
+    JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+    WHERE e.type = 'VisitAdded'
+      AND json_extract(e.data, '$.playerId') = ?
+  `, [playerId, playerId])
+
   const last5 = await query<{
     match_id: string
     won: number
@@ -408,14 +421,38 @@ export async function getSpecialStats(playerId: string): Promise<SpecialStatsSQL
   if (prev5Avg > 0 && last5Avg > prev5Avg * 1.05) averageTrend = 'rising'
   if (prev5Avg > 0 && last5Avg < prev5Avg * 0.95) averageTrend = 'falling'
 
+  // Performance Under Pressure: 3DA in gewonnenen vs verlorenen Matches (nur Multiplayer)
+  const pressureAvg = await queryOne<{ avg_winning: number; avg_losing: number }>(`
+    SELECT
+      AVG(CASE WHEN won = 1 THEN avg ELSE NULL END) as avg_winning,
+      AVG(CASE WHEN won = 0 THEN avg ELSE NULL END) as avg_losing
+    FROM (
+      SELECT
+        m.id,
+        CASE WHEN (SELECT json_extract(ef.data, '$.winnerPlayerId') FROM x01_events ef
+                   WHERE ef.match_id = m.id AND ef.type = 'MatchFinished') = ? THEN 1 ELSE 0 END as won,
+        AVG(CAST(json_extract(e.data, '$.visitScore') AS REAL) /
+            NULLIF(json_array_length(e.data, '$.darts'), 0) * 3) as avg
+      FROM x01_matches m
+      JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
+      WHERE m.finished = 1
+        AND (SELECT COUNT(*) FROM x01_match_players WHERE match_id = m.id) > 1
+      GROUP BY m.id
+    )
+  `, [playerId, playerId, playerId])
+
+  const perfBehind = pressureAvg?.avg_losing ?? 0
+  const perfAhead = pressureAvg?.avg_winning ?? 0
+
   return {
     tripleHitRate: Math.round(tripleHitRate * 10) / 10,
     doubleHitRate: Math.round(doubleHitRate * 10) / 10,
-    dart1Avg: 0,
-    dart2Avg: 0,
-    dart3Avg: 0,
-    performanceWhenBehind: 0,
-    performanceWhenAhead: 0,
+    dart1Avg: Math.round((dartAvgs?.dart1Avg ?? 0) * 10) / 10,
+    dart2Avg: Math.round((dartAvgs?.dart2Avg ?? 0) * 10) / 10,
+    dart3Avg: Math.round((dartAvgs?.dart3Avg ?? 0) * 10) / 10,
+    performanceWhenBehind: Math.round(perfBehind * 100) / 100,
+    performanceWhenAhead: Math.round(perfAhead * 100) / 100,
     last5Wins,
     last5Avg: Math.round(last5Avg * 100) / 100,
     averageTrend,
@@ -827,6 +864,7 @@ export async function getCrossGameHeadToHead(playerId: string): Promise<CrossGam
       { table: 'str', ptable: 'str_match_players', winCol: 'winner_id', label: 'Sträußchen' },
       { table: 'shanghai', ptable: 'shanghai_match_players', winCol: 'winner_id', label: 'Shanghai' },
       { table: 'killer', ptable: 'killer_match_players', winCol: 'winner_id', label: 'Killer' },
+      { table: 'highscore', ptable: 'highscore_match_players', winCol: 'winner_id', label: 'Highscore' },
     ] as const
 
     for (const cfg of modeConfigs) {

@@ -106,6 +106,33 @@ export async function getOperationFullStats(playerId: string): Promise<Operation
     const totalPoints = pointStats?.total_points ?? 0
     const avgPointsPerDart = totalDarts > 0 ? totalPoints / totalDarts : 0
 
+    // Best streak: laengste Serie aufeinanderfolgender Treffer (hitType != 'NO_SCORE')
+    let bestStreak = 0
+    try {
+      const allDarts = await query<{ hit_type: string }>(`
+        SELECT json_extract(e.data, '$.hitType') as hit_type
+        FROM operation_matches m
+        JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        JOIN operation_events e ON e.match_id = m.id
+        WHERE m.finished = 1
+          AND e.type = 'OperationDart'
+          AND json_extract(e.data, '$.playerId') = ?
+        ORDER BY m.created_at ASC, e.seq ASC
+      `, [playerId, playerId])
+
+      let currentStreak = 0
+      for (const dart of allDarts) {
+        if (dart.hit_type !== 'NO_SCORE') {
+          currentStreak++
+          if (currentStreak > bestStreak) bestStreak = currentStreak
+        } else {
+          currentStreak = 0
+        }
+      }
+    } catch {
+      // bestStreak bleibt 0
+    }
+
     return {
       matchesPlayed: stats?.matches_played ?? 0,
       multiMatchesPlayed: multiStats?.multi ?? 0,
@@ -117,7 +144,7 @@ export async function getOperationFullStats(playerId: string): Promise<Operation
       avgPointsPerDart: Math.round(avgPointsPerDart * 100) / 100,
       completionRate: 100, // Operation hat immer 30 Darts, also immer 100%
       totalDarts,
-      bestStreak: 0, // Streak muesste aus Events berechnet werden, TODO
+      bestStreak,
     }
   } catch (e) {
     console.warn('[Stats] getOperationFullStats failed:', e)

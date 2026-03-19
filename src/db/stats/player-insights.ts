@@ -1156,3 +1156,159 @@ export async function getDeepHeadToHead(playerId: string, opponentId: string): P
     return null
   }
 }
+
+// ============================================================================
+// 8. Bob's 27 ↔ X01 Double Correlation
+// ============================================================================
+
+export type DoubleCorrelation = {
+  field: number | 'BULL'
+  bobs27HitRate: number  // hit rate in Bob's 27
+  x01HitRate: number     // hit rate in X01 checkout attempts
+  bobs27Attempts: number
+  x01Attempts: number
+  correlation: 'consistent' | 'training-better' | 'match-better'
+}
+
+/**
+ * Vergleicht die Double-Trefferquote aus Bob's 27 (Training) mit X01 (Match-Play)
+ * pro Feld. Zeigt ob Trainingsergebnisse sich in Matches widerspiegeln.
+ */
+export async function getBobs27X01DoubleCorrelation(playerId: string): Promise<DoubleCorrelation[]> {
+  try {
+    // --- Bob's 27: Each round targets a specific double (D1-D20, optionally DBull) ---
+    const bobs27Data: Record<string, { attempts: number; hits: number }> = {}
+
+    try {
+      const bobs27Rounds = await query<{
+        target: number
+        hits: number
+        darts_thrown: number
+      }>(`
+        SELECT
+          CAST(json_extract(e.data, '$.target') AS INTEGER) as target,
+          CAST(json_extract(e.data, '$.hits') AS INTEGER) as hits,
+          CAST(json_extract(e.data, '$.dartsThrown') AS INTEGER) as darts_thrown
+        FROM bobs27_events e
+        JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+        WHERE e.type = 'Bobs27RoundPlayed'
+          AND json_extract(e.data, '$.playerId') = ?
+      `, [playerId, playerId])
+
+      for (const round of bobs27Rounds) {
+        if (!round.target) continue
+        const field = round.target === 25 ? 'BULL' : String(round.target)
+        if (!bobs27Data[field]) bobs27Data[field] = { attempts: 0, hits: 0 }
+        bobs27Data[field].attempts += round.darts_thrown || 0
+        bobs27Data[field].hits += round.hits || 0
+      }
+    } catch {
+      // bobs27 tables may not exist
+    }
+
+    // --- X01: Double attempts from events (mult=2 or aim.mult=2) ---
+    const x01Data: Record<string, { attempts: number; hits: number }> = {}
+
+    // X01 darts aimed at doubles
+    const x01Darts = await query<{
+      bed: string
+      mult: number
+      aim_bed: string | null
+      aim_mult: number | null
+    }>(`
+      SELECT
+        json_extract(d.value, '$.bed') as bed,
+        CAST(json_extract(d.value, '$.mult') AS INTEGER) as mult,
+        json_extract(d.value, '$.aim.bed') as aim_bed,
+        json_extract(d.value, '$.aim.mult') as aim_mult
+      FROM x01_events e
+      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+      , json_each(e.data, '$.darts') d
+      WHERE e.type = 'VisitAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+        AND (json_extract(d.value, '$.aim.mult') = 2
+             OR (json_extract(d.value, '$.aim.mult') IS NULL AND json_extract(d.value, '$.mult') = 2))
+    `, [playerId, playerId])
+
+    for (const dart of x01Darts) {
+      const aimBed = dart.aim_bed ?? dart.bed
+      if (!aimBed || aimBed === 'MISS') continue
+      const field = aimBed === 'DBULL' || aimBed === 'BULL' ? 'BULL' : aimBed
+      if (!x01Data[field]) x01Data[field] = { attempts: 0, hits: 0 }
+      x01Data[field].attempts++
+      if (dart.mult === 2) {
+        const hitField = dart.bed === 'DBULL' || dart.bed === 'BULL' ? 'BULL' : dart.bed
+        if (hitField === field) x01Data[field].hits++
+      }
+    }
+
+    // Also incorporate x01_finishing_doubles (successful checkouts)
+    try {
+      const finishingDoubles = await query<{
+        double_field: string
+        count: number
+      }>(`
+        SELECT double_field, count
+        FROM x01_finishing_doubles
+        WHERE player_id = ? AND count > 0
+      `, [playerId])
+
+      for (const fd of finishingDoubles) {
+        const field = fd.double_field === 'DBULL' ? 'BULL' : fd.double_field.replace(/^D/, '')
+        if (!x01Data[field]) x01Data[field] = { attempts: 0, hits: 0 }
+        // Finishing doubles are successful hits
+        x01Data[field].hits += fd.count
+      }
+    } catch {
+      // table might not exist
+    }
+
+    // --- Combine: only fields that have data in BOTH sources ---
+    const allFields = new Set([...Object.keys(bobs27Data), ...Object.keys(x01Data)])
+    const results: DoubleCorrelation[] = []
+
+    for (const fieldKey of allFields) {
+      const b27 = bobs27Data[fieldKey]
+      const x01 = x01Data[fieldKey]
+
+      // Need at least some data from both sources for a meaningful comparison
+      if (!b27 || !x01 || b27.attempts === 0 || x01.attempts === 0) continue
+
+      const bobs27HitRate = Math.round(b27.hits / b27.attempts * 1000) / 10
+      const x01HitRate = Math.round(x01.hits / x01.attempts * 1000) / 10
+
+      // Determine correlation: within 10% difference = consistent
+      const diff = Math.abs(bobs27HitRate - x01HitRate)
+      let correlation: DoubleCorrelation['correlation']
+      if (diff <= 10) {
+        correlation = 'consistent'
+      } else if (bobs27HitRate > x01HitRate) {
+        correlation = 'training-better'
+      } else {
+        correlation = 'match-better'
+      }
+
+      results.push({
+        field: fieldKey === 'BULL' ? 'BULL' as const : parseInt(fieldKey, 10),
+        bobs27HitRate,
+        x01HitRate,
+        bobs27Attempts: b27.attempts,
+        x01Attempts: x01.attempts,
+        correlation,
+      })
+    }
+
+    return results.sort((a, b) => {
+      const aAttempts = (bobs27Data[String(a.field === 'BULL' ? 'BULL' : a.field)]?.attempts ?? 0) +
+                        (x01Data[String(a.field === 'BULL' ? 'BULL' : a.field)]?.attempts ?? 0)
+      const bAttempts = (bobs27Data[String(b.field === 'BULL' ? 'BULL' : b.field)]?.attempts ?? 0) +
+                        (x01Data[String(b.field === 'BULL' ? 'BULL' : b.field)]?.attempts ?? 0)
+      return bAttempts - aAttempts
+    })
+  } catch (e) {
+    console.warn('[Stats] getBobs27X01DoubleCorrelation failed:', e)
+    return []
+  }
+}
