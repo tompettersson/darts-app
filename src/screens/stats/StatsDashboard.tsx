@@ -12,6 +12,7 @@ import type { Stats121HeadToHead } from '../../types/stats121'
 import { AVAILABLE_METRICS, getTrendForMetric, type MetricId } from '../../stats/computeTrendData'
 import { formatDuration } from '../../dartsAroundTheBlock'
 import ArcadeScrollPicker, { type PickerItem } from '../../components/ArcadeScrollPicker'
+import { PLAYER_COLORS } from '../../playerColors'
 
 export type DashboardView = 'menu' | 'h2h' | 'compare'
 export type DashboardGameMode = 'x01' | '121' | 'cricket' | 'atb' | 'ctf' | 'shanghai' | 'killer'
@@ -140,18 +141,6 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
     : atbH2H
   const player1 = profiles.find(p => p.id === player1Id)
   const player2 = profiles.find(p => p.id === player2Id)
-
-  // Farbpalette für Spieler ohne Profilfarbe
-  const PLAYER_COLORS = [
-    '#3B82F6', // Blau
-    '#EF4444', // Rot
-    '#10B981', // Grün
-    '#F59E0B', // Orange
-    '#8B5CF6', // Lila
-    '#EC4899', // Pink
-    '#06B6D4', // Cyan
-    '#84CC16', // Lime
-  ]
 
   // Trend-Daten für Vergleiche-Ansicht
   const trendData = useMemo(() => {

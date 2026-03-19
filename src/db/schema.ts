@@ -1,7 +1,7 @@
 // src/db/schema.ts
 // SQLite Schema für Darts 501 Engine
 
-export const CURRENT_DB_VERSION = 6
+export const CURRENT_DB_VERSION = 10
 
 // ============================================================================
 // Core Tables
@@ -560,6 +560,109 @@ CREATE INDEX IF NOT EXISTS idx_killer_events_match ON killer_events(match_id, se
 `
 
 // ============================================================================
+// Bob's 27 Tables
+// ============================================================================
+
+export const SQL_CREATE_BOBS27_MATCHES = `
+CREATE TABLE IF NOT EXISTS bobs27_matches (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  finished INTEGER DEFAULT 0,
+  finished_at TEXT,
+  duration_ms INTEGER,
+  winner_id TEXT,
+  winner_darts INTEGER,
+  -- Konfiguration inline
+  start_score INTEGER DEFAULT 27,
+  darts_per_target INTEGER DEFAULT 3,
+  include_bull INTEGER DEFAULT 0,
+  allow_negative INTEGER DEFAULT 0,
+  final_scores TEXT,
+  FOREIGN KEY (winner_id) REFERENCES profiles(id)
+);
+`
+
+export const SQL_CREATE_BOBS27_MATCH_PLAYERS = `
+CREATE TABLE IF NOT EXISTS bobs27_match_players (
+  match_id TEXT NOT NULL,
+  player_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  is_guest INTEGER DEFAULT 0,
+  PRIMARY KEY (match_id, player_id),
+  FOREIGN KEY (match_id) REFERENCES bobs27_matches(id),
+  FOREIGN KEY (player_id) REFERENCES profiles(id)
+);
+`
+
+export const SQL_CREATE_BOBS27_EVENTS = `
+CREATE TABLE IF NOT EXISTS bobs27_events (
+  id TEXT PRIMARY KEY,
+  match_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  ts TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  data TEXT NOT NULL,
+  FOREIGN KEY (match_id) REFERENCES bobs27_matches(id)
+);
+`
+
+export const SQL_INDEX_BOBS27_EVENTS = `
+CREATE INDEX IF NOT EXISTS idx_bobs27_events_match ON bobs27_events(match_id, seq);
+`
+
+// ============================================================================
+// Operation Tables
+// ============================================================================
+
+export const SQL_CREATE_OPERATION_MATCHES = `
+CREATE TABLE IF NOT EXISTS operation_matches (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  finished INTEGER DEFAULT 0,
+  finished_at TEXT,
+  duration_ms INTEGER,
+  winner_id TEXT,
+  winner_darts INTEGER,
+  -- Konfiguration inline
+  legs_count INTEGER NOT NULL DEFAULT 1,
+  target_mode TEXT NOT NULL DEFAULT 'MANUAL_NUMBER',
+  final_scores TEXT,
+  leg_wins TEXT,
+  FOREIGN KEY (winner_id) REFERENCES profiles(id)
+);
+`
+
+export const SQL_CREATE_OPERATION_MATCH_PLAYERS = `
+CREATE TABLE IF NOT EXISTS operation_match_players (
+  match_id TEXT NOT NULL,
+  player_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  is_guest INTEGER DEFAULT 0,
+  PRIMARY KEY (match_id, player_id),
+  FOREIGN KEY (match_id) REFERENCES operation_matches(id),
+  FOREIGN KEY (player_id) REFERENCES profiles(id)
+);
+`
+
+export const SQL_CREATE_OPERATION_EVENTS = `
+CREATE TABLE IF NOT EXISTS operation_events (
+  id TEXT PRIMARY KEY,
+  match_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  ts TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  data TEXT NOT NULL,
+  FOREIGN KEY (match_id) REFERENCES operation_matches(id)
+);
+`
+
+export const SQL_INDEX_OPERATION_EVENTS = `
+CREATE INDEX IF NOT EXISTS idx_operation_events_match ON operation_events(match_id, seq);
+`
+
+// ============================================================================
 // 121-Mode Stats
 // ============================================================================
 
@@ -593,6 +696,48 @@ CREATE TABLE IF NOT EXISTS stats_121_doubles (
   hit_rate REAL DEFAULT 0,
   PRIMARY KEY (player_id, double_field),
   FOREIGN KEY (player_id) REFERENCES profiles(id)
+);
+`
+
+// ============================================================================
+// Cricket Player Stats
+// ============================================================================
+
+export const SQL_CREATE_CRICKET_PLAYER_STATS = `
+CREATE TABLE IF NOT EXISTS cricket_player_stats (
+  player_id TEXT PRIMARY KEY,
+  player_name TEXT,
+  matches_played INTEGER DEFAULT 0,
+  matches_won INTEGER DEFAULT 0,
+  legs_won INTEGER DEFAULT 0,
+  total_marks INTEGER DEFAULT 0,
+  total_turns INTEGER DEFAULT 0,
+  total_darts INTEGER DEFAULT 0,
+  total_triples INTEGER DEFAULT 0,
+  total_doubles INTEGER DEFAULT 0,
+  total_bull_singles INTEGER DEFAULT 0,
+  total_bull_doubles INTEGER DEFAULT 0,
+  total_bull_attempts INTEGER DEFAULT 0,
+  field_marks TEXT,
+  no_score_turns INTEGER DEFAULT 0,
+  best_turn_marks INTEGER DEFAULT 0,
+  best_turn_points INTEGER DEFAULT 0,
+  total_points_scored INTEGER DEFAULT 0,
+  total_points_taken INTEGER DEFAULT 0,
+  updated_at TEXT,
+  FOREIGN KEY (player_id) REFERENCES profiles(id)
+);
+`
+
+// ============================================================================
+// Outbox
+// ============================================================================
+
+export const SQL_CREATE_OUTBOX = `
+CREATE TABLE IF NOT EXISTS outbox (
+  id TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );
 `
 
@@ -651,9 +796,23 @@ export const ALL_SCHEMA_STATEMENTS: string[] = [
   SQL_CREATE_KILLER_MATCH_PLAYERS,
   SQL_CREATE_KILLER_EVENTS,
   SQL_INDEX_KILLER_EVENTS,
+  // Bob's 27
+  SQL_CREATE_BOBS27_MATCHES,
+  SQL_CREATE_BOBS27_MATCH_PLAYERS,
+  SQL_CREATE_BOBS27_EVENTS,
+  SQL_INDEX_BOBS27_EVENTS,
+  // Operation
+  SQL_CREATE_OPERATION_MATCHES,
+  SQL_CREATE_OPERATION_MATCH_PLAYERS,
+  SQL_CREATE_OPERATION_EVENTS,
+  SQL_INDEX_OPERATION_EVENTS,
   // 121
   SQL_CREATE_STATS_121,
   SQL_CREATE_STATS_121_DOUBLES,
+  // Cricket Player Stats
+  SQL_CREATE_CRICKET_PLAYER_STATS,
+  // Outbox
+  SQL_CREATE_OUTBOX,
 ]
 
 // ============================================================================
@@ -773,6 +932,56 @@ export const MIGRATIONS: Migration[] = [
       `ALTER TABLE killer_matches ADD COLUMN best_of_sets INTEGER`,
       `ALTER TABLE killer_matches ADD COLUMN leg_wins TEXT`,
       `ALTER TABLE killer_matches ADD COLUMN set_wins TEXT`,
+    ],
+  },
+  {
+    version: 7,
+    name: 'add_bobs27_tables',
+    up: [
+      SQL_CREATE_BOBS27_MATCHES,
+      SQL_CREATE_BOBS27_MATCH_PLAYERS,
+      SQL_CREATE_BOBS27_EVENTS,
+      SQL_INDEX_BOBS27_EVENTS,
+    ],
+    down: [
+      'DROP TABLE IF EXISTS bobs27_events',
+      'DROP TABLE IF EXISTS bobs27_match_players',
+      'DROP TABLE IF EXISTS bobs27_matches',
+    ],
+  },
+  {
+    version: 8,
+    name: 'add_operation_tables',
+    up: [
+      SQL_CREATE_OPERATION_MATCHES,
+      SQL_CREATE_OPERATION_MATCH_PLAYERS,
+      SQL_CREATE_OPERATION_EVENTS,
+      SQL_INDEX_OPERATION_EVENTS,
+    ],
+    down: [
+      'DROP TABLE IF EXISTS operation_events',
+      'DROP TABLE IF EXISTS operation_match_players',
+      'DROP TABLE IF EXISTS operation_matches',
+    ],
+  },
+  {
+    version: 9,
+    name: 'add_outbox_table',
+    up: [
+      SQL_CREATE_OUTBOX,
+    ],
+    down: [
+      'DROP TABLE IF EXISTS outbox',
+    ],
+  },
+  {
+    version: 10,
+    name: 'add_cricket_player_stats',
+    up: [
+      SQL_CREATE_CRICKET_PLAYER_STATS,
+    ],
+    down: [
+      'DROP TABLE IF EXISTS cricket_player_stats',
     ],
   },
 ]

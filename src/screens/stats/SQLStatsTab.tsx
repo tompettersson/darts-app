@@ -11,6 +11,10 @@ import {
   getCTFMonthlyAvgScore,
   getStrMonthlyHitRate,
   getHighscoreMonthlyAvgScore,
+  getBobs27MonthlyAvgScore,
+  getBobs27MonthlyHitRate,
+  getOperationMonthlyAvgScore,
+  getOperationMonthlyHitRate,
   getPlayerStreaks,
   getQuickStats,
   getHighestCheckouts,
@@ -62,6 +66,10 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
   const [ctfMonthlyAvgScore, setCtfMonthlyAvgScore] = useState<TrendPoint[]>([])
   const [strMonthlyHitRate, setStrMonthlyHitRate] = useState<TrendPoint[]>([])
   const [highscoreMonthlyAvg, setHighscoreMonthlyAvg] = useState<TrendPoint[]>([])
+  const [bobs27MonthlyAvgScore, setBobs27MonthlyAvgScore] = useState<TrendPoint[]>([])
+  const [bobs27MonthlyHitRate, setBobs27MonthlyHitRate] = useState<TrendPoint[]>([])
+  const [operationMonthlyAvgScore, setOperationMonthlyAvgScore] = useState<TrendPoint[]>([])
+  const [operationMonthlyHitRate, setOperationMonthlyHitRate] = useState<TrendPoint[]>([])
 
   useEffect(() => {
     async function loadData() {
@@ -74,7 +82,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
           p.catch((err) => { console.warn('SQL stats query failed:', err); return fallback })
 
         const [
-          qs, avg, co, cmpr, atbHR, ctfHR, ctfAS, strHR, hsAvg, str, ms, ds, h2h, hc, ba, m180
+          qs, avg, co, cmpr, atbHR, ctfHR, ctfAS, strHR, hsAvg, b27Avg, b27HR, opAvg, opHR, str, ms, ds, h2h, hc, ba, m180
         ] = await Promise.all([
           safe(getQuickStats(playerId), null),
           safe(getX01MonthlyAverage(playerId), []),
@@ -85,6 +93,10 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
           safe(getCTFMonthlyAvgScore(playerId), []),
           safe(getStrMonthlyHitRate(playerId), []),
           safe(getHighscoreMonthlyAvgScore(playerId), []),
+          safe(getBobs27MonthlyAvgScore(playerId), []),
+          safe(getBobs27MonthlyHitRate(playerId), []),
+          safe(getOperationMonthlyAvgScore(playerId), []),
+          safe(getOperationMonthlyHitRate(playerId), []),
           safe(getPlayerStreaks(playerId), null),
           safe(getMonthlyStats(playerId), []),
           safe(getStatsByDayOfWeek(playerId), []),
@@ -103,6 +115,10 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
         setCtfMonthlyAvgScore(ctfAS)
         setStrMonthlyHitRate(strHR)
         setHighscoreMonthlyAvg(hsAvg)
+        setBobs27MonthlyAvgScore(b27Avg)
+        setBobs27MonthlyHitRate(b27HR)
+        setOperationMonthlyAvgScore(opAvg)
+        setOperationMonthlyHitRate(opHR)
         setStreaks(str)
         setMonthlyStats(ms)
         setDayStats(ds)
@@ -543,6 +559,90 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
             </div>
           )}
 
+          {/* Bob's 27 Avg Score Trend */}
+          {bobs27MonthlyAvgScore.length > 1 && (
+            <div style={s.card}>
+              <div style={s.cardHeader as React.CSSProperties}>Ø Endstand pro Monat (Bob's 27)</div>
+              <div style={s.cardBody}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <LineChart
+                    data={bobs27MonthlyAvgScore.map((p) => ({
+                      label: formatMonth(p.month),
+                      value: p.value,
+                    }))}
+                    width={320}
+                    height={180}
+                    color="#ec4899"
+                    valueFormatter={(v) => v.toFixed(0)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bob's 27 Hit-Rate Trend */}
+          {bobs27MonthlyHitRate.length > 1 && (
+            <div style={s.card}>
+              <div style={s.cardHeader as React.CSSProperties}>Trefferquote pro Monat (Bob's 27)</div>
+              <div style={s.cardBody}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <LineChart
+                    data={bobs27MonthlyHitRate.map((p) => ({
+                      label: formatMonth(p.month),
+                      value: p.value,
+                    }))}
+                    width={320}
+                    height={180}
+                    color="#f43f5e"
+                    valueFormatter={(v) => `${v.toFixed(0)}%`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Operation Avg Score Trend */}
+          {operationMonthlyAvgScore.length > 1 && (
+            <div style={s.card}>
+              <div style={s.cardHeader as React.CSSProperties}>Ø Score pro Monat (Operation: EFKG)</div>
+              <div style={s.cardBody}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <LineChart
+                    data={operationMonthlyAvgScore.map((p) => ({
+                      label: formatMonth(p.month),
+                      value: p.value,
+                    }))}
+                    width={320}
+                    height={180}
+                    color="#0ea5e9"
+                    valueFormatter={(v) => v.toFixed(0)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Operation Hit-Rate Trend */}
+          {operationMonthlyHitRate.length > 1 && (
+            <div style={s.card}>
+              <div style={s.cardHeader as React.CSSProperties}>Trefferquote pro Monat (Operation: EFKG)</div>
+              <div style={s.cardBody}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <LineChart
+                    data={operationMonthlyHitRate.map((p) => ({
+                      label: formatMonth(p.month),
+                      value: p.value,
+                    }))}
+                    width={320}
+                    height={180}
+                    color="#14b8a6"
+                    valueFormatter={(v) => `${v.toFixed(0)}%`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Monatliche Statistiken Tabelle */}
           {monthlyStats.length > 0 && (
             <div style={s.card}>
@@ -590,7 +690,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
             </div>
           )}
 
-          {monthlyAvg.length <= 1 && monthlyCheckout.length <= 1 && cricketMPR.length <= 1 && atbMonthlyHitRate.length <= 1 && ctfMonthlyHitRate.length <= 1 && ctfMonthlyAvgScore.length <= 1 && strMonthlyHitRate.length <= 1 && highscoreMonthlyAvg.length <= 1 && monthlyStats.length === 0 && (
+          {monthlyAvg.length <= 1 && monthlyCheckout.length <= 1 && cricketMPR.length <= 1 && atbMonthlyHitRate.length <= 1 && ctfMonthlyHitRate.length <= 1 && ctfMonthlyAvgScore.length <= 1 && strMonthlyHitRate.length <= 1 && highscoreMonthlyAvg.length <= 1 && bobs27MonthlyAvgScore.length <= 1 && bobs27MonthlyHitRate.length <= 1 && operationMonthlyAvgScore.length <= 1 && operationMonthlyHitRate.length <= 1 && monthlyStats.length === 0 && (
             <div style={s.loading as React.CSSProperties}>
               Nicht genügend Daten für Trend-Analyse.
               <br />

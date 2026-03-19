@@ -1219,12 +1219,28 @@ export async function enrichATBEvents(): Promise<number> {
  * Führt alle Event-Enrichments durch
  */
 export async function enrichAllEvents(): Promise<{ cricket: number; atb: number }> {
+  // Guard: Skip wenn bereits komplett enriched
+  try {
+    const done = await getMeta('enrichment_done_v2')
+    if (done === 'true') {
+      return { cricket: 0, atb: 0 }
+    }
+  } catch { /* meta table might not exist yet */ }
+
   console.log('[Enrichment] Starte Event-Enrichment...')
 
   const cricket = await enrichCricketEvents()
   const atb = await enrichATBEvents()
 
   console.log(`[Enrichment] Fertig: ${cricket} Cricket, ${atb} ATB Events bereichert`)
+
+  // Flag setzen wenn nichts mehr zu enrichen war
+  if (cricket === 0 && atb === 0) {
+    try {
+      await setMeta('enrichment_done_v2', 'true')
+    } catch { /* ignore */ }
+  }
+
   return { cricket, atb }
 }
 

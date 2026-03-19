@@ -10,9 +10,23 @@ import {
   dbGetATBMatches,
   dbGetStrMatches,
   dbGetHighscoreMatches,
+  dbGetBobs27Matches,
+  dbGetOperationMatches,
   dbGetMeta,
   dbSetMeta,
+  dbSaveX01PlayerStats,
+  dbSave121PlayerStats,
+  dbSaveX01Leaderboards,
+  dbSaveCricketLeaderboards,
+  dbQueueMatch,
+  dbLoadAllX01PlayerStats,
+  dbLoadAll121PlayerStats,
+  dbLoadX01Leaderboards,
+  dbLoadCricketLeaderboards,
+  dbSaveCricketPlayerStats,
+  dbLoadAllCricketPlayerStats,
 } from './storage'
+import { warmMemCache } from '../storage'
 
 export type DBInitResult = {
   success: boolean
@@ -119,6 +133,124 @@ export async function initializeDB(): Promise<DBInitResult> {
       console.warn('[DB Init] Highscore-Migration fehlgeschlagen:', e)
     }
 
+    // One-Shot X01 PlayerStats Migration
+    try {
+      const x01StatsMigrated = await dbGetMeta('x01_stats_ls_migrated')
+      if (x01StatsMigrated !== 'true') {
+        console.log('[DB Init] X01 PlayerStats LS → SQLite...')
+        const raw = localStorage.getItem('x01.playerStats.v1')
+        if (raw) {
+          const store = JSON.parse(raw) as Record<string, any>
+          let count = 0
+          for (const s of Object.values(store)) {
+            await dbSaveX01PlayerStats(s)
+            count++
+          }
+          console.log(`[DB Init] ${count} X01 PlayerStats nach SQLite migriert`)
+        }
+        await dbSetMeta('x01_stats_ls_migrated', 'true')
+      }
+    } catch (e) {
+      console.warn('[DB Init] X01 PlayerStats Migration fehlgeschlagen:', e)
+    }
+
+    // One-Shot 121 PlayerStats Migration
+    try {
+      const stats121Migrated = await dbGetMeta('stats_121_ls_migrated')
+      if (stats121Migrated !== 'true') {
+        console.log('[DB Init] 121 PlayerStats LS → SQLite...')
+        const raw = localStorage.getItem('121.playerStats.v1')
+        if (raw) {
+          const store = JSON.parse(raw) as Record<string, any>
+          let count = 0
+          for (const [pid, s] of Object.entries(store)) {
+            await dbSave121PlayerStats(pid, s)
+            count++
+          }
+          console.log(`[DB Init] ${count} 121 PlayerStats nach SQLite migriert`)
+        }
+        await dbSetMeta('stats_121_ls_migrated', 'true')
+      }
+    } catch (e) {
+      console.warn('[DB Init] 121 PlayerStats Migration fehlgeschlagen:', e)
+    }
+
+    // One-Shot X01 Leaderboards Migration
+    try {
+      const x01LbMigrated = await dbGetMeta('x01_lb_ls_migrated')
+      if (x01LbMigrated !== 'true') {
+        console.log('[DB Init] X01 Leaderboards LS → SQLite...')
+        const raw = localStorage.getItem('darts.leaderboards.v1')
+        if (raw) {
+          const lb = JSON.parse(raw)
+          await dbSaveX01Leaderboards(lb)
+          console.log('[DB Init] X01 Leaderboards nach SQLite migriert')
+        }
+        await dbSetMeta('x01_lb_ls_migrated', 'true')
+      }
+    } catch (e) {
+      console.warn('[DB Init] X01 Leaderboards Migration fehlgeschlagen:', e)
+    }
+
+    // One-Shot Cricket Leaderboards Migration
+    try {
+      const cricketLbMigrated = await dbGetMeta('cricket_lb_ls_migrated')
+      if (cricketLbMigrated !== 'true') {
+        console.log('[DB Init] Cricket Leaderboards LS → SQLite...')
+        const raw = localStorage.getItem('cricket.leaderboards.v1')
+        if (raw) {
+          const lb = JSON.parse(raw)
+          await dbSaveCricketLeaderboards(lb)
+          console.log('[DB Init] Cricket Leaderboards nach SQLite migriert')
+        }
+        await dbSetMeta('cricket_lb_ls_migrated', 'true')
+      }
+    } catch (e) {
+      console.warn('[DB Init] Cricket Leaderboards Migration fehlgeschlagen:', e)
+    }
+
+    // One-Shot Outbox Migration
+    try {
+      const outboxMigrated = await dbGetMeta('outbox_ls_migrated')
+      if (outboxMigrated !== 'true') {
+        console.log('[DB Init] Outbox LS → SQLite...')
+        const raw = localStorage.getItem('darts.outbox.v1')
+        if (raw) {
+          const items = JSON.parse(raw) as any[]
+          let count = 0
+          for (const item of items) {
+            await dbQueueMatch(item)
+            count++
+          }
+          console.log(`[DB Init] ${count} Outbox-Einträge nach SQLite migriert`)
+        }
+        await dbSetMeta('outbox_ls_migrated', 'true')
+      }
+    } catch (e) {
+      console.warn('[DB Init] Outbox Migration fehlgeschlagen:', e)
+    }
+
+    // One-Shot Cricket PlayerStats Migration
+    try {
+      const cricketStatsMigrated = await dbGetMeta('cricket_stats_ls_migrated')
+      if (cricketStatsMigrated !== 'true') {
+        console.log('[DB Init] Cricket PlayerStats LS → SQLite...')
+        const raw = localStorage.getItem('cricket.playerStats.v1')
+        if (raw) {
+          const store = JSON.parse(raw) as Record<string, any>
+          let count = 0
+          for (const s of Object.values(store)) {
+            await dbSaveCricketPlayerStats(s)
+            count++
+          }
+          console.log(`[DB Init] ${count} Cricket PlayerStats nach SQLite migriert`)
+        }
+        await dbSetMeta('cricket_stats_ls_migrated', 'true')
+      }
+    } catch (e) {
+      console.warn('[DB Init] Cricket PlayerStats Migration fehlgeschlagen:', e)
+    }
+
     console.log('[DB Init] SQLite bereit, Version:', version)
     return {
       success: true,
@@ -159,6 +291,8 @@ export type AppDataLoaded = {
   atbMatches: number
   strMatches: number
   highscoreMatches: number
+  bobs27Matches: number
+  operationMatches: number
   durationMs: number
 }
 
@@ -207,7 +341,7 @@ function mergeMatchData<T extends { id: string }>(
 }
 
 /** Max Matches pro Modus im LS-Cache (Events sind groß → Quota schonen) */
-const LS_CACHE_LIMIT = 40
+const LS_CACHE_LIMIT = 20
 
 /** Begrenzt ein Match-Array auf die neuesten N Einträge */
 function limitForLS<T extends { createdAt?: string }>(matches: T[], limit = LS_CACHE_LIMIT): T[] {
@@ -234,13 +368,15 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((err) => { console.warn('[DB Init] Query failed (missing table?):', err.message); return fallback })
 
-    const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches] = await Promise.all([
+    const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches, bobs27Matches, operationMatches] = await Promise.all([
       safe(dbGetProfiles(), []),
       safe(dbGetX01Matches(), []),
       safe(dbGetCricketMatches(), []),
       safe(dbGetATBMatches(), []),
       safe(dbGetStrMatches(), []),
       safe(dbGetHighscoreMatches(), []),
+      safe(dbGetBobs27Matches(), []),
+      safe(dbGetOperationMatches(), []),
     ])
 
     // LocalStorage als Cache aktualisieren (für synchrone Zugriffe)
@@ -313,7 +449,7 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     } catch (e) {
       console.warn('[DB Init] X01 Cache Quota-Error')
       try {
-        localStorage.setItem('darts.matches.v1', JSON.stringify(limitForLS(x01ForLS, 20)))
+        localStorage.setItem('darts.matches.v1', JSON.stringify(limitForLS(x01ForLS, 10)))
       } catch { /* ignore */ }
     }
 
@@ -328,7 +464,7 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     } catch (e) {
       console.warn('[DB Init] Cricket Cache Quota-Error')
       try {
-        localStorage.setItem('cricket.matches.v1', JSON.stringify(limitForLS(cricketForLS, 20)))
+        localStorage.setItem('cricket.matches.v1', JSON.stringify(limitForLS(cricketForLS, 10)))
       } catch { /* ignore */ }
     }
 
@@ -343,7 +479,7 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     } catch (e) {
       console.warn('[DB Init] ATB Cache Quota-Error')
       try {
-        localStorage.setItem('atb.matches.v1', JSON.stringify(limitForLS(atbForLS, 20)))
+        localStorage.setItem('atb.matches.v1', JSON.stringify(limitForLS(atbForLS, 10)))
       } catch { /* ignore */ }
     }
 
@@ -381,7 +517,7 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     } catch (e) {
       console.warn('[DB Init] STR Cache Quota-Error')
       try {
-        localStorage.setItem('str.matches.v1', JSON.stringify(limitForLS(strForLS, 20)))
+        localStorage.setItem('str.matches.v1', JSON.stringify(limitForLS(strForLS, 10)))
       } catch { /* ignore */ }
     }
 
@@ -412,8 +548,103 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     } catch (e) {
       console.warn('[DB Init] Highscore Cache Quota-Error')
       try {
-        localStorage.setItem('highscore.matches.v1', JSON.stringify(limitForLS(hsForLS, 20)))
+        localStorage.setItem('highscore.matches.v1', JSON.stringify(limitForLS(hsForLS, 10)))
       } catch { /* ignore */ }
+    }
+
+    // Bob's 27: Merge LS + SQLite
+    const bobs27ForLS = bobs27Matches.map((m) => ({
+      id: m.id,
+      title: m.title,
+      createdAt: m.createdAt,
+      finished: m.finished,
+      finishedAt: m.finishedAt ?? undefined,
+      durationMs: m.durationMs ?? undefined,
+      winnerId: m.winnerId ?? undefined,
+      winnerDarts: m.winnerDarts ?? undefined,
+      players: m.players,
+      events: m.events,
+      config: m.config,
+      targets: m.targets,
+      finalScores: m.finalScores,
+    }))
+    try {
+      const mergedBobs27 = limitForLS(mergeMatchData(
+        bobs27ForLS,
+        'bobs27.matches.v1',
+        (a: any, b: any) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
+      ))
+      localStorage.setItem('bobs27.matches.v1', JSON.stringify(mergedBobs27))
+    } catch (e) {
+      console.warn('[DB Init] Bobs27 Cache Quota-Error')
+      try {
+        localStorage.setItem('bobs27.matches.v1', JSON.stringify(limitForLS(bobs27ForLS, 10)))
+      } catch { /* ignore */ }
+    }
+
+    // Operation: Merge LS + SQLite
+    const operationForLS = operationMatches.map((m) => ({
+      id: m.id,
+      title: m.title,
+      createdAt: m.createdAt,
+      finished: m.finished,
+      finishedAt: m.finishedAt ?? undefined,
+      durationMs: m.durationMs ?? undefined,
+      winnerId: m.winnerId ?? undefined,
+      players: m.players,
+      events: m.events,
+      config: m.config,
+      finalScores: m.finalScores,
+      legWins: m.legWins,
+    }))
+    try {
+      const mergedOperation = limitForLS(mergeMatchData(
+        operationForLS,
+        'operation.matches.v1',
+        (a: any, b: any) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
+      ))
+      localStorage.setItem('operation.matches.v1', JSON.stringify(mergedOperation))
+    } catch (e) {
+      console.warn('[DB Init] Operation Cache Quota-Error')
+      try {
+        localStorage.setItem('operation.matches.v1', JSON.stringify(limitForLS(operationForLS, 10)))
+      } catch { /* ignore */ }
+    }
+
+    // Stats & Leaderboards: SQLite → Memory-Cache (für synchrone Reads in UI)
+    try {
+      const [x01Stats, stats121, x01Lb, cricketLb, cricketStats] = await Promise.all([
+        safe(dbLoadAllX01PlayerStats(), {}),
+        safe(dbLoadAll121PlayerStats(), {}),
+        safe(dbLoadX01Leaderboards(), null),
+        safe(dbLoadCricketLeaderboards(), null),
+        safe(dbLoadAllCricketPlayerStats(), {}),
+      ])
+
+      // Memory-Cache befüllen (ersetzt LS für sync Reads)
+      warmMemCache({
+        x01PlayerStats: x01Stats,
+        leaderboards: x01Lb ?? undefined,
+        cricketLeaderboards: cricketLb ?? undefined,
+      })
+
+      // 121 + Cricket Stats nur in LS schreiben (kein Memory-Cache nötig, selten gelesen)
+      if (Object.keys(stats121).length > 0) {
+        try { localStorage.setItem('121.playerStats.v1', JSON.stringify(stats121)) } catch { /* quota */ }
+      }
+      if (Object.keys(cricketStats).length > 0) {
+        try { localStorage.setItem('cricket.playerStats.v1', JSON.stringify(cricketStats)) } catch { /* quota */ }
+      }
+
+      // Alte LS-Keys löschen die jetzt aus Memory-Cache bedient werden (Quota freigeben)
+      try {
+        localStorage.removeItem('x01.playerStats.v1')
+        localStorage.removeItem('darts.leaderboards.v1')
+        localStorage.removeItem('cricket.leaderboards.v1')
+        localStorage.removeItem('darts.outbox.v1')
+      } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('[DB Init] Stats/Leaderboards Cache-Sync fehlgeschlagen:', e)
     }
 
     const durationMs = Date.now() - startTime
@@ -424,6 +655,8 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
       atb: atbMatches.length,
       str: strMatches.length,
       highscore: highscoreMatches.length,
+      bobs27: bobs27Matches.length,
+      operation: operationMatches.length,
     })
 
     return {
@@ -433,6 +666,8 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
       atbMatches: atbMatches.length,
       strMatches: strMatches.length,
       highscoreMatches: highscoreMatches.length,
+      bobs27Matches: bobs27Matches.length,
+      operationMatches: operationMatches.length,
       durationMs,
     }
   } catch (error) {
@@ -444,6 +679,8 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
       atbMatches: 0,
       strMatches: 0,
       highscoreMatches: 0,
+      bobs27Matches: 0,
+      operationMatches: 0,
       durationMs: Date.now() - startTime,
     }
   }

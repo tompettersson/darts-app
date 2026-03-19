@@ -18,6 +18,8 @@ import HighscoreMatchDetails from '../HighscoreMatchDetails'
 import CTFMatchDetails from '../CTFMatchDetails'
 import ShanghaiMatchDetails from '../ShanghaiMatchDetails'
 import KillerSummary from '../KillerSummary'
+import Bobs27MatchDetails from '../Bobs27MatchDetails'
+import OperationMatchDetails from '../OperationMatchDetails'
 import HallOfFame from '../HallOfFame'
 
 // Match History (bei dir liegt es unter /screens)
@@ -36,6 +38,8 @@ type View =
   | 'ctf-match-details'
   | 'shanghai-match-details'
   | 'killer-match-details'
+  | 'bobs27-match-details'
+  | 'operation-match-details'
   | 'hall-of-fame'
 
 type Props = {
@@ -60,6 +64,8 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   const [ctfDetailMatchId, setCtfDetailMatchId] = useState<string | undefined>(undefined)
   const [shanghaiDetailMatchId, setShanghaiDetailMatchId] = useState<string | undefined>(undefined)
   const [killerDetailMatchId, setKillerDetailMatchId] = useState<string | undefined>(undefined)
+  const [bobs27DetailMatchId, setBobs27DetailMatchId] = useState<string | undefined>(undefined)
+  const [operationDetailMatchId, setOperationDetailMatchId] = useState<string | undefined>(undefined)
   const [playerProfileId, setPlayerProfileId] = useState<string | undefined>(undefined)
 
   // Speichert wohin "Zurück" bei Match-Details führen soll
@@ -82,7 +88,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
       e.preventDefault()
       if (view === 'stats-menu') {
         onBackToMenu()
-      } else if (view === 'match-details' || view === 'atb-match-details' || view === 'str-match-details' || view === 'highscore-match-details' || view === 'ctf-match-details' || view === 'shanghai-match-details' || view === 'killer-match-details') {
+      } else if (view === 'match-details' || view === 'atb-match-details' || view === 'str-match-details' || view === 'highscore-match-details' || view === 'ctf-match-details' || view === 'shanghai-match-details' || view === 'killer-match-details' || view === 'bobs27-match-details' || view === 'operation-match-details') {
         setView(returnFromMatchDetails)
       } else {
         setView('stats-menu')
@@ -243,6 +249,16 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
                 setReturnFromMatchDetails('match-history')
                 setView('killer-match-details')
               }}
+              onOpenBobs27Match={(id: string) => {
+                setBobs27DetailMatchId(id)
+                setReturnFromMatchDetails('match-history')
+                setView('bobs27-match-details')
+              }}
+              onOpenOperationMatch={(id: string) => {
+                setOperationDetailMatchId(id)
+                setReturnFromMatchDetails('match-history')
+                setView('operation-match-details')
+              }}
             />
           </div>
         </div>
@@ -286,17 +302,13 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
           </button>
         </div>
 
-        <div style={styles.centerPage}>
-          <div style={styles.centerInnerWide}>
-            <StatsProfile
-              onOpenMatch={(matchId: string) => {
-                setDetailMatchId(matchId)
-                setReturnFromMatchDetails('player-profile')
-                setView('match-details')
-              }}
-            />
-          </div>
-        </div>
+        <StatsProfile
+          onOpenMatch={(matchId: string) => {
+            setDetailMatchId(matchId)
+            setReturnFromMatchDetails('player-profile')
+            setView('match-details')
+          }}
+        />
       </div>
     )
   }
@@ -339,6 +351,16 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   // ---------- KILLER MATCH DETAILS ----------
   if (view === 'killer-match-details' && killerDetailMatchId) {
     return <KillerSummary matchId={killerDetailMatchId} onBack={() => setView(returnFromMatchDetails)} readOnly />
+  }
+
+  // ---------- BOB'S 27 MATCH DETAILS ----------
+  if (view === 'bobs27-match-details' && bobs27DetailMatchId) {
+    return <Bobs27MatchDetails matchId={bobs27DetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
+  }
+
+  // ---------- OPERATION MATCH DETAILS ----------
+  if (view === 'operation-match-details' && operationDetailMatchId) {
+    return <OperationMatchDetails matchId={operationDetailMatchId} onBack={() => setView(returnFromMatchDetails)} />
   }
 
   // Fallback
