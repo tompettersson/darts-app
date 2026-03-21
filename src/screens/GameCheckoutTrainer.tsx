@@ -486,7 +486,7 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
       transition: 'background 0.3s ease',
     }}>
       {/* Alles in einem zentrierten Block */}
-      <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Header: Beenden | Progress | Erfolgsquote */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -518,14 +518,14 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
         {target ? (
           <>
             {/* Target score */}
-            <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+            <div style={{ textAlign: 'center', padding: '24px 0 12px' }}>
               <div style={{
-                fontSize: 62, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                fontSize: 90, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
                 color: isBust ? colors.error : colors.accent,
               }}>
                 {isBust ? 'BUST' : thrownDarts.length > 0 ? remaining : target.score}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.25, marginTop: 4, letterSpacing: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, opacity: 0.25, marginTop: 6, letterSpacing: 2 }}>
                 {thrownDarts.length > 0 && !isBust
                   ? `Start: ${target.score} \u00B7 ${target.route}`
                   : target.route}
@@ -533,15 +533,15 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
             </div>
 
             {/* Dart slots */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               {[0, 1, 2].map(dartIdx => {
                 const thrown = thrownDarts[dartIdx]
                 const isActive = dartIdx === thrownDarts.length && !isBust
                 return (
                   <div key={dartIdx} style={{
-                    width: 62, height: 34, borderRadius: 8,
+                    width: 80, height: 44, borderRadius: 10,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'monospace', fontSize: 14, fontWeight: 700,
+                    fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
                     background: thrown
                       ? (thrown.parsed.score === 0 ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.12)')
                       : isActive ? colors.bgCard : colors.bgMuted,
@@ -559,7 +559,7 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
 
             {/* Input + Buttons zusammen */}
             {!isBust && thrownDarts.length < 3 && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
                 <input
                   ref={inputRef}
                   type="text"
@@ -570,36 +570,36 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
                   autoComplete="off"
                   autoCapitalize="characters"
                   style={{
-                    width: 140, padding: '10px 12px', borderRadius: 10,
+                    width: 160, padding: '12px 14px', borderRadius: 12,
                     border: `2px solid ${inputError ? colors.error : colors.border}`,
                     background: colors.bgInput, color: colors.fg,
-                    fontSize: 20, fontFamily: 'monospace', fontWeight: 700,
+                    fontSize: 24, fontFamily: 'monospace', fontWeight: 700,
                     textAlign: 'center', outline: 'none', boxSizing: 'border-box', letterSpacing: 2,
                   }}
                 />
                 {thrownDarts.length > 0 && (
                   <button onClick={handleUndoDart} style={{
-                    padding: '10px 12px', borderRadius: 10,
+                    padding: '12px 16px', borderRadius: 12,
                     background: colors.bgCard, color: colors.fg,
                     border: `1px solid ${colors.border}`,
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    fontSize: 15, fontWeight: 600, cursor: 'pointer',
                   }}>Undo</button>
                 )}
                 <button onClick={handleSkip} style={{
-                  padding: '10px 12px', borderRadius: 10,
+                  padding: '12px 16px', borderRadius: 12,
                   background: 'rgba(239,68,68,0.08)', color: colors.error,
                   border: `1px solid rgba(239,68,68,0.2)`,
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  fontSize: 15, fontWeight: 600, cursor: 'pointer',
                 }}>Skip</button>
               </div>
             )}
 
             {inputError && (
-              <div style={{ fontSize: 11, color: colors.error, textAlign: 'center' }}>{inputError}</div>
+              <div style={{ fontSize: 13, color: colors.error, textAlign: 'center' }}>{inputError}</div>
             )}
 
             {!isBust && thrownDarts.length < 3 && (
-              <div style={{ fontSize: 10, opacity: 0.3, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, opacity: 0.3, textAlign: 'center' }}>
                 20 = S20 \u00B7 D16 \u00B7 T19 \u00B7 BULL
               </div>
             )}
