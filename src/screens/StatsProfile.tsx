@@ -254,6 +254,31 @@ export default function StatsProfile({
     setCursor(c => (c + 1) % profiles.length)
   }
 
+  // Keyboard-Navigation: Pfeiltasten für Tabs, Escape/Backspace zum Zurückgehen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        const currentIdx = tabs.findIndex(t => t.key === activeTab)
+        if (e.key === 'ArrowLeft' && currentIdx > 0) {
+          setActiveTab(tabs[currentIdx - 1].key)
+        } else if (e.key === 'ArrowRight' && currentIdx < tabs.length - 1) {
+          setActiveTab(tabs[currentIdx + 1].key)
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        prevPlayer()
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        nextPlayer()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab, tabs])
+
   const formatPct = (v: number | null | undefined) => v != null ? `${v.toFixed(1)}%` : '—'
   const formatNum = (v: number | null | undefined, decimals = 1) => v != null ? v.toFixed(decimals) : '—'
 

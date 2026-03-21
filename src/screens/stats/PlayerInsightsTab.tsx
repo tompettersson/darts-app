@@ -99,7 +99,7 @@ function StatCell({ label, value, colors, highlight, sub }: {
   label: string; value: string | number; colors: any; highlight?: boolean; sub?: string
 }) {
   return (
-    <div style={{ textAlign: 'center', padding: '10px 4px', background: colors.bgDim, borderRadius: 8 }}>
+    <div style={{ textAlign: 'center', padding: '10px 4px', background: colors.bgMuted, borderRadius: 8 }}>
       <div style={{ fontSize: 22, fontWeight: 700, color: highlight ? '#22c55e' : colors.fg }}>{value}</div>
       <div style={{ fontSize: 11, color: colors.fgDim, marginTop: 2 }}>{label}</div>
       {sub && <div style={{ fontSize: 10, color: colors.fgDim }}>{sub}</div>}
@@ -110,7 +110,7 @@ function StatCell({ label, value, colors, highlight, sub }: {
 function MiniBar({ value, max, color, colors }: { value: number; max: number; color: string; colors: any }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
   return (
-    <div style={{ width: '100%', height: 8, background: colors.bgDim, borderRadius: 4, overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: 8, background: colors.bgMuted, borderRadius: 4, overflow: 'hidden' }}>
       <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4, transition: 'width .3s' }} />
     </div>
   )
@@ -279,7 +279,7 @@ function ProfilTab({ data, colors, playerId }: { data: SQLStatsData; colors: any
                   size={90}
                   strokeWidth={10}
                   color={getGaugeColor(wr.winRate)}
-                  backgroundColor={colors.bgDim}
+                  backgroundColor={colors.bgMuted}
                   formatValue={v => `${v.toFixed(0)}%`}
                 />
                 <div style={{ fontSize: 12, fontWeight: 600, color: colors.fg, marginTop: 2 }}>
@@ -445,7 +445,7 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
 
   // Heat color based on distribution (count-based, not rate)
   const getHeatColor = (count: number) => {
-    if (maxCount === 0) return colors.bgDim
+    if (maxCount === 0) return colors.bgMuted
     const intensity = count / maxCount
     if (intensity <= 0.2) return '#ef444440'
     if (intensity <= 0.4) return '#f9731644'
@@ -655,7 +655,7 @@ function HeadToHeadTab({ data, playerId, colors }: { data: SQLStatsData; playerI
           onChange={e => setSelectedOpponent(e.target.value || null)}
           style={{
             width: '100%', padding: '10px 12px', borderRadius: 8,
-            border: `1px solid ${colors.border}`, background: colors.bgDim,
+            border: `1px solid ${colors.border}`, background: colors.bgMuted,
             color: colors.fg, fontSize: 14,
           }}
         >
@@ -820,7 +820,7 @@ function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {
         ? '#22c55e'
         : h.matchCount >= 3
           ? (h.winRate >= 50 ? '#3b82f6' : '#ef4444')
-          : colors.bgDim,
+          : colors.bgMuted,
     }))
   }, [hourlyData, bestHourEntry, colors])
 
@@ -900,7 +900,7 @@ function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {
                   <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 28, fontSize: 13, fontWeight: 600, color: colors.fg }}>{d.label}</div>
                     <div style={{ flex: 1 }}>
-                      <MiniBar value={wr} max={100} color={wr >= 50 ? '#22c55e' : wr > 0 ? '#ef4444' : colors.bgDim} colors={colors} />
+                      <MiniBar value={wr} max={100} color={wr >= 50 ? '#22c55e' : wr > 0 ? '#ef4444' : colors.bgMuted} colors={colors} />
                     </div>
                     <div style={{ width: 40, fontSize: 12, textAlign: 'right', fontWeight: 600, color: wr >= 50 ? '#22c55e' : '#ef4444' }}>
                       {wr.toFixed(0)}%
@@ -949,7 +949,7 @@ function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {
                   <div key={me.mode} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '6px 8px', borderRadius: 8,
-                    background: `${colors.bgDim}44`,
+                    background: `${colors.bgMuted}44`,
                   }}>
                     <div style={{ width: 90, fontSize: 12, fontWeight: 600, color: colors.fg }}>
                       {me.label}

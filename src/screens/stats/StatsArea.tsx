@@ -90,7 +90,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   // Backspace-Navigation: einen Menüpunkt zurück
   useEffect(() => {
     const handleBackspace = (e: KeyboardEvent) => {
-      if (e.key !== 'Backspace') return
+      if (e.key !== 'Backspace' && e.key !== 'Escape') return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       e.preventDefault()

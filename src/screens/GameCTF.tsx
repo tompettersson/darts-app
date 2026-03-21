@@ -79,13 +79,25 @@ const NUMBER_PAD = [
   [16, 17, 18, 19, 20],
 ] as const
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  multiplayer?: MultiplayerProp
 }
 
-export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
+export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }: Props) {
   // Theme-aware Farben
   const { c, isArcade, colors } = useGameColors()
 
@@ -94,6 +106,14 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
   const [current, setCurrent] = useState<CTFDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const multRef = useRef(mult)
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as CTFEvent[]
+    setEvents(remote)
+    persistCTFEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State aus Events ableiten (muss vor useGameState stehen, da finished davon abhaengt)
   const state = useMemo(() => applyCTFEvents(events), [events])
@@ -341,6 +361,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         setTimeout(() => onShowSummary(matchId), 2500)
         return
       }
@@ -351,6 +372,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
         const legIndex = result.legFinished.winnerDarts > 0
           ? state.currentLegIndex
@@ -373,7 +395,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [activePlayerId, activePlayer, current, events, matchId, state, players, seqLen, onShowSummary])
+    if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
+  }, [activePlayerId, activePlayer, current, events, matchId, state, players, seqLen, onShowSummary, multiplayer])
 
   // Letzten Zug rueckgaengig machen
   const undoLastTurn = useCallback(() => {
@@ -398,7 +421,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [events, matchId])
+    if (multiplayer?.enabled) multiplayer.undo(events.length - lastTurnIndex)
+  }, [events, matchId, multiplayer])
 
   // Pruefe ob Undo moeglich ist (mindestens ein Turn vorhanden)
   const canUndo = useMemo(() => {
@@ -1204,6 +1228,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary }: Props) {
             persistCTFEvents(matchId, newEvents)
             setEvents(newEvents)
             setIntermission(null)
+            if (multiplayer?.enabled) multiplayer.submitEvents(intermission.pendingNextEvents)
           }}
         />
       )}

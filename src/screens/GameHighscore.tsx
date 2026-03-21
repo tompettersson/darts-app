@@ -46,13 +46,25 @@ type HighscoreIntermission = {
   pendingNextEvents: HighscoreEvent[]
 }
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  multiplayer?: MultiplayerProp
 }
 
-export default function GameHighscore({ matchId, onExit, onShowSummary }: Props) {
+export default function GameHighscore({ matchId, onExit, onShowSummary, multiplayer }: Props) {
   const { c, isArcade, colors } = useGameColors()
 
   // Profile für Spielerfarben
@@ -62,6 +74,14 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
   const storedMatch = getHighscoreMatchById(matchId)
   const [events, setEvents] = useState<HighscoreEvent[]>(storedMatch?.events ?? [])
   const [currentDarts, setCurrentDarts] = useState<HighscoreDart[]>([])
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as HighscoreEvent[]
+    setEvents(remote)
+    persistHighscoreEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State ableiten (vor useGameState, da finished benötigt wird)
   const state = applyHighscoreEvents(events)
@@ -204,6 +224,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
         persistHighscoreEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrentDarts([])
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         onShowSummary(matchId)
         return
       }
@@ -216,6 +237,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
         persistHighscoreEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrentDarts([])
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
         setIntermissionView('staircase') // Reset view für neue Intermission
         setIntermission({
@@ -235,7 +257,8 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
     persistHighscoreEvents(matchId, newEvents)
     setEvents(newEvents)
     setCurrentDarts([])
-  }, [activePlayerId, currentDarts, state, events, matchId, elapsedMs, legStartElapsedMs, onShowSummary])
+    if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
+  }, [activePlayerId, currentDarts, state, events, matchId, elapsedMs, legStartElapsedMs, onShowSummary, multiplayer])
 
   // Auto-Confirm bei 3 Darts
   useEffect(() => {
@@ -259,7 +282,8 @@ export default function GameHighscore({ matchId, onExit, onShowSummary }: Props)
     setEvents(newEvents)
     setLegStartElapsedMs(elapsedMs)
     setIntermission(null)
-  }, [intermission, events, matchId, elapsedMs])
+    if (multiplayer?.enabled) multiplayer.submitEvents(intermission.pendingNextEvents)
+  }, [intermission, events, matchId, elapsedMs, multiplayer])
 
   // Enter-Taste zum Weitergehen bei Intermission
   useEffect(() => {

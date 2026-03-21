@@ -81,13 +81,25 @@ const LOG_COLORS: Record<string, string> = {
   info: '#95a5a6',
 }
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onFinish: (matchId: string) => void
   onAbort: () => void
+  multiplayer?: MultiplayerProp
 }
 
-export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
+export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: Props) {
   // --- Intermission (Leg-Ende) ---
   const [intermission, setIntermission] = useState<{
     legWinnerId: string
@@ -120,6 +132,14 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
 
   // Previous lives fuer Animation-Erkennung
   const prevLivesRef = useRef<Record<string, number>>({})
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as KillerEvent[]
+    setEvents(remote)
+    persistKillerEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State aus Events ableiten
   const state = useMemo(() => applyKillerEvents(events), [events])
@@ -351,6 +371,7 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
       setEvents(newEvents)
       setCurrent([])
       setMult(1)
+      if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
       setTimeout(() => onFinish(matchId), 2500)
       return
     }
@@ -375,6 +396,7 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
         setEvents(allEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(allEvents.slice(events.length))
         return
       }
 
@@ -382,6 +404,7 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
       setEvents(newEvents)
       setCurrent([])
       setMult(1)
+      if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
       setLegManualTargets({})
       setIntermission({
@@ -399,7 +422,8 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [activePlayerId, current, events, matchId, state, gamePaused, onFinish, intermission, playerNames])
+    if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
+  }, [activePlayerId, current, events, matchId, state, gamePaused, onFinish, intermission, playerNames, multiplayer])
 
   // Undo
   const undoLastTurn = useCallback(() => {
@@ -422,7 +446,8 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [events, matchId])
+    if (multiplayer?.enabled) multiplayer.undo(events.length - lastTurnIndex)
+  }, [events, matchId, multiplayer])
 
   const canUndo = useMemo(() => {
     return events.some(e => e.type === 'KillerTurnAdded')
@@ -453,7 +478,8 @@ export default function GameKiller({ matchId, onFinish, onAbort }: Props) {
     setIntermission(null)
     setLegManualTargets({})
     prevActiveRef.current = null // Reset speech tracking
-  }, [intermission, events, matchId, legManualTargets, state.playerOrder])
+    if (multiplayer?.enabled) multiplayer.submitEvents(allEvents.slice(events.length))
+  }, [intermission, events, matchId, legManualTargets, state.playerOrder, multiplayer])
 
   // Enter-Taste zum Weitergehen bei Intermission
   useEffect(() => {

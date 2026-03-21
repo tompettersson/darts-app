@@ -18,7 +18,7 @@ export default function AdvancedStatsTab({ data, tab, playerName }: Props) {
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
   if (tab === 'analyse') return <AnalyseTab data={data} colors={colors} styles={styles} playerName={playerName} />
-  if (tab === 'erfolge') return <ErfolgeTab data={data} colors={colors} styles={styles} />
+  if (tab === 'erfolge') return <ErfolgeTab data={data} colors={colors} styles={styles} isArcade={isArcade} />
   if (tab === 'training') return <TrainingTab data={data} colors={colors} styles={styles} />
   return null
 }
@@ -136,7 +136,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
             return (
               <div style={{
                 marginTop: 10, padding: '8px 12px', borderRadius: 6,
-                background: colors.bgDim, textAlign: 'center', fontSize: 12,
+                background: colors.bgMuted, textAlign: 'center', fontSize: 12,
               }}>
                 <span style={{ color: colors.fgDim }}>Differenz: </span>
                 <span style={{
@@ -170,7 +170,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
                 bullHits={data.fieldAccuracy.find(f => f.field === 'BULL')?.totalAttempts ?? 0}
                 bullDoubleHits={0}
                 size={180}
-                colors={{ bg: colors.bgDim, fg: colors.fgDim }}
+                colors={{ bg: colors.bgMuted, fg: colors.fgDim }}
               />
             </div>
             <div style={{ flex: 1, minWidth: 140 }}>
@@ -178,7 +178,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
               {data.fieldAccuracy.slice(0, 5).map(f => (
                 <div key={String(f.field)} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '4px 0', borderBottom: `1px solid ${colors.bgDim}`,
+                  padding: '4px 0', borderBottom: `1px solid ${colors.bgMuted}`,
                 }}>
                   <span style={{ fontWeight: 600, color: colors.fg, fontSize: 14 }}>
                     {f.field === 'BULL' ? 'Bull' : f.field}
@@ -211,7 +211,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
                 bullHits={data.doubleSuccessPerField.find(f => f.field === 'BULL')?.hitRate ?? 0}
                 bullDoubleHits={0}
                 size={180}
-                colors={{ bg: colors.bgDim, fg: colors.fgDim }}
+                colors={{ bg: colors.bgMuted, fg: colors.fgDim }}
               />
             </div>
             <div style={{ flex: 1, minWidth: 140 }}>
@@ -223,7 +223,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
                 .map(f => (
                 <div key={String(f.field)} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '4px 0', borderBottom: `1px solid ${colors.bgDim}`,
+                  padding: '4px 0', borderBottom: `1px solid ${colors.bgMuted}`,
                 }}>
                   <span style={{ fontWeight: 600, color: colors.fg, fontSize: 14 }}>
                     D{f.field === 'BULL' ? 'Bull' : f.field}
@@ -249,7 +249,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
             {data.bobs27Progression.map((p, i) => (
               <div key={i} style={{
                 padding: '4px 8px', borderRadius: 6, fontSize: 12,
-                background: p.personalBest ? '#f59e0b22' : colors.bgDim,
+                background: p.personalBest ? '#f59e0b22' : colors.bgMuted,
                 border: p.personalBest ? '1px solid #f59e0b44' : 'none',
                 color: p.completed ? colors.fg : '#ef4444',
               }}>
@@ -269,7 +269,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
             {data.bobs27DoubleWeakness.map(d => (
               <div key={d.field} style={{
                 padding: '6px 8px', borderRadius: 6, fontSize: 12,
-                background: colors.bgDim, textAlign: 'center',
+                background: colors.bgMuted, textAlign: 'center',
               }}>
                 <div style={{ fontWeight: 600, color: colors.fg }}>{d.field}</div>
                 <div style={{ color: d.hitRate >= 40 ? '#22c55e' : d.hitRate >= 20 ? colors.fgDim : '#ef4444' }}>
@@ -306,7 +306,7 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
                       height: Math.max(4, h.winRate * 0.6),
                       background: h.matchCount >= 3
                         ? (h.winRate >= 50 ? '#22c55e' : '#ef4444')
-                        : colors.bgDim,
+                        : colors.bgMuted,
                       borderRadius: 2,
                     }} />
                     <div style={{ fontSize: 9, color: colors.fgDim, marginTop: 2 }}>{h.hour}</div>
@@ -341,7 +341,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: stri
 
 const CATEGORY_ORDER = ['milestone', 'rare', 'skill', 'cricket', 'vielseitigkeit']
 
-function ErfolgeTab({ data, colors, styles }: { data: SQLStatsData; colors: any; styles: any }) {
+function ErfolgeTab({ data, colors, styles, isArcade }: { data: SQLStatsData; colors: any; styles: any; isArcade: boolean }) {
   const achievements = data.fullAchievements
   const unlocked = achievements.filter(a => a.unlocked)
   const [selectedCat, setSelectedCat] = useState<string | null>(null)
@@ -390,7 +390,7 @@ function ErfolgeTab({ data, colors, styles }: { data: SQLStatsData; colors: any;
         </div>
         {achievements.length > 0 && (
           <div style={{ marginTop: 14, position: 'relative' }}>
-            <div style={{ height: 14, background: colors.bgDim, borderRadius: 7, overflow: 'hidden' }}>
+            <div style={{ height: 14, background: colors.bgMuted, borderRadius: 7, overflow: 'hidden' }}>
               <div style={{
                 width: `${pct}%`, height: '100%',
                 background: `linear-gradient(90deg, ${colors.accent}, #FFD700, #22c55e)`,
@@ -412,7 +412,7 @@ function ErfolgeTab({ data, colors, styles }: { data: SQLStatsData; colors: any;
           onClick={() => setSelectedCat(null)}
           style={{
             textAlign: 'center', padding: '10px 6px', borderRadius: 10,
-            background: selectedCat === null ? colors.accent : colors.bgDim,
+            background: selectedCat === null ? colors.accent : colors.bgMuted,
             color: selectedCat === null ? '#fff' : colors.fg,
             border: selectedCat === null ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
             cursor: 'pointer', transition: 'all 0.15s ease',
@@ -434,7 +434,7 @@ function ErfolgeTab({ data, colors, styles }: { data: SQLStatsData; colors: any;
               onClick={() => setSelectedCat(isActive ? null : cat)}
               style={{
                 textAlign: 'center', padding: '10px 6px', borderRadius: 10,
-                background: isActive ? `${cfg.color}20` : colors.bgDim,
+                background: isActive ? `${cfg.color}20` : colors.bgMuted,
                 border: isActive ? `2px solid ${cfg.color}` : `1px solid ${colors.border}`,
                 cursor: 'pointer', transition: 'all 0.15s ease',
               }}
@@ -492,8 +492,8 @@ function AchievementCard({ achievement: a, colors, locked, catColor }: {
     <div style={{
       padding: '10px 12px', borderRadius: 10, marginBottom: 6,
       background: locked
-        ? `${colors.bgDim}88`
-        : `linear-gradient(135deg, ${accentColor}12, ${colors.bgDim})`,
+        ? `${colors.bgMuted}88`
+        : `linear-gradient(135deg, ${accentColor}12, ${colors.bgMuted})`,
       opacity: locked ? 0.6 : 1,
       display: 'flex', alignItems: 'center', gap: 10,
       borderLeft: a.unlocked ? `3px solid ${accentColor}` : '3px solid transparent',
@@ -503,7 +503,7 @@ function AchievementCard({ achievement: a, colors, locked, catColor }: {
       <div style={{
         width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: a.unlocked ? `linear-gradient(135deg, ${accentColor}40, ${accentColor}20)` : colors.bgDim,
+        background: a.unlocked ? `linear-gradient(135deg, ${accentColor}40, ${accentColor}20)` : colors.bgMuted,
         fontSize: 16, color: a.unlocked ? accentColor : colors.fgDim,
         boxShadow: a.unlocked ? `0 0 12px ${accentColor}25` : 'none',
       }}>
@@ -568,7 +568,7 @@ function TrainingTab({ data, colors, styles }: { data: SQLStatsData; colors: any
           </div>
           {recs.map(r => (
             <div key={r.id} style={{
-              padding: '12px 16px', borderRadius: 10, background: colors.bgDim,
+              padding: '12px 16px', borderRadius: 10, background: colors.bgMuted,
               borderLeft: `4px solid ${prioColors[r.priority]}`,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -670,7 +670,7 @@ function ActivityHeatmap({ days, colors }: { days: { date: string; matchCount: n
 
   const getColor = (count: number) => {
     if (count < 0) return 'transparent'
-    if (count === 0) return colors.bgDim
+    if (count === 0) return colors.bgMuted
     const intensity = Math.min(1, count / maxCount)
     if (intensity <= 0.25) return '#22c55e44'
     if (intensity <= 0.5) return '#22c55e77'

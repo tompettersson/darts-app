@@ -222,6 +222,10 @@ export default function App() {
 
   // SQLite Loading State
   const [dbLoading, setDbLoading] = useState(true)
+
+  // Menu keyboard navigation refs (must be declared before any early returns)
+  const menuBtnRefs = React.useRef<(HTMLButtonElement | null)[]>([])
+  const [menuFocus, setMenuFocus] = React.useState(1)
   const [dbError, setDbError] = useState<string | null>(null)
 
   // SQLite beim App-Start initialisieren
@@ -281,6 +285,26 @@ export default function App() {
 
   // Spielerfarben-Hintergrund Einstellung
   const [playerColorBgEnabled, setPlayerColorBgEnabled] = useState(() => getPlayerColorBackgroundEnabled())
+
+  // Menu keyboard navigation (arrow keys + enter)
+  React.useEffect(() => {
+    if (view !== 'menu' || isArcade) return
+    const handle = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setMenuFocus(f => { const next = Math.min(f + 1, 3); menuBtnRefs.current[next]?.focus(); return next })
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setMenuFocus(f => { const next = Math.max(f - 1, 0); menuBtnRefs.current[next]?.focus(); return next })
+      } else if (e.key === 'Enter') {
+        menuBtnRefs.current[menuFocus]?.click()
+      }
+    }
+    window.addEventListener('keydown', handle)
+    setTimeout(() => menuBtnRefs.current[1]?.focus(), 100)
+    return () => window.removeEventListener('keydown', handle)
+  }, [view, isArcade, menuFocus])
 
   // Backspace/Escape-Navigation: einen Menüpunkt zurück
   useEffect(() => {
@@ -753,6 +777,7 @@ export default function App() {
             const stored = getMatches().find((m: any) => m.id === matchId)
             if (stored) {
               setMultiplayerMatchId(matchId)
+              setMultiplayerGameType('x01')
               setMultiplayerRemoteEvents(stored.events as DartsEventType[])
               setView('multiplayer-lobby-host')
             } else {
@@ -796,10 +821,18 @@ export default function App() {
             crazyScoringMode: cfg.crazyScoringMode,
           })
 
-          setLastOpenCricketMatchId(stored.id)
-          setActiveCricketId(stored.id)
-          setLastActivity('cricket', stored.id)
-          setView('game-cricket')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(stored.id)
+            setMultiplayerGameType('cricket')
+            setMultiplayerRemoteEvents(stored.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setLastOpenCricketMatchId(stored.id)
+            setActiveCricketId(stored.id)
+            setLastActivity('cricket', stored.id)
+            setView('game-cricket')
+          }
         }}
       />
     )
@@ -819,10 +852,18 @@ export default function App() {
             config,
           })
 
-          setLastOpenATBMatchId(stored.id)
-          setActiveATBId(stored.id)
-          setLastActivity('atb', stored.id)
-          setView('game-atb')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(stored.id)
+            setMultiplayerGameType('atb')
+            setMultiplayerRemoteEvents(stored.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setLastOpenATBMatchId(stored.id)
+            setActiveATBId(stored.id)
+            setLastActivity('atb', stored.id)
+            setView('game-atb')
+          }
         }}
       />
     )
@@ -903,10 +944,18 @@ export default function App() {
             bullPosition,
           })
 
-          setLastOpenStrMatchId(stored.id)
-          setActiveStrId(stored.id)
-          setLastActivity('str', stored.id)
-          setView('game-str')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(stored.id)
+            setMultiplayerGameType('str')
+            setMultiplayerRemoteEvents(stored.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setLastOpenStrMatchId(stored.id)
+            setActiveStrId(stored.id)
+            setLastActivity('str', stored.id)
+            setView('game-str')
+          }
         }}
       />
     )
@@ -986,10 +1035,18 @@ export default function App() {
             structure,
           })
 
-          setLastOpenHighscoreMatchId(stored.id)
-          setActiveHighscoreId(stored.id)
-          setLastActivity('highscore', stored.id)
-          setView('game-highscore')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(stored.id)
+            setMultiplayerGameType('highscore')
+            setMultiplayerRemoteEvents(stored.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setLastOpenHighscoreMatchId(stored.id)
+            setActiveHighscoreId(stored.id)
+            setLastActivity('highscore', stored.id)
+            setView('game-highscore')
+          }
         }}
       />
     )
@@ -1063,10 +1120,18 @@ export default function App() {
             config,
           })
 
-          setLastOpenCTFMatchId(stored.id)
-          setActiveCTFId(stored.id)
-          setLastActivity('ctf', stored.id)
-          setView('game-ctf')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(stored.id)
+            setMultiplayerGameType('ctf')
+            setMultiplayerRemoteEvents(stored.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setLastOpenCTFMatchId(stored.id)
+            setActiveCTFId(stored.id)
+            setLastActivity('ctf', stored.id)
+            setView('game-ctf')
+          }
         }}
       />
     )
@@ -1139,10 +1204,18 @@ export default function App() {
             structure,
           })
 
-          setLastOpenShanghaiMatchId(stored.id)
-          setActiveShanghaiId(stored.id)
-          setLastActivity('shanghai', stored.id)
-          setView('game-shanghai')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(stored.id)
+            setMultiplayerGameType('shanghai')
+            setMultiplayerRemoteEvents(stored.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setLastOpenShanghaiMatchId(stored.id)
+            setActiveShanghaiId(stored.id)
+            setLastActivity('shanghai', stored.id)
+            setView('game-shanghai')
+          }
         }}
       />
     )
@@ -1209,9 +1282,22 @@ export default function App() {
       <NewGameKiller
         profiles={getProfiles()}
         onStart={(matchId) => {
-          setActiveKillerId(matchId)
-          setLastActivity('killer', matchId)
-          setView('game-killer')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            const stored = getKillerMatchById(matchId)
+            if (stored) {
+              setMultiplayerMatchId(matchId)
+              setMultiplayerGameType('killer')
+              setMultiplayerRemoteEvents(stored.events as any[])
+              setView('multiplayer-lobby-host')
+            } else {
+              setView('menu')
+            }
+          } else {
+            setActiveKillerId(matchId)
+            setLastActivity('killer', matchId)
+            setView('game-killer')
+          }
         }}
         onBack={() => setView('new-start')}
       />
@@ -1267,10 +1353,18 @@ export default function App() {
             players: data.players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             config: data.config,
           })
-          setActiveBobs27Id(match.id)
-          setLastOpenBobs27MatchId(match.id)
-          setLastActivity('bobs27', match.id)
-          setView('game-bobs27')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(match.id)
+            setMultiplayerGameType('bobs27')
+            setMultiplayerRemoteEvents(match.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setActiveBobs27Id(match.id)
+            setLastOpenBobs27MatchId(match.id)
+            setLastActivity('bobs27', match.id)
+            setView('game-bobs27')
+          }
         }}
       />
     )
@@ -1329,10 +1423,18 @@ export default function App() {
             players: data.players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             config: data.config,
           })
-          setActiveOperationId(match.id)
-          setLastOpenOperationMatchId(match.id)
-          setLastActivity('operation', match.id)
-          setView('game-operation')
+          if (isMultiplayerSetup) {
+            setIsMultiplayerSetup(false)
+            setMultiplayerMatchId(match.id)
+            setMultiplayerGameType('operation')
+            setMultiplayerRemoteEvents(match.events as any[])
+            setView('multiplayer-lobby-host')
+          } else {
+            setActiveOperationId(match.id)
+            setLastOpenOperationMatchId(match.id)
+            setLastActivity('operation', match.id)
+            setView('game-operation')
+          }
         }}
       />
     )
@@ -1466,11 +1568,22 @@ export default function App() {
         }}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
         onGameStart={() => {
-          // Extract matchId from synced events
-          const matchStarted = mpState.events.find((e: any) => e.type === 'MatchStarted') as any
-          if (matchStarted) {
-            setMultiplayerMatchId(matchStarted.matchId)
-            setActiveMatchId(matchStarted.matchId)
+          // Detect game type and matchId from synced events
+          const firstEvent = mpState.events[0] as any
+          if (firstEvent) {
+            setMultiplayerMatchId(firstEvent.matchId)
+            // Detect game type from first event type
+            const eventType: string = firstEvent.type ?? ''
+            if (eventType.startsWith('Cricket')) setMultiplayerGameType('cricket')
+            else if (eventType.startsWith('ATB')) setMultiplayerGameType('atb')
+            else if (eventType.startsWith('Str')) setMultiplayerGameType('str')
+            else if (eventType.startsWith('Highscore')) setMultiplayerGameType('highscore')
+            else if (eventType.startsWith('CTF')) setMultiplayerGameType('ctf')
+            else if (eventType.startsWith('Shanghai')) setMultiplayerGameType('shanghai')
+            else if (eventType.startsWith('Killer')) setMultiplayerGameType('killer')
+            else if (eventType.startsWith('Bobs27')) setMultiplayerGameType('bobs27')
+            else if (eventType.startsWith('Operation')) setMultiplayerGameType('operation')
+            else setMultiplayerGameType('x01')
           }
           setView('multiplayer-game')
         }}
@@ -1504,6 +1617,111 @@ export default function App() {
       setMultiplayerRemoteEvents(null)
       setActiveMatchId(undefined)
       setView('menu')
+    }
+
+    if (multiplayerGameType === 'cricket') {
+      return (
+        <GameCricket
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowCricketSummary={(id) => {
+            mpActions.disconnect()
+            setActiveCricketId(id)
+            setView('summary-cricket')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'atb') {
+      return (
+        <GameATB
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setSummaryATBId(id)
+            setView('summary-atb')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'str') {
+      return (
+        <GameStraeusschen
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setSummaryStrId(id)
+            setView('summary-str')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'highscore') {
+      return (
+        <GameHighscore
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setSummaryHighscoreId(id)
+            setView('summary-highscore')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'ctf') {
+      return (
+        <GameCTF
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setSummaryCTFId(id)
+            setView('summary-ctf')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'shanghai') {
+      return (
+        <GameShanghai
+          matchId={multiplayerMatchId}
+          onExit={mpOnExit}
+          onShowSummary={(id) => {
+            mpActions.disconnect()
+            setSummaryShanghaiId(id)
+            setView('summary-shanghai')
+          }}
+          multiplayer={mpProps}
+        />
+      )
+    }
+
+    if (multiplayerGameType === 'killer') {
+      return (
+        <GameKiller
+          matchId={multiplayerMatchId}
+          onFinish={(id) => {
+            mpActions.disconnect()
+            setSummaryKillerId(id)
+            setView('summary-killer')
+          }}
+          onAbort={mpOnExit}
+          multiplayer={mpProps}
+        />
+      )
     }
 
     if (multiplayerGameType === 'bobs27') {
@@ -1975,6 +2193,7 @@ export default function App() {
               <div style={{ display: 'grid', gap: 10 }}>
                 {/* SPIEL FORTSETZEN */}
                 <button
+                  ref={el => { menuBtnRefs.current[0] = el }}
                   onClick={handleContinueGame}
                   disabled={!continueInfo}
                   style={menuTileStyle(menuAccentColors.continue, !continueInfo)}
@@ -1988,7 +2207,7 @@ export default function App() {
                 </button>
 
                 {/* NEUES SPIEL */}
-                <button onClick={() => setView('new-start')} style={menuTileStyle(menuAccentColors.newGame)}>
+                <button ref={el => { menuBtnRefs.current[1] = el }} onClick={() => setView('new-start')} style={menuTileStyle(menuAccentColors.newGame)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconNewGame /></div>
                   <div>
                     <div style={styles.title}>Neues Spiel</div>
@@ -1997,7 +2216,7 @@ export default function App() {
                 </button>
 
                 {/* STATISTIKEN (ausgelagert) */}
-                <button onClick={() => setView('stats-area')} style={menuTileStyle(menuAccentColors.stats)}>
+                <button ref={el => { menuBtnRefs.current[2] = el }} onClick={() => setView('stats-area')} style={menuTileStyle(menuAccentColors.stats)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconStats /></div>
                   <div>
                     <div style={styles.title}>Statistiken</div>
@@ -2006,7 +2225,7 @@ export default function App() {
                 </button>
 
                 {/* EINSTELLUNGEN */}
-                <button onClick={() => setView('profiles-menu')} style={menuTileStyle(menuAccentColors.settings)}>
+                <button ref={el => { menuBtnRefs.current[3] = el }} onClick={() => setView('profiles-menu')} style={menuTileStyle(menuAccentColors.settings)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconSettings /></div>
                   <div>
                     <div style={styles.title}>Einstellungen</div>

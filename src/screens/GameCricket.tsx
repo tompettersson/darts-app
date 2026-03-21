@@ -34,10 +34,22 @@ import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import './game.css'
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onExit: () => void
   onShowCricketSummary?: (id: string) => void
+  multiplayer?: MultiplayerProp
 }
 
 function loadCricketById(id: string) {
@@ -586,7 +598,7 @@ function computeLegStats(
 /* ===========================
    Hauptkomponente
 =========================== */
-export default function GameCricket({ matchId, onExit, onShowCricketSummary }: Props) {
+export default function GameCricket({ matchId, onExit, onShowCricketSummary, multiplayer }: Props) {
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 
@@ -620,6 +632,14 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
   )
 
   const baseState = useMemo(() => applyCricketEvents(events), [events])
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as CricketEvent[]
+    setEvents(remote)
+    persistCricketEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!matchStored || !baseState.match) {
     return (
@@ -2422,6 +2442,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
     setTurn([])
     setMult(1) // Multiplier zurücksetzen nach Turn-Bestätigung
 
+    // Multiplayer: neue Events senden
+    if (multiplayer?.enabled) {
+      const delta = nextEvents.slice(events.length)
+      if (delta.length > 0) multiplayer.submitEvents(delta)
+    }
+
     // Berechne marksAdded für Ansage
     const marksBefore = baseState.marksByPlayer[activeId] ?? {}
     const { marksAdded } = computeMarksDetail(darts, marksBefore, targetKeys)
@@ -2562,5 +2588,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary }: P
     setEvents(next)
     setTurn([])
     setMult(1) // Multiplier zurücksetzen
+
+    // Multiplayer: Undo senden
+    if (multiplayer?.enabled) {
+      multiplayer.undo(events.length - next.length)
+    }
   }
 }

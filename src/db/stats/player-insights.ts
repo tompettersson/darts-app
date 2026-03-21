@@ -109,57 +109,45 @@ export async function getDoubleSuccessPerField(playerId: string): Promise<Double
   try {
     const doubles: Record<string, { attempts: number; hits: number }> = {}
 
-    // --- X01: Individual darts aimed at doubles ---
-    const x01Darts = await query<{
-      bed: string
-      mult: number
-      aim_bed: string | null
-      aim_mult: number | null
+    // --- X01: Checkout-Versuche aus VisitAdded Events ---
+    // Wir nutzen die Checkout-Situationen (Remaining <= 170 und gerade) um echte
+    // Double-Versuche zu schätzen. Jede Aufnahme bei einem checkbaren Rest zählt als Versuch.
+    // Erfolgreiche Checkouts (remainingAfter === 0, kein Bust) zählen als Hits.
+    const x01Checkouts = await query<{
+      remaining_before: number
+      remaining_after: number
+      bust: number
+      finishing_dart_bed: string | null
     }>(`
       SELECT
-        json_extract(d.value, '$.bed') as bed,
-        CAST(json_extract(d.value, '$.mult') AS INTEGER) as mult,
-        json_extract(d.value, '$.aim.bed') as aim_bed,
-        json_extract(d.value, '$.aim.mult') as aim_mult
+        CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) as remaining_before,
+        CAST(json_extract(e.data, '$.remainingAfter') AS INTEGER) as remaining_after,
+        CASE WHEN json_extract(e.data, '$.bust') = 1 THEN 1 ELSE 0 END as bust,
+        json_extract(e.data, '$.darts[#-1].bed') as finishing_dart_bed
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-      , json_each(e.data, '$.darts') d
       WHERE e.type = 'VisitAdded'
         AND json_extract(e.data, '$.playerId') = ?
-        AND (json_extract(d.value, '$.aim.mult') = 2
-             OR (json_extract(d.value, '$.aim.mult') IS NULL AND json_extract(d.value, '$.mult') = 2))
+        AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170
+        AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) >= 2
+        AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) % 2 = 0
     `, [playerId, playerId])
 
-    for (const dart of x01Darts) {
-      const aimBed = dart.aim_bed ?? dart.bed
-      if (!aimBed || aimBed === 'MISS') continue
-      const field = aimBed === 'DBULL' || aimBed === 'BULL' ? 'BULL' : aimBed
-      if (!doubles[field]) doubles[field] = { attempts: 0, hits: 0 }
-      doubles[field].attempts++
-      if (dart.mult === 2) {
-        const hitField = dart.bed === 'DBULL' || dart.bed === 'BULL' ? 'BULL' : dart.bed
-        if (hitField === field) doubles[field].hits++
+    // Für X01 schätzen wir: bei checkbarem Rest wird mind. 1 Dart aufs Doppel geworfen
+    for (const visit of x01Checkouts) {
+      // Welches Doppel wird angepeilt? Heuristik: Rest / 2 (vereinfacht)
+      const targetDouble = visit.remaining_before <= 40
+        ? String(visit.remaining_before / 2)
+        : visit.remaining_before === 50 ? 'BULL' : '20'  // Bei höheren Rests meist D20
+
+      if (!doubles[targetDouble]) doubles[targetDouble] = { attempts: 0, hits: 0 }
+      doubles[targetDouble].attempts++
+
+      // Erfolgreicher Checkout?
+      if (visit.remaining_after === 0 && !visit.bust) {
+        doubles[targetDouble].hits++
       }
-    }
-
-    // --- x01_finishing_doubles table (aggregated checkout data) ---
-    const finishingDoubles = await query<{
-      double_field: string
-      count: number
-    }>(`
-      SELECT double_field, count
-      FROM x01_finishing_doubles
-      WHERE player_id = ? AND count > 0
-    `, [playerId])
-
-    for (const fd of finishingDoubles) {
-      // double_field format: "D20", "D16", "DBULL"
-      const field = fd.double_field === 'DBULL' ? 'BULL' : fd.double_field.replace(/^D/, '')
-      if (!doubles[field]) doubles[field] = { attempts: 0, hits: 0 }
-      // Finishing doubles sind Erfolge — als Hits UND Attempts zählen
-      doubles[field].hits += fd.count
-      doubles[field].attempts += fd.count
     }
 
     // --- Bob's 27: Each round targets a specific double ---

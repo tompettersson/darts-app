@@ -67,19 +67,39 @@ type StrPlayerDoneInfo = {
   legId: string
 }
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  multiplayer?: MultiplayerProp
 }
 
-export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Props) {
+export default function GameStraeusschen({ matchId, onExit, onShowSummary, multiplayer }: Props) {
   const { c, isArcade, colors } = useGameColors()
 
   // Events + State
   const storedMatch = getStrMatchById(matchId)
   const [events, setEvents] = useState<StrEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<StrDart[]>([])
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as StrEvent[]
+    setEvents(remote)
+    persistStrEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State ableiten (before useGameState, because we need `state.finished`)
   const state = applyStrEvents(events)
@@ -172,6 +192,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
       persistStrEvents(matchId, newEvents)
       setEvents(newEvents)
       setCurrent([])
+      if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
       // Score aus dem neuen State berechnen
       const newState = applyStrEvents(newEvents)
@@ -203,6 +224,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
         persistStrEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         const winnerPlayer = state.match?.players.find(p => p.playerId === result.matchFinished!.winnerId)
         announceStrMatchWinner(winnerPlayer?.name ?? '?')
         onShowSummary(matchId)
@@ -215,6 +237,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
         persistStrEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
         announceStrLegWinner(winnerPlayer?.name ?? '?', result.legFinished.winnerDarts)
 
@@ -235,7 +258,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
     persistStrEvents(matchId, newEvents)
     setEvents(newEvents)
     setCurrent([])
-  }, [activePlayerId, events, state, matchId, elapsedMs, onShowSummary, activePlayer, legStartElapsedMs])
+    if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
+  }, [activePlayerId, events, state, matchId, elapsedMs, onShowSummary, activePlayer, legStartElapsedMs, multiplayer])
 
   // Turn bestätigen (public) – prüft ob Zahlenwahl nötig
   const confirmTurn = useCallback(() => {
@@ -296,7 +320,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
     persistStrEvents(matchId, newEvents)
     setEvents(newEvents)
     setCurrent([])
-  }, [events, matchId])
+    if (multiplayer?.enabled) multiplayer.undo(events.length - lastTurnIndex)
+  }, [events, matchId, multiplayer])
 
   const canUndo = useMemo(() => events.some(e => e.type === 'StrTurnAdded'), [events])
 
@@ -802,6 +827,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary }: Pro
             setEvents(newEvents)
             setIntermission(null)
             setLegStartElapsedMs(elapsedMs)
+            if (multiplayer?.enabled) multiplayer.submitEvents(intermission.pendingNextEvents)
           }}
         />
       )}

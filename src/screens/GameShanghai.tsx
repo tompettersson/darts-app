@@ -65,13 +65,25 @@ const NUMBER_PAD = [
   [16, 17, 18, 19, 20],
 ] as const
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  multiplayer?: MultiplayerProp
 }
 
-export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) {
+export default function GameShanghai({ matchId, onExit, onShowSummary, multiplayer }: Props) {
   // Shared theme colors
   const { c, isArcade, colors } = useGameColors()
 
@@ -95,6 +107,14 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
 
   // Shanghai Flash-Overlay
   const [showShanghaiFlash, setShowShanghaiFlash] = useState(false)
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as ShanghaiEvent[]
+    setEvents(remote)
+    persistShanghaiEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State aus Events ableiten
   const state = useMemo(() => applyShanghaiEvents(events), [events])
@@ -293,6 +313,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         setTimeout(() => onShowSummary(matchId), 2500)
         return
       }
@@ -307,6 +328,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
         setIntermission({
           kind: 'leg',
@@ -326,7 +348,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [activePlayerId, current, events, matchId, state, players, onShowSummary])
+    if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
+  }, [activePlayerId, current, events, matchId, state, players, onShowSummary, multiplayer])
 
   // Letzten Zug rueckgaengig machen
   const undoLastTurn = useCallback(() => {
@@ -350,7 +373,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [events, matchId])
+    if (multiplayer?.enabled) multiplayer.undo(events.length - lastTurnIndex)
+  }, [events, matchId, multiplayer])
 
   // Pruefe ob Undo moeglich ist (mindestens ein Turn vorhanden)
   const canUndo = useMemo(() => {
@@ -1040,6 +1064,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary }: Props) 
             persistShanghaiEvents(matchId, newEvents)
             setEvents(newEvents)
             setIntermission(null)
+            if (multiplayer?.enabled) multiplayer.submitEvents(intermission.pendingNextEvents)
           }}
         />
       )}

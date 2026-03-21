@@ -99,18 +99,38 @@ function getSpecialRuleLabel(config: ATBMatchConfig): string {
   }
 }
 
+type MultiplayerProp = {
+  enabled: boolean
+  roomCode: string
+  myPlayerId: string
+  submitEvents: (events: any[]) => void
+  undo: (removeCount: number) => void
+  remoteEvents: any[] | null
+  connectionStatus: string
+  playerCount: number
+}
+
 type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  multiplayer?: MultiplayerProp
 }
 
-export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
+export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }: Props) {
   const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getATBMatchById(matchId)
   const [events, setEvents] = useState<ATBEvent[]>(storedMatch?.events ?? [])
   const state = applyATBEvents(events)
+
+  // Multiplayer: Remote-Events synchronisieren
+  useEffect(() => {
+    if (!multiplayer?.remoteEvents) return
+    const remote = multiplayer.remoteEvents as ATBEvent[]
+    setEvents(remote)
+    persistATBEvents(matchId, remote)
+  }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
     matchId, mode: 'atb', finished: state.finished,
@@ -397,6 +417,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         onShowSummary(matchId)
         return
       }
@@ -408,6 +429,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
+        if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
         // Leg-Index aus dem Event ermitteln
         const legIndex = (result.legFinished as any).legIndex ?? 1
@@ -430,6 +452,9 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
+
+    // Multiplayer: Events senden
+    if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
 
     // Einzelspieler: Nächstes Ziel nach jeder Runde ansagen
     if (!result.matchFinished && state.match && state.match.players.length === 1) {
@@ -477,7 +502,10 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
     setEvents(newEvents)
     setCurrent([])
     setMult(1)
-  }, [events, matchId])
+
+    // Multiplayer: Undo senden
+    if (multiplayer?.enabled) multiplayer.undo(events.length - lastTurnIndex)
+  }, [events, matchId, multiplayer])
 
   // Prüfe ob Undo möglich ist (mindestens ein Turn vorhanden)
   const canUndo = useMemo(() => {
@@ -1041,6 +1069,7 @@ export default function GameATB({ matchId, onExit, onShowSummary }: Props) {
             persistATBEvents(matchId, newEvents)
             setEvents(newEvents)
             setIntermission(null)
+            if (multiplayer?.enabled) multiplayer.submitEvents(intermission.pendingNextEvents)
           }}
         />
       )}
