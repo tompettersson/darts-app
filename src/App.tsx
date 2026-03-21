@@ -578,18 +578,8 @@ export default function App() {
           setView('checkout-quiz')
         }}
         onSelectCheckoutTrainer={() => {
-          const profiles = getProfiles()
-          if (profiles.length === 0) {
-            alert('Erstelle zuerst ein Profil unter Einstellungen')
-            return
-          }
-          const player = profiles[0]
-          const match = createCheckoutTrainerMatchShell({
-            playerId: player.id,
-            playerName: player.name,
-            targetCount: 10,
-          })
-          setActiveCheckoutTrainerId(match.id)
+          // Spielerauswahl findet jetzt im GameCheckoutTrainer statt (players Phase)
+          setActiveCheckoutTrainerId('pending')
           setView('game-checkout-trainer')
         }}
         onMultiplayerHost={() => {
@@ -1493,7 +1483,11 @@ export default function App() {
     return (
       <GameCheckoutTrainer
         matchId={activeCheckoutTrainerId}
-        onExit={() => setView('menu')}
+        onMatchCreated={(newMatchId) => setActiveCheckoutTrainerId(newMatchId)}
+        onExit={() => {
+          setActiveCheckoutTrainerId(undefined)
+          setView('menu')
+        }}
         onShowSummary={(id) => {
           // Summary ist inline im GameCheckoutTrainer
           // Nach Fertig-Button → zurück zum Menü

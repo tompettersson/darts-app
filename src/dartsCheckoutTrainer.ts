@@ -25,6 +25,8 @@ export type CheckoutTrainerStartedEvent = {
   playerId: string
   playerName: string
   targetCount: number
+  /** Multiplayer: Liste aller Spieler */
+  players?: { playerId: string; name: string }[]
 }
 
 export type CheckoutAttemptStartedEvent = {
@@ -45,6 +47,8 @@ export type CheckoutAttemptResultEvent = {
   success: boolean
   dartsUsed: number
   dartsThrown?: string[]  // z.B. ['T19', 'D16'] - optional fuer Rueckwaertskompatibilitaet
+  /** Multiplayer: Index des Spielers, der geworfen hat */
+  playerIndex?: number
 }
 
 export type CheckoutTrainerFinishedEvent = {
@@ -88,6 +92,16 @@ export type CheckoutTrainerState = {
   totalDartsUsed: number
   startTime: number
   events: CheckoutTrainerEvent[]
+  /** Multiplayer: Alle Spieler */
+  players: { playerId: string; name: string }[]
+  /** Multiplayer: Wer ist aktuell dran (Index in players[]) */
+  activePlayerIndex: number
+  /** Multiplayer: Ergebnisse pro Spieler-Index */
+  playerResults: Map<number, CheckoutAttemptResult[]>
+  /** Multiplayer: Erfolge pro Spieler-Index */
+  playerSuccessCounts: Map<number, number>
+  /** Multiplayer: Darts pro Spieler-Index */
+  playerDartsUsed: Map<number, number>
 }
 
 // ===== Checkout-Generierung =====
@@ -236,6 +250,11 @@ function createEmptyState(): CheckoutTrainerState {
     totalDartsUsed: 0,
     startTime: 0,
     events: [],
+    players: [],
+    activePlayerIndex: 0,
+    playerResults: new Map(),
+    playerSuccessCounts: new Map(),
+    playerDartsUsed: new Map(),
   }
 }
 
@@ -254,6 +273,19 @@ export function applyCheckoutTrainerEvents(events: CheckoutTrainerEvent[]): Chec
         state.playerName = event.playerName
         state.targetCount = event.targetCount
         state.startTime = new Date(event.ts).getTime()
+        // Multiplayer: players Array aus Event oder Fallback auf einzelnen Spieler
+        if (event.players && event.players.length > 0) {
+          state.players = event.players
+        } else {
+          state.players = [{ playerId: event.playerId, name: event.playerName }]
+        }
+        state.activePlayerIndex = 0
+        // Maps initialisieren
+        for (let pi = 0; pi < state.players.length; pi++) {
+          state.playerResults.set(pi, [])
+          state.playerSuccessCounts.set(pi, 0)
+          state.playerDartsUsed.set(pi, 0)
+        }
         break
       }
 
@@ -268,18 +300,35 @@ export function applyCheckoutTrainerEvents(events: CheckoutTrainerEvent[]): Chec
 
       case 'CheckoutAttemptResult': {
         if (state.currentTarget) {
-          state.results.push({
+          const result: CheckoutAttemptResult = {
             score: state.currentTarget.score,
             route: state.currentTarget.route,
             optimalDarts: state.currentTarget.darts,
             success: event.success,
             dartsUsed: event.dartsUsed,
             dartsThrown: event.dartsThrown,
-          })
+          }
+          state.results.push(result)
           if (event.success) {
             state.successCount++
           }
           state.totalDartsUsed += event.dartsUsed
+
+          // Multiplayer: Ergebnis dem aktiven Spieler zuordnen
+          const pi = event.playerIndex ?? state.activePlayerIndex
+          const pResults = state.playerResults.get(pi) ?? []
+          pResults.push(result)
+          state.playerResults.set(pi, pResults)
+          if (event.success) {
+            state.playerSuccessCounts.set(pi, (state.playerSuccessCounts.get(pi) ?? 0) + 1)
+          }
+          state.playerDartsUsed.set(pi, (state.playerDartsUsed.get(pi) ?? 0) + event.dartsUsed)
+
+          // Naechster Spieler (rotieren)
+          if (state.players.length > 1) {
+            state.activePlayerIndex = (pi + 1) % state.players.length
+          }
+
           state.attemptIndex++
           state.currentTarget = null
         }

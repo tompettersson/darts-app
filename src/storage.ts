@@ -5236,6 +5236,8 @@ export type CheckoutTrainerStoredMatch = {
   playerName: string
   events: CheckoutTrainerEvent[]
   targetCount: number
+  /** Multiplayer: Alle Spieler */
+  players?: { playerId: string; name: string }[]
 }
 
 let checkoutTrainerCache: CheckoutTrainerStoredMatch[] | null = null
@@ -5253,8 +5255,14 @@ export function createCheckoutTrainerMatchShell(args: {
   playerId: string
   playerName: string
   targetCount: number
+  /** Multiplayer: Alle Spieler */
+  players?: { playerId: string; name: string }[]
 }): CheckoutTrainerStoredMatch {
   const matchId = ctId()
+
+  const players = args.players && args.players.length > 0
+    ? args.players
+    : [{ playerId: args.playerId, name: args.playerName }]
 
   const startEvent: CheckoutTrainerEvent = {
     type: 'CheckoutTrainerStarted',
@@ -5264,16 +5272,22 @@ export function createCheckoutTrainerMatchShell(args: {
     playerId: args.playerId,
     playerName: args.playerName,
     targetCount: args.targetCount,
+    players: players.length > 1 ? players : undefined,
   }
+
+  const playerNames = players.map(p => p.name).join(', ')
 
   const stored: CheckoutTrainerStoredMatch = {
     id: matchId,
-    title: `Checkout Training – ${args.playerName}`,
+    title: players.length > 1
+      ? `Checkout Training – ${playerNames}`
+      : `Checkout Training – ${args.playerName}`,
     createdAt: ctNow(),
     playerId: args.playerId,
     playerName: args.playerName,
     targetCount: args.targetCount,
     events: [startEvent],
+    players: players.length > 1 ? players : undefined,
   }
 
   const all = getCheckoutTrainerMatches()

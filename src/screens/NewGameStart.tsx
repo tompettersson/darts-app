@@ -176,7 +176,8 @@ const modeAccents: Record<string, string> = {
   x01: '#e63946',
   cricket: '#2d6a4f',
   training: '#264653',
-  board: '#003049',
+  feldspiele: '#003049',
+  funparty: '#f72585',
   online: '#7b2cbf',
   '121': '#1d3557',
   str: '#b5179e',
@@ -254,7 +255,7 @@ type Props = {
   onMultiplayerJoin?: () => void
 }
 
-type Step = 'type' | 'preset' | 'cricket' | 'training' | 'board' | 'online'
+type Step = 'type' | 'preset' | 'cricket' | 'feldspiele' | 'funparty' | 'training' | 'online'
 
 export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin }: Props) {
   // Theme System
@@ -265,7 +266,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
   const [pickerIndex, setPickerIndex] = useState(0)
   const [presetPickerIndex, setPresetPickerIndex] = useState(0)
   const [trainingPickerIndex, setTrainingPickerIndex] = useState(0)
-  const [boardPickerIndex, setBoardPickerIndex] = useState(0)
+  const [feldspielePickerIndex, setFeldspielePickerIndex] = useState(0)
+  const [funPartyPickerIndex, setFunPartyPickerIndex] = useState(0)
   const [onlinePickerIndex, setOnlinePickerIndex] = useState(0)
 
   // Quick-Start: Letztes X01-Spiel wiederholen
@@ -285,8 +287,9 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     { id: 'random', label: 'Zufallsspiel', sub: 'Überraschung! Zufälliger Spielmodus', icon: <IconShuffle /> },
     { id: 'x01', label: 'X01', sub: '301 / 501 / 701 / 901', icon: <IconDartboard /> },
     { id: 'cricket', label: 'Cricket', sub: 'Short / Long & Cutthroat', icon: <IconCricket /> },
-    { id: 'training', label: 'Trainingspiele', sub: '121 Sprint & mehr', icon: <IconTraining /> },
-    { id: 'board', label: 'Rund ums Board', sub: 'ATB, Capture the Field, Shanghai', icon: <IconBoard /> },
+    { id: 'feldspiele', label: 'Feldspiele', sub: 'ATB, Capture the Field, Shanghai', icon: <IconBoard /> },
+    { id: 'funparty', label: 'Fun & Party', sub: 'Sträußchen, Highscore, Killer & mehr', icon: <IconBouquet /> },
+    { id: 'training', label: 'Training', sub: '121 Sprint, Bob\'s 27 & Checkout', icon: <IconTraining /> },
     { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <IconOnline /> },
   ], [])
 
@@ -295,14 +298,14 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     if (id === 'random') onSelectRandom?.()
     else if (id === 'x01') setStep('preset')
     else if (id === 'cricket') setStep('cricket')
+    else if (id === 'feldspiele') setStep('feldspiele')
+    else if (id === 'funparty') setStep('funparty')
     else if (id === 'training') setStep('training')
-    else if (id === 'board') setStep('board')
     else if (id === 'online') setStep('online')
   }
 
-  // Preset Picker items (X01 + 121)
+  // Preset Picker items (X01 only)
   const presetItems: PickerItem[] = useMemo(() => [
-    { id: '121', label: '121 Sprint', sub: 'SI / Double-Out', icon: <IconDartboard /> },
     { id: '301', label: '301', sub: 'Double-Out', icon: <IconDartboard /> },
     { id: '501', label: '501', sub: 'Double-Out', icon: <IconDartboard /> },
     { id: '701', label: '701', sub: 'Double-Out', icon: <IconDartboard /> },
@@ -311,36 +314,45 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
 
   const handlePresetConfirm = (index: number) => {
     const id = presetItems[index].id
-    if (id === '121') {
-      onSelect121?.()
-    } else {
-      pick(parseInt(id) as Score)
-    }
+    pick(parseInt(id) as Score)
   }
 
-  // Training Picker items (ohne 121, das ist jetzt bei X01-Presets)
+  // Training Picker items
   const trainingItems: PickerItem[] = useMemo(() => [
-    { id: 'str', label: 'Sträußchen', sub: '3× Triple auf 17/18/19/20', icon: <IconBouquet /> },
-    { id: 'highscore', label: 'Highscore', sub: 'Erreiche als Erster das Target!', icon: <IconStar /> },
-    { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!', icon: <IconSkull /> },
+    { id: '121', label: '121 Sprint', sub: 'SI / Double-Out', icon: <IconDartboard /> },
     { id: 'bobs27', label: "Bob's 27", sub: 'Doubles Training D1-D20', icon: <IconDice /> },
-    { id: 'operation', label: 'Operation: EFKG', sub: 'Ein Feld, keine Gnade', icon: <IconCrosshair /> },
     { id: 'checkout-quiz', label: 'Checkout Quiz', sub: 'Was wirfst du bei X Rest?', icon: <IconQuiz /> },
     { id: 'checkout-trainer', label: 'Checkout Training', sub: '10 zufällige Checkouts üben', icon: <IconTarget /> },
   ], [])
 
-  // Board Picker items (Rund ums Board)
-  const boardItems: PickerItem[] = useMemo(() => [
+  // Feldspiele Picker items
+  const feldspieleItems: PickerItem[] = useMemo(() => [
     { id: 'atb', label: 'Around the Block', sub: '1-20 + Bull treffen', icon: <IconCircularArrows /> },
     { id: 'ctf', label: 'Capture the Field', sub: 'Felder erobern!', icon: <IconSwords /> },
     { id: 'shanghai', label: 'Shanghai', sub: '1-20 punkten, Shanghai = Sofortsieg!', icon: <IconDragon /> },
   ], [])
 
-  const handleBoardConfirm = (index: number) => {
-    const id = boardItems[index].id
+  const handleFeldspieleConfirm = (index: number) => {
+    const id = feldspieleItems[index].id
     if (id === 'atb') onSelectATB?.({ mode: 'ascending', direction: 'forward' })
     else if (id === 'ctf') onSelectCTF?.()
     else if (id === 'shanghai') onSelectShanghai?.()
+  }
+
+  // Fun & Party Picker items
+  const funPartyItems: PickerItem[] = useMemo(() => [
+    { id: 'str', label: 'Sträußchen', sub: '3× Triple auf 17/18/19/20', icon: <IconBouquet /> },
+    { id: 'highscore', label: 'Highscore', sub: 'Erreiche als Erster das Target!', icon: <IconStar /> },
+    { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!', icon: <IconSkull /> },
+    { id: 'operation', label: 'Operation: EFKG', sub: 'Ein Feld, keine Gnade', icon: <IconCrosshair /> },
+  ], [])
+
+  const handleFunPartyConfirm = (index: number) => {
+    const id = funPartyItems[index].id
+    if (id === 'str') onSelectStraeusschen?.()
+    else if (id === 'highscore') onSelectHighscore?.()
+    else if (id === 'killer') onSelectKiller?.()
+    else if (id === 'operation') onSelectOperation?.()
   }
 
   // Online Picker items
@@ -357,11 +369,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
 
   const handleTrainingConfirm = (index: number) => {
     const id = trainingItems[index].id
-    if (id === 'str') onSelectStraeusschen?.()
-    else if (id === 'highscore') onSelectHighscore?.()
-    else if (id === 'killer') onSelectKiller?.()
+    if (id === '121') onSelect121?.()
     else if (id === 'bobs27') onSelectBobs27?.()
-    else if (id === 'operation') onSelectOperation?.()
     else if (id === 'checkout-quiz') onSelectCheckoutQuiz?.()
     else if (id === 'checkout-trainer') onSelectCheckoutTrainer?.()
   }
@@ -372,7 +381,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
       if (e.key === 'Escape' || e.key === 'Backspace') {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
         e.preventDefault()
-        if (step === 'preset' || step === 'cricket' || step === 'training' || step === 'board' || step === 'online') setStep('type')
+        if (step === 'preset' || step === 'cricket' || step === 'feldspiele' || step === 'funparty' || step === 'training' || step === 'online') setStep('type')
         else if (onBack) onBack()
       }
     }
@@ -479,32 +488,47 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                 </div>
               </button>
 
-              {/* Trainingspiele */}
+              {/* Feldspiele */}
               <button
-                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.training}` }}
-                onClick={() => setStep('training')}
-                aria-label="Trainingspiele auswählen"
-              >
-                <div style={tileWithIconStyle}>
-                  <div style={iconWrapStyle}><IconTraining /></div>
-                  <div>
-                    <div style={{ ...styles.title, marginBottom: 4 }}>Trainingspiele</div>
-                    <div style={styles.sub}>121 Sprint & mehr</div>
-                  </div>
-                </div>
-              </button>
-
-              {/* Rund ums Board */}
-              <button
-                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.board}` }}
-                onClick={() => setStep('board')}
-                aria-label="Rund ums Board"
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.feldspiele}` }}
+                onClick={() => setStep('feldspiele')}
+                aria-label="Feldspiele auswählen"
               >
                 <div style={tileWithIconStyle}>
                   <div style={iconWrapStyle}><IconBoard /></div>
                   <div>
-                    <div style={{ ...styles.title, marginBottom: 4 }}>Rund ums Board</div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Feldspiele</div>
                     <div style={styles.sub}>ATB, Capture the Field, Shanghai</div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Fun & Party */}
+              <button
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.funparty}` }}
+                onClick={() => setStep('funparty')}
+                aria-label="Fun & Party auswählen"
+              >
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconBouquet /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Fun & Party</div>
+                    <div style={styles.sub}>Sträußchen, Highscore, Killer & mehr</div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Training */}
+              <button
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.training}` }}
+                onClick={() => setStep('training')}
+                aria-label="Training auswählen"
+              >
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconTraining /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Training</div>
+                    <div style={styles.sub}>121 Sprint, Bob's 27 & Checkout</div>
                   </div>
                 </div>
               </button>
@@ -527,11 +551,11 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           )
         )}
 
-        {/* Step 2: X01 Presets (inkl. 121) */}
+        {/* Step 2: X01 Presets */}
         {step === 'preset' && (
           isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-              <h1 style={titleStyle}>Neues Spiel</h1>
+              <h1 style={titleStyle}>X01</h1>
               <ArcadeScrollPicker
                 items={presetItems}
                 selectedIndex={presetPickerIndex}
@@ -542,20 +566,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
             </div>
           ) : (
             <div style={styles.centerInnerWide} aria-label="X01-Presets">
-              <h1 style={titleStyle}>Neues Spiel</h1>
-              {/* 121 Sprint */}
-              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['121']}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={iconWrapStyle}><IconDartboard /></div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 18, lineHeight: 1.1 }}>
-                      121 Sprint
-                    </div>
-                    <div style={styles.sub}>Straight-In / Double-Out</div>
-                  </div>
-                </div>
-                <button style={styles.pill} onClick={() => onSelect121?.()} aria-label="121 Sprint auswählen">auswählen</button>
-              </div>
+              <h1 style={titleStyle}>X01</h1>
               {/* 301-901 Presets */}
               {([301, 501, 701, 901] as const).map((score) => (
                 <div key={score} style={styles.rowCard}>
@@ -578,11 +589,11 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           )
         )}
 
-        {/* Step 2b: Trainingspiele */}
+        {/* Step: Training */}
         {step === 'training' && (
           isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-              <h1 style={titleStyle}>Neues Spiel</h1>
+              <h1 style={titleStyle}>Training</h1>
               <ArcadeScrollPicker
                 items={trainingItems}
                 selectedIndex={trainingPickerIndex}
@@ -592,40 +603,18 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
               />
             </div>
           ) : (
-            <div style={styles.centerInnerWide} aria-label="Trainingspiele">
-              <h1 style={titleStyle}>Trainingspiele</h1>
+            <div style={styles.centerInnerWide} aria-label="Training">
+              <h1 style={titleStyle}>Training</h1>
 
-              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.str}` }}>
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['121']}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={iconWrapStyle}><IconBouquet /></div>
+                  <div style={iconWrapStyle}><IconDartboard /></div>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Sträußchen</div>
-                    <div style={styles.sub}>3x Triple auf 17/18/19/20</div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>121 Sprint</div>
+                    <div style={styles.sub}>Straight-In / Double-Out</div>
                   </div>
                 </div>
-                <button style={styles.pill} onClick={() => onSelectStraeusschen?.()} aria-label="Sträußchen auswählen">auswählen</button>
-              </div>
-
-              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.highscore}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={iconWrapStyle}><IconStar /></div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Highscore</div>
-                    <div style={styles.sub}>Erreiche als Erster das Target!</div>
-                  </div>
-                </div>
-                <button style={styles.pill} onClick={() => onSelectHighscore?.()} aria-label="Highscore auswählen">auswählen</button>
-              </div>
-
-              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.killer}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={iconWrapStyle}><IconSkull /></div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Killer</div>
-                    <div style={styles.sub}>Eliminiere alle Gegner!</div>
-                  </div>
-                </div>
-                <button style={styles.pill} onClick={() => onSelectKiller?.()} aria-label="Killer auswählen">auswählen</button>
+                <button style={styles.pill} onClick={() => onSelect121?.()} aria-label="121 Sprint auswählen">auswählen</button>
               </div>
 
               <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.bobs27}` }}>
@@ -637,17 +626,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                   </div>
                 </div>
                 <button style={styles.pill} onClick={() => onSelectBobs27?.()} aria-label="Bob's 27 auswählen">auswählen</button>
-              </div>
-
-              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.operation}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={iconWrapStyle}><IconCrosshair /></div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Operation: EFKG</div>
-                    <div style={styles.sub}>Ein Feld, keine Gnade</div>
-                  </div>
-                </div>
-                <button style={styles.pill} onClick={() => onSelectOperation?.()} aria-label="Operation auswählen">auswählen</button>
               </div>
 
               <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['checkout-quiz']}` }}>
@@ -675,22 +653,22 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           )
         )}
 
-        {/* Step: Rund ums Board */}
-        {step === 'board' && (
+        {/* Step: Feldspiele */}
+        {step === 'feldspiele' && (
           isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-              <h1 style={titleStyle}>Rund ums Board</h1>
+              <h1 style={titleStyle}>Feldspiele</h1>
               <ArcadeScrollPicker
-                items={boardItems}
-                selectedIndex={boardPickerIndex}
-                onChange={setBoardPickerIndex}
-                onConfirm={handleBoardConfirm}
+                items={feldspieleItems}
+                selectedIndex={feldspielePickerIndex}
+                onChange={setFeldspielePickerIndex}
+                onConfirm={handleFeldspieleConfirm}
                 colors={colors}
               />
             </div>
           ) : (
             <div style={styles.centerInner}>
-              <h1 style={titleStyle}>Rund ums Board</h1>
+              <h1 style={titleStyle}>Feldspiele</h1>
               <button
                 style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.atb}` }}
                 onClick={() => onSelectATB?.({ mode: 'ascending', direction: 'forward' })}
@@ -727,6 +705,78 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                   <div>
                     <div style={{ ...styles.title, marginBottom: 4 }}>Shanghai</div>
                     <div style={styles.sub}>1-20 punkten, Shanghai = Sofortsieg!</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+          )
+        )}
+
+        {/* Step: Fun & Party */}
+        {step === 'funparty' && (
+          isArcade ? (
+            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
+              <h1 style={titleStyle}>Fun & Party</h1>
+              <ArcadeScrollPicker
+                items={funPartyItems}
+                selectedIndex={funPartyPickerIndex}
+                onChange={setFunPartyPickerIndex}
+                onConfirm={handleFunPartyConfirm}
+                colors={colors}
+              />
+            </div>
+          ) : (
+            <div style={styles.centerInner}>
+              <h1 style={titleStyle}>Fun & Party</h1>
+              <button
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.str}` }}
+                onClick={() => onSelectStraeusschen?.()}
+                aria-label="Sträußchen auswählen"
+              >
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconBouquet /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Sträußchen</div>
+                    <div style={styles.sub}>3x Triple auf 17/18/19/20</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.highscore}` }}
+                onClick={() => onSelectHighscore?.()}
+                aria-label="Highscore auswählen"
+              >
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconStar /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Highscore</div>
+                    <div style={styles.sub}>Erreiche als Erster das Target!</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.killer}` }}
+                onClick={() => onSelectKiller?.()}
+                aria-label="Killer auswählen"
+              >
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconSkull /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Killer</div>
+                    <div style={styles.sub}>Eliminiere alle Gegner!</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.operation}` }}
+                onClick={() => onSelectOperation?.()}
+                aria-label="Operation auswählen"
+              >
+                <div style={tileWithIconStyle}>
+                  <div style={iconWrapStyle}><IconCrosshair /></div>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 4 }}>Operation: EFKG</div>
+                    <div style={styles.sub}>Ein Feld, keine Gnade</div>
                   </div>
                 </div>
               </button>
