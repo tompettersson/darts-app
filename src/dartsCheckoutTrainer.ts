@@ -44,6 +44,7 @@ export type CheckoutAttemptResultEvent = {
   ts: string
   success: boolean
   dartsUsed: number
+  dartsThrown?: string[]  // z.B. ['T19', 'D16'] - optional fuer Rueckwaertskompatibilitaet
 }
 
 export type CheckoutTrainerFinishedEvent = {
@@ -71,6 +72,7 @@ export type CheckoutAttemptResult = {
   optimalDarts: number
   success: boolean
   dartsUsed: number
+  dartsThrown?: string[]  // z.B. ['T19', 'D16']
 }
 
 export type CheckoutTrainerState = {
@@ -104,22 +106,83 @@ const COMMON_CHECKOUTS = [
   156, 158, 160, 161, 164, 167, 170,
 ]
 
+// ===== Dart Input Parsing =====
+
+export type ParsedDart = { bed: string; mult: number; score: number }
+
+/**
+ * Parst eine Dart-Eingabe wie "S20", "D16", "T19", "BULL", "DBULL", "MISS".
+ * Case-insensitive. Gibt null zurueck bei ungueltigem Input.
+ */
+export function parseDartInput(input: string): ParsedDart | null {
+  const s = input.trim().toUpperCase()
+  if (!s) return null
+
+  if (s === 'MISS' || s === '0' || s === 'M') return { bed: '0', mult: 0, score: 0 }
+  if (s === 'DBULL' || s === 'DB' || s === 'D25' || s === 'BULL50') return { bed: 'BULL', mult: 2, score: 50 }
+  if (s === 'BULL' || s === 'B' || s === '25' || s === 'SB' || s === 'S25') return { bed: 'BULL', mult: 1, score: 25 }
+
+  const match = s.match(/^([SDT])(\d{1,2})$/)
+  if (!match) return null
+
+  const prefix = match[1]
+  const bed = parseInt(match[2], 10)
+  if (bed < 1 || bed > 20) return null
+
+  const mult = prefix === 'S' ? 1 : prefix === 'D' ? 2 : 3
+  return { bed: String(bed), mult, score: bed * mult }
+}
+
+/**
+ * Berechnet den Score eines Darts.
+ */
+export function calculateDartScore(bed: string, mult: number): number {
+  if (bed === 'BULL') return mult === 2 ? 50 : 25
+  if (bed === '0') return 0
+  return parseInt(bed, 10) * mult
+}
+
+/**
+ * Prueft ob ein Dart ein Double ist (fuer Checkout).
+ */
+export function isDartDouble(dart: ParsedDart): boolean {
+  return dart.mult === 2
+}
+
+// ===== Score Range Type =====
+
+export type ScoreRange = [number, number]
+
 /**
  * Generiert einen zufaelligen Checkout-Score aus der Checkout-Tabelle.
  * Bevorzugt haeufige Scores (70% Chance), Rest aus gesamter Tabelle.
+ * Optional: scoreRange [min, max] filtert nach Score-Bereich.
  */
-export function generateRandomCheckout(): { score: number; route: string; darts: 1 | 2 | 3 } {
-  const useCommon = Math.random() < 0.7
+export function generateRandomCheckout(scoreRange?: ScoreRange): { score: number; route: string; darts: 1 | 2 | 3 } {
   const allScores = Object.keys(CHECKOUT_TABLE).map(Number)
 
-  if (useCommon) {
-    const score = COMMON_CHECKOUTS[Math.floor(Math.random() * COMMON_CHECKOUTS.length)]
-    const entry = CHECKOUT_TABLE[score]
-    if (entry) return { score, route: entry.route, darts: entry.darts }
+  // Filtere nach Score-Range wenn angegeben
+  const filteredScores = scoreRange
+    ? allScores.filter(s => s >= scoreRange[0] && s <= scoreRange[1])
+    : allScores
+
+  if (filteredScores.length === 0) {
+    // Fallback wenn Range keine Treffer hat
+    return { score: 40, route: 'D20', darts: 1 as const }
   }
 
-  // Fallback: zufaelliger Score aus gesamter Tabelle
-  const score = allScores[Math.floor(Math.random() * allScores.length)]
+  if (!scoreRange) {
+    // Ohne Range: bevorzuge Common Checkouts (70% Chance)
+    const useCommon = Math.random() < 0.7
+    if (useCommon) {
+      const score = COMMON_CHECKOUTS[Math.floor(Math.random() * COMMON_CHECKOUTS.length)]
+      const entry = CHECKOUT_TABLE[score]
+      if (entry) return { score, route: entry.route, darts: entry.darts }
+    }
+  }
+
+  // Zufaelliger Score aus (gefilterter) Tabelle
+  const score = filteredScores[Math.floor(Math.random() * filteredScores.length)]
   const entry = CHECKOUT_TABLE[score]
   if (!entry) return { score: 40, route: 'D20', darts: 1 as const }
   return { score, route: entry.route, darts: entry.darts }
@@ -127,8 +190,9 @@ export function generateRandomCheckout(): { score: number; route: string; darts:
 
 /**
  * Generiert eine Liste von N zufaelligen Checkouts (ohne direkte Wiederholungen).
+ * Optional: scoreRange [min, max] filtert nach Score-Bereich.
  */
-export function generateCheckoutList(count: number): { score: number; route: string; darts: 1 | 2 | 3 }[] {
+export function generateCheckoutList(count: number, scoreRange?: ScoreRange): { score: number; route: string; darts: 1 | 2 | 3 }[] {
   const list: { score: number; route: string; darts: 1 | 2 | 3 }[] = []
   let lastScore = -1
 
@@ -136,7 +200,7 @@ export function generateCheckoutList(count: number): { score: number; route: str
     let checkout: { score: number; route: string; darts: 1 | 2 | 3 }
     let attempts = 0
     do {
-      checkout = generateRandomCheckout()
+      checkout = generateRandomCheckout(scoreRange)
       attempts++
     } while (checkout.score === lastScore && attempts < 20)
     lastScore = checkout.score
@@ -200,6 +264,7 @@ export function applyCheckoutTrainerEvents(events: CheckoutTrainerEvent[]): Chec
             optimalDarts: state.currentTarget.darts,
             success: event.success,
             dartsUsed: event.dartsUsed,
+            dartsThrown: event.dartsThrown,
           })
           if (event.success) {
             state.successCount++

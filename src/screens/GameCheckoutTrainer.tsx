@@ -1,6 +1,5 @@
 // src/screens/GameCheckoutTrainer.tsx
-// Live-Spielscreen fuer Checkout Trainer
-// Zeigt zufaellige Checkout-Scores, Spieler gibt an ob/mit wie vielen Darts gecheckt.
+// Checkout Trainer mit Schwierigkeitsstufen und Dart-fuer-Dart Eingabe
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useGameColors } from '../hooks/useGameState'
@@ -11,11 +10,29 @@ import {
 } from '../storage'
 import {
   applyCheckoutTrainerEvents,
-  generateRandomCheckout,
+  generateCheckoutList,
+  parseDartInput,
+  isDartDouble,
   id as ctId,
   now as ctNow,
   type CheckoutTrainerEvent,
+  type ParsedDart,
+  type ScoreRange,
 } from '../dartsCheckoutTrainer'
+
+// ===== Difficulty Levels =====
+
+type DifficultyKey = 'beginner' | 'medium' | 'advanced' | 'pro' | 'mixed'
+
+const DIFFICULTIES: { key: DifficultyKey; label: string; desc: string; range: ScoreRange }[] = [
+  { key: 'beginner', label: 'Anfaenger', desc: '2-40 (1-Dart Finishes)', range: [2, 40] },
+  { key: 'medium', label: 'Mittel', desc: '41-100 (2-Dart Setups)', range: [41, 100] },
+  { key: 'advanced', label: 'Fortgeschritten', desc: '101-130 (3-Dart Checkouts)', range: [101, 130] },
+  { key: 'pro', label: 'Profi', desc: '131-170 (Big Finishes)', range: [131, 170] },
+  { key: 'mixed', label: 'Gemischt', desc: '2-170 (Alles)', range: [2, 170] },
+]
+
+// ===== Types =====
 
 type Props = {
   matchId: string
@@ -23,8 +40,27 @@ type Props = {
   onShowSummary: (matchId: string) => void
 }
 
+type Phase = 'difficulty' | 'playing' | 'summary'
+
+type DartEntry = {
+  input: string
+  parsed: ParsedDart
+}
+
+// ===== Helper: Format dart for display =====
+
+function formatDart(dart: ParsedDart): string {
+  if (dart.score === 0) return 'MISS'
+  if (dart.bed === 'BULL' && dart.mult === 2) return 'DBULL'
+  if (dart.bed === 'BULL' && dart.mult === 1) return 'BULL'
+  const prefix = dart.mult === 1 ? 'S' : dart.mult === 2 ? 'D' : 'T'
+  return `${prefix}${dart.bed}`
+}
+
+// ===== Component =====
+
 export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: Props) {
-  const { c, isArcade, colors } = useGameColors()
+  const { colors, isArcade } = useGameColors()
 
   const storedMatch = getCheckoutTrainerMatchById(matchId)
   const [events, setEvents] = useState<CheckoutTrainerEvent[]>(storedMatch?.events ?? [])
@@ -32,18 +68,43 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
   // State aus Events ableiten
   const state = useMemo(() => applyCheckoutTrainerEvents(events), [events])
 
-  // Flash-Animation fuer Ergebnis
-  const [flash, setFlash] = useState<'success' | 'fail' | null>(null)
-  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Phase: difficulty → playing → summary
+  const [phase, setPhase] = useState<Phase>('difficulty')
+  const [scoreRange, setScoreRange] = useState<ScoreRange>([2, 170])
 
-  // Auto-Start: ersten Checkout generieren wenn noch keiner aktiv
+  // Pre-generated checkout list for current round
+  const [checkoutList, setCheckoutList] = useState<{ score: number; route: string; darts: 1 | 2 | 3 }[]>([])
+
+  // Dart-by-dart input state
+  const [thrownDarts, setThrownDarts] = useState<DartEntry[]>([])
+  const [currentInput, setCurrentInput] = useState('')
+  const [inputError, setInputError] = useState('')
+  const [remaining, setRemaining] = useState(0)
+  const [isBust, setIsBust] = useState(false)
+
+  const inputRef = useRef<HTMLInputElement>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [flash, setFlash] = useState<'success' | 'fail' | null>(null)
+
+  // Focus input on mount and after each dart
   useEffect(() => {
+    if (phase === 'playing' && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [phase, thrownDarts.length, state.attemptIndex])
+
+  // Auto-Start: generate first checkout when entering playing phase
+  useEffect(() => {
+    if (phase !== 'playing') return
     if (state.finished) return
     if (state.currentTarget) return
     if (state.attemptIndex >= state.targetCount) return
 
-    // Naechsten Checkout starten
-    const checkout = generateRandomCheckout()
+    // Start the next checkout from our pre-generated list
+    const checkoutIdx = state.attemptIndex
+    if (checkoutIdx >= checkoutList.length) return
+
+    const checkout = checkoutList[checkoutIdx]
     const attemptEvent: CheckoutTrainerEvent = {
       type: 'CheckoutAttemptStarted',
       eventId: ctId(),
@@ -57,16 +118,98 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     const updatedEvents = [...events, attemptEvent]
     setEvents(updatedEvents)
     persistCheckoutTrainerEvents(matchId, updatedEvents)
-  }, [state.finished, state.currentTarget, state.attemptIndex, state.targetCount, state.matchId]) // eslint-disable-line react-hooks/exhaustive-deps
+    setRemaining(checkout.score)
+    setThrownDarts([])
+    setCurrentInput('')
+    setInputError('')
+    setIsBust(false)
+  }, [phase, state.finished, state.currentTarget, state.attemptIndex, state.targetCount, state.matchId, checkoutList]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ergebnis melden
-  const handleResult = useCallback((success: boolean, dartsUsed: number) => {
-    if (!state.currentTarget || state.finished) return
+  // When currentTarget changes, reset remaining
+  useEffect(() => {
+    if (state.currentTarget) {
+      setRemaining(state.currentTarget.score)
+      setThrownDarts([])
+      setCurrentInput('')
+      setInputError('')
+      setIsBust(false)
+    }
+  }, [state.currentTarget?.score]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Flash zeigen
-    setFlash(success ? 'success' : 'fail')
+  // Start game with selected difficulty
+  const handleStartGame = useCallback((range: ScoreRange) => {
+    setScoreRange(range)
+    const list = generateCheckoutList(10, range)
+    setCheckoutList(list)
+    setPhase('playing')
+  }, [])
+
+  // Submit a dart input
+  const handleDartSubmit = useCallback(() => {
+    if (!state.currentTarget || state.finished || isBust) return
+
+    const parsed = parseDartInput(currentInput)
+    if (!parsed) {
+      setInputError('Ungueltig! z.B. S20, D16, T19, BULL, DBULL, MISS')
+      return
+    }
+
+    setInputError('')
+    const newRemaining = remaining - parsed.score
+    const newDarts = [...thrownDarts, { input: currentInput.toUpperCase(), parsed }]
+    const dartCount = newDarts.length
+
+    setThrownDarts(newDarts)
+    setCurrentInput('')
+
+    // Check checkout: exactly 0 with last dart being a double
+    if (newRemaining === 0 && isDartDouble(parsed)) {
+      // Success! Checkout!
+      triggerFlash('success')
+      submitResult(true, dartCount, newDarts)
+      return
+    }
+
+    // Bust conditions: below 0, equals 1, equals 0 but not a double
+    if (newRemaining < 0 || newRemaining === 1 || (newRemaining === 0 && !isDartDouble(parsed))) {
+      setIsBust(true)
+      setRemaining(newRemaining < 0 ? remaining : newRemaining) // show remaining before bust
+      triggerFlash('fail')
+      // Auto-advance after short delay
+      setTimeout(() => {
+        submitResult(false, dartCount, newDarts)
+      }, 800)
+      return
+    }
+
+    // 3 darts used without checkout → fail
+    if (dartCount >= 3) {
+      setRemaining(newRemaining)
+      triggerFlash('fail')
+      setTimeout(() => {
+        submitResult(false, 3, newDarts)
+      }, 800)
+      return
+    }
+
+    // Continue: more darts to throw
+    setRemaining(newRemaining)
+
+    // Re-focus after state update
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }, [state.currentTarget, state.finished, isBust, currentInput, remaining, thrownDarts]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const triggerFlash = useCallback((type: 'success' | 'fail') => {
+    setFlash(type)
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     flashTimerRef.current = setTimeout(() => setFlash(null), 600)
+  }, [])
+
+  // Submit attempt result and advance
+  const submitResult = useCallback((success: boolean, dartsUsed: number, darts: DartEntry[]) => {
+    if (!state.currentTarget) return
+
+    const dartsThrown = darts.map(d => formatDart(d.parsed))
 
     const resultEvent: CheckoutTrainerEvent = {
       type: 'CheckoutAttemptResult',
@@ -75,14 +218,14 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
       ts: ctNow(),
       success,
       dartsUsed,
+      dartsThrown,
     }
 
     let updatedEvents = [...events, resultEvent]
 
-    // Pruefen ob das letzte Attempt war
+    // Check if this was the last attempt
     const newAttemptIndex = state.attemptIndex + 1
     if (newAttemptIndex >= state.targetCount) {
-      // Match beendet
       const newSuccessCount = state.successCount + (success ? 1 : 0)
       const finishEvent: CheckoutTrainerEvent = {
         type: 'CheckoutTrainerFinished',
@@ -99,54 +242,59 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
       persistCheckoutTrainerEvents(matchId, updatedEvents)
       finishCheckoutTrainerMatch(matchId)
 
-      // Kurz warten, dann Summary zeigen
-      setTimeout(() => onShowSummary(matchId), 1200)
+      setTimeout(() => setPhase('summary'), 1000)
       return
     }
 
-    // Naechsten Checkout direkt starten
-    const nextCheckout = generateRandomCheckout()
-    const nextAttemptEvent: CheckoutTrainerEvent = {
-      type: 'CheckoutAttemptStarted',
-      eventId: ctId(),
-      matchId: state.matchId,
-      ts: ctNow(),
-      targetScore: nextCheckout.score,
-      optimalRoute: nextCheckout.route,
-      optimalDarts: nextCheckout.darts,
+    // Next checkout from pre-generated list
+    const nextCheckout = checkoutList[newAttemptIndex]
+    if (nextCheckout) {
+      const nextAttemptEvent: CheckoutTrainerEvent = {
+        type: 'CheckoutAttemptStarted',
+        eventId: ctId(),
+        matchId: state.matchId,
+        ts: ctNow(),
+        targetScore: nextCheckout.score,
+        optimalRoute: nextCheckout.route,
+        optimalDarts: nextCheckout.darts,
+      }
+      updatedEvents = [...updatedEvents, nextAttemptEvent]
     }
 
-    updatedEvents = [...updatedEvents, nextAttemptEvent]
     setEvents(updatedEvents)
     persistCheckoutTrainerEvents(matchId, updatedEvents)
-  }, [state, events, matchId, onShowSummary])
 
-  // Undo: letztes Ergebnis rueckgaengig machen
-  const handleUndo = useCallback(() => {
-    if (state.results.length === 0 || state.finished) return
-
-    // Entferne: letztes AttemptStarted (aktuell) + letztes AttemptResult + letztes AttemptStarted (vorheriges)
-    // Dann starte vorheriges Attempt neu
-    let trimmed = [...events]
-
-    // Aktuelles AttemptStarted entfernen (wenn vorhanden)
-    if (trimmed.length > 0 && trimmed[trimmed.length - 1].type === 'CheckoutAttemptStarted') {
-      trimmed.pop()
+    // Reset dart input for next checkout
+    setThrownDarts([])
+    setCurrentInput('')
+    setInputError('')
+    setIsBust(false)
+    if (nextCheckout) {
+      setRemaining(nextCheckout.score)
     }
 
-    // Letztes AttemptResult entfernen
-    if (trimmed.length > 0 && trimmed[trimmed.length - 1].type === 'CheckoutAttemptResult') {
-      trimmed.pop()
-    }
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [state, events, matchId, checkoutList]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Vorheriges AttemptStarted auch entfernen und neu generieren
-    // (Wir zeigen den gleichen Checkout nochmal)
-    // Nein — besser: wir lassen es stehen und starten keinen neuen
-    // Das AttemptStarted vom vorherigen Attempt bleibt → wird erneut angezeigt
+  // Skip / not attempted
+  const handleSkip = useCallback(() => {
+    if (!state.currentTarget || state.finished) return
+    triggerFlash('fail')
+    const dartCount = thrownDarts.length || 3
+    submitResult(false, dartCount, thrownDarts)
+  }, [state.currentTarget, state.finished, thrownDarts, triggerFlash, submitResult])
 
-    setEvents(trimmed)
-    persistCheckoutTrainerEvents(matchId, trimmed)
-  }, [events, state.results.length, state.finished, matchId])
+  // Undo last dart within current attempt
+  const handleUndoDart = useCallback(() => {
+    if (thrownDarts.length === 0 || isBust) return
+    const newDarts = thrownDarts.slice(0, -1)
+    setThrownDarts(newDarts)
+    const newRemaining = (state.currentTarget?.score ?? 0) - newDarts.reduce((sum, d) => sum + d.parsed.score, 0)
+    setRemaining(newRemaining)
+    setCurrentInput('')
+    setInputError('')
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }, [thrownDarts, isBust, state.currentTarget?.score])
 
   // Cleanup
   useEffect(() => {
@@ -155,8 +303,71 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     }
   }, [])
 
-  // === Summary-Ansicht (inline, wenn fertig) ===
-  if (state.finished) {
+  // ===== DIFFICULTY SELECTION SCREEN =====
+  if (phase === 'difficulty') {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', minHeight: '100dvh',
+        background: colors.bg, color: colors.fg, padding: 20, gap: 16,
+      }}>
+        <button
+          onClick={onExit}
+          style={{
+            position: 'absolute', top: 16, left: 16,
+            background: 'none', border: 'none', color: colors.fg,
+            fontSize: 14, cursor: 'pointer', opacity: 0.6, padding: '4px 8px',
+          }}
+        >
+          Zurueck
+        </button>
+
+        <h1 style={{
+          fontSize: 24, fontWeight: 900, margin: 0,
+          marginBottom: 8, textAlign: 'center',
+        }}>
+          Checkout Training
+        </h1>
+        <p style={{ fontSize: 14, opacity: 0.6, margin: 0, textAlign: 'center' }}>
+          Waehle eine Schwierigkeit
+        </p>
+
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 10,
+          width: 'min(400px, 90vw)', marginTop: 8,
+        }}>
+          {DIFFICULTIES.map(d => (
+            <button
+              key={d.key}
+              onClick={() => handleStartGame(d.range)}
+              style={{
+                padding: '16px 20px',
+                borderRadius: 14,
+                border: `2px solid ${colors.border}`,
+                background: colors.bgCard,
+                color: colors.fg,
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                transition: 'transform 0.1s ease, border-color 0.15s ease',
+              }}
+              onPointerDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
+              onPointerUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+              onPointerLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              <span style={{ fontSize: 18, fontWeight: 800 }}>{d.label}</span>
+              <span style={{ fontSize: 13, opacity: 0.55, fontWeight: 500 }}>{d.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ===== SUMMARY SCREEN =====
+  if (phase === 'summary' || state.finished) {
     const successRate = state.targetCount > 0
       ? Math.round((state.successCount / state.targetCount) * 100)
       : 0
@@ -164,251 +375,345 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minHeight: '100dvh',
-        background: colors.bg, color: colors.fg, padding: 20, gap: 16,
+        minHeight: '100dvh',
+        background: colors.bg, color: colors.fg, padding: '32px 20px', gap: 16,
       }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>Checkout Training</h1>
-        <div style={{ fontSize: 64, fontWeight: 900, color: colors.accent }}>
+        <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>Ergebnis</h1>
+
+        {/* Big success rate */}
+        <div style={{
+          fontSize: 72, fontWeight: 900, lineHeight: 1,
+          color: successRate >= 50 ? colors.success : colors.error,
+          marginTop: 8,
+        }}>
           {successRate}%
         </div>
-        <div style={{ fontSize: 18, opacity: 0.7 }}>
+        <div style={{ fontSize: 16, opacity: 0.6, fontWeight: 600 }}>
           {state.successCount} von {state.targetCount} geschafft
         </div>
 
-        {/* Ergebnis-Liste */}
+        {/* Result list */}
         <div style={{
-          width: 'min(400px, 90vw)', maxHeight: '40vh', overflowY: 'auto',
-          display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8,
+          width: 'min(420px, 92vw)', maxHeight: '45vh', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12,
         }}>
           {state.results.map((r, i) => (
             <div key={i} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '8px 12px', borderRadius: 8,
-              background: r.success ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-              fontSize: 15,
+              padding: '10px 14px', borderRadius: 10,
+              background: r.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+              border: `1px solid ${r.success ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+              fontSize: 14,
             }}>
-              <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
-              <span style={{ opacity: 0.6, fontSize: 13 }}>{r.route}</span>
-              <span style={{
-                fontWeight: 700,
-                color: r.success ? '#22c55e' : '#ef4444',
-              }}>
-                {r.success ? `${r.dartsUsed} Dart${r.dartsUsed > 1 ? 's' : ''}` : 'Verpasst'}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontWeight: 800, fontSize: 16, fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
+                <span style={{ opacity: 0.45, fontSize: 12 }}>Optimal: {r.route}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                <span style={{
+                  fontWeight: 700,
+                  color: r.success ? '#22c55e' : '#ef4444',
+                  fontSize: 14,
+                }}>
+                  {r.success ? `Checkout! (${r.dartsUsed}D)` : 'Verpasst'}
+                </span>
+                {r.dartsThrown && r.dartsThrown.length > 0 && (
+                  <span style={{ opacity: 0.5, fontSize: 12, fontFamily: 'monospace' }}>
+                    {r.dartsThrown.join(' - ')}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
 
-        <button
-          onClick={onExit}
-          style={{
-            marginTop: 16, padding: '12px 32px', borderRadius: 12,
-            background: colors.accent, color: '#fff', border: 'none',
-            fontSize: 16, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          Fertig
-        </button>
+        {/* Buttons */}
+        <div style={{
+          display: 'flex', gap: 12, marginTop: 16,
+          width: 'min(400px, 90vw)',
+        }}>
+          <button
+            onClick={() => {
+              // Restart with same difficulty
+              const list = generateCheckoutList(10, scoreRange)
+              setCheckoutList(list)
+              // We need a fresh match — just exit and let App handle it
+              onExit()
+            }}
+            style={{
+              flex: 1, padding: '14px 20px', borderRadius: 12,
+              background: colors.bgCard, color: colors.fg,
+              border: `2px solid ${colors.border}`,
+              fontSize: 16, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Zurueck
+          </button>
+          <button
+            onClick={() => {
+              onShowSummary(matchId)
+            }}
+            style={{
+              flex: 1, padding: '14px 20px', borderRadius: 12,
+              background: colors.accent, color: '#fff',
+              border: 'none',
+              fontSize: 16, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Fertig
+          </button>
+        </div>
       </div>
     )
   }
 
-  // === Active Game UI ===
+  // ===== PLAYING SCREEN =====
   const target = state.currentTarget
-  const progressText = `Checkout ${state.attemptIndex + 1} von ${state.targetCount}`
-  const currentSuccessRate = state.attemptIndex > 0
-    ? Math.round((state.successCount / state.attemptIndex) * 100)
-    : 0
+  const progressFraction = state.attemptIndex / state.targetCount
 
-  // Dart-Buttons: nur Buttons anzeigen die zur Checkout-Route passen
-  // 1-Dart Finish → nur "1 Dart" Button
-  // 2-Dart Finish → "1 Dart" und "2 Darts"
-  // 3-Dart Finish → "1 Dart", "2 Darts", "3 Darts"
-  const maxDarts = target?.darts ?? 3
-
-  // Flash-Overlay
-  const flashColor = flash === 'success' ? 'rgba(34,197,94,0.15)' : flash === 'fail' ? 'rgba(239,68,68,0.15)' : 'transparent'
+  const flashBg = flash === 'success'
+    ? 'rgba(34,197,94,0.12)'
+    : flash === 'fail'
+      ? 'rgba(239,68,68,0.12)'
+      : colors.bg
 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'space-between', minHeight: '100dvh',
-      background: flash ? flashColor : colors.bg,
-      color: colors.fg, padding: '20px 16px',
+      background: flashBg, color: colors.fg,
+      padding: '16px 16px env(safe-area-inset-bottom, 16px)',
       transition: 'background 0.3s ease',
     }}>
-      {/* Top: Progress + Stats */}
-      <div style={{ textAlign: 'center', width: '100%' }}>
+      {/* === TOP: Progress bar + header === */}
+      <div style={{ width: '100%', maxWidth: 440 }}>
+        {/* Header row */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '0 8px', marginBottom: 8,
+          marginBottom: 8,
         }}>
           <button
             onClick={onExit}
             style={{
               background: 'none', border: 'none', color: colors.fg,
-              fontSize: 14, cursor: 'pointer', opacity: 0.6, padding: '4px 8px',
+              fontSize: 14, cursor: 'pointer', opacity: 0.5, padding: '4px 8px',
             }}
-            aria-label="Beenden"
           >
             Beenden
           </button>
-          {state.results.length > 0 && (
-            <button
-              onClick={handleUndo}
-              style={{
-                background: 'none', border: 'none', color: colors.fg,
-                fontSize: 14, cursor: 'pointer', opacity: 0.6, padding: '4px 8px',
-              }}
-              aria-label="Rueckgaengig"
-            >
-              Undo
-            </button>
-          )}
+          <span style={{ fontSize: 13, opacity: 0.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            {state.attemptIndex + 1} / {state.targetCount}
+          </span>
+          <button
+            onClick={handleSkip}
+            style={{
+              background: 'none', border: 'none', color: colors.fg,
+              fontSize: 14, cursor: 'pointer', opacity: 0.5, padding: '4px 8px',
+            }}
+          >
+            Skip
+          </button>
         </div>
 
-        <div style={{ fontSize: 14, opacity: 0.6, fontWeight: 600 }}>
-          {progressText}
-        </div>
-        {state.attemptIndex > 0 && (
-          <div style={{ fontSize: 13, opacity: 0.5, marginTop: 2 }}>
-            Erfolgsquote: {currentSuccessRate}%
-          </div>
-        )}
-
-        {/* Progress Bar */}
+        {/* Progress bar */}
         <div style={{
-          width: 'min(300px, 80vw)', height: 4, borderRadius: 2,
-          background: colors.bgCard, margin: '12px auto 0',
-          overflow: 'hidden',
+          width: '100%', height: 5, borderRadius: 3,
+          background: colors.bgMuted, overflow: 'hidden',
         }}>
           <div style={{
-            height: '100%', borderRadius: 2,
+            height: '100%', borderRadius: 3,
             background: colors.accent,
-            width: `${(state.attemptIndex / state.targetCount) * 100}%`,
+            width: `${progressFraction * 100}%`,
             transition: 'width 0.3s ease',
           }} />
         </div>
-      </div>
 
-      {/* Center: Target Score + Route */}
-      <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        {target ? (
-          <>
-            <div style={{
-              fontSize: isArcade ? 120 : 96, fontWeight: 900,
-              lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-              color: colors.accent,
-            }}>
-              {target.score}
-            </div>
-            <div style={{
-              fontSize: 24, fontWeight: 600, opacity: 0.4,
-              marginTop: 8, letterSpacing: 2,
-            }}>
-              {target.route}
-            </div>
-            <div style={{
-              fontSize: 13, opacity: 0.3, marginTop: 4,
-            }}>
-              {target.darts === 1 ? '1-Dart Finish' : `${target.darts}-Dart Finish`}
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: 24, opacity: 0.4 }}>Laden...</div>
+        {/* Success rate */}
+        {state.attemptIndex > 0 && (
+          <div style={{ textAlign: 'center', fontSize: 12, opacity: 0.4, marginTop: 6, fontWeight: 600 }}>
+            {Math.round((state.successCount / state.attemptIndex) * 100)}% Erfolgsquote
+          </div>
         )}
       </div>
 
-      {/* Bottom: Action Buttons */}
+      {/* === CENTER: Target score + Route + Dart inputs === */}
       <div style={{
-        width: 'min(400px, 92vw)', display: 'flex', flexDirection: 'column',
-        gap: 8, paddingBottom: 'env(safe-area-inset-bottom, 12px)',
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        width: '100%', maxWidth: 440, gap: 12,
       }}>
-        {/* Success Buttons */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {maxDarts >= 1 && (
-            <button
-              onClick={() => handleResult(true, 1)}
-              disabled={!target}
-              style={{
-                ...buttonStyle,
-                flex: 1,
-                background: 'rgba(34,197,94,0.15)',
-                color: '#22c55e',
-                border: '2px solid rgba(34,197,94,0.3)',
-              }}
-              aria-label="Geschafft mit 1 Dart"
-            >
-              <span style={{ fontSize: 20, fontWeight: 900 }}>1</span>
-              <span style={{ fontSize: 11, opacity: 0.8 }}>Dart</span>
-            </button>
-          )}
-          {maxDarts >= 2 && (
-            <button
-              onClick={() => handleResult(true, 2)}
-              disabled={!target}
-              style={{
-                ...buttonStyle,
-                flex: 1,
-                background: 'rgba(34,197,94,0.15)',
-                color: '#22c55e',
-                border: '2px solid rgba(34,197,94,0.3)',
-              }}
-              aria-label="Geschafft mit 2 Darts"
-            >
-              <span style={{ fontSize: 20, fontWeight: 900 }}>2</span>
-              <span style={{ fontSize: 11, opacity: 0.8 }}>Darts</span>
-            </button>
-          )}
-          {maxDarts >= 3 && (
-            <button
-              onClick={() => handleResult(true, 3)}
-              disabled={!target}
-              style={{
-                ...buttonStyle,
-                flex: 1,
-                background: 'rgba(34,197,94,0.15)',
-                color: '#22c55e',
-                border: '2px solid rgba(34,197,94,0.3)',
-              }}
-              aria-label="Geschafft mit 3 Darts"
-            >
-              <span style={{ fontSize: 20, fontWeight: 900 }}>3</span>
-              <span style={{ fontSize: 11, opacity: 0.8 }}>Darts</span>
-            </button>
-          )}
-        </div>
+        {target ? (
+          <>
+            {/* Target score */}
+            <div style={{
+              fontSize: isArcade ? 100 : 80, fontWeight: 900,
+              lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+              color: colors.accent, textAlign: 'center',
+            }}>
+              {target.score}
+            </div>
 
-        {/* Fail Button */}
+            {/* Optimal route (dimmed) */}
+            <div style={{
+              fontSize: 18, fontWeight: 600, opacity: 0.3,
+              letterSpacing: 1.5, textAlign: 'center',
+            }}>
+              {target.route}
+            </div>
+
+            {/* Remaining display */}
+            <div style={{
+              fontSize: 20, fontWeight: 700, marginTop: 8,
+              color: isBust ? colors.error : colors.fg,
+              opacity: isBust ? 1 : 0.7,
+            }}>
+              {isBust ? 'BUST!' : thrownDarts.length > 0 ? `Rest: ${remaining}` : ''}
+            </div>
+
+            {/* Dart progress visualization */}
+            <div style={{
+              display: 'flex', gap: 12, marginTop: 8,
+              justifyContent: 'center', width: '100%',
+            }}>
+              {[0, 1, 2].map(dartIdx => {
+                const thrown = thrownDarts[dartIdx]
+                const isActive = dartIdx === thrownDarts.length && !isBust
+                return (
+                  <div key={dartIdx} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    opacity: thrown ? 1 : isActive ? 1 : 0.3,
+                  }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.6 }}>
+                      Dart {dartIdx + 1}
+                    </span>
+                    <div style={{
+                      width: 72, height: 38,
+                      borderRadius: 8,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'monospace', fontSize: 16, fontWeight: 700,
+                      background: thrown
+                        ? (thrown.parsed.score === 0 ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.12)')
+                        : isActive
+                          ? colors.bgCard
+                          : colors.bgMuted,
+                      border: isActive
+                        ? `2px solid ${colors.accent}`
+                        : `1px solid ${colors.border}`,
+                      color: thrown
+                        ? (thrown.parsed.mult === 2 ? '#22c55e' : thrown.parsed.mult === 3 ? '#f59e0b' : colors.fg)
+                        : colors.fgDim,
+                    }}>
+                      {thrown ? formatDart(thrown.parsed) : isActive ? '_' : ''}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Input field */}
+            {!isBust && thrownDarts.length < 3 && (
+              <div style={{ marginTop: 12, width: 'min(300px, 80vw)' }}>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={currentInput}
+                  onChange={e => {
+                    setCurrentInput(e.target.value)
+                    setInputError('')
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleDartSubmit()
+                    }
+                  }}
+                  placeholder={`Dart ${thrownDarts.length + 1} eingeben...`}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    borderRadius: 12,
+                    border: `2px solid ${inputError ? colors.error : colors.border}`,
+                    background: colors.bgInput,
+                    color: colors.fg,
+                    fontSize: 20,
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    letterSpacing: 2,
+                  }}
+                />
+                {inputError && (
+                  <div style={{
+                    fontSize: 12, color: colors.error, marginTop: 6,
+                    textAlign: 'center', fontWeight: 500,
+                  }}>
+                    {inputError}
+                  </div>
+                )}
+                <div style={{
+                  fontSize: 11, opacity: 0.35, marginTop: 6,
+                  textAlign: 'center',
+                }}>
+                  S1-S20, D1-D20, T1-T20, BULL, DBULL, MISS
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 20, opacity: 0.4 }}>Laden...</div>
+        )}
+      </div>
+
+      {/* === BOTTOM: Action buttons === */}
+      <div style={{
+        width: 'min(400px, 92vw)', display: 'flex', gap: 8,
+        paddingTop: 8,
+      }}>
+        {thrownDarts.length > 0 && !isBust && (
+          <button
+            onClick={handleUndoDart}
+            style={{
+              flex: 1, padding: '12px 16px', borderRadius: 12,
+              background: colors.bgCard,
+              color: colors.fg, border: `2px solid ${colors.border}`,
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Undo
+          </button>
+        )}
         <button
-          onClick={() => handleResult(false, maxDarts)}
-          disabled={!target}
+          onClick={handleDartSubmit}
+          disabled={!currentInput.trim() || isBust || thrownDarts.length >= 3}
           style={{
-            ...buttonStyle,
-            background: 'rgba(239,68,68,0.12)',
-            color: '#ef4444',
-            border: '2px solid rgba(239,68,68,0.25)',
+            flex: 2, padding: '14px 16px', borderRadius: 12,
+            background: colors.accent, color: '#fff',
+            border: 'none',
+            fontSize: 16, fontWeight: 800, cursor: 'pointer',
+            opacity: (!currentInput.trim() || isBust || thrownDarts.length >= 3) ? 0.4 : 1,
+            transition: 'opacity 0.15s ease',
           }}
-          aria-label="Nicht geschafft"
+        >
+          OK
+        </button>
+        <button
+          onClick={handleSkip}
+          disabled={isBust}
+          style={{
+            flex: 1, padding: '12px 16px', borderRadius: 12,
+            background: 'rgba(239,68,68,0.1)',
+            color: colors.error, border: `2px solid rgba(239,68,68,0.2)`,
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            opacity: isBust ? 0.4 : 1,
+          }}
         >
           Nicht geschafft
         </button>
       </div>
     </div>
   )
-}
-
-const buttonStyle: React.CSSProperties = {
-  padding: '14px 16px',
-  borderRadius: 12,
-  fontSize: 16,
-  fontWeight: 700,
-  cursor: 'pointer',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 2,
-  minHeight: 56,
-  transition: 'transform 0.1s ease, opacity 0.1s ease',
 }
