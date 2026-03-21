@@ -77,21 +77,17 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
 
   // Dart-by-dart input state
   const [thrownDarts, setThrownDarts] = useState<DartEntry[]>([])
-  const [currentInput, setCurrentInput] = useState('')
-  const [inputError, setInputError] = useState('')
   const [remaining, setRemaining] = useState(0)
   const [isBust, setIsBust] = useState(false)
 
-  const inputRef = useRef<HTMLInputElement>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [flash, setFlash] = useState<'success' | 'fail' | null>(null)
 
-  // Focus input on mount and after each dart
-  useEffect(() => {
-    if (phase === 'playing' && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [phase, thrownDarts.length, state.attemptIndex])
+  // Keyboard input: Multiplier prefix + number buffer (like Game.tsx)
+  const [multiplier, setMultiplier] = useState<1 | 2 | 3>(1) // S=1, D=2, T=3
+  const numBufferRef = useRef('')
+  const numTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [displayBuffer, setDisplayBuffer] = useState('') // Was aktuell im "Eingabefeld" steht
 
   // Auto-Start: generate first checkout when entering playing phase
   useEffect(() => {
@@ -120,8 +116,8 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     persistCheckoutTrainerEvents(matchId, updatedEvents)
     setRemaining(checkout.score)
     setThrownDarts([])
-    setCurrentInput('')
-    setInputError('')
+    setDisplayBuffer('')
+    setMultiplier(1)
     setIsBust(false)
   }, [phase, state.finished, state.currentTarget, state.attemptIndex, state.targetCount, state.matchId, checkoutList]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -130,8 +126,8 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     if (state.currentTarget) {
       setRemaining(state.currentTarget.score)
       setThrownDarts([])
-      setCurrentInput('')
-      setInputError('')
+      setDisplayBuffer('')
+      setMultiplier(1)
       setIsBust(false)
     }
   }, [state.currentTarget?.score]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -144,27 +140,32 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     setPhase('playing')
   }, [])
 
-  // Submit a dart input
-  const handleDartSubmit = useCallback(() => {
+  // Undo last dart within current attempt
+  const handleUndoDart = useCallback(() => {
+    if (thrownDarts.length === 0 || isBust) return
+    const newDarts = thrownDarts.slice(0, -1)
+    setThrownDarts(newDarts)
+    const newRemaining = (state.currentTarget?.score ?? 0) - newDarts.reduce((sum, d) => sum + d.parsed.score, 0)
+    setRemaining(newRemaining)
+    setDisplayBuffer('')
+    setMultiplier(1)
+  }, [thrownDarts, isBust, state.currentTarget?.score])
+
+  // Submit a parsed dart directly
+  const submitDart = useCallback((parsed: ParsedDart) => {
     if (!state.currentTarget || state.finished || isBust) return
 
-    const parsed = parseDartInput(currentInput)
-    if (!parsed) {
-      setInputError('Ungueltig! z.B. S20, D16, T19, BULL, DBULL, MISS')
-      return
-    }
-
-    setInputError('')
     const newRemaining = remaining - parsed.score
-    const newDarts = [...thrownDarts, { input: currentInput.toUpperCase(), parsed }]
+    const newDarts = [...thrownDarts, { input: formatDart(parsed), parsed }]
     const dartCount = newDarts.length
 
     setThrownDarts(newDarts)
-    setCurrentInput('')
+    setMultiplier(1)
+    setDisplayBuffer('')
+    numBufferRef.current = ''
 
     // Check checkout: exactly 0 with last dart being a double
     if (newRemaining === 0 && isDartDouble(parsed)) {
-      // Success! Checkout!
       triggerFlash('success')
       submitResult(true, dartCount, newDarts)
       return
@@ -173,12 +174,9 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     // Bust conditions: below 0, equals 1, equals 0 but not a double
     if (newRemaining < 0 || newRemaining === 1 || (newRemaining === 0 && !isDartDouble(parsed))) {
       setIsBust(true)
-      setRemaining(newRemaining < 0 ? remaining : newRemaining) // show remaining before bust
+      setRemaining(newRemaining < 0 ? remaining : newRemaining)
       triggerFlash('fail')
-      // Auto-advance after short delay
-      setTimeout(() => {
-        submitResult(false, dartCount, newDarts)
-      }, 800)
+      setTimeout(() => submitResult(false, dartCount, newDarts), 800)
       return
     }
 
@@ -186,18 +184,137 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     if (dartCount >= 3) {
       setRemaining(newRemaining)
       triggerFlash('fail')
-      setTimeout(() => {
-        submitResult(false, 3, newDarts)
-      }, 800)
+      setTimeout(() => submitResult(false, 3, newDarts), 800)
       return
     }
 
     // Continue: more darts to throw
     setRemaining(newRemaining)
+  }, [state.currentTarget, state.finished, isBust, remaining, thrownDarts]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Re-focus after state update
-    setTimeout(() => inputRef.current?.focus(), 50)
-  }, [state.currentTarget, state.finished, isBust, currentInput, remaining, thrownDarts]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Flush number buffer → submit dart
+  const flushNumBuffer = useCallback(() => {
+    const buf = numBufferRef.current
+    numBufferRef.current = ''
+    if (!buf) return
+    const bed = parseInt(buf, 10)
+    if (bed >= 1 && bed <= 20) {
+      submitDart({ bed: String(bed), mult: multiplier, score: bed * multiplier })
+    }
+    setDisplayBuffer('')
+  }, [multiplier, submitDart])
+
+  // Global keyboard handler
+  useEffect(() => {
+    if (phase !== 'playing' || state.finished || isBust) return
+
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea') return
+
+      const k = e.key
+
+      // Multiplier prefix
+      if (k === 's' || k === 'S') { setMultiplier(1); setDisplayBuffer('S'); e.preventDefault(); return }
+      if (k === 'd' || k === 'D') { setMultiplier(2); setDisplayBuffer('D'); e.preventDefault(); return }
+      if (k === 't' || k === 'T') { setMultiplier(3); setDisplayBuffer('T'); e.preventDefault(); return }
+
+      // Bull
+      if (k === 'b' || k === 'B') {
+        e.preventDefault()
+        const mult = multiplier === 2 ? 2 : 1
+        submitDart({ bed: 'BULL', mult, score: mult === 2 ? 50 : 25 })
+        return
+      }
+
+      // Miss
+      if (k === 'm' || k === 'M') {
+        e.preventDefault()
+        submitDart({ bed: '0', mult: 0, score: 0 })
+        return
+      }
+
+      // Digit input
+      if (k >= '0' && k <= '9') {
+        e.preventDefault()
+        const digit = parseInt(k, 10)
+
+        if (numTimerRef.current) { clearTimeout(numTimerRef.current); numTimerRef.current = null }
+
+        if (numBufferRef.current !== '') {
+          // Second digit
+          const firstDigit = parseInt(numBufferRef.current)
+          numBufferRef.current = ''
+          const combined = firstDigit * 10 + digit
+
+          if (combined >= 10 && combined <= 20) {
+            setDisplayBuffer(prev => {
+              const prefix = prev.match(/^[SDT]/) ? prev[0] : ''
+              return prefix + combined
+            })
+            submitDart({ bed: String(combined), mult: multiplier, score: combined * multiplier })
+          } else {
+            // Invalid two-digit: submit first, process second
+            submitDart({ bed: String(firstDigit), mult: multiplier, score: firstDigit * multiplier })
+            if (digit === 0) {
+              submitDart({ bed: '0', mult: 0, score: 0 })
+            } else if (digit >= 3) {
+              submitDart({ bed: String(digit), mult: multiplier, score: digit * multiplier })
+            } else {
+              numBufferRef.current = String(digit)
+              setDisplayBuffer(multiplier === 1 ? String(digit) : (multiplier === 2 ? 'D' : 'T') + digit)
+              numTimerRef.current = setTimeout(flushNumBuffer, 500)
+            }
+          }
+        } else {
+          // First digit
+          if (digit === 0) {
+            submitDart({ bed: '0', mult: 0, score: 0 })
+          } else if (digit >= 3) {
+            const prefix = multiplier === 1 ? '' : multiplier === 2 ? 'D' : 'T'
+            setDisplayBuffer(prefix + digit)
+            submitDart({ bed: String(digit), mult: multiplier, score: digit * multiplier })
+          } else {
+            // 1 or 2: wait for possible second digit
+            numBufferRef.current = String(digit)
+            const prefix = multiplier === 1 ? '' : multiplier === 2 ? 'D' : 'T'
+            setDisplayBuffer(prefix + digit)
+            numTimerRef.current = setTimeout(flushNumBuffer, 500)
+          }
+        }
+        return
+      }
+
+      // Space = confirm buffered 1 or 2 instantly
+      if (k === ' ') {
+        e.preventDefault()
+        if (numBufferRef.current !== '') {
+          if (numTimerRef.current) { clearTimeout(numTimerRef.current); numTimerRef.current = null }
+          flushNumBuffer()
+        }
+        return
+      }
+
+      // Backspace = undo last dart
+      if (k === 'Backspace') {
+        e.preventDefault()
+        if (numBufferRef.current !== '') {
+          numBufferRef.current = ''
+          setDisplayBuffer('')
+          if (numTimerRef.current) { clearTimeout(numTimerRef.current); numTimerRef.current = null }
+        } else {
+          handleUndoDart()
+        }
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handler)
+    return () => {
+      window.removeEventListener('keydown', handler)
+      if (numTimerRef.current) clearTimeout(numTimerRef.current)
+    }
+  }, [phase, state.finished, isBust, multiplier, submitDart, flushNumBuffer, handleUndoDart])
 
   const triggerFlash = useCallback((type: 'success' | 'fail') => {
     setFlash(type)
@@ -266,14 +383,16 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
 
     // Reset dart input for next checkout
     setThrownDarts([])
-    setCurrentInput('')
-    setInputError('')
+    setDisplayBuffer('')
+    setMultiplier(1)
     setIsBust(false)
     if (nextCheckout) {
       setRemaining(nextCheckout.score)
     }
 
-    setTimeout(() => inputRef.current?.focus(), 100)
+    // Reset multiplier for next checkout
+    setMultiplier(1)
+    setDisplayBuffer('')
   }, [state, events, matchId, checkoutList]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Skip / not attempted
@@ -283,18 +402,6 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     const dartCount = thrownDarts.length || 3
     submitResult(false, dartCount, thrownDarts)
   }, [state.currentTarget, state.finished, thrownDarts, triggerFlash, submitResult])
-
-  // Undo last dart within current attempt
-  const handleUndoDart = useCallback(() => {
-    if (thrownDarts.length === 0 || isBust) return
-    const newDarts = thrownDarts.slice(0, -1)
-    setThrownDarts(newDarts)
-    const newRemaining = (state.currentTarget?.score ?? 0) - newDarts.reduce((sum, d) => sum + d.parsed.score, 0)
-    setRemaining(newRemaining)
-    setCurrentInput('')
-    setInputError('')
-    setTimeout(() => inputRef.current?.focus(), 50)
-  }, [thrownDarts, isBust, state.currentTarget?.score])
 
   // Cleanup
   useEffect(() => {
@@ -486,7 +593,7 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
       transition: 'background 0.3s ease',
     }}>
       {/* Alles in einem zentrierten Block */}
-      <div style={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 18 }}>
 
         {/* Header: Beenden | Progress | Erfolgsquote */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -557,50 +664,62 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
               })}
             </div>
 
-            {/* Input + Buttons zusammen */}
+            {/* Keyboard input display + buttons */}
             {!isBust && thrownDarts.length < 3 && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={currentInput}
-                  onChange={e => { setCurrentInput(e.target.value); setInputError('') }}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleDartSubmit() } }}
-                  placeholder={`Dart ${thrownDarts.length + 1}`}
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  style={{
-                    width: 160, padding: '12px 14px', borderRadius: 12,
-                    border: `2px solid ${inputError ? colors.error : colors.border}`,
-                    background: colors.bgInput, color: colors.fg,
-                    fontSize: 24, fontFamily: 'monospace', fontWeight: 700,
-                    textAlign: 'center', outline: 'none', boxSizing: 'border-box', letterSpacing: 2,
-                  }}
-                />
-                {thrownDarts.length > 0 && (
-                  <button onClick={handleUndoDart} style={{
-                    padding: '12px 16px', borderRadius: 12,
-                    background: colors.bgCard, color: colors.fg,
-                    border: `1px solid ${colors.border}`,
-                    fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                  }}>Undo</button>
-                )}
-                <button onClick={handleSkip} style={{
-                  padding: '12px 16px', borderRadius: 12,
-                  background: 'rgba(239,68,68,0.08)', color: colors.error,
-                  border: `1px solid rgba(239,68,68,0.2)`,
-                  fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                }}>Skip</button>
-              </div>
-            )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                {/* Eingabe-Anzeige (kein Input-Feld, reagiert auf Tastatur) */}
+                <div style={{
+                  width: 160, padding: '12px 14px', borderRadius: 12,
+                  border: `2px solid ${displayBuffer ? colors.accent : colors.border}`,
+                  background: colors.bgInput, color: colors.fg,
+                  fontSize: 24, fontFamily: 'monospace', fontWeight: 700,
+                  textAlign: 'center', letterSpacing: 2, minHeight: 28,
+                  transition: 'border-color 0.15s',
+                }}>
+                  {displayBuffer || <span style={{ opacity: 0.25 }}>Dart {thrownDarts.length + 1}</span>}
+                </div>
 
-            {inputError && (
-              <div style={{ fontSize: 13, color: colors.error, textAlign: 'center' }}>{inputError}</div>
-            )}
+                {/* Multiplier-Anzeige */}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                  {(['S', 'D', 'T'] as const).map(m => {
+                    const mult = m === 'S' ? 1 : m === 'D' ? 2 : 3
+                    const active = multiplier === mult
+                    return (
+                      <div key={m} style={{
+                        padding: '4px 12px', borderRadius: 6,
+                        fontSize: 13, fontWeight: 700,
+                        background: active ? (m === 'D' ? '#22c55e22' : m === 'T' ? '#f59e0b22' : `${colors.accent}15`) : 'transparent',
+                        color: active ? (m === 'D' ? '#22c55e' : m === 'T' ? '#f59e0b' : colors.fg) : colors.fgDim,
+                        opacity: active ? 1 : 0.4,
+                        transition: 'all 0.15s',
+                      }}>
+                        {m === 'S' ? 'Single' : m === 'D' ? 'Double' : 'Triple'}
+                      </div>
+                    )
+                  })}
+                </div>
 
-            {!isBust && thrownDarts.length < 3 && (
-              <div style={{ fontSize: 12, opacity: 0.3, textAlign: 'center' }}>
-                20 = S20 \u00B7 D16 \u00B7 T19 \u00B7 BULL
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {thrownDarts.length > 0 && (
+                    <button onClick={handleUndoDart} style={{
+                      padding: '10px 16px', borderRadius: 10,
+                      background: colors.bgCard, color: colors.fg,
+                      border: `1px solid ${colors.border}`,
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    }}>Undo</button>
+                  )}
+                  <button onClick={handleSkip} style={{
+                    padding: '10px 16px', borderRadius: 10,
+                    background: 'rgba(239,68,68,0.08)', color: colors.error,
+                    border: `1px solid rgba(239,68,68,0.2)`,
+                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  }}>Skip</button>
+                </div>
+
+                <div style={{ fontSize: 12, opacity: 0.25, textAlign: 'center' }}>
+                  Tippe: 20 = S20 \u00B7 D16 \u00B7 T19 \u00B7 B = Bull
+                </div>
               </div>
             )}
           </>
