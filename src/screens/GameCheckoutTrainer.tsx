@@ -410,6 +410,30 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
     }
   }, [])
 
+  // Difficulty selection keyboard state
+  const [diffIdx, setDiffIdx] = useState(0)
+  const diffBtnRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  useEffect(() => {
+    if (phase !== 'difficulty') return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setDiffIdx(i => { const next = Math.min(i + 1, DIFFICULTIES.length - 1); diffBtnRefs.current[next]?.focus(); return next })
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setDiffIdx(i => { const next = Math.max(i - 1, 0); diffBtnRefs.current[next]?.focus(); return next })
+      } else if (e.key === 'Enter') {
+        handleStartGame(DIFFICULTIES[diffIdx].range)
+      } else if (e.key === 'Escape' || e.key === 'Backspace') {
+        onExit()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    setTimeout(() => diffBtnRefs.current[0]?.focus(), 100)
+    return () => window.removeEventListener('keydown', handler)
+  }, [phase, diffIdx, handleStartGame, onExit])
+
   // ===== DIFFICULTY SELECTION SCREEN =====
   if (phase === 'difficulty') {
     return (
@@ -443,15 +467,16 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
           display: 'flex', flexDirection: 'column', gap: 10,
           width: 'min(400px, 90vw)', marginTop: 8,
         }}>
-          {DIFFICULTIES.map(d => (
+          {DIFFICULTIES.map((d, i) => (
             <button
               key={d.key}
+              ref={el => { diffBtnRefs.current[i] = el }}
               onClick={() => handleStartGame(d.range)}
               style={{
                 padding: '16px 20px',
                 borderRadius: 14,
-                border: `2px solid ${colors.border}`,
-                background: colors.bgCard,
+                border: `2px solid ${diffIdx === i ? colors.accent : colors.border}`,
+                background: diffIdx === i ? `${colors.accent}10` : colors.bgCard,
                 color: colors.fg,
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -463,6 +488,7 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
               onPointerDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
               onPointerUp={e => (e.currentTarget.style.transform = 'scale(1)')}
               onPointerLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+              onFocus={() => setDiffIdx(i)}
             >
               <span style={{ fontSize: 18, fontWeight: 800 }}>{d.label}</span>
               <span style={{ fontSize: 13, opacity: 0.55, fontWeight: 500 }}>{d.desc}</span>
