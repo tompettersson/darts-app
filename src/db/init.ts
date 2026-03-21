@@ -10,6 +10,9 @@ import {
   dbGetATBMatches,
   dbGetStrMatches,
   dbGetHighscoreMatches,
+  dbGetShanghaiMatches,
+  dbGetKillerMatches,
+  dbGetCTFMatches,
   dbGetBobs27Matches,
   dbGetOperationMatches,
   dbGetMeta,
@@ -26,7 +29,8 @@ import {
   dbSaveCricketPlayerStats,
   dbLoadAllCricketPlayerStats,
 } from './storage'
-import { warmMemCache } from '../storage'
+import { warmMemCache, warmAllCaches, warmStats121Cache } from '../storage'
+import { warmCricketPlayerStatsCache } from '../stats/computePlayerStats'
 
 export type DBInitResult = {
   success: boolean
@@ -297,321 +301,56 @@ export type AppDataLoaded = {
 }
 
 /**
- * Merge-Helfer: Kombiniert SQLite-Daten mit existierenden LS-Daten.
- * Verhindert Datenverlust wenn async SQLite-Writes noch nicht fertig waren.
- * - Matches nur in SQLite → übernehmen
- * - Matches nur in LS → behalten (async write noch nicht angekommen)
- * - Matches in beiden → LS-Version bevorzugen wenn preferLS() true ist
- */
-function mergeMatchData<T extends { id: string }>(
-  sqliteData: T[],
-  lsKey: string,
-  preferLS: (ls: T, sqlite: T) => boolean
-): T[] {
-  let existingLS: T[] = []
-  try {
-    const raw = localStorage.getItem(lsKey)
-    if (raw) existingLS = JSON.parse(raw)
-  } catch { /* ignore */ }
-
-  if (existingLS.length === 0) return sqliteData
-
-  const sqliteMap = new Map(sqliteData.map(m => [m.id, m]))
-  const merged = new Map<string, T>()
-
-  // SQLite-Daten als Basis
-  for (const m of sqliteData) {
-    merged.set(m.id, m)
-  }
-
-  // LS-Daten mergen
-  for (const lsMatch of existingLS) {
-    const sqliteMatch = sqliteMap.get(lsMatch.id)
-    if (!sqliteMatch) {
-      // Nur in LS → behalten (async SQLite write noch nicht fertig)
-      merged.set(lsMatch.id, lsMatch)
-    } else if (preferLS(lsMatch, sqliteMatch)) {
-      // In beiden, aber LS hat neuere Daten
-      merged.set(lsMatch.id, lsMatch)
-    }
-    // sonst: SQLite-Version behalten (bereits in merged)
-  }
-
-  return Array.from(merged.values())
-}
-
-/** Max Matches pro Modus im LS-Cache (Events sind groß → Quota schonen) */
-const LS_CACHE_LIMIT = 20
-
-/** Begrenzt ein Match-Array auf die neuesten N Einträge */
-function limitForLS<T extends { createdAt?: string }>(matches: T[], limit = LS_CACHE_LIMIT): T[] {
-  if (matches.length <= limit) return matches
-  return matches
-    .slice()
-    .sort((a, b) => {
-      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0
-      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0
-      return db - da
-    })
-    .slice(0, limit)
-}
-
-/**
- * Lädt alle Daten aus SQLite und aktualisiert die LocalStorage-Caches.
- * Sollte beim App-Start aufgerufen werden.
+ * Lädt alle Daten aus SQLite direkt in die Memory-Caches.
+ * Kein LocalStorage mehr nötig — SQLite ist die einzige Quelle.
  */
 export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
   const startTime = Date.now()
 
   try {
-    // Parallel laden — jede Query einzeln wrappen für Robustheit bei fehlenden Tabellen
     const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((err) => { console.warn('[DB Init] Query failed (missing table?):', err.message); return fallback })
 
-    const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches, bobs27Matches, operationMatches] = await Promise.all([
+    // Alle Daten parallel aus SQLite laden
+    const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
+           shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([
       safe(dbGetProfiles(), []),
       safe(dbGetX01Matches(), []),
       safe(dbGetCricketMatches(), []),
       safe(dbGetATBMatches(), []),
       safe(dbGetStrMatches(), []),
       safe(dbGetHighscoreMatches(), []),
+      safe(dbGetShanghaiMatches(), []),
+      safe(dbGetKillerMatches(), []),
+      safe(dbGetCTFMatches(), []),
       safe(dbGetBobs27Matches(), []),
       safe(dbGetOperationMatches(), []),
     ])
 
-    // LocalStorage als Cache aktualisieren (für synchrone Zugriffe)
-    const profilesForLS = profiles.map((p) => ({
-      id: p.id,
-      name: p.name,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-      color: p.color ?? undefined,
-    }))
+    // Memory-Caches direkt befüllen (kein LocalStorage!)
+    warmAllCaches({
+      profiles: profiles.map((p) => ({
+        id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt, color: p.color ?? undefined,
+      })),
+      x01Matches: x01Matches.map((m) => ({
+        id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
+        createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
+      })),
+      cricketMatches: cricketMatches.map((m) => ({
+        id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
+        createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
+      })),
+      atbMatches: atbMatches as any[],
+      strMatches: strMatches as any[],
+      ctfMatches: ctfMatches as any[],
+      shanghaiMatches: shanghaiMatches as any[],
+      killerMatches: killerMatches as any[],
+      bobs27Matches: bobs27Matches as any[],
+      operationMatches: operationMatches as any[],
+      highscoreMatches: highscoreMatches as any[],
+    })
 
-    const x01ForLS = x01Matches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      matchName: m.matchName ?? undefined,
-      notes: m.notes ?? undefined,
-      createdAt: m.createdAt,
-      events: m.events,
-      playerIds: m.playerIds,
-      finished: m.finished,
-    }))
-
-    const cricketForLS = cricketMatches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      matchName: m.matchName ?? undefined,
-      notes: m.notes ?? undefined,
-      createdAt: m.createdAt,
-      events: m.events,
-      playerIds: m.playerIds,
-      finished: m.finished,
-    }))
-
-    const atbForLS = atbMatches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      createdAt: m.createdAt,
-      finished: m.finished,
-      finishedAt: m.finishedAt ?? undefined,
-      durationMs: m.durationMs ?? undefined,
-      winnerId: m.winnerId ?? undefined,
-      winnerDarts: m.winnerDarts ?? undefined,
-      mode: m.mode,
-      direction: m.direction,
-      players: m.players,
-      events: m.events,
-      structure: m.structure,
-      config: m.config,
-      generatedSequence: m.generatedSequence,
-    }))
-
-    // In LocalStorage schreiben - MERGE statt Überschreiben!
-    // LS kann neuere Daten enthalten als SQLite (weil SQLite-Writes async sind).
-    // Strategie: SQLite-Daten als Basis, aber LS-Matches behalten die:
-    //   - in SQLite nicht existieren (async write noch nicht fertig)
-    //   - in LS "finished" sind, aber in SQLite nicht (finished-Flag nicht angekommen)
-    //   - in LS mehr Events haben (Events-Write nicht angekommen)
-    try {
-      localStorage.setItem('darts.profiles.v1', JSON.stringify(profilesForLS))
-    } catch { /* ignore quota errors */ }
-
-    // X01: Merge LS + SQLite
-    try {
-      const mergedX01 = limitForLS(mergeMatchData(
-        x01ForLS,
-        'darts.matches.v1',
-        (a, b) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('darts.matches.v1', JSON.stringify(mergedX01))
-    } catch (e) {
-      console.warn('[DB Init] X01 Cache Quota-Error')
-      try {
-        localStorage.setItem('darts.matches.v1', JSON.stringify(limitForLS(x01ForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // Cricket: Merge LS + SQLite
-    try {
-      const mergedCricket = limitForLS(mergeMatchData(
-        cricketForLS,
-        'cricket.matches.v1',
-        (a, b) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('cricket.matches.v1', JSON.stringify(mergedCricket))
-    } catch (e) {
-      console.warn('[DB Init] Cricket Cache Quota-Error')
-      try {
-        localStorage.setItem('cricket.matches.v1', JSON.stringify(limitForLS(cricketForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // ATB: Merge LS + SQLite
-    try {
-      const mergedATB = limitForLS(mergeMatchData(
-        atbForLS,
-        'atb.matches.v1',
-        (a, b) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('atb.matches.v1', JSON.stringify(mergedATB))
-    } catch (e) {
-      console.warn('[DB Init] ATB Cache Quota-Error')
-      try {
-        localStorage.setItem('atb.matches.v1', JSON.stringify(limitForLS(atbForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // STR: Merge LS + SQLite
-    const strForLS = strMatches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      createdAt: m.createdAt,
-      finished: m.finished,
-      finishedAt: m.finishedAt ?? undefined,
-      durationMs: m.durationMs ?? undefined,
-      winnerId: m.winnerId ?? undefined,
-      winnerDarts: m.winnerDarts ?? undefined,
-      mode: m.mode,
-      targetNumber: m.targetNumber ?? undefined,
-      numberOrder: m.numberOrder ?? undefined,
-      turnOrder: m.turnOrder ?? undefined,
-      ringMode: m.ringMode ?? undefined,
-      bullMode: m.bullMode ?? undefined,
-      bullPosition: m.bullPosition ?? undefined,
-      players: m.players,
-      events: m.events,
-      structure: m.structure,
-      generatedOrder: m.generatedOrder,
-      legWins: m.legWins,
-      setWins: m.setWins,
-    }))
-    try {
-      const mergedStr = limitForLS(mergeMatchData(
-        strForLS,
-        'str.matches.v1',
-        (a: any, b: any) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('str.matches.v1', JSON.stringify(mergedStr))
-    } catch (e) {
-      console.warn('[DB Init] STR Cache Quota-Error')
-      try {
-        localStorage.setItem('str.matches.v1', JSON.stringify(limitForLS(strForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // Highscore: Merge LS + SQLite
-    const hsForLS = highscoreMatches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      createdAt: m.createdAt,
-      finished: m.finished,
-      finishedAt: m.finishedAt ?? undefined,
-      durationMs: m.durationMs ?? undefined,
-      winnerId: m.winnerId ?? undefined,
-      winnerDarts: m.winnerDarts ?? undefined,
-      targetScore: m.targetScore,
-      players: m.players,
-      events: m.events,
-      structure: m.structure,
-      legWins: m.legWins,
-      setWins: m.setWins,
-    }))
-    try {
-      const mergedHs = limitForLS(mergeMatchData(
-        hsForLS,
-        'highscore.matches.v1',
-        (a: any, b: any) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('highscore.matches.v1', JSON.stringify(mergedHs))
-    } catch (e) {
-      console.warn('[DB Init] Highscore Cache Quota-Error')
-      try {
-        localStorage.setItem('highscore.matches.v1', JSON.stringify(limitForLS(hsForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // Bob's 27: Merge LS + SQLite
-    const bobs27ForLS = bobs27Matches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      createdAt: m.createdAt,
-      finished: m.finished,
-      finishedAt: m.finishedAt ?? undefined,
-      durationMs: m.durationMs ?? undefined,
-      winnerId: m.winnerId ?? undefined,
-      winnerDarts: m.winnerDarts ?? undefined,
-      players: m.players,
-      events: m.events,
-      config: m.config,
-      targets: m.targets,
-      finalScores: m.finalScores,
-    }))
-    try {
-      const mergedBobs27 = limitForLS(mergeMatchData(
-        bobs27ForLS,
-        'bobs27.matches.v1',
-        (a: any, b: any) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('bobs27.matches.v1', JSON.stringify(mergedBobs27))
-    } catch (e) {
-      console.warn('[DB Init] Bobs27 Cache Quota-Error')
-      try {
-        localStorage.setItem('bobs27.matches.v1', JSON.stringify(limitForLS(bobs27ForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // Operation: Merge LS + SQLite
-    const operationForLS = operationMatches.map((m) => ({
-      id: m.id,
-      title: m.title,
-      createdAt: m.createdAt,
-      finished: m.finished,
-      finishedAt: m.finishedAt ?? undefined,
-      durationMs: m.durationMs ?? undefined,
-      winnerId: m.winnerId ?? undefined,
-      players: m.players,
-      events: m.events,
-      config: m.config,
-      finalScores: m.finalScores,
-      legWins: m.legWins,
-    }))
-    try {
-      const mergedOperation = limitForLS(mergeMatchData(
-        operationForLS,
-        'operation.matches.v1',
-        (a: any, b: any) => (a.finished && !b.finished) || (a.events?.length ?? 0) > (b.events?.length ?? 0)
-      ))
-      localStorage.setItem('operation.matches.v1', JSON.stringify(mergedOperation))
-    } catch (e) {
-      console.warn('[DB Init] Operation Cache Quota-Error')
-      try {
-        localStorage.setItem('operation.matches.v1', JSON.stringify(limitForLS(operationForLS, 10)))
-      } catch { /* ignore */ }
-    }
-
-    // Stats & Leaderboards: SQLite → Memory-Cache (für synchrone Reads in UI)
+    // Stats & Leaderboards in Memory-Cache laden
     try {
       const [x01Stats, stats121, x01Lb, cricketLb, cricketStats] = await Promise.all([
         safe(dbLoadAllX01PlayerStats(), {}),
@@ -621,42 +360,36 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
         safe(dbLoadAllCricketPlayerStats(), {}),
       ])
 
-      // Memory-Cache befüllen (ersetzt LS für sync Reads)
       warmMemCache({
         x01PlayerStats: x01Stats,
         leaderboards: x01Lb ?? undefined,
         cricketLeaderboards: cricketLb ?? undefined,
       })
 
-      // 121 + Cricket Stats nur in LS schreiben (kein Memory-Cache nötig, selten gelesen)
-      if (Object.keys(stats121).length > 0) {
-        try { localStorage.setItem('121.playerStats.v1', JSON.stringify(stats121)) } catch { /* quota */ }
-      }
-      if (Object.keys(cricketStats).length > 0) {
-        try { localStorage.setItem('cricket.playerStats.v1', JSON.stringify(cricketStats)) } catch { /* quota */ }
-      }
-
-      // Alte LS-Keys löschen die jetzt aus Memory-Cache bedient werden (Quota freigeben)
-      try {
-        localStorage.removeItem('x01.playerStats.v1')
-        localStorage.removeItem('darts.leaderboards.v1')
-        localStorage.removeItem('cricket.leaderboards.v1')
-        localStorage.removeItem('darts.outbox.v1')
-      } catch { /* ignore */ }
+      warmStats121Cache(stats121)
+      warmCricketPlayerStatsCache(cricketStats)
     } catch (e) {
       console.warn('[DB Init] Stats/Leaderboards Cache-Sync fehlgeschlagen:', e)
     }
 
+    // Alte LS-Match-Keys aufräumen (einmalig, kann irgendwann entfernt werden)
+    try {
+      const legacyKeys = [
+        'darts.matches.v1', 'cricket.matches.v1', 'atb.matches.v1', 'str.matches.v1',
+        'ctf.matches.v1', 'highscore.matches.v1', 'shanghai.matches.v1', 'killer.matches.v1',
+        'bobs27.matches.v1', 'operation.matches.v1', 'darts.profiles.v1',
+        'x01.playerStats.v1', '121.playerStats.v1', 'cricket.playerStats.v1',
+        'darts.leaderboards.v1', 'cricket.leaderboards.v1', 'darts.outbox.v1',
+      ]
+      for (const key of legacyKeys) localStorage.removeItem(key)
+    } catch { /* ignore */ }
+
     const durationMs = Date.now() - startTime
     console.debug(`[DB Init] Daten aus SQLite geladen in ${durationMs}ms:`, {
-      profiles: profiles.length,
-      x01: x01Matches.length,
-      cricket: cricketMatches.length,
-      atb: atbMatches.length,
-      str: strMatches.length,
-      highscore: highscoreMatches.length,
-      bobs27: bobs27Matches.length,
-      operation: operationMatches.length,
+      profiles: profiles.length, x01: x01Matches.length, cricket: cricketMatches.length,
+      atb: atbMatches.length, str: strMatches.length, highscore: highscoreMatches.length,
+      shanghai: shanghaiMatches.length, killer: killerMatches.length, ctf: ctfMatches.length,
+      bobs27: bobs27Matches.length, operation: operationMatches.length,
     })
 
     return {
@@ -673,14 +406,8 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
   } catch (error) {
     console.error('[DB Init] Fehler beim Laden aus SQLite:', error)
     return {
-      profiles: 0,
-      x01Matches: 0,
-      cricketMatches: 0,
-      atbMatches: 0,
-      strMatches: 0,
-      highscoreMatches: 0,
-      bobs27Matches: 0,
-      operationMatches: 0,
+      profiles: 0, x01Matches: 0, cricketMatches: 0, atbMatches: 0,
+      strMatches: 0, highscoreMatches: 0, bobs27Matches: 0, operationMatches: 0,
       durationMs: Date.now() - startTime,
     }
   }

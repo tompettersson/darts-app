@@ -399,7 +399,33 @@ export async function dbSaveProfile(profile: DBProfile): Promise<void> {
 
 export async function dbDeleteProfile(id: string): Promise<void> {
   await ensureDB()
-  await exec('DELETE FROM profiles WHERE id = ?', [id])
+
+  // Kaskaden-Löschung: Alle spielerspezifischen Stats, Leaderboards und Highscores entfernen.
+  // Matches und Match-Player-Zuordnungen bleiben erhalten (für Matchhistorie).
+  const cascadeDeletes = [
+    // Stats-Tabellen
+    'DELETE FROM x01_player_stats WHERE player_id = ?',
+    'DELETE FROM x01_finishing_doubles WHERE player_id = ?',
+    'DELETE FROM cricket_player_stats WHERE player_id = ?',
+    'DELETE FROM stats_121 WHERE player_id = ?',
+    'DELETE FROM stats_121_doubles WHERE player_id = ?',
+    // Leaderboards
+    'DELETE FROM x01_leaderboards WHERE player_id = ?',
+    'DELETE FROM cricket_leaderboards WHERE player_id = ?',
+    // Highscores
+    'DELETE FROM atb_highscores WHERE player_id = ?',
+    // Profil
+    'DELETE FROM profiles WHERE id = ?',
+  ]
+
+  for (const sql of cascadeDeletes) {
+    try {
+      await exec(sql, [id])
+    } catch (e) {
+      // Tabelle existiert evtl. noch nicht (alte DB-Version) → ignorieren
+      console.warn(`[DB] Cascade delete failed for: ${sql.split(' ')[2]}`, e)
+    }
+  }
 }
 
 // ============================================================================

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { getProfiles, renameProfile, deleteProfile, createProfile, updateProfileColor, type Profile } from '../storage'
 import { ui, getThemedUI, PROFILE_COLORS } from '../ui'
 import { useTheme } from '../ThemeProvider'
+import { showToast } from '../components/Toast'
 
 // Beispiel-Chart zur Farbvorschau
 function ColorPreviewChart({ playerColor, bgColor }: { playerColor: string; bgColor: string }) {
@@ -150,6 +151,7 @@ export default function ProfileList({ onBack }: { onBack: () => void }) {
     await deleteProfile(id)
     setProfiles(getProfiles())
     setBusy(null)
+    showToast('Profil gelöscht (inkl. Stats & Highscores)')
   }
 
   async function handleCreate() {
@@ -157,6 +159,7 @@ export default function ProfileList({ onBack }: { onBack: () => void }) {
     setBusy('create')
     await createProfile({ name: newName.trim() })
     setProfiles(getProfiles())
+    showToast(`Profil "${newName.trim()}" erstellt`)
     setNewName('')
     setBusy(null)
   }

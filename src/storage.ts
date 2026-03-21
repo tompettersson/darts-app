@@ -149,34 +149,21 @@ export function clearDBErrors() {
 }
 
 /* -------------------------------------------------
-   Globale LocalStorage Keys
+   LocalStorage Keys — NUR noch für UI-Settings & Session-State
+   Match-Daten, Profiles, Stats → SQLite + Memory-Cache
 ------------------------------------------------- */
 const LS_KEYS = {
-  matches: 'darts.matches.v1',
-  profiles: 'darts.profiles.v1',
   lastOpenMatchId: 'darts.lastOpenMatchId.v1',
-  outbox: 'darts.outbox.v1',
-  leaderboards: 'darts.leaderboards.v1',
   lastActivity: 'darts.lastActivity.v1',
 } as const
 
 const LS_CRICKET = {
-  matches: 'cricket.matches.v1',
   lastOpenMatchId: 'cricket.lastOpenMatchId.v1',
 } as const
 
-const LS_CRICKET_LB = 'cricket.leaderboards.v1'
-
-// 🔥 NEU: eigener Speicherbereich für langfristige X01-Spieler-Stats
-const LS_X01_PLAYERSTATS = 'x01.playerStats.v1'
-
-// 🎯 NEU: eigener Speicherbereich für 121-spezifische Langzeit-Stats
-const LS_121_PLAYERSTATS = '121.playerStats.v1'
-
 /* -------------------------------------------------
-   In-Memory Cache für Stats & Leaderboards
+   In-Memory Cache — Alle Daten aus SQLite
    Wird beim App-Start aus SQLite befüllt.
-   Ersetzt LS als Cache → spart Quota.
 ------------------------------------------------- */
 const memCache = {
   x01PlayerStats: null as Record<string, X01PlayerLongTermStats> | null,
@@ -201,8 +188,35 @@ export function warmMemCache(data: {
   }
 }
 
+/** Befüllt alle Match-/Profil-Caches beim App-Start (wird von db/init.ts aufgerufen) */
+export function warmAllCaches(data: {
+  profiles?: any[]
+  x01Matches?: any[]
+  cricketMatches?: any[]
+  atbMatches?: any[]
+  strMatches?: any[]
+  ctfMatches?: any[]
+  shanghaiMatches?: any[]
+  killerMatches?: any[]
+  bobs27Matches?: any[]
+  operationMatches?: any[]
+  highscoreMatches?: any[]
+}) {
+  if (data.profiles) profilesCache = data.profiles
+  if (data.x01Matches) x01MatchesCache = data.x01Matches
+  if (data.cricketMatches) cricketMatchesCache = data.cricketMatches
+  if (data.atbMatches) atbMatchesCache = data.atbMatches
+  if (data.strMatches) strMatchesCache = data.strMatches
+  if (data.ctfMatches) ctfMatchesCache = data.ctfMatches
+  if (data.shanghaiMatches) shanghaiMatchesCache = data.shanghaiMatches
+  if (data.killerMatches) killerMatchesCache = data.killerMatches
+  if (data.bobs27Matches) bobs27MatchesCache = data.bobs27Matches
+  if (data.operationMatches) operationMatchesCache = data.operationMatches
+  if (data.highscoreMatches) highscoreMatchesCache = data.highscoreMatches
+}
+
 /* -------------------------------------------------
-   Helper: read / write JSON
+   Helper: read / write JSON — NUR noch für UI-Settings
 ------------------------------------------------- */
 function readJSON<T>(key: string, fallback: T): T {
   try {
@@ -218,160 +232,6 @@ function writeJSON<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
-/**
- * Schreibt JSON mit automatischem Cleanup bei Quota-Fehler.
- * Match-Keys werden debounced (2s), alles andere sofort.
- */
-function writeJSONSafe<T>(key: string, value: T, pruneCallback?: () => boolean): boolean {
-  // Match-Keys debounced schreiben (SQLite hat die Daten sofort)
-  if (key.includes('.matches.')) {
-    writeJSONSafeDebounced(key, value, pruneCallback)
-    return true
-  }
-
-  return writeJSONSafeImmediate(key, value, pruneCallback)
-}
-
-function writeJSONSafeImmediate<T>(key: string, value: T, pruneCallback?: () => boolean): boolean {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-    return true
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-      console.warn(`[Storage] Quota exceeded for ${key}, attempting cleanup...`)
-      if (pruneCallback && pruneCallback()) {
-        try {
-          localStorage.setItem(key, JSON.stringify(value))
-          return true
-        } catch {
-          console.error(`[Storage] Still quota exceeded after cleanup for ${key}`)
-        }
-      }
-    }
-    throw e
-  }
-}
-
-/* -------------------------------------------------
-   Debounced LS-Write: Sammelt Writes und schreibt
-   nur alle 2s in LS. SQLite schreibt sofort.
-   Verhindert JSON.stringify bei jedem Dart-Wurf.
-------------------------------------------------- */
-const debouncedTimers: Record<string, number> = {}
-const debouncedValues: Record<string, { value: any; pruneCallback?: () => boolean }> = {}
-
-function writeJSONSafeDebounced<T>(key: string, value: T, pruneCallback?: () => boolean): void {
-  debouncedValues[key] = { value, pruneCallback }
-
-  if (debouncedTimers[key]) return // Timer läuft bereits
-
-  debouncedTimers[key] = window.setTimeout(() => {
-    delete debouncedTimers[key]
-    const pending = debouncedValues[key]
-    if (pending) {
-      delete debouncedValues[key]
-      try {
-        writeJSONSafeImmediate(key, pending.value, pending.pruneCallback)
-      } catch {
-        console.warn(`[Storage] Debounced write failed for ${key}, SQLite has the data`)
-      }
-    }
-  }, 2000)
-}
-
-/** Sofortiges Flush aller ausstehenden debounced Writes (z.B. beim Tab-Wechsel/Schließen) */
-export function flushDebouncedWrites(): void {
-  for (const key of Object.keys(debouncedTimers)) {
-    window.clearTimeout(debouncedTimers[key])
-    delete debouncedTimers[key]
-    const pending = debouncedValues[key]
-    if (pending) {
-      delete debouncedValues[key]
-      try {
-        writeJSONSafeImmediate(key, pending.value, pending.pruneCallback)
-      } catch { /* ignore */ }
-    }
-  }
-}
-
-// Flush bei Tab-Wechsel und Schließen
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', flushDebouncedWrites)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushDebouncedWrites()
-  })
-}
-
-/**
- * Löscht die ältesten ATB-Matches um Speicherplatz freizugeben.
- * Behält mindestens die letzten 20 Matches.
- */
-export function pruneOldATBMatches(keepCount: number = 20): boolean {
-  const all = getATBMatches()
-  if (all.length <= keepCount) return false
-
-  // Sortiere nach Datum (älteste zuerst)
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-
-  // Lösche die ältesten
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-
-  console.debug(`[Storage] Pruning ${toDelete} old ATB matches, keeping ${pruned.length}`)
-  writeJSON(LS_ATB.matches, pruned)
-  return true
-}
-
-/**
- * Löscht die ältesten X01-Matches um Speicherplatz freizugeben.
- */
-export function pruneOldX01Matches(keepCount: number = 50): boolean {
-  const all = getMatches()
-  if (all.length <= keepCount) return false
-
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-
-  console.debug(`[Storage] Pruning ${toDelete} old X01 matches, keeping ${pruned.length}`)
-  writeJSON(LS_KEYS.matches, pruned)
-  return true
-}
-
-/**
- * Löscht die ältesten Cricket-Matches um Speicherplatz freizugeben.
- */
-export function pruneOldCricketMatches(keepCount: number = 50): boolean {
-  const all = getCricketMatches()
-  if (all.length <= keepCount) return false
-
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-
-  console.debug(`[Storage] Pruning ${toDelete} old Cricket matches, keeping ${pruned.length}`)
-  writeJSON(LS_CRICKET.matches, pruned)
-  return true
-}
-
-/**
- * Führt globalen Storage-Cleanup durch.
- * Gibt true zurück wenn Speicher freigegeben wurde.
- */
-export function pruneAllOldMatches(): boolean {
-  // SQLite ist Source of Truth → LS nur noch Cache mit kleinem Limit
-  let freed = false
-  freed = pruneOldATBMatches(15) || freed
-  freed = pruneOldX01Matches(20) || freed
-  freed = pruneOldCricketMatches(20) || freed
-  freed = pruneOldHighscoreMatches(15) || freed
-  freed = pruneOldCTFMatches(15) || freed
-  freed = pruneOldShanghaiMatches(15) || freed
-  freed = pruneOldKillerMatches(15) || freed
-  freed = pruneOldBobs27Matches(15) || freed
-  freed = pruneOldOperationMatches(15) || freed
-  return freed
-}
 
 function isAfter(a?: string, b?: string): boolean {
   if (!a && b) return false
@@ -411,6 +271,7 @@ let usageCountsCache: Record<string, number> | null = null
 /**
  * Zaehlt wie oft jeder Spieler in Matches aller Spielmodi vorkommt.
  * Ergebnis wird gecacht und bei saveProfiles() invalidiert.
+ * Liest jetzt aus Memory-Caches statt LocalStorage.
  */
 function getPlayerUsageCounts(): Record<string, number> {
   if (usageCountsCache) return usageCountsCache
@@ -418,45 +279,16 @@ function getPlayerUsageCounts(): Record<string, number> {
   const bump = (pid: string) => { counts[pid] = (counts[pid] ?? 0) + 1 }
 
   try {
-    // X01
-    const x01 = readJSON<StoredMatch[]>(LS_KEYS.matches, [])
-    for (const m of x01) for (const pid of (m.playerIds ?? [])) bump(pid)
-
-    // Cricket
-    const cricket = readJSON<CricketStoredMatch[]>(LS_CRICKET.matches, [])
-    for (const m of cricket) for (const pid of (m.playerIds ?? [])) bump(pid)
-
-    // ATB
-    const atb = readJSON<ATBStoredMatch[]>(LS_ATB.matches, [])
-    for (const m of atb) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // CTF
-    const ctf = readJSON<{ players?: { playerId: string }[] }[]>(LS_CTF.matches, [])
-    for (const m of ctf) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // Sträußchen
-    const str = readJSON<{ players?: { playerId: string }[] }[]>(LS_STR.matches, [])
-    for (const m of str) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // Shanghai
-    const shanghai = readJSON<{ players?: { playerId: string }[] }[]>(LS_SHANGHAI.matches, [])
-    for (const m of shanghai) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // Killer
-    const killer = readJSON<{ players?: { playerId: string }[] }[]>(LS_KILLER_MATCHES, [])
-    for (const m of killer) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // Bob's 27
-    const bobs27 = readJSON<{ players?: { playerId: string }[] }[]>(LS_BOBS27.matches, [])
-    for (const m of bobs27) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // Operation
-    const operation = readJSON<{ players?: { playerId: string }[] }[]>(LS_OPERATION.matches, [])
-    for (const m of operation) for (const p of (m.players ?? [])) bump(p.playerId)
-
-    // Highscore
-    const highscore = readJSON<{ players?: { playerId: string }[] }[]>(LS_HIGHSCORE.matches, [])
-    for (const m of highscore) for (const p of (m.players ?? [])) bump(p.playerId)
+    for (const m of (x01MatchesCache ?? [])) for (const pid of (m.playerIds ?? [])) bump(pid)
+    for (const m of (cricketMatchesCache ?? [])) for (const pid of (m.playerIds ?? [])) bump(pid)
+    for (const m of (atbMatchesCache ?? [])) for (const p of (m.players ?? [])) bump(p.playerId)
+    for (const m of (ctfMatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
+    for (const m of (strMatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
+    for (const m of (shanghaiMatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
+    for (const m of (killerMatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
+    for (const m of (bobs27MatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
+    for (const m of (operationMatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
+    for (const m of (highscoreMatchesCache ?? [])) for (const p of ((m as any).players ?? [])) bump(p.playerId)
   } catch {
     // Bei Fehler: leere Counts -> keine Sortierung
   }
@@ -466,19 +298,14 @@ function getPlayerUsageCounts(): Record<string, number> {
 }
 
 export function getProfiles(): Profile[] {
-  // Synchroner Zugriff: Cache oder LocalStorage
+  // Synchroner Zugriff: nur noch Memory-Cache
   if (profilesCache) return profilesCache
-  const profiles = readJSON<Profile[]>(LS_KEYS.profiles, [])
-  const counts = getPlayerUsageCounts()
-  profiles.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
-  return profiles
+  return []
 }
 
 export function saveProfiles(list: Profile[]) {
   profilesCache = null  // Cache invalidieren, damit neu sortiert wird
   usageCountsCache = null
-  // SQLite ist jetzt primary - LocalStorage nur noch als Cache mit Cleanup
-  writeJSONSafe(LS_KEYS.profiles, list, () => pruneAllOldMatches())
 }
 
 // SQLite-aware Profile laden
@@ -495,8 +322,6 @@ export async function getProfilesAsync(): Promise<Profile[]> {
         color: p.color ?? undefined,
       }))
       profilesCache = profiles
-      // LocalStorage als Cache aktualisieren
-      writeJSON(LS_KEYS.profiles, profiles)
       return profiles
     }
   } catch (e) {
@@ -639,16 +464,45 @@ export async function deleteProfile(profileId: string): Promise<void> {
   const next = getProfiles().filter(p => p.id !== profileId)
   saveProfiles(next)
 
-  // SQLite löschen
+  // SQLite: Kaskaden-Löschung (Stats, Leaderboards, Highscores, Profil)
   try {
     await dbDeleteProfile(profileId)
   } catch (e) {
     console.warn('[Storage] SQLite profile delete failed:', e)
   }
+
+  // Memory-Cache bereinigen
+  if (memCache.x01PlayerStats) {
+    delete memCache.x01PlayerStats[profileId]
+  }
+  if (memCache.leaderboards) {
+    const lb = memCache.leaderboards
+    const filterLB = <T extends { playerId: string }>(arr: T[]) => arr.filter(e => e.playerId !== profileId)
+    memCache.leaderboards = {
+      ...lb,
+      highVisits: filterLB(lb.highVisits),
+      highCheckouts: filterLB(lb.highCheckouts),
+      bestLegs: filterLB(lb.bestLegs),
+      worstLegs: filterLB(lb.worstLegs),
+      bestCheckoutPct: filterLB(lb.bestCheckoutPct),
+      worstCheckoutPct: filterLB(lb.worstCheckoutPct),
+    }
+  }
+  if (memCache.cricketLeaderboards) {
+    const clb = memCache.cricketLeaderboards
+    const filterCLB = <T extends { playerId: string }>(arr: T[]) => arr.filter(e => e.playerId !== profileId)
+    memCache.cricketLeaderboards = {
+      ...clb,
+      bullMaster: filterCLB(clb.bullMaster),
+      tripleHunter: filterCLB(clb.tripleHunter),
+      fastestLegs: filterCLB(clb.fastestLegs),
+      bestTurnMarks: filterCLB(clb.bestTurnMarks),
+    }
+  }
 }
 
 /* -------------------------------------------------
-   X01 Matches (SQLite + LocalStorage Cache)
+   X01 Matches (SQLite + Memory-Cache)
 ------------------------------------------------- */
 export type StoredMatch = {
   id: string
@@ -676,67 +530,19 @@ export type NewGameConfig = {
 let x01MatchesCache: StoredMatch[] | null = null
 
 export function getMatches(): StoredMatch[] {
-  if (x01MatchesCache) return x01MatchesCache
-  return readJSON<StoredMatch[]>(LS_KEYS.matches, [])
+  return x01MatchesCache ?? []
 }
 
 export function saveMatches(all: StoredMatch[]) {
   x01MatchesCache = all
-  // SQLite ist jetzt primary - LocalStorage nur noch als Cache mit Cleanup
-  writeJSONSafe(LS_KEYS.matches, all, () => pruneAllOldMatches())
 }
 
-// SQLite-aware Matches laden mit automatischem Merge
+// SQLite-aware Matches laden
 export async function getMatchesAsync(): Promise<StoredMatch[]> {
   try {
     const useSQLite = await ensureDB()
     if (useSQLite) {
-      // WICHTIG: Erst LocalStorage-Daten sichern und zu SQLite mergen
-      // bevor wir LocalStorage überschreiben!
-      const localMatches = getMatches()
       const dbMatches = await dbGetX01Matches()
-
-      // Prüfen ob LocalStorage Matches hat, die nicht in SQLite sind
-      const dbIds = new Set(dbMatches.map(m => m.id))
-      const missingInDB = localMatches.filter(m => !dbIds.has(m.id))
-
-      if (missingInDB.length > 0) {
-        console.warn(`[Storage] ${missingInDB.length} X01 Matches in LocalStorage gefunden, die nicht in SQLite sind! Merge läuft...`)
-        for (const m of missingInDB) {
-          try {
-            await dbSaveX01Match({
-              id: m.id,
-              title: m.title,
-              matchName: m.matchName ?? null,
-              notes: m.notes ?? null,
-              createdAt: m.createdAt,
-              finished: m.finished ?? false,
-              finishedAt: null,
-              events: m.events,
-              playerIds: m.playerIds,
-            })
-            console.debug(`[Storage] X01 Match ${m.id} zu SQLite hinzugefügt`)
-          } catch (e) {
-            console.error(`[Storage] Konnte Match ${m.id} nicht zu SQLite hinzufügen:`, e)
-          }
-        }
-        // Neu laden nach Merge
-        const updatedDbMatches = await dbGetX01Matches()
-        const matches: StoredMatch[] = updatedDbMatches.map((m) => ({
-          id: m.id,
-          title: m.title,
-          matchName: m.matchName ?? undefined,
-          notes: m.notes ?? undefined,
-          createdAt: m.createdAt,
-          events: m.events as DartsEvent[],
-          playerIds: m.playerIds,
-          finished: m.finished,
-        }))
-        x01MatchesCache = matches
-        writeJSON(LS_KEYS.matches, matches)
-        return matches
-      }
-
       const matches: StoredMatch[] = dbMatches.map((m) => ({
         id: m.id,
         title: m.title,
@@ -748,7 +554,6 @@ export async function getMatchesAsync(): Promise<StoredMatch[]> {
         finished: m.finished,
       }))
       x01MatchesCache = matches
-      writeJSON(LS_KEYS.matches, matches)
       return matches
     }
   } catch (e) {
@@ -1006,11 +811,13 @@ type OutboxItem = {
   errorMessage?: string
 }
 
+let outboxCache: OutboxItem[] = []
+
 function getOutbox(): OutboxItem[] {
-  return readJSON<OutboxItem[]>(LS_KEYS.outbox, [])
+  return outboxCache
 }
 function saveOutbox(list: OutboxItem[]) {
-  writeJSON(LS_KEYS.outbox, list)
+  outboxCache = list
 }
 function addOutboxItem(payload: BackendMatchDTO) {
   const list = getOutbox()
@@ -1171,13 +978,11 @@ export type X01PlayerLongTermStats = {
 }
 
 function loadX01PlayerStatsStore(): Record<string, X01PlayerLongTermStats> {
-  if (memCache.x01PlayerStats) return memCache.x01PlayerStats
-  return readJSON<Record<string, X01PlayerLongTermStats>>(LS_X01_PLAYERSTATS, {})
+  return memCache.x01PlayerStats ?? {}
 }
 
 function saveX01PlayerStatsStore(store: Record<string, X01PlayerLongTermStats>) {
   memCache.x01PlayerStats = store
-  writeJSON(LS_X01_PLAYERSTATS, store)
 }
 
 export function getGlobalX01PlayerStats(): Record<string, X01PlayerLongTermStats> {
@@ -1412,12 +1217,19 @@ export function getFavouriteDoubleForPlayer(pid: string): { bed: string; count: 
    🎯 121-spezifische Langzeit-Spieler-Stats
 ------------------------------------------------- */
 
+// In-Memory Cache für 121 Stats (wird beim App-Start aus SQLite befüllt)
+let stats121Cache: Record<string, Stats121LongTerm> = {}
+
 export function load121PlayerStatsStore(): Record<string, Stats121LongTerm> {
-  return readJSON<Record<string, Stats121LongTerm>>(LS_121_PLAYERSTATS, {})
+  return stats121Cache
 }
 
 export function save121PlayerStatsStore(store: Record<string, Stats121LongTerm>): void {
-  writeJSON(LS_121_PLAYERSTATS, store)
+  stats121Cache = store
+}
+
+export function warmStats121Cache(data: Record<string, Stats121LongTerm>) {
+  stats121Cache = data
 }
 
 export function get121PlayerStats(playerId: string): Stats121LongTerm | null {
@@ -1593,9 +1405,7 @@ export type Leaderboards = {
 }
 
 export function loadLeaderboards(): Leaderboards {
-  if (memCache.leaderboards) return memCache.leaderboards
-
-  const raw = readJSON<Leaderboards>(LS_KEYS.leaderboards, {
+  return memCache.leaderboards ?? {
     highVisits: [],
     highCheckouts: [],
     bestLegs: [],
@@ -1604,18 +1414,11 @@ export function loadLeaderboards(): Leaderboards {
     worstCheckoutPct: [],
     processedMatchIds: [],
     version: 1,
-  })
-
-  if (!Array.isArray(raw.processedMatchIds)) {
-    raw.processedMatchIds = []
   }
-
-  return raw
 }
 
 export function saveLeaderboards(lb: Leaderboards) {
   memCache.leaderboards = lb
-  writeJSON(LS_KEYS.leaderboards, lb)
 }
 
 function playerNameById(match: MatchStarted, pid: string) {
@@ -1839,19 +1642,13 @@ export type CricketStoredMatch = {
 let cricketMatchesCache: CricketStoredMatch[] | null = null
 
 export function getCricketMatches(): CricketStoredMatch[] {
-  if (cricketMatchesCache) return cricketMatchesCache
-  return readJSON<CricketStoredMatch[]>(
-    LS_CRICKET.matches,
-    []
-  )
+  return cricketMatchesCache ?? []
 }
 
 export function saveCricketMatches(
   all: CricketStoredMatch[]
 ) {
   cricketMatchesCache = all
-  // SQLite ist jetzt primary - LocalStorage nur noch als Cache mit Cleanup
-  writeJSONSafe(LS_CRICKET.matches, all, () => pruneAllOldMatches())
 }
 
 // SQLite-aware Cricket Matches laden
@@ -1871,7 +1668,6 @@ export async function getCricketMatchesAsync(): Promise<CricketStoredMatch[]> {
         finished: m.finished,
       }))
       cricketMatchesCache = matches
-      writeJSON(LS_CRICKET.matches, matches)
       return matches
     }
   } catch (e) {
@@ -2249,26 +2045,20 @@ export type CricketLeaderboards = {
 }
 
 export function loadCricketLeaderboards(): CricketLeaderboards {
-  if (memCache.cricketLeaderboards) return memCache.cricketLeaderboards
-
-  return readJSON<CricketLeaderboards>(
-    LS_CRICKET_LB,
-    {
-      bullMaster: [],
-      tripleHunter: [],
-      fastestLegs: [],
-      bestTurnMarks: [],
-      processedMatchIds: [],
-      version: 1,
-    }
-  )
+  return memCache.cricketLeaderboards ?? {
+    bullMaster: [],
+    tripleHunter: [],
+    fastestLegs: [],
+    bestTurnMarks: [],
+    processedMatchIds: [],
+    version: 1,
+  }
 }
 
 export function saveCricketLeaderboards(
   lb: CricketLeaderboards
 ) {
   memCache.cricketLeaderboards = lb
-  writeJSON(LS_CRICKET_LB, lb)
 }
 
 export function updateCricketLeaderboardsWithMatch(
@@ -2611,42 +2401,16 @@ export type BackupBundle = {
 }
 
 export function exportBackup(): BackupBundle {
-  const profiles = readJSON<Profile[]>(
-    LS_KEYS.profiles,
-    []
-  )
-  const matches = readJSON<StoredMatch[]>(
-    LS_KEYS.matches,
-    []
-  )
-  const leaderboards =
-    readJSON<Leaderboards>(
-      LS_KEYS.leaderboards,
-      {
-        highVisits: [],
-        highCheckouts: [],
-        bestLegs: [],
-        worstLegs: [],
-        bestCheckoutPct: [],
-        worstCheckoutPct: [],
-        processedMatchIds: [],
-        version: 1,
-      }
-    )
-  const outbox = readJSON<any[]>(
-    LS_KEYS.outbox,
-    []
-  )
+  const profiles = getProfiles()
+  const matches = getMatches()
+  const leaderboards = loadLeaderboards()
+  const outbox: any[] = []
   const lastOpenMatchId =
     localStorage.getItem(
       LS_KEYS.lastOpenMatchId
     ) || undefined
 
-  const cricketMatches =
-    readJSON<CricketStoredMatch[]>(
-      LS_CRICKET.matches,
-      []
-    )
+  const cricketMatches = getCricketMatches()
   const cricketLastOpenMatchId =
     localStorage.getItem(
       LS_CRICKET.lastOpenMatchId
@@ -2826,22 +2590,16 @@ export function importBackupMerge(
   }
 
   const mergedProfiles = mergeProfiles(
-    readJSON<Profile[]>(LS_KEYS.profiles, []),
+    getProfiles(),
     bundle.profiles ?? []
   )
-  writeJSON(LS_KEYS.profiles, mergedProfiles)
+  profilesCache = mergedProfiles
 
   const mergedMatches = mergeMatches(
-    readJSON<StoredMatch[]>(LS_KEYS.matches, []),
+    getMatches(),
     bundle.matches ?? []
   )
-  writeJSON(LS_KEYS.matches, mergedMatches)
-
-  const mergedOutbox = mergeOutbox(
-    readJSON<any[]>(LS_KEYS.outbox, []),
-    bundle.outbox ?? []
-  )
-  writeJSON(LS_KEYS.outbox, mergedOutbox)
+  x01MatchesCache = mergedMatches
 
   const exists = bundle.lastOpenMatchId &&
     mergedMatches.some(
@@ -2855,19 +2613,14 @@ export function importBackupMerge(
   }
 
   // Cricket Merge
-  const localCricket = readJSON<
-    CricketStoredMatch[]
-  >(LS_CRICKET.matches, [])
+  const localCricket = getCricketMatches()
   const incomingCricket =
     bundle.cricketMatches ?? []
   const mergedCricket = mergeCricketMatches(
     localCricket,
     incomingCricket
   )
-  writeJSON(
-    LS_CRICKET.matches,
-    mergedCricket
-  )
+  cricketMatchesCache = mergedCricket
 
   const existsCricketOpen =
     bundle.cricketLastOpenMatchId &&
@@ -3096,17 +2849,14 @@ import type { ATBEvent, ATBMode, ATBDirection, ATBPlayer, ATBLegStartedEvent } f
 import { getModeLabel, getDirectionLabel } from './dartsAroundTheBlock'
 
 const LS_ATB = {
-  matches: 'atb.matches.v1',
   lastOpenMatchId: 'atb.lastOpenMatchId.v1',
-  highscores: 'atb.highscores.v1',
 } as const
 
 // Cache für synchrone Zugriffe
 let atbMatchesCache: ATBStoredMatch[] | null = null
 
 export function getATBMatches(): ATBStoredMatch[] {
-  if (atbMatchesCache) return atbMatchesCache
-  return readJSON<ATBStoredMatch[]>(LS_ATB.matches, [])
+  return atbMatchesCache ?? []
 }
 
 // SQLite-aware ATB Matches laden
@@ -3133,7 +2883,6 @@ export async function getATBMatchesAsync(): Promise<ATBStoredMatch[]> {
         generatedSequence: m.generatedSequence,
       }))
       atbMatchesCache = matches
-      writeJSON(LS_ATB.matches, matches)
       return matches
     }
   } catch (e) {
@@ -3226,7 +2975,7 @@ export function createATBMatchShell(args: {
   const all = getATBMatches()
   all.push(stored)
   atbMatchesCache = all
-  writeJSONSafe(LS_ATB.matches, all, () => pruneAllOldMatches())
+
 
   // Async SQLite save
   dbSaveATBMatch({
@@ -3257,7 +3006,7 @@ export function persistATBEvents(matchId: string, events: ATBEvent[]) {
 
   all[idx].events = events
   atbMatchesCache = all
-  writeJSONSafe(LS_ATB.matches, all, () => pruneAllOldMatches())
+
 
   // Async SQLite update
   dbUpdateATBEvents(matchId, events).catch(err => trackDBError('atb-events', matchId, err))
@@ -3279,7 +3028,7 @@ export function finishATBMatch(
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
   atbMatchesCache = all
-  writeJSONSafe(LS_ATB.matches, all, () => pruneAllOldMatches())
+
 
   // Async SQLite update
   dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('atb-finish', matchId, err))
@@ -3299,8 +3048,10 @@ export function finishATBMatch(
   }
 }
 
+let atbHighscoresCache: ATBHighscore[] | null = null
+
 export function getATBHighscores(): ATBHighscore[] {
-  return readJSON<ATBHighscore[]>(LS_ATB.highscores, [])
+  return atbHighscoresCache ?? []
 }
 
 export function updateATBHighscores(result: {
@@ -3330,7 +3081,7 @@ export function updateATBHighscores(result: {
   all.sort((a, b) => a.durationMs - b.durationMs)
   const trimmed = all.slice(0, 50)
 
-  writeJSON(LS_ATB.highscores, trimmed)
+  atbHighscoresCache = trimmed
 }
 
 /* -------------------------------------------------
@@ -3395,80 +3146,6 @@ export function checkIfX01MatchIsOver(eventsSoFar: DartsEvent[]): {
   return { finished: false }
 }
 
-// src/storage.ts
-// ------------------------------------------------------------
-// ADD: listMatches()
-// Robust: scannt localStorage und sammelt alle Match-Objekte, die wie deine gespeicherten Matches aussehen.
-// Erwartet grob: { id, title, createdAt, events: [...] }
-// ------------------------------------------------------------
-
-export type StoredMatchListItem = {
-  id: string
-  title: string
-  createdAt: string
-  finished?: boolean
-  playerIds?: string[]
-}
-
-function looksLikeStoredMatch(x: any): x is {
-  id: string
-  title: string
-  createdAt: string
-  events: any[]
-  finished?: boolean
-  playerIds?: string[]
-} {
-  if (!x || typeof x !== 'object') return false
-  if (typeof x.id !== 'string') return false
-  if (typeof x.title !== 'string') return false
-  if (typeof x.createdAt !== 'string') return false
-  if (!Array.isArray(x.events)) return false
-  // Minimaler Plausibilitätscheck: MatchStarted muss in events vorkommen
-  const hasMatchStarted = x.events.some(
-    (e: unknown) => e != null && typeof e === 'object' && 'type' in e && e.type === 'MatchStarted'
-  )
-  return hasMatchStarted
-}
-
-export function listMatches(): StoredMatchListItem[] {
-  const res: StoredMatchListItem[] = []
-
-  // 1) Optional: Falls du irgendwo eine Index-Liste hast (unbekannt), könntest du die hier später einhängen.
-  // 2) Default: localStorage scan
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key) continue
-
-      const raw = localStorage.getItem(key)
-      if (!raw) continue
-
-      let parsed: any
-      try {
-        parsed = JSON.parse(raw)
-      } catch {
-        continue
-      }
-
-      if (looksLikeStoredMatch(parsed)) {
-        res.push({
-          id: parsed.id,
-          title: parsed.title,
-          createdAt: parsed.createdAt,
-          finished: !!parsed.finished,
-          playerIds: Array.isArray(parsed.playerIds) ? parsed.playerIds : undefined,
-        })
-      }
-    }
-  } catch (err) {
-    console.error('listMatches() failed:', err)
-  }
-
-  // Dedupe by id (falls Matches doppelt vorkommen sollten)
-  const map = new Map<string, StoredMatchListItem>()
-  for (const m of res) map.set(m.id, m)
-  return Array.from(map.values()).sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
-}
 
 
 /* -------------------------------------------------
@@ -3481,27 +3158,12 @@ export function listMatches(): StoredMatchListItem[] {
    BACKUP / EXPORT - Alle Daten sichern
 ------------------------------------------------- */
 
-// Alle LocalStorage Keys die gesichert werden sollen
+// Alle LocalStorage Keys die noch in LS gespeichert werden (nur Session-State)
 const ALL_STORAGE_KEYS = [
-  // X01
-  'darts.matches.v1',
-  'darts.profiles.v1',
   'darts.lastOpenMatchId.v1',
-  'darts.outbox.v1',
-  'darts.leaderboards.v1',
   'darts.lastActivity.v1',
-  'x01.playerStats.v1',
-  '121.playerStats.v1',
-  // Cricket
-  'cricket.matches.v1',
   'cricket.lastOpenMatchId.v1',
-  'cricket.leaderboards.v1',
-  // ATB
-  'atb.matches.v1',
   'atb.lastOpenMatchId.v1',
-  'atb.highscores.v1',
-  // Highscore
-  'highscore.matches.v1',
   'highscore.lastOpenMatchId.v1',
 ] as const
 
@@ -3773,15 +3435,9 @@ export function deleteCricketMatch(matchId: string) {
  * Löscht ein ATB-Match komplett.
  */
 export function deleteATBMatch(matchId: string) {
-  const raw = localStorage.getItem('atbMatches')
-  if (!raw) return
-  try {
-    const matches = JSON.parse(raw) as any[]
-    const filtered = matches.filter(m => m.id !== matchId)
-    localStorage.setItem('atbMatches', JSON.stringify(filtered))
-  } catch {
-    // Ignorieren
-  }
+  const all = getATBMatches()
+  const filtered = all.filter(m => m.id !== matchId)
+  atbMatchesCache = filtered
   // Pause- und Zeit-Status auch löschen
   clearMatchPaused(matchId, 'atb')
   clearMatchElapsedTime(matchId, 'atb')
@@ -3796,15 +3452,13 @@ import { id as strId, now as strNow, generateNumberOrder, getTargetLabel } from 
 import type { StrTargetNumber } from './types/straeusschen'
 
 const LS_STR = {
-  matches: 'str.matches.v1',
   lastOpenMatchId: 'str.lastOpenMatchId.v1',
 } as const
 
 let strMatchesCache: StrStoredMatch[] | null = null
 
 export function getStrMatches(): StrStoredMatch[] {
-  if (strMatchesCache) return strMatchesCache
-  return readJSON<StrStoredMatch[]>(LS_STR.matches, [])
+  return strMatchesCache ?? []
 }
 
 export function getStrMatchById(matchId: string): StrStoredMatch | null {
@@ -3909,7 +3563,7 @@ export function createStrMatchShell(args: {
   const all = getStrMatches()
   all.push(stored)
   strMatchesCache = all
-  writeJSONSafe(LS_STR.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   const dbMatch: DBStrMatch = {
@@ -3945,7 +3599,7 @@ export function persistStrEvents(matchId: string, events: StrEvent[]) {
 
   all[idx].events = events
   strMatchesCache = all
-  writeJSONSafe(LS_STR.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateStrEvents(matchId, events as any[]).catch(err => trackDBError('str-events', matchId, err))
@@ -3967,7 +3621,7 @@ export function finishStrMatch(
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
   strMatchesCache = all
-  writeJSONSafe(LS_STR.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('str-finish', matchId, err))
@@ -3977,7 +3631,7 @@ export function deleteStrMatch(matchId: string) {
   const all = getStrMatches()
   const filtered = all.filter(m => m.id !== matchId)
   strMatchesCache = filtered
-  writeJSONSafe(LS_STR.matches, filtered)
+
   clearMatchPaused(matchId, 'str')
   clearMatchElapsedTime(matchId, 'str')
 }
@@ -3990,15 +3644,13 @@ import type { CTFPlayer } from './types/captureTheField'
 import { id as ctfId, now as ctfNow, generateCTFSequence, calculateFieldPoints } from './dartsCaptureTheField'
 
 const LS_CTF = {
-  matches: 'ctf.matches.v1',
   lastOpenMatchId: 'ctf.lastOpenMatchId.v1',
 } as const
 
 let ctfMatchesCache: CTFStoredMatch[] | null = null
 
 export function getCTFMatches(): CTFStoredMatch[] {
-  if (ctfMatchesCache) return ctfMatchesCache
-  return readJSON<CTFStoredMatch[]>(LS_CTF.matches, [])
+  return ctfMatchesCache ?? []
 }
 
 export function getCTFMatchById(matchId: string): CTFStoredMatch | null {
@@ -4074,7 +3726,7 @@ export function createCTFMatchShell(args: {
   const all = getCTFMatches()
   all.push(stored)
   ctfMatchesCache = all
-  writeJSONSafe(LS_CTF.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbSaveCTFMatch({
@@ -4103,7 +3755,7 @@ export function persistCTFEvents(matchId: string, events: CTFEvent[]) {
 
   all[idx].events = events
   ctfMatchesCache = all
-  writeJSONSafe(LS_CTF.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateCTFEvents(matchId, events).catch(err => trackDBError('ctf-events', matchId, err))
@@ -4157,7 +3809,7 @@ export function finishCTFMatch(
   all[idx].captureFieldPoints = captureFieldPoints
 
   ctfMatchesCache = all
-  writeJSONSafe(LS_CTF.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write: finales Speichern mit allen Daten
   const match = all[idx]
@@ -4185,22 +3837,11 @@ export function deleteCTFMatch(matchId: string) {
   const all = getCTFMatches()
   const filtered = all.filter(m => m.id !== matchId)
   ctfMatchesCache = filtered
-  writeJSONSafe(LS_CTF.matches, filtered)
+
   clearMatchPaused(matchId, 'ctf')
   clearMatchElapsedTime(matchId, 'ctf')
 }
 
-export function pruneOldCTFMatches(keepCount: number = 20): boolean {
-  const all = getCTFMatches()
-  if (all.length <= keepCount) return false
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-  console.debug(`[Storage] Pruning ${toDelete} old CTF matches, keeping ${pruned.length}`)
-  writeJSON(LS_CTF.matches, pruned)
-  ctfMatchesCache = pruned
-  return true
-}
 
 /* -------------------------------------------------
    Shanghai Storage
@@ -4210,15 +3851,13 @@ import type { ShanghaiPlayer } from './types/shanghai'
 import { id as shanghaiId, now as shanghaiNow } from './dartsShanghai'
 
 const LS_SHANGHAI = {
-  matches: 'shanghai.matches.v1',
   lastOpenMatchId: 'shanghai.lastOpenMatchId.v1',
 } as const
 
 let shanghaiMatchesCache: ShanghaiStoredMatch[] | null = null
 
 export function getShanghaiMatches(): ShanghaiStoredMatch[] {
-  if (shanghaiMatchesCache) return shanghaiMatchesCache
-  return readJSON<ShanghaiStoredMatch[]>(LS_SHANGHAI.matches, [])
+  return shanghaiMatchesCache ?? []
 }
 
 export function getShanghaiMatchById(matchId: string): ShanghaiStoredMatch | null {
@@ -4290,7 +3929,7 @@ export function createShanghaiMatchShell(args: {
   const all = getShanghaiMatches()
   all.push(stored)
   shanghaiMatchesCache = all
-  writeJSONSafe(LS_SHANGHAI.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbSaveShanghaiMatch({
@@ -4318,7 +3957,7 @@ export function persistShanghaiEvents(matchId: string, events: ShanghaiEvent[]) 
 
   all[idx].events = events
   shanghaiMatchesCache = all
-  writeJSONSafe(LS_SHANGHAI.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateShanghaiEvents(matchId, events).catch(err => trackDBError('shanghai-events', matchId, err))
@@ -4348,7 +3987,7 @@ export function finishShanghaiMatch(
   }
 
   shanghaiMatchesCache = all
-  writeJSONSafe(LS_SHANGHAI.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   const match = all[idx]
@@ -4375,22 +4014,11 @@ export function deleteShanghaiMatch(matchId: string) {
   const all = getShanghaiMatches()
   const filtered = all.filter(m => m.id !== matchId)
   shanghaiMatchesCache = filtered
-  writeJSONSafe(LS_SHANGHAI.matches, filtered)
+
   clearMatchPaused(matchId, 'shanghai')
   clearMatchElapsedTime(matchId, 'shanghai')
 }
 
-export function pruneOldShanghaiMatches(keepCount: number = 20): boolean {
-  const all = getShanghaiMatches()
-  if (all.length <= keepCount) return false
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-  console.debug(`[Storage] Pruning ${toDelete} old Shanghai matches, keeping ${pruned.length}`)
-  writeJSON(LS_SHANGHAI.matches, pruned)
-  shanghaiMatchesCache = pruned
-  return true
-}
 
 /* -------------------------------------------------
    Killer Storage
@@ -4407,13 +4035,11 @@ import type {
 } from './types/killer'
 import { id as killerId, now as killerNow, defaultKillerStructure } from './dartsKiller'
 
-const LS_KILLER_MATCHES = 'killer.matches.v1'
 
 let killerMatchesCache: KillerStoredMatch[] | null = null
 
 export function getKillerMatches(): KillerStoredMatch[] {
-  if (killerMatchesCache) return killerMatchesCache
-  return readJSON<KillerStoredMatch[]>(LS_KILLER_MATCHES, [])
+  return killerMatchesCache ?? []
 }
 
 export function getKillerMatchById(matchId: string): KillerStoredMatch | undefined {
@@ -4479,7 +4105,7 @@ export function createKillerMatchShell(
   const all = getKillerMatches()
   all.push(stored)
   killerMatchesCache = all
-  writeJSONSafe(LS_KILLER_MATCHES, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbSaveKillerMatch({
@@ -4507,7 +4133,7 @@ export function persistKillerEvents(matchId: string, events: KillerEvent[]) {
 
   all[idx].events = events
   killerMatchesCache = all
-  writeJSONSafe(LS_KILLER_MATCHES, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateKillerEvents(matchId, events).catch(err => trackDBError('killer-events', matchId, err))
@@ -4536,7 +4162,7 @@ export function finishKillerMatch(
   if (setWins) all[idx].setWins = setWins
 
   killerMatchesCache = all
-  writeJSONSafe(LS_KILLER_MATCHES, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins)
@@ -4547,20 +4173,9 @@ export function deleteKillerMatch(matchId: string) {
   const all = getKillerMatches()
   const filtered = all.filter(m => m.id !== matchId)
   killerMatchesCache = filtered
-  writeJSONSafe(LS_KILLER_MATCHES, filtered)
+
 }
 
-export function pruneOldKillerMatches(keepCount: number = 20): boolean {
-  const all = getKillerMatches()
-  if (all.length <= keepCount) return false
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-  console.debug(`[Storage] Pruning ${toDelete} old Killer matches, keeping ${pruned.length}`)
-  writeJSON(LS_KILLER_MATCHES, pruned)
-  killerMatchesCache = pruned
-  return true
-}
 
 export function getKillerInfo(match: KillerStoredMatch): { players: number; winner: string | null; rounds: number } {
   const players = match.players?.length ?? 0
@@ -4580,15 +4195,13 @@ import type { Bobs27Player } from './types/bobs27'
 import { id as bobs27Id, now as bobs27Now, generateTargets, DEFAULT_CONFIG as BOBS27_DEFAULT_CONFIG, applyBobs27Events } from './dartsBobs27'
 
 const LS_BOBS27 = {
-  matches: 'bobs27.matches.v1',
   lastOpenMatchId: 'bobs27.lastOpenMatchId.v1',
 } as const
 
 let bobs27MatchesCache: Bobs27StoredMatch[] | null = null
 
 export function getBobs27Matches(): Bobs27StoredMatch[] {
-  if (bobs27MatchesCache) return bobs27MatchesCache
-  return readJSON<Bobs27StoredMatch[]>(LS_BOBS27.matches, [])
+  return bobs27MatchesCache ?? []
 }
 
 export function getBobs27MatchById(matchId: string): Bobs27StoredMatch | null {
@@ -4643,7 +4256,7 @@ export function createBobs27MatchShell(args: {
   const all = getBobs27Matches()
   all.push(stored)
   bobs27MatchesCache = all
-  writeJSONSafe(LS_BOBS27.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbSaveBobs27Match({
@@ -4671,7 +4284,7 @@ export function persistBobs27Events(matchId: string, events: Bobs27Event[]) {
 
   all[idx].events = events
   bobs27MatchesCache = all
-  writeJSONSafe(LS_BOBS27.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateBobs27Events(matchId, events).catch(err => trackDBError('bobs27-events', matchId, err))
@@ -4696,7 +4309,7 @@ export function finishBobs27Match(
   if (finalScores) all[idx].finalScores = finalScores
 
   bobs27MatchesCache = all
-  writeJSONSafe(LS_BOBS27.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   const match = all[idx]
@@ -4721,7 +4334,7 @@ export function deleteBobs27Match(matchId: string) {
   const all = getBobs27Matches()
   const filtered = all.filter(m => m.id !== matchId)
   bobs27MatchesCache = filtered
-  writeJSONSafe(LS_BOBS27.matches, filtered)
+
   clearMatchPaused(matchId, 'bobs27')
   clearMatchElapsedTime(matchId, 'bobs27')
 }
@@ -4830,23 +4443,11 @@ export function repairBobs27Matches(): number {
 
   if (repaired > 0) {
     bobs27MatchesCache = all
-    writeJSONSafe(LS_BOBS27.matches, all)
     console.debug(`[Storage] Repaired ${repaired} Bob's 27 match(es)`)
   }
   return repaired
 }
 
-export function pruneOldBobs27Matches(keepCount: number = 20): boolean {
-  const all = getBobs27Matches()
-  if (all.length <= keepCount) return false
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-  console.debug(`[Storage] Pruning ${toDelete} old Bob's 27 matches, keeping ${pruned.length}`)
-  writeJSON(LS_BOBS27.matches, pruned)
-  bobs27MatchesCache = pruned
-  return true
-}
 
 /* -------------------------------------------------
    Operation Storage
@@ -4855,15 +4456,13 @@ import type { OperationStoredMatch, OperationEvent, OperationConfig, OperationPl
 import { id as operationId, now as operationNow } from './dartsOperation'
 
 const LS_OPERATION = {
-  matches: 'operation.matches.v1',
   lastOpenMatchId: 'operation.lastOpenMatchId.v1',
 } as const
 
 let operationMatchesCache: OperationStoredMatch[] | null = null
 
 export function getOperationMatches(): OperationStoredMatch[] {
-  if (operationMatchesCache) return operationMatchesCache
-  return readJSON<OperationStoredMatch[]>(LS_OPERATION.matches, [])
+  return operationMatchesCache ?? []
 }
 
 export function getOperationMatchById(matchId: string): OperationStoredMatch | null {
@@ -4912,7 +4511,7 @@ export function createOperationMatchShell(args: {
   const all = getOperationMatches()
   all.push(stored)
   operationMatchesCache = all
-  writeJSONSafe(LS_OPERATION.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbSaveOperationMatch({
@@ -4941,7 +4540,7 @@ export function persistOperationEvents(matchId: string, events: OperationEvent[]
 
   all[idx].events = events
   operationMatchesCache = all
-  writeJSONSafe(LS_OPERATION.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateOperationEvents(matchId, events).catch(err => trackDBError('operation-events', matchId, err))
@@ -4966,7 +4565,7 @@ export function finishOperationMatch(
   if (legWins) all[idx].legWins = legWins
 
   operationMatchesCache = all
-  writeJSONSafe(LS_OPERATION.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   const match = all[idx]
@@ -4993,7 +4592,7 @@ export function deleteOperationMatch(matchId: string) {
   const all = getOperationMatches()
   const filtered = all.filter(m => m.id !== matchId)
   operationMatchesCache = filtered
-  writeJSONSafe(LS_OPERATION.matches, filtered)
+
   clearMatchPaused(matchId, 'operation')
   clearMatchElapsedTime(matchId, 'operation')
 }
@@ -5056,23 +4655,11 @@ export function repairOperationMatches(): number {
 
   if (repaired > 0) {
     operationMatchesCache = all
-    writeJSONSafe(LS_OPERATION.matches, all)
     console.debug(`[Storage] Repaired ${repaired} Operation match(es)`)
   }
   return repaired
 }
 
-export function pruneOldOperationMatches(keepCount: number = 20): boolean {
-  const all = getOperationMatches()
-  if (all.length <= keepCount) return false
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-  console.debug(`[Storage] Pruning ${toDelete} old Operation matches, keeping ${pruned.length}`)
-  writeJSON(LS_OPERATION.matches, pruned)
-  operationMatchesCache = pruned
-  return true
-}
 
 /* -------------------------------------------------
    Migration: ATB Capture/Pirate → CTF
@@ -5308,14 +4895,12 @@ export function migrateATBCaptureMatchesToCTF(): void {
   }
 
   if (removeFromATB.length > 0) {
-    // CTF-Matches speichern
+    // CTF-Matches im Cache speichern
     ctfMatchesCache = ctfMatches
-    writeJSONSafe(LS_CTF.matches, ctfMatches, () => pruneAllOldMatches())
 
-    // Migrierte + unbeendete Matches aus ATB-Storage entfernen
+    // Migrierte + unbeendete Matches aus ATB-Cache entfernen
     const remainingATB = atbMatches.filter(m => !removeFromATB.includes(m.id))
     atbMatchesCache = remainingATB
-    writeJSON(LS_ATB.matches, remainingATB)
 
     console.debug(`[Migration v2] Migrated ${finishedCapture.length}, deleted ${unfinishedCapture.length} unfinished`)
   }
@@ -5375,7 +4960,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       atbMatchesCache = filtered
-      writeJSON(LS_ATB.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale ATB matches`)
     }
   }
@@ -5388,7 +4972,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       strMatchesCache = filtered
-      writeJSON(LS_STR.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale Sträußchen matches`)
     }
   }
@@ -5401,7 +4984,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       ctfMatchesCache = filtered
-      writeJSON(LS_CTF.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale CTF matches`)
     }
   }
@@ -5414,7 +4996,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       highscoreMatchesCache = filtered
-      writeJSON(LS_HIGHSCORE.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale Highscore matches`)
     }
   }
@@ -5427,7 +5008,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       shanghaiMatchesCache = filtered
-      writeJSON(LS_SHANGHAI.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale Shanghai matches`)
     }
   }
@@ -5440,7 +5020,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       killerMatchesCache = filtered
-      writeJSON(LS_KILLER_MATCHES, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale Killer matches`)
     }
   }
@@ -5453,7 +5032,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       bobs27MatchesCache = filtered
-      writeJSON(LS_BOBS27.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale Bob's 27 matches`)
     }
   }
@@ -5466,7 +5044,6 @@ export function cleanupStaleUnfinishedMatches(): void {
       const deleted = all.length - filtered.length
       totalDeleted += deleted
       operationMatchesCache = filtered
-      writeJSON(LS_OPERATION.matches, filtered)
       console.debug(`[Cleanup] Deleted ${deleted} stale Operation matches`)
     }
   }
@@ -5493,15 +5070,13 @@ import {
 } from './dartsHighscore'
 
 const LS_HIGHSCORE = {
-  matches: 'highscore.matches.v1',
   lastOpenMatchId: 'highscore.lastOpenMatchId.v1',
 } as const
 
 let highscoreMatchesCache: HighscoreStoredMatch[] | null = null
 
 export function getHighscoreMatches(): HighscoreStoredMatch[] {
-  if (highscoreMatchesCache) return highscoreMatchesCache
-  return readJSON<HighscoreStoredMatch[]>(LS_HIGHSCORE.matches, [])
+  return highscoreMatchesCache ?? []
 }
 
 export function getHighscoreMatchById(matchId: string): HighscoreStoredMatch | null {
@@ -5553,7 +5128,7 @@ export function createHighscoreMatchShell(args: {
   const all = getHighscoreMatches()
   all.push(stored)
   highscoreMatchesCache = all
-  writeJSONSafe(LS_HIGHSCORE.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   const dbMatch: DBHighscoreMatch = {
@@ -5582,7 +5157,7 @@ export function persistHighscoreEvents(matchId: string, events: HighscoreEvent[]
 
   all[idx].events = events
   highscoreMatchesCache = all
-  writeJSONSafe(LS_HIGHSCORE.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbUpdateHighscoreEvents(matchId, events as any[]).catch(err => trackDBError('highscore-events', matchId, err))
@@ -5608,7 +5183,7 @@ export function finishHighscoreMatch(
   if (legWins) all[idx].legWins = legWins
   if (setWins) all[idx].setWins = setWins
   highscoreMatchesCache = all
-  writeJSONSafe(LS_HIGHSCORE.matches, all, () => pruneAllOldMatches())
+
 
   // SQLite Dual-Write
   dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins)
@@ -5619,27 +5194,11 @@ export function deleteHighscoreMatch(matchId: string) {
   const all = getHighscoreMatches()
   const filtered = all.filter(m => m.id !== matchId)
   highscoreMatchesCache = filtered
-  writeJSONSafe(LS_HIGHSCORE.matches, filtered)
+
   clearMatchPaused(matchId, 'highscore')
   clearMatchElapsedTime(matchId, 'highscore')
 }
 
-/**
- * Löscht die ältesten Highscore-Matches um Speicherplatz freizugeben.
- */
-export function pruneOldHighscoreMatches(keepCount: number = 50): boolean {
-  const all = getHighscoreMatches()
-  if (all.length <= keepCount) return false
-
-  all.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
-  const toDelete = all.length - keepCount
-  const pruned = all.slice(toDelete)
-
-  console.debug(`[Storage] Pruning ${toDelete} old Highscore matches, keeping ${pruned.length}`)
-  writeJSON(LS_HIGHSCORE.matches, pruned)
-  highscoreMatchesCache = pruned
-  return true
-}
 
 // ============================================================
 // Spielerfarben-Hintergrund Einstellung

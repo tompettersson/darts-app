@@ -3,6 +3,7 @@
 // Styling komplett via game.css
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { showToast } from '../components/Toast'
 import { useTheme } from '../ThemeProvider'
 import {
   loadMatchById,
@@ -71,6 +72,7 @@ import {
 } from '../speech'
 import ConnectionBadge from '../multiplayer/ConnectionBadge'
 import X01EndScreen from '../components/X01EndScreen'
+import MiniSparkline from '../components/MiniSparkline'
 import CelebrationEffect from '../components/CelebrationEffect'
 import './game.css'
 
@@ -213,6 +215,7 @@ function PlayerTurnCard({
   sets,
   showSets,
   threeDartAvg,
+  recentScores,
 }: {
   name: string
   color?: string
@@ -226,6 +229,7 @@ function PlayerTurnCard({
   sets: number
   showSets: boolean
   threeDartAvg: number
+  recentScores?: number[]
 }) {
   const isBustFlash = flashLabel === 'BUST'
 
@@ -340,14 +344,17 @@ function PlayerTurnCard({
               {v ?? '—'}
             </div>
           ))}
-          {/* Score + Average unter den Würfen */}
-          <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12 }}>
+          {/* Score + Average + Sparkline unter den Würfen */}
+          <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, alignItems: 'center' }}>
             <span style={{ color: '#6b7280' }}>
               Score: <b style={{ color: '#0f172a' }}>{cur.filter(v => v !== null).reduce((a, b) => a + (b ?? 0), 0)}</b>
             </span>
             <span style={{ color: '#6b7280' }}>
               Avg: <b style={{ color: '#0f172a' }}>{threeDartAvg.toFixed(1)}</b>
             </span>
+            {recentScores && recentScores.length >= 2 && (
+              <MiniSparkline values={recentScores} color={activeColor} width={60} height={20} />
+            )}
           </div>
         </div>
 
@@ -698,7 +705,7 @@ type Props = {
   multiplayer?: MultiplayerProps
 }
 
-export default function Game({ matchId, onExit, multiplayer }: Props) {
+export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props) {
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 
@@ -1548,6 +1555,27 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         }
       }
 
+      // Bestmarken-Benachrichtigungen (persönliche Rekorde)
+      if (!isBust && visitScore > 0) {
+        const playerName = match.players.find(p => p.playerId === activePlayerId)?.name ?? ''
+        const prevVisits = events.filter((e): e is VisitAdded => isVisitAdded(e) && e.playerId === activePlayerId)
+        const prevBest = prevVisits.length > 0 ? Math.max(...prevVisits.map(v => v.visitScore ?? 0)) : 0
+
+        if (visitScore === 180 && !prevVisits.some(v => (v.visitScore ?? 0) === 180)) {
+          showToast(`${playerName}: Erste 180 im Match!`, 'success')
+        } else if (visitScore >= 140 && visitScore > prevBest) {
+          showToast(`${playerName}: Neuer Match-Bestwurf \u2014 ${visitScore}!`, 'success')
+        } else if (visitScore >= 100 && prevVisits.length > 0 && !prevVisits.some(v => (v.visitScore ?? 0) >= 100)) {
+          showToast(`${playerName}: Erste Ton+ im Match!`, 'info')
+        }
+
+        // High Checkout Toast (100+)
+        const lastEvt = newEvents[newEvents.length - 1]
+        if (isVisitAdded(lastEvt) && lastEvt.finishingDartSeq && (lastEvt.remainingBefore ?? 0) >= 100) {
+          showToast(`${playerName}: ${lastEvt.remainingBefore}er Checkout!`, 'success')
+        }
+      }
+
       doPersist(newEvents)
       setCurrent([])
     } catch (err) {
@@ -1665,6 +1693,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
         isSets={!!isSets}
         playerColors={playerColors}
         onExit={onExit}
+        onRematch={onNewGame}
         isArcade={isArcade}
         c={colors}
       />
@@ -1691,7 +1720,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
     : {}
 
   return (
-    <div className="g-page" style={backgroundStyle}>
+    <div className="g-page" style={{ ...backgroundStyle, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Celebration Effect (Confetti) */}
       {celebration && (
         <CelebrationEffect
@@ -1784,7 +1813,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
 
       {/* Spieler-Karten / Arcade View */}
       {!isArcade ? (
-        <>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div className="g-grid">
             {match.players.map((p) => {
               const isActive = p.playerId === activePlayerId
@@ -1807,6 +1836,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
               const lastVisit = lastVisitByPlayer[p.playerId] ?? derivedVisit
 
               const flashLabel = flashByPlayer[p.playerId] ?? null
+              const recentScores = leg.visits.filter(v => v.playerId === p.playerId).slice(-10).map(v => v.visitScore)
 
               return (
                 <PlayerTurnCard
@@ -1823,6 +1853,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
                   sets={playerSets}
                   showSets={isSets}
                   threeDartAvg={avg}
+                  recentScores={recentScores}
                 />
               )
             })}
@@ -1831,12 +1862,13 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
           {/* Score Progression Chart */}
           {chartData && (
             <div style={{
-              marginTop: 12,
-              marginBottom: 12,
+              marginTop: 8,
               borderRadius: 12,
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              height: 160,
+              flex: 1,
+              minHeight: 80,
+              maxHeight: 180,
             }}>
               <ScoreProgressionChart
                 startScore={chartData.startScore}
@@ -1860,9 +1892,9 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
             </div>
           )}
           <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} />
-        </>
+        </div>
       ) : (
-        <>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {/* Arcade View */}
           {(() => {
             const arcadePlayers = match.players.map((p) => {
@@ -2136,7 +2168,7 @@ export default function Game({ matchId, onExit, multiplayer }: Props) {
               </div>
             )
           })()}
-        </>
+        </div>
       )}
 
       {/* Manuelle Steuerung - nur im Classic-Modus */}

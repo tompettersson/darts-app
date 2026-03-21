@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { ThemeColors } from '../theme'
 
 export type PickerItem = {
@@ -7,6 +7,7 @@ export type PickerItem = {
   label: string
   sub: string
   accentColor?: string
+  icon?: ReactNode
 }
 
 type Props = {
@@ -133,6 +134,7 @@ export default function ArcadeScrollPicker({ items, selectedIndex, onChange, onC
     width: 'min(480px, 92vw)',
     margin: '0 auto',
     touchAction: 'none',
+    outline: 'none',
   }
 
   // Gradient overlays for fade effect
@@ -184,23 +186,37 @@ export default function ArcadeScrollPicker({ items, selectedIndex, onChange, onC
           aria-label={`${item.label}: ${item.sub}`}
         >
           <div style={{
-            fontWeight: 700,
-            fontSize: i === selectedIndex ? 20 : 16,
-            lineHeight: 1.3,
-            color: i === selectedIndex ? colors.accent : colors.fg,
-            transition: 'font-size 0.35s ease, color 0.35s ease',
-            marginBottom: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            justifyContent: item.icon ? 'flex-start' : 'center',
           }}>
-            {item.label}
-          </div>
-          <div style={{
-            fontSize: 12,
-            lineHeight: 1.4,
-            color: colors.fgMuted,
-            opacity: i === selectedIndex ? 1 : 0.7,
-            transition: 'opacity 0.35s ease',
-          }}>
-            {item.sub}
+            {item.icon && (
+              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                {item.icon}
+              </div>
+            )}
+            <div style={{ textAlign: item.icon ? 'left' : 'center', flex: 1 }}>
+              <div style={{
+                fontWeight: 700,
+                fontSize: i === selectedIndex ? 20 : 16,
+                lineHeight: 1.3,
+                color: i === selectedIndex ? colors.accent : colors.fg,
+                transition: 'font-size 0.35s ease, color 0.35s ease',
+                marginBottom: 4,
+              }}>
+                {item.label}
+              </div>
+              <div style={{
+                fontSize: 12,
+                lineHeight: 1.4,
+                color: colors.fgMuted,
+                opacity: i === selectedIndex ? 1 : 0.7,
+                transition: 'opacity 0.35s ease',
+              }}>
+                {item.sub}
+              </div>
+            </div>
           </div>
         </div>
       ))}

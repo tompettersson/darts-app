@@ -157,8 +157,9 @@ export async function getDoubleSuccessPerField(playerId: string): Promise<Double
       // double_field format: "D20", "D16", "DBULL"
       const field = fd.double_field === 'DBULL' ? 'BULL' : fd.double_field.replace(/^D/, '')
       if (!doubles[field]) doubles[field] = { attempts: 0, hits: 0 }
-      // Finishing doubles are successes — add to hits
+      // Finishing doubles sind Erfolge — als Hits UND Attempts zählen
       doubles[field].hits += fd.count
+      doubles[field].attempts += fd.count
     }
 
     // --- Bob's 27: Each round targets a specific double ---
@@ -1315,5 +1316,155 @@ export async function getBobs27X01DoubleCorrelation(playerId: string): Promise<D
   } catch (e) {
     console.warn('[Stats] getBobs27X01DoubleCorrelation failed:', e)
     return []
+  }
+}
+
+// ============================================================================
+// Head-to-Head Detailed (Player vs Opponent)
+// ============================================================================
+
+export type HeadToHeadDetailed = {
+  totalMatches: number
+  playerWins: number
+  opponentWins: number
+  playerAvgScore: number | null  // X01 3-dart avg
+  opponentAvgScore: number | null
+  playerBestCheckout: number | null
+  opponentBestCheckout: number | null
+}
+
+/**
+ * Detaillierter Head-to-Head-Vergleich zwischen zwei Spielern (X01-fokussiert).
+ */
+export async function getHeadToHead(playerId: string, opponentId: string): Promise<HeadToHeadDetailed> {
+  try {
+    // Find X01 matches where both players participated
+    const x01Matches = await query<{ match_id: string; winner_id: string | null }>(`
+      SELECT m.id as match_id,
+        (SELECT json_extract(e.data, '$.winnerPlayerId') FROM x01_events e
+         WHERE e.match_id = m.id AND e.type = 'MatchFinished' LIMIT 1) as winner_id
+      FROM x01_matches m
+      JOIN x01_match_players mp1 ON mp1.match_id = m.id AND mp1.player_id = ?
+      JOIN x01_match_players mp2 ON mp2.match_id = m.id AND mp2.player_id = ?
+      WHERE m.finished = 1
+    `, [playerId, opponentId])
+
+    let totalMatches = x01Matches.length
+    let playerWins = 0
+    let opponentWins = 0
+
+    for (const m of x01Matches) {
+      if (m.winner_id === playerId) playerWins++
+      else if (m.winner_id === opponentId) opponentWins++
+    }
+
+    // Also count non-X01 modes
+    const directWinModes = ['cricket', 'atb', 'ctf', 'str', 'highscore', 'shanghai', 'killer', 'bobs27', 'operation'] as const
+    for (const mode of directWinModes) {
+      try {
+        let modeResult: { matches: number; p_wins: number; o_wins: number } | null = null
+        if (mode === 'cricket') {
+          modeResult = await queryOne<{ matches: number; p_wins: number; o_wins: number }>(`
+            SELECT COUNT(*) as matches,
+              COALESCE(SUM(CASE WHEN (
+                SELECT json_extract(e.data, '$.winnerPlayerId') FROM cricket_events e
+                WHERE e.match_id = m.id AND e.type = 'CricketMatchFinished' LIMIT 1
+              ) = ? THEN 1 ELSE 0 END), 0) as p_wins,
+              COALESCE(SUM(CASE WHEN (
+                SELECT json_extract(e.data, '$.winnerPlayerId') FROM cricket_events e
+                WHERE e.match_id = m.id AND e.type = 'CricketMatchFinished' LIMIT 1
+              ) = ? THEN 1 ELSE 0 END), 0) as o_wins
+            FROM cricket_matches m
+            JOIN cricket_match_players mp1 ON mp1.match_id = m.id AND mp1.player_id = ?
+            JOIN cricket_match_players mp2 ON mp2.match_id = m.id AND mp2.player_id = ?
+            WHERE m.finished = 1
+          `, [playerId, opponentId, playerId, opponentId])
+        } else {
+          modeResult = await queryOne<{ matches: number; p_wins: number; o_wins: number }>(`
+            SELECT COUNT(*) as matches,
+              SUM(CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END) as p_wins,
+              SUM(CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END) as o_wins
+            FROM ${mode}_matches m
+            JOIN ${mode}_match_players mp1 ON mp1.match_id = m.id AND mp1.player_id = ?
+            JOIN ${mode}_match_players mp2 ON mp2.match_id = m.id AND mp2.player_id = ?
+            WHERE m.finished = 1
+          `, [playerId, opponentId, playerId, opponentId])
+        }
+        if (modeResult && modeResult.matches > 0) {
+          totalMatches += modeResult.matches
+          playerWins += modeResult.p_wins
+          opponentWins += modeResult.o_wins
+        }
+      } catch { /* table might not exist */ }
+    }
+
+    if (totalMatches === 0) {
+      return {
+        totalMatches: 0, playerWins: 0, opponentWins: 0,
+        playerAvgScore: null, opponentAvgScore: null,
+        playerBestCheckout: null, opponentBestCheckout: null,
+      }
+    }
+
+    // X01 averages for both players in shared matches
+    const matchIds = x01Matches.map(m => m.match_id)
+    let playerAvg: number | null = null
+    let opponentAvg: number | null = null
+    let playerBestCo: number | null = null
+    let opponentBestCo: number | null = null
+
+    if (matchIds.length > 0) {
+      const placeholders = matchIds.map(() => '?').join(',')
+
+      const playerStats = await queryOne<{ avg_score: number; best_checkout: number | null }>(`
+        SELECT
+          AVG(
+            CAST(json_extract(e.data, '$.visitScore') AS REAL) /
+            NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+          ) as avg_score,
+          MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+            THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE NULL END) as best_checkout
+        FROM x01_events e
+        WHERE e.type = 'VisitAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+          AND e.match_id IN (${placeholders})
+      `, [playerId, ...matchIds]).catch(() => null)
+
+      const oppStats = await queryOne<{ avg_score: number; best_checkout: number | null }>(`
+        SELECT
+          AVG(
+            CAST(json_extract(e.data, '$.visitScore') AS REAL) /
+            NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+          ) as avg_score,
+          MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+            THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE NULL END) as best_checkout
+        FROM x01_events e
+        WHERE e.type = 'VisitAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+          AND e.match_id IN (${placeholders})
+      `, [opponentId, ...matchIds]).catch(() => null)
+
+      playerAvg = playerStats?.avg_score ? Math.round(playerStats.avg_score * 100) / 100 : null
+      opponentAvg = oppStats?.avg_score ? Math.round(oppStats.avg_score * 100) / 100 : null
+      playerBestCo = playerStats?.best_checkout ?? null
+      opponentBestCo = oppStats?.best_checkout ?? null
+    }
+
+    return {
+      totalMatches,
+      playerWins,
+      opponentWins,
+      playerAvgScore: playerAvg,
+      opponentAvgScore: opponentAvg,
+      playerBestCheckout: playerBestCo,
+      opponentBestCheckout: opponentBestCo,
+    }
+  } catch (e) {
+    console.warn('[Stats] getHeadToHead failed:', e)
+    return {
+      totalMatches: 0, playerWins: 0, opponentWins: 0,
+      playerAvgScore: null, opponentAvgScore: null,
+      playerBestCheckout: null, opponentBestCheckout: null,
+    }
   }
 }

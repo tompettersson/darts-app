@@ -1352,28 +1352,19 @@ export function computeCricketWasteDarts(
 // CRICKET LANGZEIT-STATS MANAGEMENT
 // ============================================================
 
-const LS_CRICKET_PLAYERSTATS = 'cricket.playerStats.v1'
-
-function readJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return fallback
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
-}
-
-function writeJSON<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value))
-}
+// In-Memory Cache für Cricket Langzeit-Stats (wird beim App-Start aus SQLite befüllt)
+let cricketPlayerStatsCache: Record<string, CricketPlayerLongTermStats> = {}
 
 export function loadCricketPlayerStatsStore(): Record<string, CricketPlayerLongTermStats> {
-  return readJSON<Record<string, CricketPlayerLongTermStats>>(LS_CRICKET_PLAYERSTATS, {})
+  return cricketPlayerStatsCache
 }
 
 export function saveCricketPlayerStatsStore(store: Record<string, CricketPlayerLongTermStats>) {
-  writeJSON(LS_CRICKET_PLAYERSTATS, store)
+  cricketPlayerStatsCache = store
+}
+
+export function warmCricketPlayerStatsCache(data: Record<string, CricketPlayerLongTermStats>) {
+  cricketPlayerStatsCache = data
 }
 
 export function getGlobalCricketPlayerStats(): Record<string, CricketPlayerLongTermStats> {

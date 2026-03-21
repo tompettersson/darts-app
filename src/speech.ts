@@ -295,7 +295,6 @@ let debouncedTimer: ReturnType<typeof setTimeout> | null = null
 
 export function debouncedAnnounce(fn: () => void, delayMs = 350) {
   if (debouncedTimer) clearTimeout(debouncedTimer)
-  cancelPendingSpeech()
   debouncedTimer = setTimeout(() => {
     debouncedTimer = null
     fn()

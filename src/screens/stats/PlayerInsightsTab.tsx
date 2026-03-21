@@ -1,24 +1,24 @@
 // src/screens/stats/PlayerInsightsTab.tsx
 // Cross-Game Spieler-Insights: Profil, Feldanalyse, Head-to-Head, Meilensteine, Tagesform
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useTheme } from '../../ThemeProvider'
 import type { SQLStatsData } from '../../hooks/useSQLStats'
 import GaugeChart from '../../components/charts/GaugeChart'
 import BarChart from '../../components/charts/BarChart'
+import { getHeadToHead, type HeadToHeadDetailed } from '../../db/stats/player-insights'
 
 type Props = {
   playerId: string
   data: SQLStatsData
 }
 
-type SubTab = 'profil' | 'felder' | 'h2h' | 'meilensteine' | 'tagesform'
+type SubTab = 'profil' | 'felder' | 'h2h' | 'tagesform'
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: 'profil', label: 'Profil' },
   { key: 'felder', label: 'Feldanalyse' },
   { key: 'h2h', label: 'Head-to-Head' },
-  { key: 'meilensteine', label: 'Meilensteine' },
   { key: 'tagesform', label: 'Tagesform' },
 ]
 
@@ -61,7 +61,6 @@ export default function PlayerInsightsTab({ playerId, data }: Props) {
       {subTab === 'profil' && <ProfilTab data={data} colors={colors} />}
       {subTab === 'felder' && <FeldanalyseTab data={data} colors={colors} />}
       {subTab === 'h2h' && <HeadToHeadTab data={data} playerId={playerId} colors={colors} />}
-      {subTab === 'meilensteine' && <MeilensteineTab data={data} colors={colors} />}
       {subTab === 'tagesform' && <TagesformTab data={data} colors={colors} />}
     </div>
   )
@@ -143,11 +142,12 @@ function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
       : 50)) : 0
     const bulls = data.segmentAccuracy.find(s => s.field === 25)
     const bullScore = bulls ? Math.min(100, bulls.hitRate * 3) : 0
-    const trebles = data.trebleRates
-    const avgTreble = trebles.length > 0
-      ? trebles.reduce((sum, t) => sum + t.hitRate, 0) / trebles.length
+    // Triple-Score basierend auf Ton-Rate (100+ Aufnahmen / Gesamtaufnahmen)
+    // trebleRates sind unzuverlässig ohne Aim-Tracking (hitRate = 100% weil nur Treffer gezählt werden)
+    const totalVisits = x01 ? Math.max(1, Math.floor(x01.totalDarts / 3)) : 0
+    const tripleScore = x01 && totalVisits > 0
+      ? Math.min(100, (x01.count100plus / totalVisits) * 300)
       : 0
-    const tripleScore = Math.min(100, avgTreble * 4)
     const clutchScore = clutch ? Math.min(100, clutch.clutchRate * 2.5) : 0
 
     return {
@@ -602,8 +602,25 @@ function FeldanalyseTab({ data, colors }: { data: SQLStatsData; colors: any }) {
 function HeadToHeadTab({ data, playerId, colors }: { data: SQLStatsData; playerId: string; colors: any }) {
   const h2hList = data.crossGameH2H ?? []
   const [selectedOpponent, setSelectedOpponent] = useState<string | null>(null)
+  const [h2hDetail, setH2hDetail] = useState<HeadToHeadDetailed | null>(null)
+  const [h2hLoading, setH2hLoading] = useState(false)
 
   const opponent = h2hList.find(h => h.opponentId === selectedOpponent)
+
+  // Load detailed H2H stats when opponent changes
+  useEffect(() => {
+    if (!selectedOpponent) {
+      setH2hDetail(null)
+      return
+    }
+    let cancelled = false
+    setH2hLoading(true)
+    getHeadToHead(playerId, selectedOpponent)
+      .then(result => { if (!cancelled) setH2hDetail(result) })
+      .catch(() => { if (!cancelled) setH2hDetail(null) })
+      .finally(() => { if (!cancelled) setH2hLoading(false) })
+    return () => { cancelled = true }
+  }, [playerId, selectedOpponent])
 
   if (h2hList.length === 0) {
     return <NoData colors={colors} text="Keine Head-to-Head-Daten vorhanden. Spiele gegen andere Spieler!" />
@@ -662,6 +679,55 @@ function HeadToHeadTab({ data, playerId, colors }: { data: SQLStatsData; playerI
             </div>
           </Section>
 
+          {/* Detailed X01 Comparison */}
+          {h2hLoading && (
+            <div style={{ padding: 16, textAlign: 'center', color: colors.fgDim, fontSize: 13 }}>Lade Details...</div>
+          )}
+          {h2hDetail && !h2hLoading && (h2hDetail.playerAvgScore != null || h2hDetail.playerBestCheckout != null) && (
+            <Section title="X01-Vergleich" colors={colors}>
+              <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 10 }}>
+                Statistiken aus gemeinsamen X01-Matches
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', color: colors.fgDim, fontWeight: 600 }}>Statistik</th>
+                    <th style={{ textAlign: 'right', padding: '6px 8px', color: '#22c55e', fontWeight: 600 }}>Du</th>
+                    <th style={{ textAlign: 'right', padding: '6px 8px', color: '#ef4444', fontWeight: 600 }}>{opponent.opponentName}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {h2hDetail.playerAvgScore != null && h2hDetail.opponentAvgScore != null && (
+                    <tr style={{ borderBottom: `1px solid ${colors.border}22` }}>
+                      <td style={{ padding: '6px 8px', color: colors.fg }}>3-Dart-Average</td>
+                      <td style={{
+                        textAlign: 'right', padding: '6px 8px', fontWeight: 700,
+                        color: h2hDetail.playerAvgScore >= h2hDetail.opponentAvgScore ? '#22c55e' : colors.fg,
+                      }}>{h2hDetail.playerAvgScore.toFixed(1)}</td>
+                      <td style={{
+                        textAlign: 'right', padding: '6px 8px', fontWeight: 700,
+                        color: h2hDetail.opponentAvgScore > h2hDetail.playerAvgScore ? '#ef4444' : colors.fg,
+                      }}>{h2hDetail.opponentAvgScore.toFixed(1)}</td>
+                    </tr>
+                  )}
+                  {h2hDetail.playerBestCheckout != null && h2hDetail.opponentBestCheckout != null && (
+                    <tr style={{ borderBottom: `1px solid ${colors.border}22` }}>
+                      <td style={{ padding: '6px 8px', color: colors.fg }}>Bester Checkout</td>
+                      <td style={{
+                        textAlign: 'right', padding: '6px 8px', fontWeight: 700,
+                        color: h2hDetail.playerBestCheckout >= (h2hDetail.opponentBestCheckout ?? 0) ? '#22c55e' : colors.fg,
+                      }}>{h2hDetail.playerBestCheckout}</td>
+                      <td style={{
+                        textAlign: 'right', padding: '6px 8px', fontWeight: 700,
+                        color: (h2hDetail.opponentBestCheckout ?? 0) > h2hDetail.playerBestCheckout ? '#ef4444' : colors.fg,
+                      }}>{h2hDetail.opponentBestCheckout ?? '-'}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Section>
+          )}
+
           {/* Per-Mode Breakdown */}
           {opponent.modes && opponent.modes.length > 0 && (
             <Section title="Bilanz pro Spielmodus" colors={colors}>
@@ -700,297 +766,7 @@ function HeadToHeadTab({ data, playerId, colors }: { data: SQLStatsData; playerI
 }
 
 // ============================================================================
-// SUB-TAB 4: MEILENSTEINE (Enhanced Milestones with Icons + Progress Bars)
-// ============================================================================
-
-type MilestoneCategory = 'scoring' | 'finishing' | 'consistency' | 'endurance'
-
-interface MilestoneItem {
-  id: string
-  title: string
-  description: string
-  category: MilestoneCategory
-  unlocked: boolean
-  unlockedAt?: string
-  progress: number  // 0-1
-  value?: number
-  target?: number
-}
-
-const CATEGORY_ICONS: Record<MilestoneCategory, string> = {
-  scoring: '\u2605',     // filled star
-  finishing: '\u25C6',   // diamond
-  consistency: '\u25CF', // circle
-  endurance: '\u25B2',   // triangle
-}
-
-function MeilensteineTab({ data, colors }: { data: SQLStatsData; colors: any }) {
-  const achievements = data.fullAchievements ?? []
-
-  // Map achievements to milestones
-  const milestones: MilestoneItem[] = useMemo(() => {
-    if (achievements.length === 0) return getDefaultMilestones(data)
-    return achievements.map(a => ({
-      id: a.id,
-      title: a.title,
-      description: a.description,
-      category: mapCategory(a.category),
-      unlocked: a.unlocked,
-      unlockedAt: a.unlockedDate,
-      progress: a.progress ?? (a.unlocked ? 1 : 0),
-      value: a.value,
-      target: a.target,
-    }))
-  }, [achievements, data])
-
-  const unlocked = milestones.filter(m => m.unlocked)
-  const locked = milestones.filter(m => !m.unlocked)
-
-  const categoryLabels: Record<MilestoneCategory, string> = {
-    scoring: 'Scoring',
-    finishing: 'Finishing',
-    consistency: 'Konstanz',
-    endurance: 'Ausdauer',
-  }
-  const categoryColors: Record<MilestoneCategory, string> = {
-    scoring: '#3b82f6',
-    finishing: '#22c55e',
-    consistency: '#a855f7',
-    endurance: '#f59e0b',
-  }
-
-  if (milestones.length === 0) {
-    return <NoData colors={colors} text="Noch keine Meilensteine verfuegbar." />
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {/* Progress overview */}
-      <Section title="Fortschritt" colors={colors}>
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 32, fontWeight: 800, color: colors.accent }}>{unlocked.length}</div>
-          <div style={{ fontSize: 13, color: colors.fgDim }}>von {milestones.length} Meilensteinen erreicht</div>
-        </div>
-        {milestones.length > 0 && (
-          <div style={{ height: 10, background: colors.bgDim, borderRadius: 5, overflow: 'hidden' }}>
-            <div style={{
-              width: `${(unlocked.length / milestones.length) * 100}%`,
-              height: '100%', background: `linear-gradient(90deg, ${colors.accent}, #22c55e)`, borderRadius: 5,
-              transition: 'width 0.5s ease',
-            }} />
-          </div>
-        )}
-
-        {/* Category breakdown */}
-        <div style={{
-          display: 'flex', justifyContent: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap',
-        }}>
-          {(Object.keys(categoryLabels) as MilestoneCategory[]).map(cat => {
-            const total = milestones.filter(m => m.category === cat).length
-            const done = milestones.filter(m => m.category === cat && m.unlocked).length
-            if (total === 0) return null
-            return (
-              <div key={cat} style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                fontSize: 11, color: colors.fgDim,
-              }}>
-                <span style={{ color: categoryColors[cat], fontSize: 14 }}>
-                  {CATEGORY_ICONS[cat]}
-                </span>
-                <span style={{ fontWeight: 600, color: categoryColors[cat] }}>
-                  {categoryLabels[cat]}
-                </span>
-                <span>{done}/{total}</span>
-              </div>
-            )
-          })}
-        </div>
-      </Section>
-
-      {/* Unlocked milestones timeline */}
-      {unlocked.length > 0 && (
-        <Section title="Erreichte Meilensteine" colors={colors}>
-          <div style={{ position: 'relative', paddingLeft: 28 }}>
-            {/* Vertical line */}
-            <div style={{
-              position: 'absolute', left: 10, top: 8, bottom: 8,
-              width: 2, background: colors.border,
-            }} />
-            {unlocked.map((m, i) => (
-              <div key={m.id} style={{
-                position: 'relative', paddingBottom: i < unlocked.length - 1 ? 16 : 0,
-              }}>
-                {/* Icon on timeline */}
-                <div style={{
-                  position: 'absolute', left: -24, top: 2,
-                  width: 20, height: 20, borderRadius: '50%',
-                  background: categoryColors[m.category],
-                  border: `2px solid ${colors.bgCard}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, color: '#fff', fontWeight: 700,
-                }}>
-                  {'\u2713'}
-                </div>
-                <div style={{ paddingLeft: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ color: categoryColors[m.category], fontSize: 14 }}>
-                      {CATEGORY_ICONS[m.category]}
-                    </span>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: colors.fg }}>{m.title}</span>
-                    <span style={{
-                      fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                      background: categoryColors[m.category] + '22',
-                      color: categoryColors[m.category],
-                    }}>{categoryLabels[m.category]}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: colors.fgDim, marginTop: 2 }}>{m.description}</div>
-                  {m.unlockedAt && (
-                    <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 2 }}>
-                      {new Date(m.unlockedAt).toLocaleDateString('de-DE')}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* Locked milestones with progress bars */}
-      {locked.length > 0 && (
-        <Section title="Noch offen" colors={colors}>
-          {locked.map(m => {
-            const progressPct = Math.min(100, m.progress * 100)
-            return (
-              <div key={m.id} style={{
-                padding: '10px 12px', borderRadius: 8, marginBottom: 6,
-                background: colors.bgDim,
-                border: `1px solid ${colors.border}`,
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-              }}>
-                {/* Category icon */}
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: categoryColors[m.category] + '18',
-                  color: categoryColors[m.category], fontSize: 16,
-                }}>
-                  {CATEGORY_ICONS[m.category]}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13, color: colors.fg }}>{m.title}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.fgDim, marginTop: 1 }}>{m.description}</div>
-                  {/* Progress bar */}
-                  <div style={{ marginTop: 6 }}>
-                    <div style={{
-                      height: 6, background: colors.border, borderRadius: 3, overflow: 'hidden',
-                      position: 'relative',
-                    }}>
-                      <div style={{
-                        width: `${progressPct}%`,
-                        height: '100%',
-                        background: progressPct >= 80
-                          ? `linear-gradient(90deg, ${categoryColors[m.category]}, #22c55e)`
-                          : categoryColors[m.category],
-                        borderRadius: 3,
-                        transition: 'width 0.4s ease',
-                      }} />
-                    </div>
-                    <div style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      fontSize: 10, color: colors.fgDim, marginTop: 3,
-                    }}>
-                      <span>
-                        {m.value != null && m.target != null
-                          ? `${m.value} / ${m.target}`
-                          : `${progressPct.toFixed(0)}%`}
-                      </span>
-                      <span style={{
-                        fontWeight: 600,
-                        color: progressPct >= 80 ? '#22c55e' : progressPct >= 50 ? '#f59e0b' : colors.fgDim,
-                      }}>
-                        {progressPct >= 80 ? 'Fast geschafft!' : progressPct >= 50 ? 'Auf gutem Weg' : ''}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </Section>
-      )}
-    </div>
-  )
-}
-
-function mapCategory(cat: string): MilestoneCategory {
-  if (cat === 'rare' || cat === 'skill') return 'scoring'
-  if (cat === 'dedication') return 'endurance'
-  if (cat === 'milestone') return 'consistency'
-  return 'scoring'
-}
-
-function getDefaultMilestones(data: SQLStatsData): MilestoneItem[] {
-  const x01 = data.x01
-  const dashboard = data.crossGameDashboard
-  const milestones: MilestoneItem[] = []
-
-  // Scoring milestones
-  const totalMatches = dashboard?.totalMatchesAllModes ?? 0
-  const matchTargets = [10, 50, 100, 250, 500]
-  for (const t of matchTargets) {
-    milestones.push({
-      id: `matches-${t}`,
-      title: `${t} Matches`,
-      description: `Spiele ${t} Matches`,
-      category: 'endurance',
-      unlocked: totalMatches >= t,
-      progress: Math.min(1, totalMatches / t),
-      value: totalMatches,
-      target: t,
-    })
-  }
-
-  // Scoring milestones (X01)
-  if (x01) {
-    const avg = x01.threeDartAvg
-    const avgTargets = [30, 40, 50, 60, 70]
-    for (const t of avgTargets) {
-      milestones.push({
-        id: `avg-${t}`,
-        title: `${t}er Average`,
-        description: `Erreiche einen 3-Dart-Average von ${t}+`,
-        category: 'scoring',
-        unlocked: avg >= t,
-        progress: Math.min(1, avg / t),
-        value: Math.round(avg * 10) / 10,
-        target: t,
-      })
-    }
-
-    // Finishing milestones
-    const coTargets = [20, 30, 40, 50]
-    for (const t of coTargets) {
-      milestones.push({
-        id: `checkout-${t}`,
-        title: `${t}% Checkout`,
-        description: `Checkout-Quote von ${t}%+`,
-        category: 'finishing',
-        unlocked: x01.checkoutPercent >= t,
-        progress: Math.min(1, x01.checkoutPercent / t),
-        value: Math.round(x01.checkoutPercent * 10) / 10,
-        target: t,
-      })
-    }
-  }
-
-  return milestones
-}
-
-// ============================================================================
-// SUB-TAB 5: TAGESFORM (Time Insights with BarChart)
+// SUB-TAB 4: TAGESFORM (Time Insights with BarChart)
 // ============================================================================
 
 function TagesformTab({ data, colors }: { data: SQLStatsData; colors: any }) {

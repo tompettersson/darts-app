@@ -76,8 +76,8 @@ export const themeColors = {
 
     // Foregrounds
     fg: '#e5e7eb',
-    fgMuted: '#9ca3af',
-    fgDim: '#6b7280',
+    fgMuted: '#b0b8c4',
+    fgDim: '#8b95a3',
 
     // Borders
     border: '#2a2a2a',

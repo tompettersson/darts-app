@@ -263,7 +263,7 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                       <div style={styles.statStrong}>
                         {career3DA.toFixed(2)}
                       </div>
-                      <div style={styles.statSub}>3-Dart Ø</div>
+                      <div style={styles.statSub} title="Durchschnittliche Punkte pro 3 geworfene Darts">3-Dart Ø</div>
                     </td>
 
                     {/* First 9 */}
@@ -271,7 +271,7 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                       <div style={styles.statStrong}>
                         {(first9OverallAvg ?? 0).toFixed(2)}
                       </div>
-                      <div style={styles.statSub}>First 9 Ø</div>
+                      <div style={styles.statSub} title="Durchschnitt der ersten 9 Darts (3 Aufnahmen) pro Leg">First 9 Ø</div>
                     </td>
 
                     {/* Checkout % */}

@@ -276,7 +276,7 @@ export async function getHighestCheckouts(limit: number = 10): Promise<BestPerfo
       CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) as checkout
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
       AND m.finished = 1
@@ -320,7 +320,7 @@ export async function getBestMatchAverages(limit: number = 10): Promise<BestPerf
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id
     JOIN x01_events e ON e.match_id = m.id
-    LEFT JOIN profiles p ON p.id = mp.player_id
+    JOIN profiles p ON p.id = mp.player_id
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') = mp.player_id
       AND m.finished = 1
@@ -363,7 +363,7 @@ export async function getMost180sInMatch(limit: number = 10): Promise<BestPerfor
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id
     JOIN x01_events e ON e.match_id = m.id
-    LEFT JOIN profiles p ON p.id = mp.player_id
+    JOIN profiles p ON p.id = mp.player_id
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') = mp.player_id
       AND m.finished = 1

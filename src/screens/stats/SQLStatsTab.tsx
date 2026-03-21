@@ -21,11 +21,13 @@ import {
   getMost180sInMatch,
   getMonthlyStats,
   getAllHeadToHeadForPlayer,
+  getX01FormCurve,
   type TrendPoint,
   type QuickStats,
   type BestPerformance,
   type MonthlyStats,
   type HeadToHead,
+  type FormCurvePoint,
 } from '../../db/stats'
 import { LineChart, BarChart } from '../../components/charts'
 
@@ -65,6 +67,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
   const [bobs27MonthlyHitRate, setBobs27MonthlyHitRate] = useState<TrendPoint[]>([])
   const [operationMonthlyAvgScore, setOperationMonthlyAvgScore] = useState<TrendPoint[]>([])
   const [operationMonthlyHitRate, setOperationMonthlyHitRate] = useState<TrendPoint[]>([])
+  const [formCurve, setFormCurve] = useState<FormCurvePoint[]>([])
 
   useEffect(() => {
     async function loadData() {
@@ -77,7 +80,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
           p.catch((err) => { console.warn('SQL stats query failed:', err); return fallback })
 
         const [
-          qs, avg, co, cmpr, atbHR, ctfHR, ctfAS, strHR, hsAvg, b27Avg, b27HR, opAvg, opHR, ms, h2h, hc, ba, m180
+          qs, avg, co, cmpr, atbHR, ctfHR, ctfAS, strHR, hsAvg, b27Avg, b27HR, opAvg, opHR, ms, h2h, hc, ba, m180, fc
         ] = await Promise.all([
           safe(getQuickStats(playerId), null),
           safe(getX01MonthlyAverage(playerId), []),
@@ -97,6 +100,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
           safe(getHighestCheckouts(10), []),
           safe(getBestMatchAverages(10), []),
           safe(getMost180sInMatch(10), []),
+          safe(getX01FormCurve(playerId, 20), []),
         ])
 
         setQuickStats(qs)
@@ -117,6 +121,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
         setHighCheckouts(hc)
         setBestAverages(ba)
         setMost180s(m180)
+        setFormCurve(fc)
         setState('ready')
       } catch (err) {
         console.error('Error loading SQL stats:', err)
@@ -323,7 +328,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
 
       {/* ============ TRENDS ============ */}
       {subTab === 'trends' && (
-        <>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
           {/* Monatlicher Average Trend */}
           {monthlyAvg.length > 1 && (
             <div style={s.card}>
@@ -335,8 +340,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#3b82f6"
                     valueFormatter={(v) => v.toFixed(1)}
                   />
@@ -356,11 +361,23 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#10b981"
                     valueFormatter={(v) => `${v.toFixed(0)}%`}
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Formkurve: letzte 20 X01 Matches */}
+          {formCurve.length >= 2 && (
+            <div style={s.card}>
+              <div style={s.cardHeader as React.CSSProperties}>Formkurve (letzte {formCurve.length} X01-Matches)</div>
+              <div style={s.cardBody}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <FormCurveChart points={formCurve} width={280} height={160} />
                 </div>
               </div>
             </div>
@@ -377,8 +394,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#8b5cf6"
                     valueFormatter={(v) => v.toFixed(2)}
                   />
@@ -398,8 +415,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#f59e0b"
                     valueFormatter={(v) => `${v.toFixed(0)}%`}
                   />
@@ -419,8 +436,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#ef4444"
                     valueFormatter={(v) => `${v.toFixed(0)}%`}
                   />
@@ -440,8 +457,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#f59e0b"
                     valueFormatter={(v) => v.toFixed(0)}
                   />
@@ -461,8 +478,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#06b6d4"
                     valueFormatter={(v) => `${v.toFixed(0)}%`}
                   />
@@ -482,8 +499,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#a855f7"
                     valueFormatter={(v) => v.toFixed(0)}
                   />
@@ -503,8 +520,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#ec4899"
                     valueFormatter={(v) => v.toFixed(0)}
                   />
@@ -524,8 +541,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#f43f5e"
                     valueFormatter={(v) => `${v.toFixed(0)}%`}
                   />
@@ -545,8 +562,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#0ea5e9"
                     valueFormatter={(v) => v.toFixed(0)}
                   />
@@ -566,8 +583,8 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
                       label: formatMonth(p.month),
                       value: p.value,
                     }))}
-                    width={320}
-                    height={180}
+                    width={280}
+                    height={160}
                     color="#14b8a6"
                     valueFormatter={(v) => `${v.toFixed(0)}%`}
                   />
@@ -630,7 +647,7 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
               <small style={{ color: '#9ca3af' }}>Mindestens 2 Monate Spielhistorie benötigt.</small>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ============ HEAD-TO-HEAD ============ */}
@@ -780,5 +797,87 @@ export default function SQLStatsTab({ playerId, playerName }: Props) {
         </>
       )}
     </>
+  )
+}
+
+// ============================================================================
+// Formkurve Chart (inline SVG line chart with win/loss dots)
+// ============================================================================
+
+function FormCurveChart({ points, width, height }: {
+  points: FormCurvePoint[]
+  width: number
+  height: number
+}) {
+  if (points.length < 2) return null
+
+  const padX = 30
+  const padY = 20
+  const chartW = width - padX * 2
+  const chartH = height - padY * 2
+
+  const values = points.map(p => p.threeDartAvg)
+  const minVal = Math.floor(Math.min(...values) - 2)
+  const maxVal = Math.ceil(Math.max(...values) + 2)
+  const range = maxVal - minVal || 1
+
+  const getX = (i: number) => padX + (i / (points.length - 1)) * chartW
+  const getY = (v: number) => padY + chartH - ((v - minVal) / range) * chartH
+
+  // Build path
+  const pathD = points.map((p, i) => {
+    const x = getX(i)
+    const y = getY(p.threeDartAvg)
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+
+  // Average line
+  const avgVal = values.reduce((s, v) => s + v, 0) / values.length
+  const avgY = getY(avgVal)
+
+  // Grid lines
+  const gridLines: number[] = []
+  const step = range > 20 ? 10 : range > 10 ? 5 : 2
+  for (let v = Math.ceil(minVal / step) * step; v <= maxVal; v += step) {
+    gridLines.push(v)
+  }
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      {/* Grid */}
+      {gridLines.map(v => (
+        <g key={v}>
+          <line x1={padX} y1={getY(v)} x2={width - padX} y2={getY(v)}
+            stroke="#88888822" strokeWidth={1} />
+          <text x={padX - 4} y={getY(v)} textAnchor="end" dominantBaseline="middle"
+            fontSize={9} fill="#888">{v}</text>
+        </g>
+      ))}
+
+      {/* Average line */}
+      <line x1={padX} y1={avgY} x2={width - padX} y2={avgY}
+        stroke="#3b82f644" strokeWidth={1} strokeDasharray="4 3" />
+      <text x={width - padX + 2} y={avgY} dominantBaseline="middle"
+        fontSize={8} fill="#3b82f6">{avgVal.toFixed(1)}</text>
+
+      {/* Line */}
+      <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinejoin="round" />
+
+      {/* Dots */}
+      {points.map((p, i) => (
+        <circle key={i} cx={getX(i)} cy={getY(p.threeDartAvg)} r={4}
+          fill={p.won ? '#22c55e' : '#ef4444'}
+          stroke="#fff" strokeWidth={1.5}
+        />
+      ))}
+
+      {/* X-axis labels (first and last date) */}
+      <text x={padX} y={height - 2} fontSize={9} fill="#888" textAnchor="start">
+        {points[0].matchDate.slice(5)}
+      </text>
+      <text x={width - padX} y={height - 2} fontSize={9} fill="#888" textAnchor="end">
+        {points[points.length - 1].matchDate.slice(5)}
+      </text>
+    </svg>
   )
 }

@@ -123,6 +123,7 @@ type X01EndScreenProps = {
   isSets: boolean
   playerColors: Record<string, string>
   onExit: () => void
+  onRematch?: () => void
   isArcade: boolean
   c: Record<string, string>
 }
@@ -137,6 +138,7 @@ export default function X01EndScreen({
   isSets,
   playerColors,
   onExit,
+  onRematch,
 }: X01EndScreenProps) {
   // Spielname + Bemerkungen Eingabe im Endscreen
   const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
@@ -290,9 +292,16 @@ export default function X01EndScreen({
         <h2 className="g-title">
           {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} \u2013 beendet
         </h2>
-        <button className="g-btn" onClick={onExit}>
-          Zur\u00FCck ins Men\u00FC
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {onRematch && (
+            <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700 }}>
+              \u21BB Nochmal
+            </button>
+          )}
+          <button className="g-btn" onClick={onExit}>
+            Zur\u00FCck ins Men\u00FC
+          </button>
+        </div>
       </div>
 
       <div className="g-tableWrap">
@@ -466,7 +475,12 @@ export default function X01EndScreen({
         )}
       </div>
 
-      <div style={{ textAlign: 'right', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        {onRematch && (
+          <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700 }}>
+            \u21BB Nochmal
+          </button>
+        )}
         <button className="g-btn" onClick={onExit}>
           Zur\u00FCck ins Men\u00FC
         </button>

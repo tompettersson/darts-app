@@ -665,7 +665,7 @@ export type Achievement = {
   id: string
   title: string
   description: string
-  category: 'milestone' | 'rare' | 'skill' | 'dedication'
+  category: 'milestone' | 'rare' | 'skill' | 'cricket' | 'vielseitigkeit'
   unlocked: boolean
   unlockedDate?: string
   value?: number
@@ -690,7 +690,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
         UNION ALL SELECT id FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
         UNION ALL SELECT id FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
       )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId])
+    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
     const total = totalMatches?.cnt ?? 0
     for (const [target, title, desc] of [
       [1, 'Erster Pfeil', 'Erstes Match gespielt'],
@@ -707,29 +707,40 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       })
     }
 
+    // Kombinierte Query: alle X01-Scoring-Daten in einem Scan
     const rareScores = await queryOne<{
-      count_180: number
-      count_171: number
-      count_170_checkout: number
-      highest_checkout: number
-      count_9darter_legs: number
+      count_180: number; count_171: number; count_170_checkout: number
+      highest_checkout: number; count_9darter_legs: number
+      count_ton: number; count_ton40: number; count_ton80: number; count_60plus: number
+      total_darts: number; total_points: number; total_visits: number
+      has_bull_finish: number; bust_count: number
     }>(`
       SELECT
         COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END), 0) as count_180,
         COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 171 THEN 1 ELSE 0 END), 0) as count_171,
         COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
             THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END), 0) as highest_checkout,
-        COALESCE(SUM(CASE
-            WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
             AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) >= 170
             THEN 1 ELSE 0 END), 0) as count_170_checkout,
-        0 as count_9darter_legs
+        0 as count_9darter_legs,
+        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 100 THEN 1 ELSE 0 END), 0) as count_ton,
+        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 140 THEN 1 ELSE 0 END), 0) as count_ton40,
+        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 80 THEN 1 ELSE 0 END), 0) as count_ton80,
+        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 60 THEN 1 ELSE 0 END), 0) as count_60plus,
+        COALESCE(SUM(json_array_length(e.data, '$.darts')), 0) as total_darts,
+        COALESCE(SUM(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)), 0) as total_points,
+        COUNT(*) as total_visits,
+        COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+          AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) = 50
+          THEN 1 ELSE 0 END), 0) as has_bull_finish,
+        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.bust') = 1 THEN 1 ELSE 0 END), 0) as bust_count
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
       WHERE e.type = 'VisitAdded'
         AND json_extract(e.data, '$.playerId') = ?
-    `, [playerId, playerId])
+    `, [playerId, playerId]).catch(() => null)
 
     const c180 = rareScores?.count_180 ?? 0
     achievements.push({
@@ -747,6 +758,37 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       id: '171', title: 'Maximales Chaos', description: '171 geworfen (T20+T19+T18)',
       category: 'rare', unlocked: (rareScores?.count_171 ?? 0) > 0, value: rareScores?.count_171 ?? 0,
     })
+
+    // Scoring-Stufen
+    const c60 = rareScores?.count_60plus ?? 0
+    achievements.push({
+      id: 'first-60', title: 'Erster Sechziger', description: 'Erste Aufnahme mit 60+ Punkten',
+      category: 'milestone', unlocked: c60 > 0, value: c60, target: 1, progress: Math.min(1, c60),
+    })
+    const c80 = rareScores?.count_ton80 ?? 0
+    for (const [target, title, desc] of [
+      [10, 'Ton-80 Anfänger', '10 Aufnahmen mit 80+'],
+      [50, 'Ton-80 Jäger', '50 Aufnahmen mit 80+'],
+      [100, 'Ton-80 Maschine', '100 Aufnahmen mit 80+'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `ton80-${target}`, title, description: desc,
+        category: 'rare', unlocked: c80 >= target, value: c80, target, progress: Math.min(1, c80 / target),
+      })
+    }
+
+    // Punkte-Meilensteine
+    const tp = rareScores?.total_points ?? 0
+    for (const [target, title, desc] of [
+      [10000, 'Punktesammler', '10.000 Punkte erzielt'],
+      [50000, 'Punktekönig', '50.000 Punkte erzielt'],
+      [100000, 'Punkte-Legende', '100.000 Punkte erzielt'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `points-${target}`, title, description: desc,
+        category: 'milestone', unlocked: tp >= target, value: tp, target, progress: Math.min(1, tp / target),
+      })
+    }
 
     const hc = rareScores?.highest_checkout ?? 0
     achievements.push({
@@ -774,7 +816,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
         WHERE m.finished = 1
         GROUP BY m.id
       )
-    `, [playerId, playerId])
+    `, [playerId, playerId]).catch(() => null)
 
     const ba = bestAvg?.best ?? 0
     for (const [target, title, desc] of [
@@ -802,7 +844,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
         UNION SELECT 'bobs27' FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
         UNION SELECT 'operation' FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
       )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId])
+    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
 
     const mp = modesPlayed?.modes ?? 0
     for (const [target, title, desc] of [
@@ -813,11 +855,11 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
     ] as [number, string, string][]) {
       achievements.push({
         id: `modes-${target}`, title, description: desc,
-        category: 'dedication', unlocked: mp >= target, value: mp, target, progress: Math.min(1, mp / target),
+        category: 'vielseitigkeit', unlocked: mp >= target, value: mp, target, progress: Math.min(1, mp / target),
       })
     }
 
-    const streaks = await getPlayerStreaks(playerId)
+    const streaks = await getPlayerStreaks(playerId).catch(() => null)
     const longestWin = streaks?.longestWinStreak ?? 0
     for (const [target, title, desc] of [
       [3, 'Heißer Lauf', '3 Siege in Folge'],
@@ -830,10 +872,765 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       })
     }
 
+    // ========== NEUE ACHIEVEMENTS: Scoring (Daten aus kombinierter rareScores-Query) ==========
+    const cTon = rareScores?.count_ton ?? 0
+    achievements.push({
+      id: 'first-ton', title: 'Erster Ton', description: 'Erste Aufnahme mit 100+ Punkten',
+      category: 'milestone', unlocked: cTon > 0, value: cTon, target: 1, progress: Math.min(1, cTon),
+    })
+    achievements.push({
+      id: 'first-ton40', title: 'Ton-40 Club', description: 'Erste Aufnahme mit 140+ Punkten',
+      category: 'milestone', unlocked: (rareScores?.count_ton40 ?? 0) > 0, value: rareScores?.count_ton40 ?? 0, target: 1,
+      progress: Math.min(1, (rareScores?.count_ton40 ?? 0)),
+    })
+
+    const td = rareScores?.total_darts ?? 0
+    for (const [target, title, desc] of [
+      [1000, 'Dart-Lehrling', '1.000 Darts geworfen'],
+      [5000, 'Dart-Geselle', '5.000 Darts geworfen'],
+      [10000, 'Dart-Marathon', '10.000 Darts geworfen'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `darts-${target}`, title, description: desc,
+        category: 'milestone', unlocked: td >= target, value: td, target, progress: Math.min(1, td / target),
+      })
+    }
+
+    // ========== NEUE ACHIEVEMENTS: Finishing ==========
+    achievements.push({
+      id: 'bull-finish', title: "Bull's Eye Finish", description: 'Leg mit Bull (50) ausgecheckt',
+      category: 'skill', unlocked: (rareScores?.has_bull_finish ?? 0) > 0,
+    })
+
+    const checkoutPct = await queryOne<{ best_pct: number }>(`
+      SELECT MAX(
+        CAST(doubles_hit AS REAL) / NULLIF(double_attempts, 0) * 100
+      ) as best_pct
+      FROM x01_player_stats
+      WHERE player_id = ? AND double_attempts >= 10
+    `, [playerId]).catch(() => null)
+    const bestPct = checkoutPct?.best_pct ?? 0
+    // Leg-basierte Achievements (schnelle Legs, saubere Matches)
+    const legStats = await queryOne<{ best_leg_darts: number; clean_match_wins: number }>(`
+      SELECT
+        COALESCE(MIN(darts_in_leg), 999) as best_leg_darts,
+        COALESCE((
+          SELECT COUNT(*) FROM (
+            SELECT mf.match_id,
+              (SELECT COUNT(*) FROM x01_events be
+               WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
+               AND json_extract(be.data, '$.playerId') = ?
+               AND json_extract(be.data, '$.bust') = 1) as busts
+            FROM x01_events mf
+            JOIN x01_match_players mfp ON mfp.match_id = mf.match_id AND mfp.player_id = ?
+            WHERE mf.type = 'MatchFinished'
+              AND json_extract(mf.data, '$.winnerPlayerId') = ?
+            GROUP BY mf.match_id
+            HAVING busts = 0
+          )
+        ), 0) as clean_match_wins
+      FROM (
+        SELECT json_extract(e.data, '$.legId') as leg_id,
+          SUM(json_array_length(e.data, '$.darts')) as darts_in_leg
+        FROM x01_events e
+        JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 AND m.starting_score >= 501
+        JOIN x01_events lf ON lf.match_id = e.match_id AND lf.type = 'LegFinished'
+          AND json_extract(lf.data, '$.legId') = json_extract(e.data, '$.legId')
+          AND json_extract(lf.data, '$.winnerPlayerId') = ?
+        WHERE e.type = 'VisitAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+        GROUP BY leg_id
+      )
+    `, [playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
+
+    const bestLeg = legStats?.best_leg_darts ?? 999
+    achievements.push({
+      id: 'leg-under-21', title: 'Schnelles 501', description: '501-Leg in unter 21 Darts gewonnen',
+      category: 'skill', unlocked: bestLeg <= 21, value: bestLeg < 999 ? bestLeg : undefined,
+    })
+    achievements.push({
+      id: 'leg-under-18', title: 'Blitz-501', description: '501-Leg in unter 18 Darts gewonnen',
+      category: 'skill', unlocked: bestLeg <= 18, value: bestLeg < 999 ? bestLeg : undefined,
+    })
+    achievements.push({
+      id: 'leg-under-15', title: 'Eiskalt', description: '501-Leg in unter 15 Darts gewonnen',
+      category: 'rare', unlocked: bestLeg <= 15, value: bestLeg < 999 ? bestLeg : undefined,
+    })
+    achievements.push({
+      id: 'nine-darter', title: '9-Darter!', description: '501-Leg in 9 Darts gewonnen — Perfektion!',
+      category: 'rare', unlocked: bestLeg <= 9, value: bestLeg <= 9 ? bestLeg : undefined,
+    })
+    achievements.push({
+      id: 'clean-match', title: 'Sauberes Match', description: 'Match gewonnen ohne einen Bust',
+      category: 'skill', unlocked: (legStats?.clean_match_wins ?? 0) > 0,
+    })
+
+    achievements.push({
+      id: 'checkout-specialist', title: 'Doppel-Spezialist', description: 'Checkout-Quote über 40%',
+      category: 'skill', unlocked: bestPct >= 40, value: Math.round(bestPct * 10) / 10,
+    })
+
+    // ========== NEUE ACHIEVEMENTS: Cricket ==========
+    const cricketStats = await queryOne<{
+      matches: number
+      wins: number
+      max_marks: number
+    }>(`
+      SELECT
+        COUNT(DISTINCT m.id) as matches,
+        COALESCE((
+          SELECT COUNT(*) FROM cricket_events we
+          JOIN cricket_match_players wmp ON wmp.match_id = we.match_id AND wmp.player_id = ?
+          WHERE we.type = 'CricketMatchFinished'
+            AND json_extract(we.data, '$.winnerPlayerId') = ?
+        ), 0) as wins,
+        COALESCE((
+          SELECT MAX(CAST(json_extract(ce.data, '$.marks') AS INTEGER))
+          FROM cricket_events ce
+          JOIN cricket_match_players cmp ON cmp.match_id = ce.match_id AND cmp.player_id = ?
+          WHERE ce.type = 'CricketTurnAdded' AND json_extract(ce.data, '$.playerId') = ?
+        ), 0) as max_marks
+      FROM cricket_matches m
+      JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE m.finished = 1
+    `, [playerId, playerId, playerId, playerId, playerId]).catch(() => null)
+
+    const cm = cricketStats?.matches ?? 0
+    achievements.push({
+      id: 'cricket-first', title: 'Cricket Opener', description: 'Erstes Cricket-Match gespielt',
+      category: 'cricket', unlocked: cm > 0, value: cm, target: 1, progress: Math.min(1, cm),
+    })
+    achievements.push({
+      id: 'mark-machine', title: 'Mark Machine', description: '9 Marks in einer Runde (3× Triple)',
+      category: 'cricket', unlocked: (cricketStats?.max_marks ?? 0) >= 9, value: cricketStats?.max_marks ?? 0, target: 9,
+      progress: Math.min(1, (cricketStats?.max_marks ?? 0) / 9),
+    })
+    const cw = cricketStats?.wins ?? 0
+    for (const [target, title, desc] of [
+      [10, 'Cricket-Profi', '10 Cricket-Matches gewonnen'],
+      [25, 'Cricket-Ass', '25 Cricket-Matches gewonnen'],
+      [50, 'Cricket-Meister', '50 Cricket-Matches gewonnen'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `cricket-wins-${target}`, title, description: desc,
+        category: 'cricket', unlocked: cw >= target, value: cw, target, progress: Math.min(1, cw / target),
+      })
+    }
+
+    // Weitere Cricket-Achievements
+    achievements.push({
+      id: 'cricket-veteran', title: 'Cricket-Veteran', description: '100 Cricket-Matches gespielt',
+      category: 'cricket', unlocked: cm >= 100, value: cm, target: 100, progress: Math.min(1, cm / 100),
+    })
+
+    // Cricket: Triples und Bulls direkt aus Events zählen (zuverlässiger als Stats-Tabelle)
+    const cricketSkill = await queryOne<{
+      total_triples: number
+      total_dbulls: number
+      best_turn_marks: number
+      total_marks: number
+      no_score_turns: number
+    }>(`
+      SELECT
+        COALESCE(SUM(CASE WHEN json_extract(d.value, '$.mult') = 3 AND json_extract(d.value, '$.target') != 'MISS' THEN 1 ELSE 0 END), 0) as total_triples,
+        COALESCE(SUM(CASE WHEN json_extract(d.value, '$.target') = 'BULL' AND json_extract(d.value, '$.mult') >= 2 THEN 1 ELSE 0 END), 0) as total_dbulls,
+        COALESCE(MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as best_turn_marks,
+        COALESCE(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as total_marks,
+        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.marks') AS INTEGER) = 0 THEN 1 ELSE 0 END), 0) as no_score_turns
+      FROM cricket_events e
+      JOIN cricket_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1,
+      json_each(e.data, '$.darts') d
+      WHERE e.type = 'CricketTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+    `, [playerId, playerId]).catch(() => null)
+
+    const cTriples = cricketSkill?.total_triples ?? 0
+    for (const [target, title, desc] of [
+      [25, 'Triple-Treffer', '25 Triples im Cricket'],
+      [100, 'Triple-Jäger', '100 Triples im Cricket'],
+      [250, 'Triple-Maschine', '250 Triples im Cricket'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `cricket-triples-${target}`, title, description: desc,
+        category: 'cricket', unlocked: cTriples >= target, value: cTriples, target, progress: Math.min(1, cTriples / target),
+      })
+    }
+
+    const cDBulls = cricketSkill?.total_dbulls ?? 0
+    for (const [target, title, desc] of [
+      [5, 'Bull-Treffer', '5 Double-Bulls im Cricket'],
+      [25, 'Bull-Meister', '25 Double-Bulls im Cricket'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `cricket-dbulls-${target}`, title, description: desc,
+        category: 'cricket', unlocked: cDBulls >= target, value: cDBulls, target, progress: Math.min(1, cDBulls / target),
+      })
+    }
+
+    // Cricket: Marks-Meilensteine
+    const cMarks = cricketSkill?.total_marks ?? 0
+    for (const [target, title, desc] of [
+      [100, 'Mark-Sammler', '100 Marks im Cricket insgesamt'],
+      [500, 'Mark-König', '500 Marks im Cricket insgesamt'],
+      [1000, 'Mark-Legende', '1.000 Marks im Cricket insgesamt'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `cricket-marks-${target}`, title, description: desc,
+        category: 'cricket', unlocked: cMarks >= target, value: cMarks, target, progress: Math.min(1, cMarks / target),
+      })
+    }
+
+    // Cricket: Perfekter Turn (9 Marks = 3 Triples)
+    const bestTurn = cricketSkill?.best_turn_marks ?? 0
+    achievements.push({
+      id: 'cricket-perfect-turn', title: 'Perfekter Turn', description: 'Cricket-Runde mit 9 Marks (3x Triple)',
+      category: 'cricket', unlocked: bestTurn >= 9, value: bestTurn, target: 9, progress: Math.min(1, bestTurn / 9),
+    })
+
+    // ========== NEUE ACHIEVEMENTS: Vielseitigkeit (+ umkategorisierte Modi) ==========
+    // Wochenkrieger: 7 Tage in Folge gespielt
+    const playDates = await query<{ play_date: string }>(`
+      SELECT DISTINCT DATE(created_at) as play_date FROM (
+        SELECT created_at FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL SELECT created_at FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+      ) ORDER BY play_date
+    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => [] as { play_date: string }[])
+
+    let longestDayStreak = 0
+    let currentDayStreak = 1
+    const dates = playDates.map(r => r.play_date).filter(Boolean)
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1])
+      const curr = new Date(dates[i])
+      const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000)
+      if (diffDays === 1) {
+        currentDayStreak++
+      } else {
+        longestDayStreak = Math.max(longestDayStreak, currentDayStreak)
+        currentDayStreak = 1
+      }
+    }
+    longestDayStreak = Math.max(longestDayStreak, currentDayStreak)
+
+    achievements.push({
+      id: 'week-warrior', title: 'Wochenkrieger', description: '7 Tage in Folge gespielt',
+      category: 'vielseitigkeit', unlocked: longestDayStreak >= 7, value: longestDayStreak, target: 7,
+      progress: Math.min(1, longestDayStreak / 7),
+    })
+
+    // Mode-spezifische Achievements (parallelisiert)
+    const [shanghaiHit, atbBest, bobsSurvived, strWon, killerElim, shanghaiScore, killerWon, ctfFields, atbCompleted, operationBestLeg] = await Promise.all([
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM shanghai_events e
+        JOIN shanghai_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        WHERE e.type = 'ShanghaiTurnAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+          AND json_extract(e.data, '$.isShanghai') = 1
+      `, [playerId, playerId]).catch(() => null),
+      queryOne<{ best: number }>(`
+        SELECT MIN(winner_darts) as best FROM atb_matches m
+        JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.winner_id = ?
+      `, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM bobs27_matches m
+        JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.final_scores IS NOT NULL
+          AND CAST(json_extract(m.final_scores, '$.' || ?) AS INTEGER) > 0
+      `, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM str_matches m
+        JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.winner_id = ?
+      `, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM killer_events e
+        JOIN killer_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        WHERE e.type = 'KillerTurnAdded'
+          AND json_extract(e.data, '$.eliminatedPlayerId') IS NOT NULL
+          AND json_extract(e.data, '$.playerId') = ?
+      `, [playerId, playerId]).catch(() => null),
+      // Shanghai: Bester Score
+      queryOne<{ best: number }>(`
+        SELECT MAX(CAST(json_extract(m.final_scores, '$.' || ?) AS INTEGER)) as best
+        FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.final_scores IS NOT NULL
+      `, [playerId, playerId]).catch(() => null),
+      // Killer: Match gewonnen
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM killer_matches m
+        JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.winner_id = ?
+      `, [playerId, playerId]).catch(() => null),
+      // CTF: Felder gewonnen (aus capture_field_winners)
+      queryOne<{ best_fields: number }>(`
+        SELECT MAX(CAST(json_extract(m.capture_field_winners, '$.' || ?) AS INTEGER)) as best_fields
+        FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.capture_field_winners IS NOT NULL
+      `, [playerId, playerId]).catch(() => null),
+      // ATB: Matches abgeschlossen (zählt als Training)
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM atb_matches m
+        JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+      `, [playerId]).catch(() => null),
+      // Operation: Bester Leg-Score
+      queryOne<{ best: number }>(`
+        SELECT MAX(CAST(json_extract(m.final_scores, '$.' || ?) AS INTEGER)) as best
+        FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.final_scores IS NOT NULL
+      `, [playerId, playerId]).catch(() => null),
+    ])
+
+    achievements.push({
+      id: 'shanghai-hit', title: 'Shanghai!', description: 'Single + Double + Triple auf eine Zahl',
+      category: 'vielseitigkeit', unlocked: (shanghaiHit?.cnt ?? 0) > 0,
+    })
+    // Shanghai Score-Stufen
+    const shBest = shanghaiScore?.best ?? 0
+    for (const [target, title, desc] of [
+      [200, 'Shanghai-Punktesammler', 'Shanghai: 200+ Punkte in einem Match'],
+      [400, 'Shanghai-Meister', 'Shanghai: 400+ Punkte in einem Match'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `shanghai-score-${target}`, title, description: desc,
+        category: 'vielseitigkeit', unlocked: shBest >= target, value: shBest > 0 ? shBest : undefined, target,
+        progress: Math.min(1, Math.max(0, shBest) / target),
+      })
+    }
+
+    const atbDarts = atbBest?.best ?? 999
+    achievements.push({
+      id: 'atb-speedrun', title: 'ATB Speedrun', description: 'Around the Block in unter 60 Darts',
+      category: 'vielseitigkeit', unlocked: atbDarts < 60 && atbDarts > 0, value: atbDarts > 0 && atbDarts < 999 ? atbDarts : undefined,
+    })
+    achievements.push({
+      id: 'bobs27-survived', title: "Bob überlebt", description: "Bob's 27 mit positivem Score beendet",
+      category: 'vielseitigkeit', unlocked: (bobsSurvived?.cnt ?? 0) > 0,
+    })
+    achievements.push({
+      id: 'str-complete', title: 'Sträußchen komplett', description: 'Ein Sträußchen gewonnen',
+      category: 'vielseitigkeit', unlocked: (strWon?.cnt ?? 0) > 0,
+    })
+    achievements.push({
+      id: 'killer-instinct', title: 'Killer-Instinkt', description: 'Einen Spieler im Killer-Modus eliminiert',
+      category: 'vielseitigkeit', unlocked: (killerElim?.cnt ?? 0) > 0,
+    })
+
+    // Killer Siege
+    const kw = killerWon?.cnt ?? 0
+    achievements.push({
+      id: 'killer-survivor', title: 'Letzter Überlebender', description: 'Ein Killer-Match gewonnen',
+      category: 'vielseitigkeit', unlocked: kw > 0,
+    })
+    achievements.push({
+      id: 'killer-5-wins', title: 'Killer-Veteran', description: '5 Killer-Matches gewonnen',
+      category: 'vielseitigkeit', unlocked: kw >= 5, value: kw, target: 5, progress: Math.min(1, kw / 5),
+    })
+
+    // CTF Feld-Dominanz
+    const ctfBest = ctfFields?.best_fields ?? 0
+    achievements.push({
+      id: 'ctf-dominator', title: 'Feld-Eroberer', description: 'CTF: 10+ Felder in einem Match gewonnen',
+      category: 'vielseitigkeit', unlocked: ctfBest >= 10, value: ctfBest > 0 ? ctfBest : undefined, target: 10,
+      progress: Math.min(1, ctfBest / 10),
+    })
+    achievements.push({
+      id: 'ctf-sweep', title: 'Totale Kontrolle', description: 'CTF: 15+ Felder in einem Match gewonnen',
+      category: 'vielseitigkeit', unlocked: ctfBest >= 15, value: ctfBest > 0 ? ctfBest : undefined, target: 15,
+      progress: Math.min(1, ctfBest / 15),
+    })
+
+    // ATB Trainings-Meilensteine
+    const atbTotal = atbCompleted?.cnt ?? 0
+    for (const [target, title, desc] of [
+      [5, 'Board-Kenner', '5 Around-the-Block Runden absolviert'],
+      [20, 'Board-Profi', '20 Around-the-Block Runden absolviert'],
+      [50, 'Board-Meister', '50 Around-the-Block Runden absolviert'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `atb-completed-${target}`, title, description: desc,
+        category: 'vielseitigkeit', unlocked: atbTotal >= target, value: atbTotal, target, progress: Math.min(1, atbTotal / target),
+      })
+    }
+
+    // Operation Punkterekorde
+    const opBest = operationBestLeg?.best ?? 0
+    achievements.push({
+      id: 'operation-score-100', title: 'Operation gelungen', description: 'Operation: 100+ Punkte in einem Match',
+      category: 'vielseitigkeit', unlocked: opBest >= 100, value: opBest > 0 ? opBest : undefined,
+    })
+    achievements.push({
+      id: 'operation-score-200', title: 'Chirurgische Präzision', description: 'Operation: 200+ Punkte in einem Match',
+      category: 'vielseitigkeit', unlocked: opBest >= 200, value: opBest > 0 ? opBest : undefined,
+    })
+
+    // ========== TREFFER-SERIEN (Konsekutive Treffer bei Ziel-Spielen) ==========
+    const [opHits, atbHits, bobsHits] = await Promise.all([
+      // Operation: Alle Darts mit isHit pro Match, sortiert
+      query<{ match_id: string; is_hit: number }>(`
+        SELECT e.match_id, CAST(json_extract(e.data, '$.isHit') AS INTEGER) as is_hit
+        FROM operation_events e
+        JOIN operation_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN operation_matches m ON m.id = e.match_id AND m.finished = 1
+        WHERE e.type = 'OperationDart' AND json_extract(e.data, '$.playerId') = ?
+        ORDER BY e.match_id, e.seq
+      `, [playerId, playerId]).catch(() => []),
+      // ATB: Treffer pro Turn (hits > 0 = getroffen)
+      query<{ match_id: string; hits: number }>(`
+        SELECT e.match_id, CAST(json_extract(e.data, '$.hits') AS INTEGER) as hits
+        FROM atb_events e
+        JOIN atb_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN atb_matches m ON m.id = e.match_id AND m.finished = 1
+        WHERE e.type = 'ATBTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+        ORDER BY e.match_id, e.seq
+      `, [playerId, playerId]).catch(() => []),
+      // Bob's 27: Treffer pro Runde (hits > 0 = Double getroffen)
+      query<{ match_id: string; hits: number }>(`
+        SELECT e.match_id, CAST(json_extract(e.data, '$.hits') AS INTEGER) as hits
+        FROM bobs27_events e
+        JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+        WHERE e.type = 'Bobs27RoundPlayed' AND json_extract(e.data, '$.playerId') = ?
+        ORDER BY e.match_id, e.seq
+      `, [playerId, playerId]).catch(() => []),
+    ])
+
+    // Längste Serie berechnen (Reset bei Match-Wechsel oder Miss)
+    function longestStreak(data: { match_id: string; hits?: number; is_hit?: number }[]): number {
+      let best = 0, cur = 0, lastMatch = ''
+      for (const row of data) {
+        const hit = (row.is_hit ?? (row.hits != null && row.hits > 0 ? 1 : 0)) > 0
+        if (row.match_id !== lastMatch) { cur = 0; lastMatch = row.match_id }
+        if (hit) { cur++; best = Math.max(best, cur) } else { cur = 0 }
+      }
+      return best
+    }
+
+    const opStreak = longestStreak(opHits)
+    for (const [target, title, desc] of [
+      [5, 'Fokussiert', 'Operation: 5 Darts in Folge getroffen'],
+      [10, 'Laser-Fokus', 'Operation: 10 Darts in Folge getroffen'],
+      [15, 'Unfehlbar', 'Operation: 15 Darts in Folge getroffen'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `op-streak-${target}`, title, description: desc,
+        category: 'skill', unlocked: opStreak >= target, value: opStreak, target, progress: Math.min(1, opStreak / target),
+      })
+    }
+
+    const atbStreak = longestStreak(atbHits)
+    for (const [target, title, desc] of [
+      [5, 'Treffsicher', 'ATB: 5 Zahlen in Folge getroffen'],
+      [10, 'Scharfschütze', 'ATB: 10 Zahlen in Folge getroffen'],
+      [15, 'Perfekter Lauf', 'ATB: 15 Zahlen in Folge getroffen'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `atb-streak-${target}`, title, description: desc,
+        category: 'skill', unlocked: atbStreak >= target, value: atbStreak, target, progress: Math.min(1, atbStreak / target),
+      })
+    }
+
+    const bobsStreak = longestStreak(bobsHits)
+    for (const [target, title, desc] of [
+      [5, 'Double-Serie', "Bob's 27: 5 Doubles in Folge getroffen"],
+      [10, 'Double-Profi', "Bob's 27: 10 Doubles in Folge getroffen"],
+      [15, 'Double-Perfektion', "Bob's 27: 15 Doubles in Folge getroffen"],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `bobs-streak-${target}`, title, description: desc,
+        category: 'skill', unlocked: bobsStreak >= target, value: bobsStreak, target, progress: Math.min(1, bobsStreak / target),
+      })
+    }
+
+    // ========== FUN & TIME ACHIEVEMENTS ==========
+    const [timeStats, rivalStats, bobsHighScores, highscoreWins] = await Promise.all([
+      // Spiel-Zeiten und Tages-Statistiken
+      queryOne<{ night_games: number; early_games: number; day_max: number }>(`
+        SELECT
+          COALESCE(SUM(CASE WHEN CAST(strftime('%H', created_at) AS INTEGER) >= 22 THEN 1 ELSE 0 END), 0) as night_games,
+          COALESCE(SUM(CASE WHEN CAST(strftime('%H', created_at) AS INTEGER) < 8 THEN 1 ELSE 0 END), 0) as early_games,
+          COALESCE(MAX(day_count), 0) as day_max
+        FROM (
+          SELECT created_at, COUNT(*) OVER (PARTITION BY DATE(created_at)) as day_count
+          FROM (
+            SELECT created_at FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+            UNION ALL SELECT created_at FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+            UNION ALL SELECT created_at FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          )
+        )
+      `, [playerId, playerId, playerId]).catch(() => null),
+      // Rivale: Meistgespielter Gegner
+      queryOne<{ max_matches: number }>(`
+        SELECT MAX(cnt) as max_matches FROM (
+          SELECT mp2.player_id, COUNT(*) as cnt
+          FROM x01_match_players mp1
+          JOIN x01_match_players mp2 ON mp2.match_id = mp1.match_id AND mp2.player_id != mp1.player_id
+          JOIN x01_matches m ON m.id = mp1.match_id AND m.finished = 1
+          WHERE mp1.player_id = ?
+          GROUP BY mp2.player_id
+        )
+      `, [playerId]).catch(() => null),
+      // Bob's 27 Highscores
+      queryOne<{ best_score: number }>(`
+        SELECT MAX(CAST(json_extract(m.final_scores, '$.' || ?) AS INTEGER)) as best_score
+        FROM bobs27_matches m
+        JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.final_scores IS NOT NULL
+      `, [playerId, playerId]).catch(() => null),
+      // Highscore-Siege
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM highscore_matches m
+        JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1 AND m.winner_id = ?
+      `, [playerId, playerId]).catch(() => null),
+    ])
+
+    achievements.push({
+      id: 'night-owl', title: 'Nachteulen-Dart', description: 'Ein Match nach 22 Uhr gespielt',
+      category: 'vielseitigkeit', unlocked: (timeStats?.night_games ?? 0) > 0,
+    })
+    achievements.push({
+      id: 'early-bird', title: 'Frühaufsteher', description: 'Ein Match vor 8 Uhr morgens gespielt',
+      category: 'vielseitigkeit', unlocked: (timeStats?.early_games ?? 0) > 0,
+    })
+    achievements.push({
+      id: 'day-grinder', title: 'Tagesmarathon', description: '10+ Matches an einem Tag gespielt',
+      category: 'vielseitigkeit', unlocked: (timeStats?.day_max ?? 0) >= 10,
+      value: timeStats?.day_max ?? 0, target: 10, progress: Math.min(1, (timeStats?.day_max ?? 0) / 10),
+    })
+
+    const rivalMax = rivalStats?.max_matches ?? 0
+    for (const [target, title, desc] of [
+      [10, 'Rivale', '10 Matches gegen denselben Gegner'],
+      [25, 'Erzrivale', '25 Matches gegen denselben Gegner'],
+      [50, 'Nemesis', '50 Matches gegen denselben Gegner'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `rival-${target}`, title, description: desc,
+        category: 'vielseitigkeit', unlocked: rivalMax >= target, value: rivalMax, target, progress: Math.min(1, rivalMax / target),
+      })
+    }
+
+    // Bob's 27 Score-Stufen
+    const bobsBest = bobsHighScores?.best_score ?? 0
+    for (const [target, title, desc] of [
+      [200, "Bob's Lehrling", "Bob's 27 mit über 200 Punkten"],
+      [400, "Bob's Geselle", "Bob's 27 mit über 400 Punkten"],
+      [600, "Bob's Meister", "Bob's 27 mit über 600 Punkten"],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `bobs27-${target}`, title, description: desc,
+        category: 'vielseitigkeit', unlocked: bobsBest >= target, value: bobsBest > 0 ? bobsBest : undefined, target,
+        progress: Math.min(1, Math.max(0, bobsBest) / target),
+      })
+    }
+
+    // Highscore-Siege
+    const hsWins = highscoreWins?.cnt ?? 0
+    achievements.push({
+      id: 'highscore-winner', title: 'Highscore-König', description: '3 Highscore-Matches gewonnen',
+      category: 'vielseitigkeit', unlocked: hsWins >= 3, value: hsWins, target: 3, progress: Math.min(1, hsWins / 3),
+    })
+
+    // X01 Gesamt-Siege
+    const x01Wins = await queryOne<{ cnt: number }>(`
+      SELECT COUNT(*) as cnt FROM x01_events e
+      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      WHERE e.type = 'MatchFinished' AND json_extract(e.data, '$.winnerPlayerId') = ?
+    `, [playerId, playerId]).catch(() => null)
+    const xw = x01Wins?.cnt ?? 0
+    for (const [target, title, desc] of [
+      [10, 'X01-Gewinner', '10 X01-Matches gewonnen'],
+      [50, 'X01-Champion', '50 X01-Matches gewonnen'],
+      [100, 'X01-Legende', '100 X01-Matches gewonnen'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `x01-wins-${target}`, title, description: desc,
+        category: 'skill', unlocked: xw >= target, value: xw, target, progress: Math.min(1, xw / target),
+      })
+    }
+
+    // ========== CHECKOUT-VIELFALT & X01-SPEZIFISCH ==========
+    const [doubleVariety, t20count, legsWonTotal, allBeaten] = await Promise.all([
+      // Verschiedene Doppelfelder zum Auschecken verwendet
+      queryOne<{ distinct_doubles: number }>(`
+        SELECT COUNT(DISTINCT double_field) as distinct_doubles
+        FROM x01_finishing_doubles WHERE player_id = ? AND count > 0
+      `, [playerId]).catch(() => null),
+      // T20-Treffer in einem Match
+      queryOne<{ max_t20: number }>(`
+        SELECT MAX(t20_count) as max_t20 FROM (
+          SELECT e.match_id, COUNT(*) as t20_count
+          FROM x01_events e
+          JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+          JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+          WHERE e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
+            AND EXISTS (
+              SELECT 1 FROM json_each(e.data, '$.darts') d
+              WHERE json_extract(d.value, '$.bed') = 20 AND json_extract(d.value, '$.mult') = 3
+            )
+          GROUP BY e.match_id
+        )
+      `, [playerId, playerId]).catch(() => null),
+      // Gesamt Legs gewonnen (X01)
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM x01_events e
+        JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        WHERE e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') = ?
+      `, [playerId, playerId]).catch(() => null),
+      // Gegen alle registrierten Spieler mindestens 1x gewonnen
+      queryOne<{ opponents_beaten: number; total_opponents: number }>(`
+        SELECT
+          COUNT(DISTINCT beaten) as opponents_beaten,
+          (SELECT COUNT(DISTINCT mp2.player_id) FROM x01_match_players mp2
+           JOIN x01_matches m2 ON m2.id = mp2.match_id AND m2.finished = 1
+           WHERE mp2.player_id != ? AND mp2.player_id NOT LIKE 'guest-%'
+             AND EXISTS (SELECT 1 FROM x01_match_players mp3 WHERE mp3.match_id = mp2.match_id AND mp3.player_id = ?)
+          ) as total_opponents
+        FROM (
+          SELECT DISTINCT mp2.player_id as beaten
+          FROM x01_events e
+          JOIN x01_match_players mp1 ON mp1.match_id = e.match_id AND mp1.player_id = ?
+          JOIN x01_match_players mp2 ON mp2.match_id = e.match_id AND mp2.player_id != ?
+            AND mp2.player_id NOT LIKE 'guest-%'
+          WHERE e.type = 'MatchFinished' AND json_extract(e.data, '$.winnerPlayerId') = ?
+        )
+      `, [playerId, playerId, playerId, playerId, playerId]).catch(() => null),
+    ])
+
+    const dd = doubleVariety?.distinct_doubles ?? 0
+    for (const [target, title, desc] of [
+      [5, 'Doppel-Sammler', 'Mit 5 verschiedenen Doppeln ausgecheckt'],
+      [10, 'Doppel-Experte', 'Mit 10 verschiedenen Doppeln ausgecheckt'],
+      [15, 'Doppel-Virtuose', 'Mit 15 verschiedenen Doppeln ausgecheckt'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `double-variety-${target}`, title, description: desc,
+        category: 'skill', unlocked: dd >= target, value: dd, target, progress: Math.min(1, dd / target),
+      })
+    }
+
+    achievements.push({
+      id: 't20-magnet', title: 'T20-Magnet', description: '20x Triple-20 in einem Match getroffen',
+      category: 'rare', unlocked: (t20count?.max_t20 ?? 0) >= 20, value: t20count?.max_t20 ?? 0, target: 20,
+      progress: Math.min(1, (t20count?.max_t20 ?? 0) / 20),
+    })
+
+    const lw = legsWonTotal?.cnt ?? 0
+    for (const [target, title, desc] of [
+      [10, 'Leg-Gewinner', '10 Legs gewonnen (X01)'],
+      [50, 'Leg-Sammler', '50 Legs gewonnen (X01)'],
+      [100, 'Leg-Jäger', '100 Legs gewonnen (X01)'],
+      [500, 'Leg-Maschine', '500 Legs gewonnen (X01)'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `legs-won-${target}`, title, description: desc,
+        category: 'milestone', unlocked: lw >= target, value: lw, target, progress: Math.min(1, lw / target),
+      })
+    }
+
+    // Alle Gegner geschlagen
+    const beaten = allBeaten?.opponents_beaten ?? 0
+    const totalOpp = allBeaten?.total_opponents ?? 0
+    if (totalOpp > 0) {
+      achievements.push({
+        id: 'all-beaten', title: 'Alle geschlagen', description: 'Gegen jeden Gegner mindestens 1x gewonnen',
+        category: 'skill', unlocked: beaten >= totalOpp && totalOpp >= 2, value: beaten, target: totalOpp,
+        progress: totalOpp > 0 ? Math.min(1, beaten / totalOpp) : 0,
+      })
+    }
+
+    // ========== CHECKOUT-STUFEN ==========
+    const checkoutsOver80 = await queryOne<{ cnt: number }>(`
+      SELECT COUNT(*) as cnt FROM x01_events e
+      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      WHERE e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
+        AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+        AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) >= 80
+    `, [playerId, playerId]).catch(() => null)
+    const co80 = checkoutsOver80?.cnt ?? 0
+    for (const [target, title, desc] of [
+      [1, 'High Finish', 'Erster Checkout über 80'],
+      [5, 'Finisher', '5 Checkouts über 80'],
+      [20, 'Checkout-Künstler', '20 Checkouts über 80'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `checkout80-${target}`, title, description: desc,
+        category: 'skill', unlocked: co80 >= target, value: co80, target, progress: Math.min(1, co80 / target),
+      })
+    }
+
+    // ========== MULTI-MODE SIEGE ==========
+    const [atbWins, ctfWins, shanghaiWins, killerWins, strWins2, operationWins] = await Promise.all([
+      queryOne<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 AND m.winner_id = ?`, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 AND m.winner_id = ?`, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 AND m.winner_id = ?`, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 AND m.winner_id = ?`, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 AND m.winner_id = ?`, [playerId, playerId]).catch(() => null),
+      queryOne<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 AND m.winner_id = ?`, [playerId, playerId]).catch(() => null),
+    ])
+
+    // Siege-Meilensteine pro Modus (nur wenn Modus gespielt)
+    const modeWins: [string, string, number | undefined][] = [
+      ['atb', 'Around the Block', atbWins?.cnt],
+      ['ctf', 'Capture the Field', ctfWins?.cnt],
+      ['shanghai', 'Shanghai', shanghaiWins?.cnt],
+      ['killer', 'Killer', killerWins?.cnt],
+      ['str', 'Sträußchen', strWins2?.cnt],
+      ['operation', 'Operation', operationWins?.cnt],
+    ]
+    for (const [mode, label, wins] of modeWins) {
+      const w = wins ?? 0
+      if (w > 0 || total > 0) { // Nur zeigen wenn irgendein Match gespielt
+        achievements.push({
+          id: `${mode}-wins-5`, title: `${label}-Profi`, description: `5 ${label}-Matches gewonnen`,
+          category: 'vielseitigkeit', unlocked: w >= 5, value: w, target: 5, progress: Math.min(1, w / 5),
+        })
+      }
+    }
+
+    // ========== ÜBERGREIFENDE SIEGE ==========
+    const totalWins = xw + (cw) + (atbWins?.cnt ?? 0) + (ctfWins?.cnt ?? 0) + (shanghaiWins?.cnt ?? 0) + (killerWins?.cnt ?? 0) + (strWins2?.cnt ?? 0) + (operationWins?.cnt ?? 0) + hsWins
+    for (const [target, title, desc] of [
+      [10, 'Sieger-Typ', '10 Siege insgesamt (alle Modi)'],
+      [50, 'Gewohnheitssieger', '50 Siege insgesamt (alle Modi)'],
+      [100, 'Sieges-Maschine', '100 Siege insgesamt (alle Modi)'],
+      [250, 'Unbesiegbar', '250 Siege insgesamt (alle Modi)'],
+    ] as [number, string, string][]) {
+      achievements.push({
+        id: `total-wins-${target}`, title, description: desc,
+        category: 'milestone', unlocked: totalWins >= target, value: totalWins, target, progress: Math.min(1, totalWins / target),
+      })
+    }
+
     return achievements
   } catch (e) {
     console.warn('[Stats] getFullAchievements failed:', e)
-    return []
+    // Bei Fehler trotzdem Basis-Achievements zurückgeben (alle locked)
+    return [
+      { id: 'matches-1', title: 'Erster Pfeil', description: 'Erstes Match gespielt', category: 'milestone' as const, unlocked: false, value: 0, target: 1, progress: 0 },
+      { id: 'matches-10', title: 'Einsteiger', description: '10 Matches gespielt', category: 'milestone' as const, unlocked: false, value: 0, target: 10, progress: 0 },
+      { id: 'matches-50', title: 'Stammgast', description: '50 Matches gespielt', category: 'milestone' as const, unlocked: false, value: 0, target: 50, progress: 0 },
+      { id: 'matches-100', title: 'Centurion', description: '100 Matches gespielt', category: 'milestone' as const, unlocked: false, value: 0, target: 100, progress: 0 },
+      { id: 'first-180', title: 'Maximum!', description: 'Erste 180 geworfen', category: 'rare' as const, unlocked: false, value: 0, target: 1, progress: 0 },
+      { id: 'first-ton', title: 'Erster Ton', description: 'Erste Aufnahme mit 100+ Punkten', category: 'milestone' as const, unlocked: false, value: 0, target: 1, progress: 0 },
+      { id: 'avg-40', title: 'Solide', description: 'Match-Durchschnitt über 40', category: 'skill' as const, unlocked: false },
+      { id: 'avg-60', title: 'Stark', description: 'Match-Durchschnitt über 60', category: 'skill' as const, unlocked: false },
+      { id: 'cricket-first', title: 'Cricket Opener', description: 'Erstes Cricket-Match gespielt', category: 'cricket' as const, unlocked: false, value: 0, target: 1, progress: 0 },
+      { id: 'modes-3', title: 'Vielseitig', description: '3 verschiedene Spielmodi ausprobiert', category: 'vielseitigkeit' as const, unlocked: false, value: 0, target: 3, progress: 0 },
+      { id: 'darts-1000', title: 'Dart-Lehrling', description: '1.000 Darts geworfen', category: 'milestone' as const, unlocked: false, value: 0, target: 1000, progress: 0 },
+      { id: 'streak-3', title: 'Heißer Lauf', description: '3 Siege in Folge', category: 'skill' as const, unlocked: false, value: 0, target: 3, progress: 0 },
+    ]
   }
 }
 
@@ -882,7 +1679,7 @@ export async function getCrossGameHeadToHead(playerId: string): Promise<CrossGam
             FROM ${cfg.table}_matches m
             JOIN ${cfg.ptable} mp1 ON mp1.match_id = m.id AND mp1.player_id = ?
             JOIN ${cfg.ptable} mp2 ON mp2.match_id = m.id AND mp2.player_id != ?
-            LEFT JOIN profiles p ON p.id = mp2.player_id
+            JOIN profiles p ON p.id = mp2.player_id
             WHERE m.finished = 1
               AND (SELECT COUNT(*) FROM ${cfg.ptable} WHERE match_id = m.id) = 2
             GROUP BY mp2.player_id
@@ -902,7 +1699,7 @@ export async function getCrossGameHeadToHead(playerId: string): Promise<CrossGam
             FROM ${c.table}_matches m
             JOIN ${c.ptable} mp1 ON mp1.match_id = m.id AND mp1.player_id = ?
             JOIN ${c.ptable} mp2 ON mp2.match_id = m.id AND mp2.player_id != ?
-            LEFT JOIN profiles p ON p.id = mp2.player_id
+            JOIN profiles p ON p.id = mp2.player_id
             WHERE m.finished = 1
               AND (SELECT COUNT(*) FROM ${c.ptable} WHERE match_id = m.id) = 2
             GROUP BY mp2.player_id
@@ -1126,5 +1923,235 @@ export async function getTrainingRecommendations(playerId: string): Promise<Trai
   } catch (e) {
     console.warn('[Stats] getTrainingRecommendations failed:', e)
     return []
+  }
+}
+
+// ============================================================================
+// Session Stats ("Heute gespielt")
+// ============================================================================
+
+export type TodaySessionStats = {
+  totalMatchesToday: number
+  winsToday: number
+  bestThreeDartAvgToday: number | null
+  bestCheckoutToday: number | null
+  totalDartsThrownToday: number
+}
+
+/**
+ * Statistiken für den heutigen Tag (über alle Spielmodi).
+ */
+export async function getTodaySessionStats(playerId: string): Promise<TodaySessionStats | null> {
+  try {
+    // Matches played today across all modes
+    const modes = [
+      { table: 'x01', ptable: 'x01_match_players' },
+      { table: 'cricket', ptable: 'cricket_match_players' },
+      { table: 'atb', ptable: 'atb_match_players' },
+      { table: 'ctf', ptable: 'ctf_match_players' },
+      { table: 'str', ptable: 'str_match_players' },
+      { table: 'highscore', ptable: 'highscore_match_players' },
+      { table: 'shanghai', ptable: 'shanghai_match_players' },
+      { table: 'killer', ptable: 'killer_match_players' },
+      { table: 'bobs27', ptable: 'bobs27_match_players' },
+      { table: 'operation', ptable: 'operation_match_players' },
+    ] as const
+
+    let totalMatches = 0
+    let totalWins = 0
+
+    // Count matches and wins per mode
+    for (const mode of modes) {
+      try {
+        if (mode.table === 'x01' || mode.table === 'cricket') {
+          // Winner determined via events
+          const winEvent = mode.table === 'x01' ? 'MatchFinished' : 'CricketMatchFinished'
+          const result = await queryOne<{ matches: number; wins: number }>(`
+            SELECT
+              COUNT(*) as matches,
+              COALESCE(SUM(CASE WHEN (
+                SELECT json_extract(e.data, '$.winnerPlayerId') FROM ${mode.table}_events e
+                WHERE e.match_id = m.id AND e.type = '${winEvent}' LIMIT 1
+              ) = ? THEN 1 ELSE 0 END), 0) as wins
+            FROM ${mode.table}_matches m
+            JOIN ${mode.ptable} mp ON mp.match_id = m.id AND mp.player_id = ?
+            WHERE m.finished = 1
+              AND DATE(m.created_at) = DATE('now', 'localtime')
+          `, [playerId, playerId])
+          totalMatches += result?.matches ?? 0
+          totalWins += result?.wins ?? 0
+        } else {
+          // Winner determined via winner_id column
+          const result = await queryOne<{ matches: number; wins: number }>(`
+            SELECT
+              COUNT(*) as matches,
+              SUM(CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END) as wins
+            FROM ${mode.table}_matches m
+            JOIN ${mode.ptable} mp ON mp.match_id = m.id AND mp.player_id = ?
+            WHERE m.finished = 1
+              AND DATE(m.created_at) = DATE('now', 'localtime')
+          `, [playerId, playerId])
+          totalMatches += result?.matches ?? 0
+          totalWins += result?.wins ?? 0
+        }
+      } catch { /* table might not exist */ }
+    }
+
+    if (totalMatches === 0) return null
+
+    // Best 3-dart average today (X01 only)
+    const bestAvg = await queryOne<{ best_avg: number | null }>(`
+      SELECT MAX(match_avg) as best_avg FROM (
+        SELECT
+          AVG(
+            CAST(json_extract(e.data, '$.visitScore') AS REAL) /
+            NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+          ) as match_avg
+        FROM x01_matches m
+        JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
+        WHERE m.finished = 1
+          AND DATE(m.created_at) = DATE('now', 'localtime')
+        GROUP BY m.id
+      )
+    `, [playerId, playerId]).catch(() => null)
+
+    // Best checkout today (X01 only)
+    const bestCo = await queryOne<{ best_checkout: number | null }>(`
+      SELECT MAX(CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER)) as best_checkout
+      FROM x01_events e
+      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'VisitAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+        AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+        AND DATE(m.created_at) = DATE('now', 'localtime')
+    `, [playerId, playerId]).catch(() => null)
+
+    // Total darts thrown today (X01 only — other modes don't track individual darts)
+    const dartsToday = await queryOne<{ total_darts: number }>(`
+      SELECT COALESCE(SUM(json_array_length(e.data, '$.darts')), 0) as total_darts
+      FROM x01_events e
+      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'VisitAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+        AND DATE(m.created_at) = DATE('now', 'localtime')
+    `, [playerId, playerId]).catch(() => null)
+
+    return {
+      totalMatchesToday: totalMatches,
+      winsToday: totalWins,
+      bestThreeDartAvgToday: bestAvg?.best_avg ? Math.round(bestAvg.best_avg * 100) / 100 : null,
+      bestCheckoutToday: bestCo?.best_checkout ?? null,
+      totalDartsThrownToday: dartsToday?.total_darts ?? 0,
+    }
+  } catch (e) {
+    console.warn('[Stats] getTodaySessionStats failed:', e)
+    return null
+  }
+}
+
+// ============================================================================
+// Win Streaks (Cross-Game)
+// ============================================================================
+
+export type WinStreakStats = {
+  currentWinStreak: number
+  longestWinStreak: number
+  currentLossStreak: number
+}
+
+/**
+ * Berechnet Gewinn- und Verlustserien über alle Spielmodi hinweg.
+ * Betrachtet nur Mehrspieler-Matches.
+ */
+export async function getWinStreaks(playerId: string): Promise<WinStreakStats> {
+  try {
+    // Combined query across all modes with timestamps for proper ordering
+    const unionParts: string[] = []
+    const params: string[] = []
+
+    // X01
+    unionParts.push(`
+      SELECT m.created_at, CASE WHEN (
+        SELECT json_extract(e.data, '$.winnerPlayerId') FROM x01_events e
+        WHERE e.match_id = m.id AND e.type = 'MatchFinished' LIMIT 1
+      ) = ? THEN 1 ELSE 0 END as won
+      FROM x01_matches m
+      JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE m.finished = 1
+        AND (SELECT COUNT(*) FROM x01_match_players WHERE match_id = m.id) > 1
+    `)
+    params.push(playerId, playerId)
+
+    // Cricket
+    unionParts.push(`
+      SELECT m.created_at, CASE WHEN (
+        SELECT json_extract(e.data, '$.winnerPlayerId') FROM cricket_events e
+        WHERE e.match_id = m.id AND e.type = 'CricketMatchFinished' LIMIT 1
+      ) = ? THEN 1 ELSE 0 END as won
+      FROM cricket_matches m
+      JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+      WHERE m.finished = 1
+        AND (SELECT COUNT(*) FROM cricket_match_players WHERE match_id = m.id) > 1
+    `)
+    params.push(playerId, playerId)
+
+    // Modes with winner_id column
+    const directWinModes = ['atb', 'ctf', 'str', 'highscore', 'shanghai', 'killer', 'bobs27', 'operation'] as const
+    for (const mode of directWinModes) {
+      unionParts.push(`
+        SELECT m.created_at, CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END as won
+        FROM ${mode}_matches m
+        JOIN ${mode}_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+          AND (SELECT COUNT(*) FROM ${mode}_match_players WHERE match_id = m.id) > 1
+      `)
+      params.push(playerId, playerId)
+    }
+
+    const results = await query<{ created_at: string; won: number }>(
+      `SELECT created_at, won FROM (${unionParts.join(' UNION ALL ')}) ORDER BY created_at DESC`,
+      params,
+    ).catch(() => [])
+
+    if (results.length === 0) {
+      return { currentWinStreak: 0, longestWinStreak: 0, currentLossStreak: 0 }
+    }
+
+    // Current streaks (from most recent)
+    let currentWinStreak = 0
+    let currentLossStreak = 0
+    for (const r of results) {
+      if (r.won === 1) {
+        if (currentLossStreak > 0) break
+        currentWinStreak++
+      } else {
+        if (currentWinStreak > 0) break
+        currentLossStreak++
+      }
+    }
+
+    // Longest win streak (iterate chronologically)
+    let longestWin = 0
+    let tempWin = 0
+    for (let i = results.length - 1; i >= 0; i--) {
+      if (results[i].won === 1) {
+        tempWin++
+        if (tempWin > longestWin) longestWin = tempWin
+      } else {
+        tempWin = 0
+      }
+    }
+
+    return {
+      currentWinStreak,
+      longestWinStreak: longestWin,
+      currentLossStreak,
+    }
+  } catch (e) {
+    console.warn('[Stats] getWinStreaks failed:', e)
+    return { currentWinStreak: 0, longestWinStreak: 0, currentLossStreak: 0 }
   }
 }

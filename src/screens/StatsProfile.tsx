@@ -12,6 +12,7 @@ import Accordion from '../components/Accordion'
 // SQL Stats Tabs
 import SQLStatsTab from './stats/SQLStatsTab'
 const PlayerInsightsTab = React.lazy(() => import('./stats/PlayerInsightsTab'))
+const AdvancedStatsTab = React.lazy(() => import('./stats/AdvancedStatsTab'))
 
 // SQL Stats Hook
 import { useSQLStats, formatDuration } from '../hooks/useSQLStats'
@@ -20,13 +21,15 @@ type Tab = 'uebersicht' | 'x01' | 'cricketco' | 'insights' | 'trends' | 'analyse
 
 export default function StatsProfile({
   onOpenMatch,
+  initialTab,
 }: {
   onOpenMatch?: (matchId: string) => void
+  initialTab?: Tab
 }) {
   const [profiles, setProfiles] = useState<Profile[]>(() => getProfiles())
   const [cursor, setCursor] = useState(0)
-  const [activeTab, setActiveTab] = useState<Tab>('uebersicht')
-  const [x01Variant, setX01Variant] = useState<301 | 501 | 701 | 901>(501)
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'uebersicht')
+  const [x01Variant, setX01Variant] = useState<121 | 301 | 501 | 701 | 901>(501)
 
   // Theme System
   const { isArcade, colors } = useTheme()
@@ -110,6 +113,8 @@ export default function StatsProfile({
       borderBottom: `2px solid ${colors.border}`,
       marginBottom: 16,
       overflowX: 'auto',
+      scrollbarWidth: 'none',          // Firefox
+      msOverflowStyle: 'none',         // IE/Edge
     } as React.CSSProperties,
     tab: (active: boolean) => ({
       padding: '12px 20px',
@@ -304,7 +309,7 @@ export default function StatsProfile({
       </div>
 
       {/* Tabs */}
-      <div style={s.tabBar} role="tablist" aria-label="Statistik-Kategorien">
+      <div style={s.tabBar} className="hide-scrollbar" role="tablist" aria-label="Statistik-Kategorien">
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -639,8 +644,8 @@ export default function StatsProfile({
 
         {/* ============ X01 (SQL) — Redesigned with Accordions ============ */}
         {activeTab === 'x01' && !sqlStats.loading && (() => {
-          const x01v = sqlStats.data.x01ByScore[x01Variant]
-          const variants = [301, 501, 701, 901] as const
+          const x01v = x01Variant !== 121 ? sqlStats.data.x01ByScore[x01Variant] : null
+          const variants = [121, 301, 501, 701, 901] as const
 
           return (
           <div style={{ maxWidth: 520, margin: '0 auto' }}>
@@ -667,15 +672,62 @@ export default function StatsProfile({
               ))}
             </div>
 
-            {/* Empty State */}
-            {(!x01v || x01v.matchesPlayed === 0) && (
+            {/* 121 Sprint Variante */}
+            {x01Variant === 121 && (() => {
+              const s121 = sqlStats.data.stats121
+              if (!s121 || s121.totalLegs === 0) {
+                return <div style={{ ...s.noData as React.CSSProperties, padding: 40 }}>Noch keine 121-Sprint-Spiele gespielt</div>
+              }
+              return (
+                <>
+                  <Accordion title="Übersicht" defaultOpen>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Legs gespielt</span><span style={s.statsValue}>{s121.totalLegs}</span></div>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Legs gewonnen</span><span style={s.statsValueGood}>{s121.legsWon}</span></div>
+                    {s121.matchesPlayed > 0 && (<>
+                      <div style={s.statsRow}><span style={s.statsLabel}>Matches gespielt</span><span style={s.statsValue}>{s121.matchesPlayed}</span></div>
+                      <div style={s.statsRow}><span style={s.statsLabel}>Matches gewonnen</span><span style={s.statsValueGood}>{s121.matchesWon}</span></div>
+                    </>)}
+                    <div style={s.statsRow}><span style={s.statsLabel}>Gewinnquote</span><span style={s.statsValueHighlight}>{formatPct(s121.winRate)}</span></div>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Ø Darts bis Finish</span><span style={s.statsValueHighlight}>{formatNum(s121.avgDartsToFinish)}</span></div>
+                    <div style={s.statsRowLast}><span style={s.statsLabel}>Persönliche Bestleistung</span><span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span></div>
+                  </Accordion>
+                  <Accordion title="Checkout-Analyse" defaultOpen={false}>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Checkout-Quote</span><span style={s.statsValueHighlight}>{formatPct(s121.checkoutPct)}</span></div>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Versuche / Treffer</span><span style={s.statsValue}>{s121.checkoutAttempts} / {s121.checkoutsMade}</span></div>
+                    <div style={s.statsRowLast}><span style={s.statsLabel}>Darts gesamt</span><span style={s.statsValue}>{s121.totalDarts}</span></div>
+                  </Accordion>
+                  <Accordion title="Konsistenz" defaultOpen={false}>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Beste Runde</span><span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span></div>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Schlechteste Runde</span><span style={s.statsValueBad}>{s121.worstDarts ?? '—'} Darts</span></div>
+                    <div style={s.statsRow}><span style={s.statsLabel}>Busts</span><span style={s.statsValueBad}>{s121.bustCount}</span></div>
+                    <div style={s.statsRowLast}><span style={s.statsLabel}>Bust-Quote</span><span style={s.statsValue}>{formatPct(s121.bustRate)}</span></div>
+                  </Accordion>
+                  <Accordion title="Skill-Score" defaultOpen={false}>
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+                      <div style={{
+                        width: 100, height: 100, borderRadius: '50%',
+                        background: s121.skillScore >= 70 ? colors.successBg : s121.skillScore >= 40 ? colors.warningBg : colors.errorBg,
+                        border: `4px solid ${s121.skillScore >= 70 ? colors.success : s121.skillScore >= 40 ? colors.warning : colors.error}`,
+                        display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+                      }}>
+                        <span style={{ fontSize: 28, fontWeight: 800, color: s121.skillScore >= 70 ? colors.success : s121.skillScore >= 40 ? colors.warning : colors.error }}>{s121.skillScore}</span>
+                        <span style={{ fontSize: 10, color: colors.fgDim }}>/ 100</span>
+                      </div>
+                    </div>
+                  </Accordion>
+                </>
+              )
+            })()}
+
+            {/* X01 Stats (301-901) */}
+            {x01Variant !== 121 && (!x01v || x01v.matchesPlayed === 0) && (
               <div style={{ ...s.noData as React.CSSProperties, padding: 40 }}>
                 Noch keine {x01Variant}-Spiele gespielt
               </div>
             )}
 
-            {/* Stats Accordions */}
-            {x01v && x01v.matchesPlayed > 0 && (
+            {/* Stats Accordions (nur für 301-901) */}
+            {x01Variant !== 121 && x01v && x01v.matchesPlayed > 0 && (
             <>
               {/* 1. Allgemeine Matchdaten */}
               <Accordion title="Allgemeine Matchdaten" defaultOpen>
@@ -923,123 +975,6 @@ export default function StatsProfile({
                 </div>
               </Accordion>
 
-              {/* Sprint 121 (ehemals eigener Tab) */}
-              <Accordion title="Sprint 121" defaultOpen={false}>
-            {sqlStats.data.stats121 && sqlStats.data.stats121.totalLegs > 0 ? (() => {
-              const s121 = sqlStats.data.stats121
-              return (
-              <>
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Legs gespielt</span>
-                    <span style={s.statsValue}>{s121.totalLegs}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Legs gewonnen</span>
-                    <span style={s.statsValueGood}>{s121.legsWon}</span>
-                  </div>
-                  {s121.matchesPlayed > 0 && (<>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Matches gespielt</span>
-                    <span style={s.statsValue}>{s121.matchesPlayed}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Matches gewonnen</span>
-                    <span style={s.statsValueGood}>{s121.matchesWon}</span>
-                  </div>
-                  </>)}
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Gewinnquote</span>
-                    <span style={s.statsValueHighlight}>{formatPct(s121.winRate)}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Ø Darts bis Finish</span>
-                    <span style={s.statsValueHighlight}>{formatNum(s121.avgDartsToFinish)}</span>
-                  </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Persönliche Bestleistung</span>
-                    <span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span>
-                  </div>
-                </div>
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Checkout-Analyse</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Checkout-Quote</span>
-                    <span style={s.statsValueHighlight}>{formatPct(s121.checkoutPct)}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Checkout-Versuche / Treffer</span>
-                    <span style={s.statsValue}>{s121.checkoutAttempts} / {s121.checkoutsMade}</span>
-                  </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Darts gesamt</span>
-                    <span style={s.statsValue}>{s121.totalDarts}</span>
-                  </div>
-                </div>
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Konsistenz</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Beste Runde</span>
-                    <span style={s.statsValueGood}>{s121.bestDarts ?? '—'} Darts</span>
-                  </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Schlechteste Runde</span>
-                    <span style={s.statsValueBad}>{s121.worstDarts ?? '—'} Darts</span>
-                  </div>
-                </div>
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Busts</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Busts gesamt</span>
-                    <span style={s.statsValueBad}>{s121.bustCount}</span>
-                  </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Bust-Quote</span>
-                    <span style={s.statsValue}>{formatPct(s121.bustRate)}</span>
-                  </div>
-                </div>
-                <div style={s.statsCardLast}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Skill-Score</div>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    padding: 20,
-                  }}>
-                    <div style={{
-                      width: 100,
-                      height: 100,
-                      borderRadius: '50%',
-                      background: s121.skillScore >= 70 ? colors.successBg :
-                                 s121.skillScore >= 40 ? colors.warningBg : colors.errorBg,
-                      border: `4px solid ${s121.skillScore >= 70 ? colors.success :
-                               s121.skillScore >= 40 ? colors.warning : colors.error}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}>
-                      <span style={{
-                        fontSize: 28,
-                        fontWeight: 800,
-                        color: s121.skillScore >= 70 ? colors.success :
-                               s121.skillScore >= 40 ? colors.warning : colors.error,
-                      }}>
-                        {s121.skillScore}
-                      </span>
-                      <span style={{ fontSize: 10, color: colors.fgDim }}>/ 100</span>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, color: colors.fgDim, textAlign: 'center', marginTop: 8 }}>
-                    Gewichtung: 40% Checkout-Quote, 25% Darts bis Finish, 20% Double-Effizienz, 15% Konstanz
-                  </div>
-                </div>
-              </>
-            )})() : (
-              <div style={s.noData as React.CSSProperties}>Keine Sprint 121-Statistiken vorhanden.</div>
-            )}
-              </Accordion>
             </>
             )}
           </div>
@@ -1918,9 +1853,11 @@ export default function StatsProfile({
           <SQLStatsTab playerId={selected.id} playerName={selected.name} />
         )}
 
-        {/* ============ ERFOLGE (Platzhalter) ============ */}
-        {activeTab === 'erfolge' && !sqlStats.loading && (
-          <div style={s.noData as React.CSSProperties}>Noch keine Erfolge freigeschaltet.</div>
+        {/* ============ ERFOLGE & MEILENSTEINE ============ */}
+        {activeTab === 'erfolge' && selected && !sqlStats.loading && (
+          <React.Suspense fallback={<div style={{ padding: 20, textAlign: 'center', color: colors.fgDim }}>Laden...</div>}>
+            <AdvancedStatsTab data={sqlStats.data} tab="erfolge" playerName={selected.name} />
+          </React.Suspense>
         )}
 
         {/* Keine Daten */}

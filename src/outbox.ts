@@ -1,9 +1,7 @@
 // src/outbox.ts
-// Offline-Outbox: SQLite (primary) + LocalStorage (fallback)
+// Offline-Outbox: SQLite only
 
 import { ensureDB, dbQueueMatch, dbReadOutbox, dbRemoveFromOutbox } from './db/storage'
-
-const OUTBOX_KEY = 'darts.outbox.v1';
 
 export type MatchPayload = {
   id: string;
@@ -14,31 +12,8 @@ export type MatchPayload = {
   statsByPlayer: Record<string, any>;
 };
 
-// LS Fallback helpers
-function readBoxLS(): MatchPayload[] {
-  try {
-    const raw = localStorage.getItem(OUTBOX_KEY);
-    return raw ? (JSON.parse(raw) as MatchPayload[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeBoxLS(list: MatchPayload[]) {
-  localStorage.setItem(OUTBOX_KEY, JSON.stringify(list));
-}
-
 // Job zur Outbox hinzufügen (idempotent nach match.id)
 export function queueMatch(payload: MatchPayload) {
-  // LS als synchroner Fallback
-  const list = readBoxLS();
-  const exists = list.some((p) => p.id === payload.id);
-  if (!exists) {
-    list.push(payload);
-    writeBoxLS(list);
-    console.debug('[Outbox] queued (LS)', payload.id);
-  }
-
   // SQLite async (fire-and-forget)
   dbQueueMatch(payload).catch(e =>
     console.warn('[Outbox] SQLite queue failed:', e)
@@ -47,51 +22,25 @@ export function queueMatch(payload: MatchPayload) {
 
 // Alle Jobs versuchen zu senden (mit optionalem Backoff)
 export async function flushOutbox(submit: (p: MatchPayload) => Promise<any>) {
-  let items: MatchPayload[]
-
-  // Try SQLite first
   try {
     const useSQLite = await ensureDB()
-    if (useSQLite) {
-      items = await dbReadOutbox()
-      if (items.length > 0) {
-        const remaining: MatchPayload[] = []
-        for (const p of items) {
-          try {
-            await submit(p);
-            console.debug('[Outbox] delivered', p.id);
-            await dbRemoveFromOutbox(p.id)
-          } catch (err) {
-            console.warn('[Outbox] still failing', p.id, err);
-            remaining.push(p);
-          }
-        }
-        // Sync LS
-        writeBoxLS(remaining)
-        return
+    if (!useSQLite) return
+
+    const items = await dbReadOutbox()
+    if (items.length === 0) return
+
+    for (const p of items) {
+      try {
+        await submit(p);
+        console.debug('[Outbox] delivered', p.id);
+        await dbRemoveFromOutbox(p.id)
+      } catch (err) {
+        console.warn('[Outbox] still failing', p.id, err);
       }
     }
   } catch (e) {
-    console.warn('[Outbox] SQLite read failed, falling back to LS:', e)
+    console.warn('[Outbox] flush failed:', e)
   }
-
-  // LS fallback
-  items = readBoxLS();
-  if (items.length === 0) return;
-
-  const remaining: MatchPayload[] = [];
-  for (const p of items) {
-    try {
-      await submit(p);
-      console.debug('[Outbox] delivered', p.id);
-      // Also remove from SQLite
-      dbRemoveFromOutbox(p.id).catch(() => {})
-    } catch (err) {
-      console.warn('[Outbox] still failing', p.id, err);
-      remaining.push(p);
-    }
-  }
-  writeBoxLS(remaining);
 }
 
 // Komfort: Flush mit einfachem Retry/Backoff (z. B. beim App-Start)
@@ -114,12 +63,8 @@ export function scheduleFlushWithBackoff(
       if (useSQLite) {
         const items = await dbReadOutbox()
         stillPending = items.length > 0
-      } else {
-        stillPending = readBoxLS().length > 0
       }
-    } catch {
-      stillPending = readBoxLS().length > 0
-    }
+    } catch { /* ignore */ }
 
     if (stillPending) {
       scheduleFlushWithBackoff(submit, attempt + 1);

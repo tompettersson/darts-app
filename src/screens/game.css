@@ -157,7 +157,7 @@ html, body, #root {
   gap: 10px;
 }
 .g-bigNum {
-  font-size: 38px;
+  font-size: clamp(28px, 7vw, 38px);
   font-weight: 900;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -203,6 +203,10 @@ html, body, #root {
   text-align: left;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 2;
 }
 .g-td {
   padding: 10px 12px;
@@ -333,6 +337,10 @@ html, body, #root {
   color: var(--fg-dim);
   letter-spacing: .2px;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 2;
 }
 
 .g-details {
@@ -434,7 +442,7 @@ html, body, #root {
   transform: translate(-50%, -50%);
   z-index: 9999;
   pointer-events: none;
-  font-size: 72px;
+  font-size: clamp(48px, 14vw, 72px);
   font-weight: 900;
   color: #fff;
   text-shadow: 0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(249,115,22,0.4);
@@ -654,12 +662,22 @@ html, body, #root {
 
 /* Screen transition - fade in */
 .screen-enter {
-  animation: screenFadeIn 0.25s ease-out;
+  animation: screenFadeIn 0.2s ease-out;
 }
 
 @keyframes screenFadeIn {
-  from { opacity: 0.6; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Screen transition - fade out */
+.screen-exit {
+  animation: screenFadeOut 0.15s ease-in forwards;
+}
+
+@keyframes screenFadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
 }
 
 /* Screen transition - slide in from right */
@@ -700,4 +718,36 @@ html, body, #root {
 @keyframes dartSlotFill {
   from { transform: scale(0); }
   to { transform: scale(1); }
+}
+
+/* ===== Scrollbar in Tab-Leisten verstecken ===== */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* ===== Focus Indicator für Keyboard-Navigation ===== */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+[data-theme="arcade"] :focus-visible {
+  outline-color: #f97316;
+}
+
+/* ===== Responsive: Player Grid auf Mobile ===== */
+@media (max-width: 520px) {
+  .g-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  .g-mainRow {
+    grid-template-columns: 1fr 80px;
+  }
+  .g-bigNum {
+    font-size: 28px;
+  }
+  .g-modal {
+    padding: 10px;
+  }
 }

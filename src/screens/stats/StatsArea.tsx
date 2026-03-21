@@ -6,6 +6,8 @@ import React, { useState, useEffect, useMemo, Suspense } from 'react'
 import { ui, getThemedUI } from '../../ui'
 import { useTheme } from '../../ThemeProvider'
 import ArcadeScrollPicker, { type PickerItem } from '../../components/ArcadeScrollPicker'
+import { getProfiles, type Profile } from '../../storage'
+import { useSQLStats } from '../../hooks/useSQLStats'
 
 // H2HState Type-Import (nur Typ, kein Code-Bundle)
 import type { H2HState } from './StatsDashboard'
@@ -14,6 +16,7 @@ import type { H2HState } from './StatsDashboard'
 const StatsDashboard = React.lazy(() => import('./StatsDashboard'))
 const PlayersOverview = React.lazy(() => import('./PlayersOverview'))
 const StatsProfile = React.lazy(() => import('../StatsProfile'))
+const AdvancedStatsTab = React.lazy(() => import('./AdvancedStatsTab'))
 const MatchDetails = React.lazy(() => import('../MatchDetails'))
 const ATBMatchDetails = React.lazy(() => import('../ATBMatchDetails'))
 const StrMatchDetails = React.lazy(() => import('../StrMatchDetails'))
@@ -44,6 +47,7 @@ type View =
   | 'bobs27-match-details'
   | 'operation-match-details'
   | 'hall-of-fame'
+  | 'erfolge'
 
 type Props = {
   onBackToMenu: () => void
@@ -115,10 +119,11 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   // ---------- STATS UNTERMENÜ ----------
   if (view === 'stats-menu') {
     const statsItems: PickerItem[] = [
-      { id: 'stats-dashboard', label: 'Vergleiche', sub: 'Head-to-Head, Spielervergleich' },
-      { id: 'match-history', label: 'Matchhistorie', sub: 'Matchauswahl → Details' },
-      { id: 'player-profile', label: 'Spieler', sub: 'Statistiken pro Spieler' },
-      { id: 'hall-of-fame', label: 'Highscores', sub: 'Hall of Fame / Leaderboards' },
+      { id: 'stats-dashboard', label: 'Vergleiche', sub: 'Head-to-Head, Spielervergleich', icon: <span style={{ fontSize: 22 }}>{'\u2694'}</span> },
+      { id: 'match-history', label: 'Matchhistorie', sub: 'Alle gespielten Matches', icon: <span style={{ fontSize: 22 }}>{'\uD83D\uDCCB'}</span> },
+      { id: 'player-profile', label: 'Spieler', sub: 'Statistiken pro Spieler', icon: <span style={{ fontSize: 22 }}>{'\uD83D\uDC64'}</span> },
+      { id: 'hall-of-fame', label: 'Highscores', sub: 'Hall of Fame / Leaderboards', icon: <span style={{ fontSize: 22 }}>{'\uD83C\uDFC6'}</span> },
+      { id: 'erfolge', label: 'Erfolge', sub: 'Achievements & Fortschritt', icon: <span style={{ fontSize: 22 }}>{'\u2B50'}</span> },
     ]
 
     const handleStatsConfirm = (index: number) => {
@@ -145,25 +150,25 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
               <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Statistiken</h1>
               <div style={styles.card}>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <button onClick={() => setView('stats-dashboard')} style={styles.tile}>
-                    <div style={styles.title}>Vergleiche</div>
-                    <div style={styles.sub}>Head-to-Head, Spielervergleich</div>
-                  </button>
-
-                  <button onClick={() => setView('match-history')} style={styles.tile}>
-                    <div style={styles.title}>Matchhistorie</div>
-                    <div style={styles.sub}>Matchauswahl → Details</div>
-                  </button>
-
-                  <button onClick={() => setView('player-profile')} style={styles.tile}>
-                    <div style={styles.title}>Spieler</div>
-                    <div style={styles.sub}>Statistiken pro Spieler</div>
-                  </button>
-
-                  <button onClick={() => setView('hall-of-fame')} style={styles.tile}>
-                    <div style={styles.title}>Highscores</div>
-                    <div style={styles.sub}>Hall of Fame / Leaderboards</div>
-                  </button>
+                  {([
+                    { id: 'stats-dashboard', icon: '\u2694', color: '#3b82f6', title: 'Vergleiche', sub: 'Head-to-Head, Spielervergleich' },
+                    { id: 'match-history', icon: '\u{1F4CB}', color: '#8b5cf6', title: 'Matchhistorie', sub: 'Alle gespielten Matches' },
+                    { id: 'player-profile', icon: '\u{1F464}', color: '#10b981', title: 'Spieler', sub: 'Statistiken pro Spieler' },
+                    { id: 'hall-of-fame', icon: '\u{1F3C6}', color: '#FFD700', title: 'Highscores', sub: 'Hall of Fame / Leaderboards' },
+                    { id: 'erfolge', icon: '\u2B50', color: '#f59e0b', title: 'Erfolge', sub: 'Achievements & Fortschritt' },
+                  ] as const).map(item => (
+                    <button key={item.id} onClick={() => setView(item.id as View)} style={{
+                      ...styles.tile,
+                      borderLeft: `4px solid ${item.color}`,
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                    }}>
+                      <span style={{ fontSize: 22, flexShrink: 0 }}>{item.icon}</span>
+                      <div>
+                        <div style={styles.title}>{item.title}</div>
+                        <div style={styles.sub}>{item.sub}</div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -341,6 +346,15 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
     return <Suspense fallback={suspenseFallback}><HallOfFame onBack={() => setView('stats-menu')} /></Suspense>
   }
 
+  // ---------- ERFOLGE (eigenständige Seite mit Spieler-Auswahl) ----------
+  if (view === 'erfolge') {
+    return (
+      <Suspense fallback={suspenseFallback}>
+        <ErfolgeStandalone onBack={() => setView('stats-menu')} />
+      </Suspense>
+    )
+  }
+
   // ---------- MATCH DETAILS (X01) ----------
   if (view === 'match-details' && detailMatchId) {
     return <Suspense fallback={suspenseFallback}><MatchDetails matchId={detailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
@@ -401,6 +415,119 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
           <button style={styles.backBtn} onClick={onBackToMenu}>Ins Menü</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// Eigenständige Erfolge-Seite (Spieler-Auswahl + Achievements)
+// ============================================================================
+
+const ERFOLGE_SHIMMER_CSS = `
+@keyframes erfolge-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes erfolge-sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+`
+
+function ErfolgeStandalone({ onBack }: { onBack: () => void }) {
+  const { colors, isArcade } = useTheme()
+  const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+  const [profiles] = useState<Profile[]>(() => getProfiles())
+  const [cursor, setCursor] = useState(0)
+
+  const selected = profiles[cursor]
+  const sqlStats = useSQLStats(selected?.id ?? '')
+
+  const prev = () => setCursor(c => (c - 1 + profiles.length) % profiles.length)
+  const next = () => setCursor(c => (c + 1) % profiles.length)
+
+  const shimmerTitle: React.CSSProperties = {
+    fontSize: 28,
+    fontWeight: 900,
+    letterSpacing: '0.02em',
+    background: `linear-gradient(90deg, ${colors.accent}, #FFD700, ${colors.accent}, #FFD700, ${colors.accent})`,
+    backgroundSize: '200% auto',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+    animation: 'erfolge-shimmer 3s linear infinite',
+    display: 'inline-block',
+  }
+
+  const sparkle = (delay: number): React.CSSProperties => ({
+    display: 'inline-block',
+    animation: `erfolge-sparkle 2s ease-in-out ${delay}s infinite`,
+    fontSize: 18,
+    verticalAlign: 'middle',
+    margin: '0 6px',
+  })
+
+  if (profiles.length === 0) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.headerRow}>
+          <h2 style={{ margin: 0, color: colors.fg }}>Erfolge</h2>
+          <button style={styles.backBtn} onClick={onBack}>\u2190 Zurück</button>
+        </div>
+        <div style={{ padding: 40, textAlign: 'center', color: colors.fgDim }}>
+          Keine Spieler vorhanden. Erstelle zuerst ein Profil.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ ...styles.page, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+      <style>{ERFOLGE_SHIMMER_CSS}</style>
+
+      {/* Header zentriert */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button style={styles.backBtn} onClick={onBack}>{'\u2190'}</button>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={sparkle(0)}>{'\u2728'}</span>
+          <h2 style={{ ...shimmerTitle, margin: 0 }}>Erfolge</h2>
+          <span style={sparkle(0.7)}>{'\u2728'}</span>
+        </div>
+        <div style={{ width: 40 }} />
+      </div>
+
+      {/* Spieler-Auswahl */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '12px 0',
+        background: `linear-gradient(135deg, ${colors.accent}08, transparent)`,
+        borderRadius: 12,
+      }}>
+        {profiles.length > 1 && (
+          <button onClick={prev} style={{
+            ...styles.backBtn, fontSize: 16, padding: '6px 12px', borderRadius: 10,
+            background: colors.bgMuted, border: `1px solid ${colors.border}`,
+          }}>{'\u2190'}</button>
+        )}
+        <div style={{ textAlign: 'center', minWidth: 100 }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: colors.fg }}>{selected?.name}</div>
+          <div style={{ fontSize: 11, color: colors.fgDim }}>{cursor + 1} von {profiles.length}</div>
+        </div>
+        {profiles.length > 1 && (
+          <button onClick={next} style={{
+            ...styles.backBtn, fontSize: 16, padding: '6px 12px', borderRadius: 10,
+            background: colors.bgMuted, border: `1px solid ${colors.border}`,
+          }}>{'\u2192'}</button>
+        )}
+      </div>
+
+      {/* Achievements */}
+      {sqlStats.loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: colors.fgDim }}>Laden...</div>
+      ) : (
+        <Suspense fallback={<div style={{ padding: 20, textAlign: 'center', color: colors.fgDim }}>Laden...</div>}>
+          <AdvancedStatsTab data={sqlStats.data} tab="erfolge" playerName={selected?.name ?? ''} />
+        </Suspense>
+      )}
     </div>
   )
 }

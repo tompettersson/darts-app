@@ -4,6 +4,8 @@ import { useTheme } from '../ThemeProvider'
 import CricketModePicker, { type CricketSetup } from './newgame/CricketModePicker'
 import ArcadeScrollPicker, { type PickerItem } from '../components/ArcadeScrollPicker'
 import type { ATBMode, ATBDirection } from '../types/aroundTheBlock'
+import { getLastGameConfig } from './NewGame'
+import { getProfiles } from '../storage'
 
 // --- Inline SVG Icons (32x32) ---
 const IconDartboard = () => (
@@ -241,14 +243,26 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
   const [boardPickerIndex, setBoardPickerIndex] = useState(0)
   const [onlinePickerIndex, setOnlinePickerIndex] = useState(0)
 
+  // Quick-Start: Letztes X01-Spiel wiederholen
+  const lastConfig = useMemo(() => {
+    const cfg = getLastGameConfig()
+    if (!cfg || !cfg.score) return null
+    const profiles = getProfiles()
+    const playerNames = (cfg.playerIds ?? [])
+      .map(id => profiles.find(p => p.id === id)?.name)
+      .filter(Boolean) as string[]
+    if (playerNames.length === 0) return null
+    return { ...cfg, playerNames }
+  }, [])
+
   // Arcade Picker items
   const pickerItems: PickerItem[] = useMemo(() => [
-    { id: 'random', label: 'Zufallsspiel', sub: 'Überraschung! Zufälliger Spielmodus' },
-    { id: 'x01', label: 'X01', sub: '301 / 501 / 701 / 901' },
-    { id: 'cricket', label: 'Cricket', sub: 'Short / Long & Cutthroat' },
-    { id: 'training', label: 'Trainingspiele', sub: '121 Sprint & mehr' },
-    { id: 'board', label: 'Rund ums Board', sub: 'ATB, Capture the Field, Shanghai' },
-    { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten' },
+    { id: 'random', label: 'Zufallsspiel', sub: 'Überraschung! Zufälliger Spielmodus', icon: <IconShuffle /> },
+    { id: 'x01', label: 'X01', sub: '301 / 501 / 701 / 901', icon: <IconDartboard /> },
+    { id: 'cricket', label: 'Cricket', sub: 'Short / Long & Cutthroat', icon: <IconCricket /> },
+    { id: 'training', label: 'Trainingspiele', sub: '121 Sprint & mehr', icon: <IconTraining /> },
+    { id: 'board', label: 'Rund ums Board', sub: 'ATB, Capture the Field, Shanghai', icon: <IconBoard /> },
+    { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <IconOnline /> },
   ], [])
 
   const handlePickerConfirm = (index: number) => {
@@ -261,34 +275,38 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     else if (id === 'online') setStep('online')
   }
 
-  // Preset Picker items (X01)
+  // Preset Picker items (X01 + 121)
   const presetItems: PickerItem[] = useMemo(() => [
-    { id: '301', label: '301', sub: 'Double-Out' },
-    { id: '501', label: '501', sub: 'Double-Out' },
-    { id: '701', label: '701', sub: 'Double-Out' },
-    { id: '901', label: '901', sub: 'Double-Out' },
+    { id: '121', label: '121 Sprint', sub: 'SI / Double-Out', icon: <IconDartboard /> },
+    { id: '301', label: '301', sub: 'Double-Out', icon: <IconDartboard /> },
+    { id: '501', label: '501', sub: 'Double-Out', icon: <IconDartboard /> },
+    { id: '701', label: '701', sub: 'Double-Out', icon: <IconDartboard /> },
+    { id: '901', label: '901', sub: 'Double-Out', icon: <IconDartboard /> },
   ], [])
 
   const handlePresetConfirm = (index: number) => {
-    const score = parseInt(presetItems[index].id) as Score
-    pick(score)
+    const id = presetItems[index].id
+    if (id === '121') {
+      onSelect121?.()
+    } else {
+      pick(parseInt(id) as Score)
+    }
   }
 
-  // Training Picker items
+  // Training Picker items (ohne 121, das ist jetzt bei X01-Presets)
   const trainingItems: PickerItem[] = useMemo(() => [
-    { id: '121', label: '121 Sprint', sub: 'Straight-In / Double-Out' },
-    { id: 'str', label: 'Sträußchen', sub: '3× Triple auf 17/18/19/20' },
-    { id: 'highscore', label: 'Highscore', sub: 'Erreiche als Erster das Target!' },
-    { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!' },
-    { id: 'bobs27', label: "Bob's 27", sub: 'Doubles Training D1-D20' },
-    { id: 'operation', label: 'Operation: EFKG', sub: 'Ein Feld, keine Gnade' },
+    { id: 'str', label: 'Sträußchen', sub: '3× Triple auf 17/18/19/20', icon: <IconBouquet /> },
+    { id: 'highscore', label: 'Highscore', sub: 'Erreiche als Erster das Target!', icon: <IconStar /> },
+    { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!', icon: <IconSkull /> },
+    { id: 'bobs27', label: "Bob's 27", sub: 'Doubles Training D1-D20', icon: <IconDice /> },
+    { id: 'operation', label: 'Operation: EFKG', sub: 'Ein Feld, keine Gnade', icon: <IconCrosshair /> },
   ], [])
 
   // Board Picker items (Rund ums Board)
   const boardItems: PickerItem[] = useMemo(() => [
-    { id: 'atb', label: 'Around the Block', sub: '1-20 + Bull treffen' },
-    { id: 'ctf', label: 'Capture the Field', sub: 'Felder erobern!' },
-    { id: 'shanghai', label: 'Shanghai', sub: '1-20 punkten, Shanghai = Sofortsieg!' },
+    { id: 'atb', label: 'Around the Block', sub: '1-20 + Bull treffen', icon: <IconCircularArrows /> },
+    { id: 'ctf', label: 'Capture the Field', sub: 'Felder erobern!', icon: <IconSwords /> },
+    { id: 'shanghai', label: 'Shanghai', sub: '1-20 punkten, Shanghai = Sofortsieg!', icon: <IconDragon /> },
   ], [])
 
   const handleBoardConfirm = (index: number) => {
@@ -300,8 +318,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
 
   // Online Picker items
   const onlineItems: PickerItem[] = useMemo(() => [
-    { id: 'host', label: 'Match hosten', sub: 'Remote-Spiel erstellen' },
-    { id: 'join', label: 'Match beitreten', sub: 'Code eingeben' },
+    { id: 'host', label: 'Match hosten', sub: 'Remote-Spiel erstellen', icon: <IconOnline /> },
+    { id: 'join', label: 'Match beitreten', sub: 'Code eingeben', icon: <IconOnline /> },
   ], [])
 
   const handleOnlineConfirm = (index: number) => {
@@ -312,8 +330,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
 
   const handleTrainingConfirm = (index: number) => {
     const id = trainingItems[index].id
-    if (id === '121') onSelect121?.()
-    else if (id === 'str') onSelectStraeusschen?.()
+    if (id === 'str') onSelectStraeusschen?.()
     else if (id === 'highscore') onSelectHighscore?.()
     else if (id === 'killer') onSelectKiller?.()
     else if (id === 'bobs27') onSelectBobs27?.()
@@ -359,6 +376,36 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           ) : (
             <div style={styles.centerInner}>
               <h1 style={titleStyle}>Neues Spiel</h1>
+
+              {/* Quick-Start: Letztes Spiel wiederholen */}
+              {lastConfig && (
+                <button
+                  style={{
+                    ...styles.tile,
+                    background: `linear-gradient(135deg, ${colors.accent}18, ${colors.accent}08)`,
+                    borderColor: `${colors.accent}40`,
+                    borderLeft: `4px solid ${colors.accent}`,
+                  }}
+                  onClick={() => {
+                    const score = lastConfig.score as Score
+                    onSelectPreset({ mode: `${score}-double-out` as ModeStr, startingScore: score })
+                  }}
+                  aria-label="Letztes Spiel wiederholen"
+                >
+                  <div style={tileWithIconStyle}>
+                    <div style={iconWrapStyle}><IconDartboard /></div>
+                    <div>
+                      <div style={{ ...styles.title, marginBottom: 4 }}>Schnellstart</div>
+                      <div style={styles.sub}>
+                        {lastConfig.score} {lastConfig.outRule === 'double-out' ? 'DO' : lastConfig.outRule === 'master-out' ? 'MO' : 'SO'}
+                        {' \u00B7 '}
+                        {lastConfig.playerNames.join(' vs ')}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )}
+
               {/* Zufallsspiel - ganz oben */}
               <button
                 style={{ ...styles.tile, background: colors.warningBg, borderColor: colors.warning, borderLeft: `4px solid ${modeAccents.random}` }}
@@ -451,7 +498,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           )
         )}
 
-        {/* Step 2: X01 Presets (ohne 121) */}
+        {/* Step 2: X01 Presets (inkl. 121) */}
         {step === 'preset' && (
           isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
@@ -467,6 +514,20 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           ) : (
             <div style={styles.centerInnerWide} aria-label="X01-Presets">
               <h1 style={titleStyle}>Neues Spiel</h1>
+              {/* 121 Sprint */}
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['121']}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconDartboard /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 18, lineHeight: 1.1 }}>
+                      121 Sprint
+                    </div>
+                    <div style={styles.sub}>Straight-In / Double-Out</div>
+                  </div>
+                </div>
+                <button style={styles.pill} onClick={() => onSelect121?.()} aria-label="121 Sprint auswählen">auswählen</button>
+              </div>
+              {/* 301-901 Presets */}
               {([301, 501, 701, 901] as const).map((score) => (
                 <div key={score} style={styles.rowCard}>
                   <div>
@@ -503,19 +564,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
             </div>
           ) : (
             <div style={styles.centerInnerWide} aria-label="Trainingspiele">
-              <h1 style={titleStyle}>Neues Spiel</h1>
-              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['121']}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={iconWrapStyle}><IconDartboard /></div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 18, lineHeight: 1.1 }}>
-                      121
-                    </div>
-                    <div style={styles.sub}>Sprint – Straight-In / Double-Out</div>
-                  </div>
-                </div>
-                <button style={styles.pill} onClick={() => onSelect121?.()} aria-label="121 Sprint auswählen">auswählen</button>
-              </div>
+              <h1 style={titleStyle}>Trainingspiele</h1>
 
               <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents.str}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

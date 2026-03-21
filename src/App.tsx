@@ -7,6 +7,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import { ui, getThemedUI } from './ui'
 import { useTheme } from './ThemeProvider'
 import type { AppTheme } from './theme'
+import { showToast } from './components/Toast'
 
 // SQLite Startup
 import { startupWithSQLite, isSQLiteReady } from './db/init'
@@ -276,10 +277,10 @@ export default function App() {
   // Spielerfarben-Hintergrund Einstellung
   const [playerColorBgEnabled, setPlayerColorBgEnabled] = useState(() => getPlayerColorBackgroundEnabled())
 
-  // Backspace-Navigation: einen Menüpunkt zurück
+  // Backspace/Escape-Navigation: einen Menüpunkt zurück
   useEffect(() => {
     const handleBackspace = (e: KeyboardEvent) => {
-      if (e.key !== 'Backspace') return
+      if (e.key !== 'Backspace' && e.key !== 'Escape') return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       const backMap: Partial<Record<View, View>> = {
@@ -1743,10 +1744,10 @@ export default function App() {
 
   if (view === 'profiles-menu') {
     const profilesItems: PickerItem[] = [
-      { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen' },
-      { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen' },
-      { id: 'profiles-backup', label: 'Backup & Restore', sub: 'Speichern oder importieren' },
-      { id: 'settings', label: 'Einstellungen', sub: 'Theme, Stimme' },
+      { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen', icon: <span style={{ fontSize: 20 }}>{'\u270F\uFE0F'}</span> },
+      { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen', icon: <span style={{ fontSize: 20 }}>{'\u2795'}</span> },
+      { id: 'profiles-backup', label: 'Backup & Restore', sub: 'Speichern oder importieren', icon: <span style={{ fontSize: 20 }}>{'\uD83D\uDCBE'}</span> },
+      { id: 'settings', label: 'Einstellungen', sub: 'Theme, Stimme', icon: <MenuIconSettings /> },
     ]
 
     const handleProfilesConfirm = (index: number) => {
@@ -1857,10 +1858,10 @@ export default function App() {
   }
 
   const menuItems: PickerItem[] = [
-    { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : '—' },
-    { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket' },
-    { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores' },
-    { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Backup, Theme' },
+    { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : 'Kein laufendes Spiel', icon: <MenuIconContinue /> },
+    { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket', icon: <MenuIconNewGame /> },
+    { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores', icon: <MenuIconStats /> },
+    { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Backup, Theme', icon: <MenuIconSettings /> },
   ]
 
   const handleMenuConfirm = (index: number) => {
@@ -1935,7 +1936,7 @@ export default function App() {
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconContinue /></div>
                   <div>
                     <div style={styles.title}>Spiel fortsetzen</div>
-                    <div style={styles.sub}>{continueInfo ? continueInfo.title : '---'}</div>
+                    <div style={styles.sub}>{continueInfo ? continueInfo.title : 'Kein laufendes Spiel'}</div>
                   </div>
                 </button>
 

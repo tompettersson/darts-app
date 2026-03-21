@@ -39,6 +39,14 @@ function outRuleShort(r: OutRule) { return r === 'double-out' ? 'DO' : r === 'ma
 function inRuleLabel(r: InRule) { return r === 'double-in' ? 'Double In' : 'Normal In' }
 function inRuleShort(r: InRule) { return r === 'double-in' ? 'DI' : 'SI' }
 
+/** Letzte Spielkonfiguration lesen (für Quick-Start im Menü) */
+export function getLastGameConfig(): { score: number; playerIds: string[]; inRule: string; outRule: string; structure: any; ts: number } | null {
+  try {
+    const raw = localStorage.getItem('darts.lastGameConfig')
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
 /* ---------- Gastfarben ---------- */
 const GUEST_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#84cc16']
 
@@ -51,6 +59,9 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
   // Gäste nur lokal in diesem Screen verwalten
   type GuestPick = { id: string; name: string; color: string; isGuest: true }
   const [guests, setGuests] = useState<GuestPick[]>([])
+
+  // Spieler-Suche
+  const [playerSearch, setPlayerSearch] = useState('')
 
   // Auswahl + Reihenfolge (IDs; können Profil-IDs oder Gast-IDs sein)
   const [selected, setSelected] = useState<string[]>([])
@@ -180,6 +191,14 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
 
   const handleStart = () => {
     if (!canStart) return
+
+    // Letzte Spielkonfiguration speichern (für Quick-Start)
+    try {
+      const profilePlayerIds = dedupeIds(order).filter(pid => selected.includes(pid) && !guests.some(g => g.id === pid))
+      localStorage.setItem('darts.lastGameConfig', JSON.stringify({
+        score, inRule, outRule, structure, playerIds: profilePlayerIds, ts: Date.now(),
+      }))
+    } catch {}
 
     const playerIds = dedupeIds(order).filter((pid) => selected.includes(pid))
     if (playerIds.length < 1) return
@@ -354,8 +373,24 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
               </div>
             </div>
 
+            {mixedList.length > 6 && (
+              <input
+                type="text"
+                placeholder="Spieler suchen..."
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 10,
+                  border: `1px solid ${colors.border}`, background: colors.bgInput,
+                  color: colors.fg, fontSize: 14, boxSizing: 'border-box',
+                }}
+              />
+            )}
             <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-              {mixedList.map((p) => {
+              {mixedList.filter(p => {
+                if (!playerSearch.trim()) return true
+                return p.name.toLowerCase().includes(playerSearch.trim().toLowerCase())
+              }).map((p) => {
                 const isSel = selected.includes(p.id)
                 const isGuest = guests.some(g => g.id === p.id)
                 return (

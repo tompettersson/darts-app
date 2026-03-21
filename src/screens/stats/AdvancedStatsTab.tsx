@@ -1,10 +1,11 @@
 // src/screens/stats/AdvancedStatsTab.tsx
 // Erweiterte Statistiken: Analyse, Achievements, Training
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useTheme } from '../../ThemeProvider'
 import { getThemedUI } from '../../ui'
 import type { SQLStatsData } from '../../hooks/useSQLStats'
+import DartboardHeatmap from '../../components/DartboardHeatmap'
 
 type Props = {
   data: SQLStatsData
@@ -29,8 +30,38 @@ export default function AdvancedStatsTab({ data, tab, playerName }: Props) {
 function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; colors: any; styles: any; playerName: string }) {
   const dashboard = data.crossGameDashboard
 
+  const todaySession = data.todaySession
+  const winStreaks = data.winStreaks
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Session Stats: Heute gespielt */}
+      {todaySession && todaySession.totalMatchesToday > 0 && (
+        <div style={{
+          background: `linear-gradient(135deg, ${colors.accent}15, ${colors.accent}05, transparent)`,
+          borderRadius: 12, padding: '14px 16px',
+          border: `1px solid ${colors.accent}30`,
+        }}>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: colors.accent, marginBottom: 10,
+            textTransform: 'uppercase', letterSpacing: '0.04em',
+          }}>Heute gespielt</div>
+          <StatGrid>
+            <StatCell label="Matches" value={todaySession.totalMatchesToday} colors={colors} />
+            <StatCell label="Siege" value={todaySession.winsToday} colors={colors} highlight={todaySession.winsToday > 0} />
+            {todaySession.bestThreeDartAvgToday != null && (
+              <StatCell label="Bester Avg" value={todaySession.bestThreeDartAvgToday.toFixed(1)} colors={colors} />
+            )}
+            {todaySession.bestCheckoutToday != null && (
+              <StatCell label="Bester Checkout" value={todaySession.bestCheckoutToday} colors={colors} />
+            )}
+            {todaySession.totalDartsThrownToday > 0 && (
+              <StatCell label="Darts geworfen" value={todaySession.totalDartsThrownToday} colors={colors} />
+            )}
+          </StatGrid>
+        </div>
+      )}
+
       {/* Cross-Game Dashboard */}
       {dashboard && (
         <Section title="Gesamtbild" colors={colors}>
@@ -40,6 +71,15 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
             <StatCell label="Winrate (Multi)" value={`${dashboard.overallWinRateMultiOnly}%`} colors={colors} highlight={dashboard.overallWinRateMultiOnly >= 50} />
             <StatCell label="Lieblings-Modus" value={dashboard.favoriteModeLabel ?? '-'} colors={colors} />
           </StatGrid>
+
+          {/* Win/Loss Streaks */}
+          {winStreaks && (winStreaks.currentWinStreak > 0 || winStreaks.longestWinStreak > 0 || winStreaks.currentLossStreak > 0) && (
+            <StatGrid>
+              <StatCell label="Aktuelle Siegesserie" value={winStreaks.currentWinStreak} colors={colors} highlight={winStreaks.currentWinStreak >= 3} />
+              <StatCell label="Laengste Siegesserie" value={winStreaks.longestWinStreak} colors={colors} />
+              <StatCell label="Aktuelle Niederlagen" value={winStreaks.currentLossStreak} colors={colors} />
+            </StatGrid>
+          )}
 
           {/* Spieltage-Streak */}
           <StatGrid>
@@ -115,6 +155,47 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
               </div>
             )
           })()}
+        </Section>
+      )}
+
+      {/* Dartboard Heatmap — Feldverteilung */}
+      {data.fieldAccuracy.length > 0 && (
+        <Section title="Feldverteilung (X01)" colors={colors}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ flex: '0 0 auto' }}>
+              <DartboardHeatmap
+                segments={data.fieldAccuracy
+                  .filter((f): f is typeof f & { field: number } => typeof f.field === 'number')
+                  .map(f => ({ field: f.field, hits: f.totalAttempts }))}
+                bullHits={data.fieldAccuracy.find(f => f.field === 'BULL')?.totalAttempts ?? 0}
+                bullDoubleHits={0}
+                size={180}
+                colors={{ bg: colors.bgDim, fg: colors.fgDim }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 8 }}>Top-Felder</div>
+              {data.fieldAccuracy.slice(0, 5).map(f => (
+                <div key={String(f.field)} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '4px 0', borderBottom: `1px solid ${colors.bgDim}`,
+                }}>
+                  <span style={{ fontWeight: 600, color: colors.fg, fontSize: 14 }}>
+                    {f.field === 'BULL' ? 'Bull' : f.field}
+                  </span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ color: colors.fg, fontSize: 13 }}>{f.distributionPct}%</span>
+                    <span style={{ color: colors.fgDim, fontSize: 11, marginLeft: 6 }}>({f.totalAttempts}x)</span>
+                  </div>
+                </div>
+              ))}
+              {data.fieldAccuracy.length > 5 && (
+                <div style={{ fontSize: 11, color: colors.fgDim, marginTop: 6 }}>
+                  + {data.fieldAccuracy.length - 5} weitere Felder
+                </div>
+              )}
+            </div>
+          </div>
         </Section>
       )}
 
@@ -207,97 +288,181 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
 // ERFOLGE TAB
 // ============================================================================
 
+const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
+  milestone: { label: 'Meilensteine', icon: '\u2605', color: '#3b82f6' },
+  rare: { label: 'Seltene Aufnahmen', icon: '\u25C6', color: '#a855f7' },
+  skill: { label: 'Können', icon: '\u25CF', color: '#22c55e' },
+  cricket: { label: 'Cricket', icon: '\u25B2', color: '#f59e0b' },
+  vielseitigkeit: { label: 'Vielseitigkeit', icon: '\u2726', color: '#06b6d4' },
+}
+
+const CATEGORY_ORDER = ['milestone', 'rare', 'skill', 'cricket', 'vielseitigkeit']
+
 function ErfolgeTab({ data, colors, styles }: { data: SQLStatsData; colors: any; styles: any }) {
   const achievements = data.fullAchievements
   const unlocked = achievements.filter(a => a.unlocked)
-  const locked = achievements.filter(a => !a.unlocked)
-
-  const categoryLabels: Record<string, string> = {
-    milestone: 'Meilensteine',
-    rare: 'Seltene Aufnahmen',
-    skill: 'Können',
-    dedication: 'Hingabe',
-  }
+  const [selectedCat, setSelectedCat] = useState<string | null>(null)
 
   const groupByCategory = (list: typeof achievements) => {
     const groups: Record<string, typeof achievements> = {}
     for (const a of list) {
-      const cat = a.category
-      if (!groups[cat]) groups[cat] = []
-      groups[cat].push(a)
+      if (!groups[a.category]) groups[a.category] = []
+      groups[a.category].push(a)
     }
     return groups
   }
 
-  const unlockedGroups = groupByCategory(unlocked)
-  const lockedGroups = groupByCategory(locked)
+  const allGroups = groupByCategory(achievements)
+
+  // Gefilterte Achievements basierend auf Kategorie-Auswahl
+  const filtered = selectedCat ? (allGroups[selectedCat] ?? []) : achievements
+  const filteredUnlocked = filtered.filter(a => a.unlocked)
+  const filteredLocked = filtered.filter(a => !a.unlocked)
+
+  const pct = achievements.length > 0 ? Math.round((unlocked.length / achievements.length) * 100) : 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Summary */}
-      <div style={{ textAlign: 'center', padding: '16px 0' }}>
-        <div style={{ fontSize: 32, fontWeight: 700, color: colors.accent }}>{unlocked.length}</div>
-        <div style={{ fontSize: 13, color: colors.fgDim }}>von {achievements.length} Erfolgen freigeschaltet</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+      <style>{`
+        @keyframes erfolge-glow { 0%,100% { box-shadow: 0 0 8px ${colors.accent}30; } 50% { box-shadow: 0 0 20px ${colors.accent}50; } }
+        @keyframes erfolge-progress { from { width: 0%; } }
+      `}</style>
+
+      {/* Hero-Bereich mit Gesamtfortschritt */}
+      <div style={{
+        textAlign: 'center', padding: '24px 16px',
+        background: `linear-gradient(135deg, ${colors.accent}18, ${colors.accent}06, transparent)`,
+        borderRadius: 16, border: `1px solid ${colors.accent}30`,
+        animation: 'erfolge-glow 4s ease-in-out infinite',
+      }}>
+        <div style={{
+          fontSize: 48, fontWeight: 900, lineHeight: 1,
+          background: `linear-gradient(135deg, ${colors.accent}, #FFD700)`,
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+        }}>
+          {unlocked.length}
+        </div>
+        <div style={{ fontSize: 14, color: colors.fgDim, marginTop: 6 }}>
+          von {achievements.length} Erfolgen freigeschaltet
+        </div>
         {achievements.length > 0 && (
-          <div style={{
-            marginTop: 8, height: 8, background: colors.bgDim, borderRadius: 4, overflow: 'hidden',
-          }}>
-            <div style={{
-              width: `${(unlocked.length / achievements.length) * 100}%`,
-              height: '100%', background: colors.accent, borderRadius: 4,
-            }} />
+          <div style={{ marginTop: 14, position: 'relative' }}>
+            <div style={{ height: 14, background: colors.bgDim, borderRadius: 7, overflow: 'hidden' }}>
+              <div style={{
+                width: `${pct}%`, height: '100%',
+                background: `linear-gradient(90deg, ${colors.accent}, #FFD700, #22c55e)`,
+                borderRadius: 7, transition: 'width 0.8s ease',
+                animation: 'erfolge-progress 1s ease-out',
+              }} />
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: colors.accent, marginTop: 6 }}>{pct}%</div>
           </div>
         )}
       </div>
 
-      {/* Freigeschaltete Erfolge */}
-      {Object.entries(unlockedGroups).map(([cat, items]) => (
-        <Section key={cat} title={categoryLabels[cat] || cat} colors={colors}>
-          {items.map(a => (
-            <AchievementCard key={a.id} achievement={a} colors={colors} />
-          ))}
-        </Section>
-      ))}
+      {/* Klickbare Kategorie-Kacheln */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: 6,
+      }}>
+        {/* "Alle" Button */}
+        <button
+          onClick={() => setSelectedCat(null)}
+          style={{
+            textAlign: 'center', padding: '10px 6px', borderRadius: 10,
+            background: selectedCat === null ? colors.accent : colors.bgDim,
+            color: selectedCat === null ? '#fff' : colors.fg,
+            border: selectedCat === null ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
+            cursor: 'pointer', transition: 'all 0.15s ease',
+          }}
+        >
+          <div style={{ fontSize: 16 }}>{'\u2630'}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, marginTop: 2 }}>Alle</div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>{unlocked.length}/{achievements.length}</div>
+        </button>
 
-      {/* Noch nicht freigeschaltet */}
-      {locked.length > 0 && (
-        <Section title="Noch offen" colors={colors}>
-          {locked.slice(0, 10).map(a => (
-            <AchievementCard key={a.id} achievement={a} colors={colors} locked />
-          ))}
-          {locked.length > 10 && (
-            <div style={{ fontSize: 12, color: colors.fgDim, textAlign: 'center', marginTop: 8 }}>
-              ... und {locked.length - 10} weitere
-            </div>
-          )}
+        {CATEGORY_ORDER.filter(cat => allGroups[cat]).map(cat => {
+          const cfg = CATEGORY_CONFIG[cat]
+          const catAll = allGroups[cat] ?? []
+          const catDone = catAll.filter(a => a.unlocked).length
+          const isActive = selectedCat === cat
+          return (
+            <button
+              key={cat}
+              onClick={() => setSelectedCat(isActive ? null : cat)}
+              style={{
+                textAlign: 'center', padding: '10px 6px', borderRadius: 10,
+                background: isActive ? `${cfg.color}20` : colors.bgDim,
+                border: isActive ? `2px solid ${cfg.color}` : `1px solid ${colors.border}`,
+                cursor: 'pointer', transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ fontSize: 18, color: cfg.color }}>{cfg.icon}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? cfg.color : colors.fg, marginTop: 2 }}>{cfg.label}</div>
+              <div style={{ fontSize: 11, color: colors.fgDim }}>{catDone}/{catAll.length}</div>
+              <div style={{ marginTop: 4, height: 3, background: `${cfg.color}22`, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: catAll.length > 0 ? `${(catDone / catAll.length) * 100}%` : '0%', height: '100%', background: cfg.color, borderRadius: 2 }} />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Freigeschaltete Erfolge */}
+      {filteredUnlocked.length > 0 && (
+        <Section title={`${filteredUnlocked.length} freigeschaltet`} colors={colors}>
+          {filteredUnlocked.map(a => {
+            const cfg = CATEGORY_CONFIG[a.category]
+            return <AchievementCard key={a.id} achievement={a} colors={colors} catColor={cfg?.color} />
+          })}
+        </Section>
+      )}
+
+      {/* Noch offen */}
+      {filteredLocked.length > 0 && (
+        <Section title={`${filteredLocked.length} noch offen`} colors={colors}>
+          {filteredLocked.map(a => {
+            const cfg = CATEGORY_CONFIG[a.category]
+            return <AchievementCard key={a.id} achievement={a} colors={colors} locked catColor={cfg?.color} />
+          })}
         </Section>
       )}
 
       {achievements.length === 0 && (
         <div style={{ padding: 40, textAlign: 'center', color: colors.fgDim }}>
-          Noch keine Daten vorhanden.
+          Erfolge werden geladen...
+          <br /><small>Falls nichts erscheint, spiele ein paar Matches!</small>
         </div>
       )}
     </div>
   )
 }
 
-function AchievementCard({ achievement: a, colors, locked }: {
+function AchievementCard({ achievement: a, colors, locked, catColor }: {
   achievement: { id: string; title: string; description: string; unlocked: boolean; value?: number; target?: number; progress?: number }
-  colors: any; locked?: boolean
+  colors: any; locked?: boolean; catColor?: string
 }) {
+  const accentColor = catColor ?? colors.accent
+  const progressHint = a.progress !== undefined && a.progress >= 0.8 ? 'Fast geschafft!' :
+    a.progress !== undefined && a.progress >= 0.5 ? 'Auf gutem Weg' : null
+
   return (
     <div style={{
-      padding: '8px 12px', borderRadius: 8, marginBottom: 4,
-      background: locked ? `${colors.bgDim}88` : colors.bgDim,
+      padding: '10px 12px', borderRadius: 10, marginBottom: 6,
+      background: locked
+        ? `${colors.bgDim}88`
+        : `linear-gradient(135deg, ${accentColor}12, ${colors.bgDim})`,
       opacity: locked ? 0.6 : 1,
       display: 'flex', alignItems: 'center', gap: 10,
+      borderLeft: a.unlocked ? `3px solid ${accentColor}` : '3px solid transparent',
+      boxShadow: a.unlocked ? `0 2px 8px ${accentColor}15` : 'none',
+      transition: 'all 0.2s ease',
     }}>
       <div style={{
-        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: a.unlocked ? colors.accent + '33' : colors.bgDim,
-        fontSize: 16,
+        background: a.unlocked ? `linear-gradient(135deg, ${accentColor}40, ${accentColor}20)` : colors.bgDim,
+        fontSize: 16, color: a.unlocked ? accentColor : colors.fgDim,
+        boxShadow: a.unlocked ? `0 0 12px ${accentColor}25` : 'none',
       }}>
         {a.unlocked ? '\u2713' : '\u25CB'}
       </div>
@@ -306,10 +471,13 @@ function AchievementCard({ achievement: a, colors, locked }: {
         <div style={{ fontSize: 11, color: colors.fgDim }}>{a.description}</div>
         {a.progress !== undefined && a.progress < 1 && a.target && (
           <div style={{ marginTop: 4 }}>
-            <div style={{ height: 4, background: colors.bgDim, borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{ width: `${a.progress * 100}%`, height: '100%', background: colors.accent, borderRadius: 2 }} />
+            <div style={{ height: 4, background: `${accentColor}22`, borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: `${a.progress * 100}%`, height: '100%', background: accentColor, borderRadius: 2 }} />
             </div>
-            <div style={{ fontSize: 10, color: colors.fgDim, marginTop: 2 }}>{a.value ?? 0} / {a.target}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: colors.fgDim }}>{a.value ?? 0} / {a.target}</div>
+              {progressHint && <div style={{ fontSize: 10, color: accentColor, fontWeight: 600 }}>{progressHint}</div>}
+            </div>
           </div>
         )}
       </div>

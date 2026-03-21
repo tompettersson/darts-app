@@ -58,7 +58,7 @@ export async function getHighscoreMostWins(limit: number = 10): Promise<Highscor
       p.color as player_color,
       COUNT(*) as total_wins
     FROM all_wins w
-    LEFT JOIN profiles p ON p.id = w.winner_id
+    JOIN profiles p ON p.id = w.winner_id
     WHERE w.winner_id IS NOT NULL
       AND w.winner_id NOT LIKE 'guest-%'
       AND w.winner_id NOT LIKE 'temp-%'
@@ -111,7 +111,7 @@ export async function getHighscoreBestWinrate(limit: number = 10): Promise<Highs
       CAST(SUM(pm.won) AS REAL) / COUNT(*) * 100 as win_rate,
       COUNT(*) as total_matches
     FROM player_matches pm
-    LEFT JOIN profiles p ON p.id = pm.player_id
+    JOIN profiles p ON p.id = pm.player_id
     WHERE pm.player_id NOT LIKE 'guest-%'
       AND pm.player_id NOT LIKE 'temp-%'
     GROUP BY pm.player_id
@@ -146,7 +146,7 @@ export async function getHighscoreMost180s(limit: number = 10): Promise<Highscor
       COUNT(*) as count_180
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.visitScore') = 180
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
@@ -183,7 +183,7 @@ export async function getHighscoreBestCareerAvg(limit: number = 10): Promise<Hig
           NULLIF(json_array_length(e.data, '$.darts'), 0) * 3) as avg
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -220,7 +220,7 @@ export async function getHighscoreBestCheckoutPct(limit: number = 10): Promise<H
       COUNT(*) * 100 as checkout_pct
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'VisitAdded'
       AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
@@ -257,7 +257,7 @@ export async function getHighscoreHighestVisit(limit: number = 10): Promise<High
       MAX(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)) as best_visit
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -292,7 +292,7 @@ export async function getHighscoreHighestCheckout(limit: number = 10): Promise<H
       MAX(CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER)) as best_checkout
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
@@ -343,7 +343,7 @@ export async function getHighscoreBestLeg(variant: number, limit: number = 10): 
       p.color as player_color,
       MIN(ld.darts_count) as best_darts
     FROM leg_darts ld
-    LEFT JOIN profiles p ON p.id = ld.player_id
+    JOIN profiles p ON p.id = ld.player_id
     WHERE ld.darts_count > 0
     GROUP BY ld.player_id
     ORDER BY best_darts ASC
@@ -388,7 +388,7 @@ export async function getHighscoreBestMatchAvg(variant: number, limit: number = 
       p.color as player_color,
       MAX(ma.avg) as best_avg
     FROM match_avgs ma
-    LEFT JOIN profiles p ON p.id = ma.player_id
+    JOIN profiles p ON p.id = ma.player_id
     GROUP BY ma.player_id
     ORDER BY best_avg DESC
     LIMIT ?
@@ -424,7 +424,7 @@ export async function getHighscoreBestMPT(limit: number = 10): Promise<Highscore
       CAST(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)) AS REAL) / COUNT(*) as mpt
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -464,7 +464,7 @@ export async function getHighscoreBestMPD(limit: number = 10): Promise<Highscore
         )), 0) as mpd
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -503,7 +503,7 @@ export async function getHighscoreMostTriples(limit: number = 10): Promise<Highs
       SUM(CAST(json_extract(e.data, '$.tripleCount') AS INTEGER)) as total_triples
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -539,7 +539,7 @@ export async function getHighscoreBestTurnMarks(limit: number = 10): Promise<Hig
       MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)) as best_marks
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -578,7 +578,7 @@ export async function getHighscoreATBFastest(mode: string, limit: number = 10): 
       p.color as player_color,
       MIN(m.duration_ms) as best_time
     FROM atb_matches m
-    LEFT JOIN profiles p ON p.id = m.winner_id
+    JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.mode = ?
       AND m.duration_ms IS NOT NULL
@@ -615,7 +615,7 @@ export async function getHighscoreATBFewestDarts(mode: string, limit: number = 1
       p.color as player_color,
       MIN(m.winner_darts) as best_darts
     FROM atb_matches m
-    LEFT JOIN profiles p ON p.id = m.winner_id
+    JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.mode = ?
       AND m.winner_darts IS NOT NULL
@@ -652,7 +652,7 @@ export async function getHighscoreATBMostWins(limit: number = 10): Promise<Highs
       p.color as player_color,
       COUNT(*) as total_wins
     FROM atb_matches m
-    LEFT JOIN profiles p ON p.id = m.winner_id
+    JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.winner_id IS NOT NULL
       AND m.winner_id NOT LIKE 'guest-%'
@@ -697,7 +697,7 @@ export async function getHighscoreBobs27BestScore(limit: number = 10): Promise<H
         CAST(json_extract(m.final_scores, '$.' || mp.player_id) AS REAL) as score
       FROM bobs27_matches m
       JOIN bobs27_match_players mp ON mp.match_id = m.id
-      LEFT JOIN profiles p ON p.id = mp.player_id
+      JOIN profiles p ON p.id = mp.player_id
       WHERE m.finished = 1
         AND m.final_scores IS NOT NULL
     )
@@ -740,7 +740,7 @@ export async function getHighscoreBobs27BestHitRate(limit: number = 10): Promise
     FROM bobs27_matches m
     JOIN bobs27_match_players mp ON mp.match_id = m.id
     JOIN bobs27_events e ON e.match_id = m.id
-    LEFT JOIN profiles p ON p.id = mp.player_id
+    JOIN profiles p ON p.id = mp.player_id
     WHERE m.finished = 1
       AND e.type = 'Bobs27Throw'
       AND json_extract(e.data, '$.playerId') = mp.player_id
@@ -775,7 +775,7 @@ export async function getHighscoreBobs27MostWins(limit: number = 10): Promise<Hi
       p.color as player_color,
       COUNT(*) as total_wins
     FROM bobs27_matches m
-    LEFT JOIN profiles p ON p.id = m.winner_id
+    JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.winner_id IS NOT NULL
     GROUP BY m.winner_id
@@ -828,7 +828,7 @@ export async function getHighscoreOperationBestScore(limit: number = 10): Promis
       FROM operation_matches m
       JOIN operation_match_players mp ON mp.match_id = m.id
       JOIN operation_events e ON e.match_id = m.id
-      LEFT JOIN profiles p ON p.id = mp.player_id
+      JOIN profiles p ON p.id = mp.player_id
       WHERE m.finished = 1
         AND e.type = 'OperationDart'
         AND json_extract(e.data, '$.playerId') = mp.player_id
@@ -872,7 +872,7 @@ export async function getHighscoreOperationBestAvgPPD(limit: number = 10): Promi
     FROM operation_matches m
     JOIN operation_match_players mp ON mp.match_id = m.id
     JOIN operation_events e ON e.match_id = m.id
-    LEFT JOIN profiles p ON p.id = mp.player_id
+    JOIN profiles p ON p.id = mp.player_id
     WHERE m.finished = 1
       AND e.type = 'OperationDart'
       AND json_extract(e.data, '$.playerId') = mp.player_id
@@ -912,7 +912,7 @@ export async function getHighscoreOperationBestHitRate(limit: number = 10): Prom
     FROM operation_matches m
     JOIN operation_match_players mp ON mp.match_id = m.id
     JOIN operation_events e ON e.match_id = m.id
-    LEFT JOIN profiles p ON p.id = mp.player_id
+    JOIN profiles p ON p.id = mp.player_id
     WHERE m.finished = 1
       AND e.type = 'OperationDart'
       AND json_extract(e.data, '$.playerId') = mp.player_id
@@ -947,7 +947,7 @@ export async function getHighscoreOperationMostWins(limit: number = 10): Promise
       p.color as player_color,
       COUNT(*) as total_wins
     FROM operation_matches m
-    LEFT JOIN profiles p ON p.id = m.winner_id
+    JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.winner_id IS NOT NULL
     GROUP BY m.winner_id
@@ -1026,7 +1026,7 @@ export async function getHighscoreOperationLongestStreak(limit: number = 10): Pr
       b.best_streak as longest_streak
     FROM best_per_player b
     JOIN operation_matches m ON m.id = b.match_id
-    LEFT JOIN profiles p ON p.id = b.player_id
+    JOIN profiles p ON p.id = b.player_id
     WHERE b.rk = 1
     ORDER BY b.best_streak DESC
     LIMIT ?
@@ -1065,7 +1065,7 @@ export async function getCricketHighscoreBestTurnMarks(limit: number = 5): Promi
       m.created_at as match_date
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    LEFT JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
@@ -1108,7 +1108,7 @@ export async function getCricketHighscoreBestWinrate(limit: number = 5): Promise
       CAST(SUM(pm.won) AS REAL) / COUNT(*) * 100 as win_rate,
       COUNT(*) as total_matches
     FROM player_matches pm
-    LEFT JOIN profiles p ON p.id = pm.player_id
+    JOIN profiles p ON p.id = pm.player_id
     WHERE pm.player_id NOT LIKE 'guest-%'
       AND pm.player_id NOT LIKE 'temp-%'
     GROUP BY pm.player_id
@@ -1159,7 +1159,7 @@ export async function getCricketHighscoreHighestLegScore(limit: number = 5): Pro
       m.created_at as match_date
     FROM turn_data td
     JOIN cricket_matches m ON m.id = td.match_id
-    LEFT JOIN profiles p ON p.id = td.player_id
+    JOIN profiles p ON p.id = td.player_id
     GROUP BY td.player_id, td.match_id, td.leg_num
     ORDER BY total_marks DESC
     LIMIT ?
@@ -1226,7 +1226,7 @@ export async function getCricketHighscoreFewestDarts(limit: number = 5): Promise
       m.created_at as match_date
     FROM leg_darts ld
     JOIN cricket_matches m ON m.id = ld.match_id
-    LEFT JOIN profiles p ON p.id = ld.player_id
+    JOIN profiles p ON p.id = ld.player_id
     WHERE ld.total_darts > 0
     ORDER BY ld.total_darts ASC
     LIMIT ?
@@ -1281,7 +1281,7 @@ export async function getCricketHighscoreMostBullsInLeg(limit: number = 5): Prom
       m.created_at as match_date
     FROM turn_data td
     JOIN cricket_matches m ON m.id = td.match_id
-    LEFT JOIN profiles p ON p.id = td.player_id
+    JOIN profiles p ON p.id = td.player_id
     GROUP BY td.player_id, td.match_id, td.leg_num
     HAVING bulls > 0
     ORDER BY bulls DESC
