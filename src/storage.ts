@@ -5221,6 +5221,93 @@ export function setPlayerColorBackgroundEnabled(enabled: boolean): void {
   localStorage.setItem(PLAYER_COLOR_BG_KEY, enabled ? 'true' : 'false')
 }
 
+/* -------------------------------------------------
+   Checkout Trainer Storage (Memory Cache only)
+------------------------------------------------- */
+import type { CheckoutTrainerEvent } from './dartsCheckoutTrainer'
+import { id as ctId, now as ctNow, generateCheckoutList } from './dartsCheckoutTrainer'
+
+export type CheckoutTrainerStoredMatch = {
+  id: string
+  title: string
+  createdAt: string
+  finished?: boolean
+  playerId: string
+  playerName: string
+  events: CheckoutTrainerEvent[]
+  targetCount: number
+}
+
+let checkoutTrainerCache: CheckoutTrainerStoredMatch[] | null = null
+
+export function getCheckoutTrainerMatches(): CheckoutTrainerStoredMatch[] {
+  return checkoutTrainerCache ?? []
+}
+
+export function getCheckoutTrainerMatchById(matchId: string): CheckoutTrainerStoredMatch | null {
+  const matches = getCheckoutTrainerMatches()
+  return matches.find(m => m.id === matchId) ?? null
+}
+
+export function createCheckoutTrainerMatchShell(args: {
+  playerId: string
+  playerName: string
+  targetCount: number
+}): CheckoutTrainerStoredMatch {
+  const matchId = ctId()
+
+  const startEvent: CheckoutTrainerEvent = {
+    type: 'CheckoutTrainerStarted',
+    eventId: ctId(),
+    matchId,
+    ts: ctNow(),
+    playerId: args.playerId,
+    playerName: args.playerName,
+    targetCount: args.targetCount,
+  }
+
+  const stored: CheckoutTrainerStoredMatch = {
+    id: matchId,
+    title: `Checkout Training – ${args.playerName}`,
+    createdAt: ctNow(),
+    playerId: args.playerId,
+    playerName: args.playerName,
+    targetCount: args.targetCount,
+    events: [startEvent],
+  }
+
+  const all = getCheckoutTrainerMatches()
+  all.push(stored)
+  checkoutTrainerCache = all
+
+  return stored
+}
+
+export function persistCheckoutTrainerEvents(matchId: string, events: CheckoutTrainerEvent[]) {
+  const all = getCheckoutTrainerMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].events = events
+  checkoutTrainerCache = all
+}
+
+export function finishCheckoutTrainerMatch(matchId: string) {
+  const all = getCheckoutTrainerMatches()
+  const idx = all.findIndex(m => m.id === matchId)
+  if (idx === -1) return
+
+  all[idx].finished = true
+  checkoutTrainerCache = all
+}
+
+export function deleteCheckoutTrainerMatch(matchId: string) {
+  const all = getCheckoutTrainerMatches()
+  const filtered = all.filter(m => m.id !== matchId)
+  checkoutTrainerCache = filtered
+}
+
+
 // Dev Helper für Console
 ;(window as any).dartsBackup = downloadBackup
 ;(window as any).dartsStorageStats = getStorageStats

@@ -20,6 +20,7 @@ import {
 } from '../darts501'
 import ScoreProgressionChart, { PLAYER_COLORS } from './ScoreProgressionChart'
 import LegStaircaseChart, { type LegVisit } from './LegStaircaseChart'
+import { generateLegReport, type LegReportInput } from '../narratives/generateReport'
 
 // ---- Types ----
 
@@ -305,6 +306,7 @@ export default function X01IntermissionScreen({
 }: X01IntermissionScreenProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [legChartMode, setLegChartMode] = useState<'progression' | 'staircase'>('staircase')
+  const [viewMode, setViewMode] = useState<'stats' | 'bericht'>('stats')
 
   return (
     <div className="g-overlay" role="dialog" aria-modal="true">
@@ -320,6 +322,13 @@ export default function X01IntermissionScreen({
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="g-btn"
+              onClick={() => setViewMode(v => v === 'stats' ? 'bericht' : 'stats')}
+              style={viewMode === 'bericht' ? { background: '#2563eb', color: '#fff' } : undefined}
+            >
+              {viewMode === 'stats' ? 'Bericht' : 'Stats'}
+            </button>
             <button className="g-btn" onClick={() => setShowDetails((v) => !v)}>
               {showDetails ? 'Details verbergen' : 'Details anzeigen'}
             </button>
@@ -449,6 +458,31 @@ export default function X01IntermissionScreen({
                   )}
                 </div>
 
+                {/* Spielbericht oder Statistik-Tabelle */}
+                {viewMode === 'bericht' ? (
+                  <div style={{
+                    padding: '16px 20px', margin: '8px 0', borderRadius: 8,
+                    background: '#f8fafc', border: '1px solid #e2e8f0',
+                    lineHeight: 1.7, fontSize: 14, color: '#1e293b',
+                  }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#0f172a' }}>
+                      Spielbericht — Leg {intermission.legIndex ?? '?'}
+                    </div>
+                    {generateLegReport({
+                      legId: sum.legId,
+                      legIndex: sum.legIndex,
+                      starterPlayerId: sum.starterPlayerId,
+                      winnerPlayerId: sum.winnerPlayerId,
+                      highestCheckout: sum.highestCheckout,
+                      dartsThrownTotal: sum.dartsThrownTotal,
+                      bestVisit: sum.bestVisit,
+                      byPlayer: sum.byPlayer,
+                      visits: sum.visits,
+                      startingScore: match.startingScorePerLeg,
+                    })}
+                  </div>
+                ) : (
+                <>
                 {/* Statistik-Tabelle wie in MatchDetails */}
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -688,6 +722,9 @@ export default function X01IntermissionScreen({
                       </div>
                     )
                   })()
+                )}
+
+                </>
                 )}
 
                 {/* Wurfabfolge */}

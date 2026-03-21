@@ -13,6 +13,7 @@ import { computeHighscoreMatchStats } from '../stats/computeHighscoreStats'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import type { HighscoreEvent, HighscoreTurnAddedEvent } from '../types/highscore'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateHighscoreReport } from '../narratives/generateModeReports'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -281,6 +282,40 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: P
               </>
             )}
           </div>
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateHighscoreReport({
+              matchId,
+              players: players.map(p => ({ id: p.id, name: p.name })),
+              winnerId: storedMatch.winnerId,
+              targetScore,
+              playerStats: sorted.map(s => ({
+                playerId: s.playerId,
+                playerName: s.playerName,
+                finalScore: s.finalScore,
+                dartsThrown: s.dartsThrown,
+                avgPointsPerTurn: s.avgPointsPerTurn,
+                bestTurn: s.bestTurn,
+                speedRating: s.speedRating,
+                normalized999Darts: s.normalized999Darts,
+              })),
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: '1px solid #93c5fd',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Statistik-Tabelle */}
           <div style={{ ...styles.card, padding: 0, overflow: 'hidden' }}>

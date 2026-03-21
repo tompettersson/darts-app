@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   getGlobalX01PlayerStats,
   getFavouriteDoubleForPlayer,
   type X01PlayerLongTermStats,
 } from '../../storage'
 import { ui } from '../../ui'
+import PlayerComparison from './PlayerComparison'
 
 export type PlayersOverviewProps = {
   /** optional: wenn gesetzt, wird ein Klick auf einen Spieler gemeldet */
@@ -25,10 +26,16 @@ export type PlayersOverviewProps = {
  * - Höchstes Checkout
  * - Lieblingsdouble
  * - 180er / 140+ / 100+
+ *
+ * Compare-Modus: Zwei Spieler auswaehlen und direkt vergleichen.
  */
 export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps) {
   // Alle Career-Stats aus dem Storage holen
   const rawStore = getGlobalX01PlayerStats()
+
+  // Compare mode state
+  const [compareMode, setCompareMode] = useState(false)
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([])
 
   // In ein Array verwandeln + sortieren (z.B. nach Matches gespielt desc)
   const players = useMemo(() => {
@@ -43,6 +50,29 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
     })
     return filtered
   }, [rawStore])
+
+  // Toggle compare selection for a player
+  const toggleComparePlayer = (playerId: string) => {
+    setSelectedForCompare((prev) => {
+      if (prev.includes(playerId)) return prev.filter((id) => id !== playerId)
+      if (prev.length >= 2) return prev // max 2
+      return [...prev, playerId]
+    })
+  }
+
+  // If 2 players selected, show comparison view
+  if (selectedForCompare.length === 2) {
+    return (
+      <PlayerComparison
+        player1Id={selectedForCompare[0]}
+        player2Id={selectedForCompare[1]}
+        onBack={() => {
+          setSelectedForCompare([])
+          setCompareMode(false)
+        }}
+      />
+    )
+  }
 
   const styles: Record<string, React.CSSProperties> = {
     cardHeaderRow: {
@@ -143,6 +173,24 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
       padding: '24px 0',
       textAlign: 'center',
     },
+    compareBtn: {
+      background: compareMode ? '#0f172a' : 'none',
+      color: compareMode ? '#fff' : '#0f172a',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+      padding: '6px 14px',
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+    },
+    checkbox: {
+      width: 18,
+      height: 18,
+      accentColor: '#3b82f6',
+      cursor: 'pointer',
+      margin: 0,
+    },
   }
 
   return (
@@ -155,7 +203,35 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
             Langzeit-Leistungen aus allen beendeten Matches (ohne Gäste).
           </div>
         </div>
+        {players.length >= 2 && (
+          <button
+            style={styles.compareBtn}
+            onClick={() => {
+              setCompareMode((v) => !v)
+              setSelectedForCompare([])
+            }}
+          >
+            {compareMode ? 'Abbrechen' : 'Vergleichen'}
+          </button>
+        )}
       </div>
+
+      {/* Compare mode hint */}
+      {compareMode && selectedForCompare.length < 2 && (
+        <div style={{
+          marginTop: 8,
+          padding: '8px 12px',
+          background: '#eff6ff',
+          borderRadius: 8,
+          fontSize: 13,
+          color: '#1e40af',
+          fontWeight: 500,
+        }}>
+          {selectedForCompare.length === 0
+            ? 'Waehle 2 Spieler zum Vergleichen aus.'
+            : `1 Spieler ausgewaehlt – waehle noch einen zweiten.`}
+        </div>
+      )}
 
       {/* Tabelle */}
       <div style={{ marginTop: 12, ...styles.tableWrap }}>
@@ -163,12 +239,13 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
           <div style={styles.noDataText}>
             Noch keine abgeschlossenen X01-Matches von echten Profilen gefunden.
             <br />
-            Spiel ein Match zu Ende, dann tauchst du hier auf 🙌
+            Spiel ein Match zu Ende, dann tauchst du hier auf
           </div>
         ) : (
           <table style={styles.table}>
             <thead>
               <tr>
+                {compareMode && <th style={{ ...styles.th, width: 36 }} />}
                 <th style={{ ...styles.th, minWidth: 140 }}>Spieler</th>
                 <th style={styles.th}>Bilanz</th>
                 <th style={styles.th}>3-DA</th>
@@ -220,36 +297,59 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                 const fav = getFavouriteDoubleForPlayer(playerId)
                 const favLabel = fav
                   ? `D${fav.bed === 'BULL' ? 'BULL' : fav.bed}`
-                  : '—'
+                  : '\u2014'
                 const favCount = fav ? fav.count : 0
 
                 // row clickable?
-                const clickable = !!onSelectPlayer
-                const rowStyle = clickable ? styles.rowClickable : undefined
+                const clickable = compareMode || !!onSelectPlayer
+                const isSelected = selectedForCompare.includes(playerId)
+                const rowStyle: React.CSSProperties = {
+                  ...(clickable ? styles.rowClickable : {}),
+                  ...(isSelected ? { background: '#eff6ff' } : {}),
+                }
+
+                const handleRowClick = () => {
+                  if (compareMode) {
+                    toggleComparePlayer(playerId)
+                  } else if (onSelectPlayer) {
+                    onSelectPlayer(playerId)
+                  }
+                }
 
                 return (
                   <tr
                     key={playerId}
                     style={rowStyle}
-                    onClick={() => {
-                      if (onSelectPlayer) onSelectPlayer(playerId)
-                    }}
+                    onClick={handleRowClick}
                   >
+                    {/* Checkbox column in compare mode */}
+                    {compareMode && (
+                      <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleComparePlayer(playerId)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={styles.checkbox}
+                        />
+                      </td>
+                    )}
+
                     {/* Spielername */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.playerNameCell}>{playerName ?? playerId}</div>
                       <div style={styles.subNameLine}>
                         Legs gewonnen: <b>{legsWon ?? 0}</b>
-                        {` · `}
+                        {` \u00B7 `}
                         Sets gewonnen: <b>{setsWon ?? 0}</b>
                       </div>
                     </td>
 
                     {/* Bilanz */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.badgeWLWrap}>
                         <div style={styles.badgeMain}>
-                          {matchesWon} / {matchesPlayed}{' '}
+                          {matchesWon} / {matchesPlayed}{' '}
                           <span style={{ color: '#64748b', fontWeight: 400 }}>W / Ttl</span>
                         </div>
                         <div style={styles.badgeSub}>
@@ -259,23 +359,23 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                     </td>
 
                     {/* 3-DA */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.statStrong}>
                         {career3DA.toFixed(2)}
                       </div>
-                      <div style={styles.statSub} title="Durchschnittliche Punkte pro 3 geworfene Darts">3-Dart Ø</div>
+                      <div style={styles.statSub} title="Durchschnittliche Punkte pro 3 geworfene Darts">3-Dart \u00D8</div>
                     </td>
 
                     {/* First 9 */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.statStrong}>
                         {(first9OverallAvg ?? 0).toFixed(2)}
                       </div>
-                      <div style={styles.statSub} title="Durchschnitt der ersten 9 Darts (3 Aufnahmen) pro Leg">First 9 Ø</div>
+                      <div style={styles.statSub} title="Durchschnitt der ersten 9 Darts (3 Aufnahmen) pro Leg">First 9 \u00D8</div>
                     </td>
 
                     {/* Checkout % */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.statStrong}>
                         {checkoutPct.toFixed(1)}%
                       </div>
@@ -285,15 +385,15 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                     </td>
 
                     {/* High checkout */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.statStrong}>
                         {highestCheckout ?? 0}
                       </div>
-                      <div style={styles.statSub}>höchster Finish</div>
+                      <div style={styles.statSub}>h\u00F6chster Finish</div>
                     </td>
 
                     {/* Lieblingsdouble */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       {fav ? (
                         <div>
                           <span style={styles.favDoubleBadge}>
@@ -304,17 +404,17 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                           </div>
                         </div>
                       ) : (
-                        <div style={styles.statSub}>—</div>
+                        <div style={styles.statSub}>\u2014</div>
                       )}
                     </td>
 
                     {/* Power scoring */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...(isSelected ? { background: '#eff6ff' } : {}) }}>
                       <div style={styles.statStrong}>
                         {tons180}x 180
                       </div>
                       <div style={styles.statSub}>
-                        {tons140Plus}×140+ · {tons100Plus}×100+
+                        {tons140Plus}\u00D7140+ \u00B7 {tons100Plus}\u00D7100+
                       </div>
                     </td>
                   </tr>
@@ -327,7 +427,7 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
 
       <div style={{ ...ui.sub, marginTop: 12, fontSize: 12 }}>
         Hinweis: Die Werte hier sind kumuliert aus allen beendeten Matches, nachdem sie abgeschlossen wurden.
-        Gäste (temporäre Spieler) werden nicht mitgezählt.
+        G\u00E4ste (tempor\u00E4re Spieler) werden nicht mitgez\u00E4hlt.
       </div>
     </div>
   )

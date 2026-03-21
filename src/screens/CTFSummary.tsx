@@ -9,6 +9,7 @@ import { applyCTFEvents, formatDuration, formatDart, formatTarget, calculateFiel
 import type { CTFTurnAddedEvent, CTFRoundFinishedEvent } from '../types/captureTheField'
 import ATBDartboard from '../components/ATBDartboard'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateCTFReport } from '../narratives/generateModeReports'
 
 type Props = {
   matchId: string
@@ -225,6 +226,40 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
               </div>
             </div>
           )}
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateCTFReport({
+              matchId,
+              players: players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: storedMatch.winnerId,
+              rankings: rankings.map(r => ({
+                playerId: r.playerId,
+                name: r.name,
+                fieldsWon: r.fieldsWon,
+                fieldPoints: r.fieldPoints,
+                totalScore: r.totalScore,
+                triples: r.triples,
+                hitRate: r.hitRate,
+                bestField: r.bestField,
+              })),
+              totalFields,
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: '1px solid #93c5fd',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Dartboard mit Feldfarben */}
           {Object.keys(fieldOwners).length > 0 && (

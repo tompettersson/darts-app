@@ -16,6 +16,7 @@ import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
 import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '../components/CricketGanttChart'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
+import { generateCricketMatchReport } from '../narratives/generateModeReports'
 
 type Props = {
   matchId: string
@@ -733,6 +734,44 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
           playedAt={startEvt.ts}
           onBack={onBackToMenu}
         />
+
+      {/* Spielbericht */}
+      {(() => {
+        const report = generateCricketMatchReport({
+          matchId,
+          players: matchData.players.map(p => ({ id: p.id, name: p.name })),
+          winnerId: matchEndEvent?.winnerPlayerId,
+          style: startEvt.style,
+          range: startEvt.range,
+          playerStats: players.map(p => ({
+            playerId: p.playerId,
+            playerName: p.playerName,
+            totalMarks: p.totalMarks,
+            marksPerTurn: p.marksPerTurn,
+            legsWon: p.legsWon,
+            bestTurnMarks: p.bestTurnMarks,
+            triplesHit: p.triplesHit,
+            bullHitsSingle: p.bullHitsSingle,
+            bullHitsDouble: p.bullHitsDouble,
+            turnsWithNoScore: p.turnsWithNoScore,
+          })),
+        })
+        return report ? (
+          <div style={{
+            marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+            background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+            border: '1px solid #93c5fd',
+            maxWidth: 700, margin: '0 auto 16px',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+              Spielbericht
+            </div>
+            <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+              {report}
+            </div>
+          </div>
+        ) : null
+      })()}
 
       {/* Match-Statistik */}
       <div style={card}>

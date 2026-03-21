@@ -7,6 +7,8 @@ import type { SQLStatsData } from '../../hooks/useSQLStats'
 import GaugeChart from '../../components/charts/GaugeChart'
 import BarChart from '../../components/charts/BarChart'
 import { getHeadToHead, type HeadToHeadDetailed } from '../../db/stats/player-insights'
+import { generatePlayerDevelopmentReport } from '../../narratives/playerDevelopmentReport'
+import { getProfiles } from '../../storage'
 
 type Props = {
   playerId: string
@@ -58,7 +60,7 @@ export default function PlayerInsightsTab({ playerId, data }: Props) {
         ))}
       </div>
 
-      {subTab === 'profil' && <ProfilTab data={data} colors={colors} />}
+      {subTab === 'profil' && <ProfilTab data={data} colors={colors} playerId={playerId} />}
       {subTab === 'felder' && <FeldanalyseTab data={data} colors={colors} />}
       {subTab === 'h2h' && <HeadToHeadTab data={data} playerId={playerId} colors={colors} />}
       {subTab === 'tagesform' && <TagesformTab data={data} colors={colors} />}
@@ -126,8 +128,12 @@ function NoData({ colors, text }: { colors: any; text?: string }) {
 // SUB-TAB 1: PROFIL (Radar Chart + Player Type + Key Metrics + GaugeCharts)
 // ============================================================================
 
-function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
+function ProfilTab({ data, colors, playerId }: { data: SQLStatsData; colors: any; playerId: string }) {
   const dashboard = data.crossGameDashboard
+
+  // Spieler-Entwicklungsbericht
+  const playerName = useMemo(() => getProfiles().find(p => p.id === playerId)?.name ?? 'Spieler', [playerId])
+  const devReport = useMemo(() => generatePlayerDevelopmentReport(playerName, playerId, data), [playerName, playerId, data])
   const clutch = data.clutchStats
   const crossGameWinRates = data.crossGameWinRates ?? []
 
@@ -199,6 +205,20 @@ function ProfilTab({ data, colors }: { data: SQLStatsData; colors: any }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* Entwicklungsbericht */}
+      {devReport && (
+        <Section title="Entwicklungsbericht" colors={colors}>
+          <div style={{
+            padding: '14px 18px', borderRadius: 10,
+            background: `linear-gradient(135deg, ${colors.accent}10, ${colors.accent}05, transparent)`,
+            border: `1px solid ${colors.accent}25`,
+            lineHeight: 1.8, fontSize: 14, color: colors.fg,
+          }}>
+            {devReport}
+          </div>
+        </Section>
+      )}
+
       {/* Radar/Spider Chart */}
       <Section title="Spielerprofil" colors={colors}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>

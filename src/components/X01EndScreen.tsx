@@ -17,6 +17,7 @@ import {
 import { setMatchMetadata } from '../storage'
 import type { StoredMatch } from '../storage'
 import { checkX01PersonalBests, formatPBValue, type PersonalBestCheck } from '../stats/personalBests'
+import { generateMatchReport, type MatchReportInput } from '../narratives/generateReport'
 
 // --- Helpers (moved from Game.tsx, only used in endscreen) ---
 
@@ -337,6 +338,87 @@ export default function X01EndScreen({
           </tbody>
         </table>
       </div>
+
+      {/* Spielbericht */}
+      {(() => {
+        // Legs-Daten für den Bericht sammeln
+        const legIds: string[] = []
+        const legWinners: Record<string, string | undefined> = {}
+        const legDarts: Record<string, number> = {}
+        const legCheckouts: Record<string, number | undefined> = {}
+        const legHas180: Record<string, boolean> = {}
+        const legByPlayer: Record<string, Array<{ playerId: string; name: string; threeDA: number; bestVisit: number; busts: number; darts: number }>> = {}
+
+        for (const ev of events) {
+          if (isLegStarted(ev) && !legIds.includes(ev.legId)) legIds.push(ev.legId)
+          if (isLegFinished(ev)) {
+            legWinners[ev.legId] = ev.winnerPlayerId
+            legCheckouts[ev.legId] = ev.highestCheckoutThisLeg
+          }
+        }
+
+        for (const legId of legIds) {
+          const legVisits = events.filter((e): e is VisitAdded => isVisitAdded(e) && e.legId === legId)
+          legDarts[legId] = legVisits.reduce((sum, v) => sum + v.darts.length, 0)
+          legHas180[legId] = legVisits.some(v => v.visitScore === 180)
+
+          const pMap: Record<string, { darts: number; points: number; best: number; busts: number }> = {}
+          for (const p of players) pMap[p.playerId] = { darts: 0, points: 0, best: 0, busts: 0 }
+          for (const v of legVisits) {
+            if (!pMap[v.playerId]) continue
+            pMap[v.playerId].darts += v.darts.length
+            if (!v.bust) {
+              pMap[v.playerId].points += v.visitScore
+              if (v.visitScore > pMap[v.playerId].best) pMap[v.playerId].best = v.visitScore
+            } else {
+              pMap[v.playerId].busts++
+            }
+          }
+          legByPlayer[legId] = players.map(p => ({
+            playerId: p.playerId, name: p.name ?? p.playerId,
+            threeDA: pMap[p.playerId].darts > 0 ? (pMap[p.playerId].points / pMap[p.playerId].darts) * 3 : 0,
+            bestVisit: pMap[p.playerId].best, busts: pMap[p.playerId].busts, darts: pMap[p.playerId].darts,
+          }))
+        }
+
+        const reportInput: MatchReportInput = {
+          matchId, startingScore: match.startingScorePerLeg, isSets,
+          players: players.map(p => ({ playerId: p.playerId, name: p.name ?? p.playerId })),
+          winnerPlayerId: state.finished?.winnerPlayerId,
+          legs: legIds.map((legId, i) => ({
+            legIndex: i + 1, winnerPlayerId: legWinners[legId],
+            dartsThrownTotal: legDarts[legId] ?? 0, byPlayer: legByPlayer[legId] ?? [],
+            highestCheckout: legCheckouts[legId], has180: legHas180[legId] ?? false,
+          })),
+          overallStats: players.map(p => {
+            const ps = statsByPlayer[p.playerId]
+            return {
+              playerId: p.playerId, name: p.name ?? p.playerId,
+              threeDA: ps?.threeDartAvg ?? 0, checkoutPct: ps?.doublePctDart ?? 0,
+              highestCheckout: ps?.highestCheckout ?? 0, tons180: ps?.bins._180 ?? 0,
+              tons140plus: ps?.bins._140plus ?? 0, tons100plus: ps?.bins._100plus ?? 0,
+              busts: ps?.busts ?? 0, dartsThrown: ps?.dartsThrown ?? 0,
+              bestLegDarts: ps?.bestLegDarts ?? null,
+            }
+          }),
+        }
+        const report = generateMatchReport(reportInput)
+
+        return report ? (
+          <div style={{
+            margin: '16px 8px 0', padding: '16px 20px', borderRadius: 12,
+            background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+            border: '1px solid #93c5fd',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+              Spielbericht
+            </div>
+            <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+              {report}
+            </div>
+          </div>
+        ) : null
+      })()}
 
       {/* Personal Bests */}
       {Object.keys(personalBests).length > 0 && (

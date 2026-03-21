@@ -8,6 +8,7 @@ import { getShanghaiMatchById } from '../storage'
 import { applyShanghaiEvents, formatDuration } from '../dartsShanghai'
 import { computeShanghaiMatchStats } from '../stats/computeShanghaiStats'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateShanghaiReport } from '../narratives/generateModeReports'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -230,6 +231,40 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch }: Pr
               </div>
             </div>
           ) : null}
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateShanghaiReport({
+              matchId,
+              players: players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: storedMatch.winnerId,
+              rankings: rankings.map(r => ({
+                playerId: r.playerId,
+                name: r.name,
+                totalScore: r.totalScore,
+                avgPerRound: r.avgPerRound,
+                bestRound: r.bestRound,
+                worstRound: r.worstRound,
+                shanghaiCount: r.shanghaiCount,
+                hitRate: r.hitRate,
+                longestScoringStreak: r.longestScoringStreak,
+              })),
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: '1px solid #93c5fd',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Shanghai-Highlights */}
           {totalShanghais > 0 && (

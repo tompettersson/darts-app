@@ -59,6 +59,7 @@ import {
   setLastOpenOperationMatchId,
   getOpenOperationMatch,
   getOperationMatchById,
+  createCheckoutTrainerMatchShell,
   type StoredMatch,
 } from './storage'
 
@@ -84,6 +85,7 @@ const NewGameShanghai = React.lazy(() => import('./screens/NewGameShanghai'))
 const NewGameKiller = React.lazy(() => import('./screens/NewGameKiller'))
 const NewGameBobs27 = React.lazy(() => import('./screens/NewGameBobs27'))
 const NewGameOperation = React.lazy(() => import('./screens/NewGameOperation'))
+const CheckoutQuiz = React.lazy(() => import('./screens/CheckoutQuiz'))
 
 // Lazy-loaded Game Screens, Summaries & Stats
 const Game = React.lazy(() => import('./screens/Game'))
@@ -96,6 +98,7 @@ const GameShanghai = React.lazy(() => import('./screens/GameShanghai'))
 const GameKiller = React.lazy(() => import('./screens/GameKiller'))
 const GameBobs27 = React.lazy(() => import('./screens/GameBobs27'))
 const GameOperation = React.lazy(() => import('./screens/GameOperation'))
+const GameCheckoutTrainer = React.lazy(() => import('./screens/GameCheckoutTrainer'))
 const StatsArea = React.lazy(() => import('./screens/stats/StatsArea'))
 const CricketSummary = React.lazy(() => import('./screens/CricketSummary'))
 const ATBSummary = React.lazy(() => import('./screens/ATBSummary'))
@@ -208,6 +211,8 @@ type View =
   | 'settings'
   | 'multiplayer-lobby-host'
   | 'multiplayer-lobby-join'
+  | 'checkout-quiz'
+  | 'game-checkout-trainer'
   | 'multiplayer-game'
 
 export default function App() {
@@ -342,6 +347,9 @@ export default function App() {
   // Operation Match IDs
   const [activeOperationId, setActiveOperationId] = useState<string | undefined>(() => getOpenOperationMatch()?.id)
   const [summaryOperationId, setSummaryOperationId] = useState<string | undefined>(undefined)
+
+  // Checkout Trainer Match ID
+  const [activeCheckoutTrainerId, setActiveCheckoutTrainerId] = useState<string | undefined>()
 
   // --- Multiplayer State ---
   const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
@@ -541,6 +549,24 @@ export default function App() {
         }}
         onSelectOperation={() => {
           setView('new-operation')
+        }}
+        onSelectCheckoutQuiz={() => {
+          setView('checkout-quiz')
+        }}
+        onSelectCheckoutTrainer={() => {
+          const profiles = getProfiles()
+          if (profiles.length === 0) {
+            alert('Erstelle zuerst ein Profil unter Einstellungen')
+            return
+          }
+          const player = profiles[0]
+          const match = createCheckoutTrainerMatchShell({
+            playerId: player.id,
+            playerName: player.name,
+            targetCount: 10,
+          })
+          setActiveCheckoutTrainerId(match.id)
+          setView('game-checkout-trainer')
         }}
         onMultiplayerHost={() => {
           const profiles = getProfiles()
@@ -1350,6 +1376,27 @@ export default function App() {
           setLastActivity('operation', match.id)
           setSummaryOperationId(undefined)
           setView('game-operation')
+        }}
+      />
+    )
+  }
+
+  // CHECKOUT QUIZ
+  if (view === 'checkout-quiz') {
+    return <CheckoutQuiz onBack={() => setView('new-start')} />
+  }
+
+  // CHECKOUT TRAINER
+  if (view === 'game-checkout-trainer' && activeCheckoutTrainerId) {
+    return (
+      <GameCheckoutTrainer
+        matchId={activeCheckoutTrainerId}
+        onExit={() => setView('menu')}
+        onShowSummary={(id) => {
+          // Summary ist inline im GameCheckoutTrainer
+          // Nach Fertig-Button → zurück zum Menü
+          setActiveCheckoutTrainerId(undefined)
+          setView('menu')
         }}
       />
     )

@@ -70,6 +70,7 @@ import {
   cancelDebouncedAnnounce,
   debouncedAnnounce,
 } from '../speech'
+import { play180Sound, playHighCheckoutSound, playMatchWinSound, playBustSound } from '../sounds'
 import ConnectionBadge from '../multiplayer/ConnectionBadge'
 import X01EndScreen from '../components/X01EndScreen'
 import MiniSparkline from '../components/MiniSparkline'
@@ -908,6 +909,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
     const wName = matchNonNull.players.find((p) => p.playerId === winnerId)?.name ?? '—'
     setCelebration({ type: 'match-win', key: Date.now() })
+    if (speechEnabled) playMatchWinSound()
     setEnded({ winnerName: wName })
 
     return true
@@ -1207,9 +1209,13 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         setScorePopup({ label: popLabel, bust: !!firstVisitEvt.bust, key: Date.now() })
         scorePopupTimerRef.current = window.setTimeout(() => setScorePopup(null), 800)
 
+        // Sound: Bust
+        if (firstVisitEvt.bust && speechEnabled) playBustSound()
+
         // Celebration: 180 scored
         if (!firstVisitEvt.bust && firstVisitEvt.visitScore === 180) {
           setCelebration({ type: '180', key: Date.now() })
+          if (speechEnabled) play180Sound()
         }
       }
 
@@ -1297,6 +1303,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           // Celebration: High Checkout (100+)
           if (firstVisitEvt && !firstVisitEvt.bust && (firstVisitEvt.visitScore ?? 0) >= 100) {
             setCelebration({ type: 'high-checkout', key: Date.now() })
+            if (speechEnabled) playHighCheckoutSound()
           }
           // Sprachausgabe: Leg gewonnen
           if (speechEnabled && !legWonAnnouncedRef.current) {
@@ -1343,6 +1350,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           // Celebration: High Checkout (100+) in Sets mode
           if (firstVisitEvt && !firstVisitEvt.bust && (firstVisitEvt.visitScore ?? 0) >= 100) {
             setCelebration({ type: 'high-checkout', key: Date.now() })
+            if (speechEnabled) playHighCheckoutSound()
           }
           const { legsPerSet, bestOfSets } = match.structure
           const needLegs = requiredToWinLocal(legsPerSet)

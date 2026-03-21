@@ -660,14 +660,19 @@ html, body, #root {
    Screen & Player Animations
    ========================= */
 
-/* Screen transition - fade in */
+/* Screen transition - fade in (default) */
 .screen-enter {
-  animation: screenFadeIn 0.2s ease-out;
+  animation: screenFadeIn 0.25s ease-out;
 }
 
 @keyframes screenFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Screen transition - slide in from right (for forward navigation) */
+.screen-slide-enter {
+  animation: screenSlideIn 0.3s ease-out;
 }
 
 /* Screen transition - fade out */

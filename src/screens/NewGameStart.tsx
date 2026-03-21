@@ -112,6 +112,25 @@ const IconCrosshair = () => (
   </svg>
 )
 
+const IconQuiz = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="14" stroke="#f59e0b" strokeWidth="2" fill="#fef3c7" />
+    <text x="16" y="22" textAnchor="middle" fontSize="20" fontWeight="900" fill="#f59e0b">?</text>
+  </svg>
+)
+
+const IconTarget = () => (
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="13" stroke="#10b981" strokeWidth="2" fill="none" />
+    <circle cx="16" cy="16" r="8" stroke="#10b981" strokeWidth="2" fill="none" />
+    <circle cx="16" cy="16" r="3" fill="#10b981" />
+    <line x1="16" y1="2" x2="16" y2="8" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+    <line x1="16" y1="24" x2="16" y2="30" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+    <line x1="2" y1="16" x2="8" y2="16" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+    <line x1="24" y1="16" x2="30" y2="16" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+)
+
 const IconShuffle = () => (
   <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
     <path d="M4 10h6l4 6 4-6h6" stroke="#e76f51" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -165,6 +184,8 @@ const modeAccents: Record<string, string> = {
   killer: '#343a40',
   bobs27: '#6a4c93',
   operation: '#06d6a0',
+  'checkout-quiz': '#f59e0b',
+  'checkout-trainer': '#10b981',
   atb: '#0077b6',
   ctf: '#d62828',
   shanghai: '#c1121f',
@@ -223,6 +244,10 @@ type Props = {
   onSelectBobs27?: () => void
   /** Operation Auswahl */
   onSelectOperation?: () => void
+  /** Checkout Quiz Auswahl */
+  onSelectCheckoutQuiz?: () => void
+  /** Checkout Trainer Auswahl */
+  onSelectCheckoutTrainer?: () => void
   /** Multiplayer Host */
   onMultiplayerHost?: () => void
   /** Multiplayer Join */
@@ -231,7 +256,7 @@ type Props = {
 
 type Step = 'type' | 'preset' | 'cricket' | 'training' | 'board' | 'online'
 
-export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onMultiplayerHost, onMultiplayerJoin }: Props) {
+export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -300,6 +325,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     { id: 'killer', label: 'Killer', sub: 'Eliminiere alle Gegner!', icon: <IconSkull /> },
     { id: 'bobs27', label: "Bob's 27", sub: 'Doubles Training D1-D20', icon: <IconDice /> },
     { id: 'operation', label: 'Operation: EFKG', sub: 'Ein Feld, keine Gnade', icon: <IconCrosshair /> },
+    { id: 'checkout-quiz', label: 'Checkout Quiz', sub: 'Was wirfst du bei X Rest?', icon: <IconQuiz /> },
+    { id: 'checkout-trainer', label: 'Checkout Training', sub: '10 zufällige Checkouts üben', icon: <IconTarget /> },
   ], [])
 
   // Board Picker items (Rund ums Board)
@@ -335,6 +362,8 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     else if (id === 'killer') onSelectKiller?.()
     else if (id === 'bobs27') onSelectBobs27?.()
     else if (id === 'operation') onSelectOperation?.()
+    else if (id === 'checkout-quiz') onSelectCheckoutQuiz?.()
+    else if (id === 'checkout-trainer') onSelectCheckoutTrainer?.()
   }
 
   // Tastatur: ESC = zurück
@@ -619,6 +648,28 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                   </div>
                 </div>
                 <button style={styles.pill} onClick={() => onSelectOperation?.()} aria-label="Operation auswählen">auswählen</button>
+              </div>
+
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['checkout-quiz']}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconQuiz /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Checkout Quiz</div>
+                    <div style={styles.sub}>Was wirfst du bei X Rest?</div>
+                  </div>
+                </div>
+                <button style={styles.pill} onClick={() => onSelectCheckoutQuiz?.()} aria-label="Checkout Quiz auswählen">auswählen</button>
+              </div>
+
+              <div style={{ ...styles.rowCard, borderLeft: `4px solid ${modeAccents['checkout-trainer'] ?? '#10b981'}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={iconWrapStyle}><IconTarget /></div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Checkout Training</div>
+                    <div style={styles.sub}>10 zufällige Checkouts üben</div>
+                  </div>
+                </div>
+                <button style={styles.pill} onClick={() => onSelectCheckoutTrainer?.()} aria-label="Checkout Training auswählen">auswählen</button>
               </div>
             </div>
           )

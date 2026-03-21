@@ -8,6 +8,7 @@ import { getOperationMatchById } from '../storage'
 import { applyOperationEvents, formatDuration } from '../dartsOperation'
 import { computeOperationMatchStats } from '../stats/computeOperationStats'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateOperationReport } from '../narratives/generateModeReports'
 
 type Props = {
   matchId: string
@@ -123,6 +124,43 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch }: P
               </>
             )}
           </div>
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateOperationReport({
+              matchId,
+              players: match.players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: finished?.winnerId,
+              rankings: rankings.map(r => ({
+                playerId: r.playerId,
+                name: r.name,
+                totalHitScore: r.totalHitScore,
+                hitRate: r.hitRate,
+                avgHitScorePerDart: r.avgHitScorePerDart,
+                maxHitStreak: r.maxHitStreak,
+                bestTurnScore: r.bestTurnScore,
+                tripleCount: r.tripleCount,
+                doubleCount: r.doubleCount,
+                singleCount: r.singleCount,
+                noScoreCount: r.noScoreCount,
+              })),
+              legsCount: match.config.legsCount,
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 12, padding: '16px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: '1px solid #93c5fd',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Rankings */}
           {!isSolo && (

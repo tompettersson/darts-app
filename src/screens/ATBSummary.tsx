@@ -13,6 +13,7 @@ import {
 } from '../dartsAroundTheBlock'
 import { computeATBMatchStats } from '../stats/computeATBStats'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateATBReport } from '../narratives/generateModeReports'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -121,6 +122,35 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch }: Props) 
               </div>
             </div>
           )}
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateATBReport({
+              matchId,
+              players: match.players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: storedMatch.winnerId,
+              winnerDarts: storedMatch.winnerDarts,
+              mode: match.mode,
+              direction: match.direction,
+              playerDarts: state.dartsUsedByPlayer,
+              playerProgress: state.currentIndexByPlayer,
+              totalFields: totalFields,
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: '1px solid #93c5fd',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Spieler-Übersicht */}
           {(

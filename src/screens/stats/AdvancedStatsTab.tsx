@@ -199,6 +199,49 @@ function AnalyseTab({ data, colors, styles, playerName }: { data: SQLStatsData; 
         </Section>
       )}
 
+      {/* Doppel-Trefferquote Heatmap */}
+      {data.doubleSuccessPerField.length > 0 && (
+        <Section title="Doppel-Trefferquote (X01)" colors={colors}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ flex: '0 0 auto' }}>
+              <DartboardHeatmap
+                segments={data.doubleSuccessPerField
+                  .filter((f): f is typeof f & { field: number } => typeof f.field === 'number')
+                  .map(f => ({ field: f.field, hits: f.hitRate }))}
+                bullHits={data.doubleSuccessPerField.find(f => f.field === 'BULL')?.hitRate ?? 0}
+                bullDoubleHits={0}
+                size={180}
+                colors={{ bg: colors.bgDim, fg: colors.fgDim }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 8 }}>Top-Doppelfelder</div>
+              {data.doubleSuccessPerField
+                .filter(f => f.attempts >= 3)
+                .sort((a, b) => b.hitRate - a.hitRate)
+                .slice(0, 5)
+                .map(f => (
+                <div key={String(f.field)} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '4px 0', borderBottom: `1px solid ${colors.bgDim}`,
+                }}>
+                  <span style={{ fontWeight: 600, color: colors.fg, fontSize: 14 }}>
+                    D{f.field === 'BULL' ? 'Bull' : f.field}
+                  </span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{
+                      color: f.hitRate >= 40 ? '#22c55e' : f.hitRate >= 20 ? colors.fg : '#ef4444',
+                      fontSize: 13, fontWeight: 600,
+                    }}>{f.hitRate}%</span>
+                    <span style={{ color: colors.fgDim, fontSize: 11, marginLeft: 6 }}>({f.hits}/{f.attempts})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Bob's 27 Progression */}
       {data.bobs27Progression.length > 0 && (
         <Section title="Bob's 27: Score-Progression" colors={colors}>

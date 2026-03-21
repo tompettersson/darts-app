@@ -16,6 +16,7 @@ import type { StrTargetNumber, StrRingMode } from '../types/straeusschen'
 import { computeStrMatchStats, computeStrLegStats, type StrPlayerMatchStat, type StrPlayerLegStat } from '../stats/computeStraeusschenStats'
 import type { StrTurnAddedEvent, StrEvent } from '../dartsStraeusschen'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateStraeusschenReport } from '../narratives/generateModeReports'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -249,6 +250,40 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
               </>
             )}
           </div>
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateStraeusschenReport({
+              matchId,
+              players: match.players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: storedMatch.winnerId,
+              ringMode,
+              playerStats: sorted.map(s => ({
+                playerId: s.playerId,
+                name: s.name,
+                totalScore: s.totalScore,
+                hitRate: s.hitRate,
+                totalDarts: s.totalDarts,
+                bestRound: s.bestRound,
+                longestHitStreak: s.longestHitStreak,
+                avgHitsPerRound: s.avgHitsPerRound,
+              })),
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: '1px solid #93c5fd',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: '#1e293b' }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Statistik-Tabelle */}
           <div style={{ ...styles.card, marginBottom: 16, overflowX: 'auto' }}>
