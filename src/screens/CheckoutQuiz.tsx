@@ -27,17 +27,26 @@ function dartLabel(d: string): string {
   return d
 }
 
-/** Validiere und normalisiere Eingabe */
+/** Validiere und normalisiere Eingabe (reine Zahl = Single) */
 function parseInput(raw: string): string | null {
   const s = raw.trim().toUpperCase()
-  if (s === 'BULL') return 'BULL'
-  if (s === 'DBULL') return 'DBULL'
+  if (s === 'BULL' || s === 'B' || s === '25') return 'BULL'
+  if (s === 'DBULL' || s === 'DB' || s === 'D25') return 'DBULL'
+  // Mit Prefix: S20, D16, T19
   const m = s.match(/^([SDT])(\d{1,2})$/)
-  if (!m) return null
-  const prefix = m[1]
-  const num = parseInt(m[2], 10)
-  if (num < 1 || num > 20) return null
-  return `${prefix}${num}`
+  if (m) {
+    const num = parseInt(m[2], 10)
+    if (num < 1 || num > 20) return null
+    return `${m[1]}${num}`
+  }
+  // Ohne Prefix: reine Zahl → Single
+  const numMatch = s.match(/^(\d{1,2})$/)
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10)
+    if (num < 1 || num > 20) return null
+    return `S${num}`
+  }
+  return null
 }
 
 /** Generiere 10 zufällige, einzigartige Checkout-Scores */

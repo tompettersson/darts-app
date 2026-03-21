@@ -480,9 +480,9 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'space-between', minHeight: '100dvh',
+      minHeight: '100dvh',
       background: flashBg, color: colors.fg,
-      padding: '16px 16px env(safe-area-inset-bottom, 16px)',
+      padding: '12px 16px', gap: 8,
       transition: 'background 0.3s ease',
     }}>
       {/* === TOP: Progress bar + header === */}
@@ -540,71 +540,54 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        width: '100%', maxWidth: 440, gap: 12,
+        width: '100%', maxWidth: 440, gap: 8,
       }}>
         {target ? (
           <>
-            {/* Target score */}
-            <div style={{
-              fontSize: isArcade ? 100 : 80, fontWeight: 900,
-              lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-              color: colors.accent, textAlign: 'center',
-            }}>
-              {target.score}
+            {/* Target score + remaining */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                fontSize: 56, fontWeight: 900,
+                lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                color: isBust ? colors.error : colors.accent,
+              }}>
+                {isBust ? 'BUST' : thrownDarts.length > 0 ? remaining : target.score}
+              </div>
+              {thrownDarts.length > 0 && !isBust && (
+                <div style={{ fontSize: 12, opacity: 0.4, marginTop: 2 }}>
+                  Start: {target.score} · {target.route}
+                </div>
+              )}
+              {thrownDarts.length === 0 && (
+                <div style={{ fontSize: 14, fontWeight: 600, opacity: 0.25, marginTop: 4, letterSpacing: 1 }}>
+                  {target.route}
+                </div>
+              )}
             </div>
 
-            {/* Optimal route (dimmed) */}
-            <div style={{
-              fontSize: 18, fontWeight: 600, opacity: 0.3,
-              letterSpacing: 1.5, textAlign: 'center',
-            }}>
-              {target.route}
-            </div>
-
-            {/* Remaining display */}
-            <div style={{
-              fontSize: 20, fontWeight: 700, marginTop: 8,
-              color: isBust ? colors.error : colors.fg,
-              opacity: isBust ? 1 : 0.7,
-            }}>
-              {isBust ? 'BUST!' : thrownDarts.length > 0 ? `Rest: ${remaining}` : ''}
-            </div>
-
-            {/* Dart progress visualization */}
-            <div style={{
-              display: 'flex', gap: 12, marginTop: 8,
-              justifyContent: 'center', width: '100%',
-            }}>
+            {/* Compact dart slots */}
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
               {[0, 1, 2].map(dartIdx => {
                 const thrown = thrownDarts[dartIdx]
                 const isActive = dartIdx === thrownDarts.length && !isBust
                 return (
                   <div key={dartIdx} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    opacity: thrown ? 1 : isActive ? 1 : 0.3,
+                    width: 56, height: 30,
+                    borderRadius: 6,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'monospace', fontSize: 13, fontWeight: 700,
+                    background: thrown
+                      ? (thrown.parsed.score === 0 ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.12)')
+                      : isActive ? colors.bgCard : colors.bgMuted,
+                    border: isActive
+                      ? `2px solid ${colors.accent}`
+                      : `1px solid ${colors.border}`,
+                    color: thrown
+                      ? (thrown.parsed.mult === 2 ? '#22c55e' : thrown.parsed.mult === 3 ? '#f59e0b' : colors.fg)
+                      : colors.fgDim,
+                    opacity: thrown ? 1 : isActive ? 1 : 0.25,
                   }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.6 }}>
-                      Dart {dartIdx + 1}
-                    </span>
-                    <div style={{
-                      width: 72, height: 38,
-                      borderRadius: 8,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'monospace', fontSize: 16, fontWeight: 700,
-                      background: thrown
-                        ? (thrown.parsed.score === 0 ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.12)')
-                        : isActive
-                          ? colors.bgCard
-                          : colors.bgMuted,
-                      border: isActive
-                        ? `2px solid ${colors.accent}`
-                        : `1px solid ${colors.border}`,
-                      color: thrown
-                        ? (thrown.parsed.mult === 2 ? '#22c55e' : thrown.parsed.mult === 3 ? '#f59e0b' : colors.fg)
-                        : colors.fgDim,
-                    }}>
-                      {thrown ? formatDart(thrown.parsed) : isActive ? '_' : ''}
-                    </div>
+                    {thrown ? formatDart(thrown.parsed) : isActive ? '_' : ''}
                   </div>
                 )
               })}
@@ -612,7 +595,7 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
 
             {/* Input field */}
             {!isBust && thrownDarts.length < 3 && (
-              <div style={{ marginTop: 12, width: 'min(300px, 80vw)' }}>
+              <div style={{ width: 'min(240px, 70vw)' }}>
                 <input
                   ref={inputRef}
                   type="text"
@@ -627,17 +610,17 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
                       handleDartSubmit()
                     }
                   }}
-                  placeholder={`Dart ${thrownDarts.length + 1} eingeben...`}
+                  placeholder={`Dart ${thrownDarts.length + 1}`}
                   autoComplete="off"
                   autoCapitalize="characters"
                   style={{
                     width: '100%',
-                    padding: '14px 16px',
-                    borderRadius: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
                     border: `2px solid ${inputError ? colors.error : colors.border}`,
                     background: colors.bgInput,
                     color: colors.fg,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontFamily: 'monospace',
                     fontWeight: 700,
                     textAlign: 'center',
@@ -647,18 +630,12 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
                   }}
                 />
                 {inputError && (
-                  <div style={{
-                    fontSize: 12, color: colors.error, marginTop: 6,
-                    textAlign: 'center', fontWeight: 500,
-                  }}>
+                  <div style={{ fontSize: 11, color: colors.error, marginTop: 4, textAlign: 'center' }}>
                     {inputError}
                   </div>
                 )}
-                <div style={{
-                  fontSize: 11, opacity: 0.35, marginTop: 6,
-                  textAlign: 'center',
-                }}>
-                  S1-S20, D1-D20, T1-T20, BULL, DBULL, MISS
+                <div style={{ fontSize: 10, opacity: 0.3, marginTop: 4, textAlign: 'center' }}>
+                  20 = S20 · D16 · T19 · BULL
                 </div>
               </div>
             )}
@@ -668,50 +645,35 @@ export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary }: 
         )}
       </div>
 
-      {/* === BOTTOM: Action buttons === */}
+      {/* === BOTTOM: Compact action buttons === */}
       <div style={{
-        width: 'min(400px, 92vw)', display: 'flex', gap: 8,
-        paddingTop: 8,
+        width: 'min(340px, 90vw)', display: 'flex', gap: 6,
       }}>
         {thrownDarts.length > 0 && !isBust && (
           <button
             onClick={handleUndoDart}
             style={{
-              flex: 1, padding: '12px 16px', borderRadius: 12,
+              padding: '10px 14px', borderRadius: 10,
               background: colors.bgCard,
-              color: colors.fg, border: `2px solid ${colors.border}`,
-              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              color: colors.fg, border: `1px solid ${colors.border}`,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
           >
             Undo
           </button>
         )}
         <button
-          onClick={handleDartSubmit}
-          disabled={!currentInput.trim() || isBust || thrownDarts.length >= 3}
-          style={{
-            flex: 2, padding: '14px 16px', borderRadius: 12,
-            background: colors.accent, color: '#fff',
-            border: 'none',
-            fontSize: 16, fontWeight: 800, cursor: 'pointer',
-            opacity: (!currentInput.trim() || isBust || thrownDarts.length >= 3) ? 0.4 : 1,
-            transition: 'opacity 0.15s ease',
-          }}
-        >
-          OK
-        </button>
-        <button
           onClick={handleSkip}
           disabled={isBust}
           style={{
-            flex: 1, padding: '12px 16px', borderRadius: 12,
-            background: 'rgba(239,68,68,0.1)',
-            color: colors.error, border: `2px solid rgba(239,68,68,0.2)`,
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            padding: '10px 14px', borderRadius: 10,
+            background: 'rgba(239,68,68,0.08)',
+            color: colors.error, border: `1px solid rgba(239,68,68,0.2)`,
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
             opacity: isBust ? 0.4 : 1,
           }}
         >
-          Nicht geschafft
+          Skip
         </button>
       </div>
     </div>

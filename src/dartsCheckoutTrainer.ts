@@ -118,19 +118,29 @@ export function parseDartInput(input: string): ParsedDart | null {
   const s = input.trim().toUpperCase()
   if (!s) return null
 
-  if (s === 'MISS' || s === '0' || s === 'M') return { bed: '0', mult: 0, score: 0 }
+  if (s === 'MISS' || s === 'M') return { bed: '0', mult: 0, score: 0 }
   if (s === 'DBULL' || s === 'DB' || s === 'D25' || s === 'BULL50') return { bed: 'BULL', mult: 2, score: 50 }
   if (s === 'BULL' || s === 'B' || s === '25' || s === 'SB' || s === 'S25') return { bed: 'BULL', mult: 1, score: 25 }
 
+  // Mit Prefix: S20, D16, T19
   const match = s.match(/^([SDT])(\d{1,2})$/)
-  if (!match) return null
+  if (match) {
+    const prefix = match[1]
+    const bed = parseInt(match[2], 10)
+    if (bed < 1 || bed > 20) return null
+    const mult = prefix === 'S' ? 1 : prefix === 'D' ? 2 : 3
+    return { bed: String(bed), mult, score: bed * mult }
+  }
 
-  const prefix = match[1]
-  const bed = parseInt(match[2], 10)
-  if (bed < 1 || bed > 20) return null
+  // Ohne Prefix: reine Zahl → Single (z.B. "20" = S20, "1" = S1)
+  const numMatch = s.match(/^(\d{1,2})$/)
+  if (numMatch) {
+    const bed = parseInt(numMatch[1], 10)
+    if (bed < 1 || bed > 20) return null
+    return { bed: String(bed), mult: 1, score: bed }
+  }
 
-  const mult = prefix === 'S' ? 1 : prefix === 'D' ? 2 : 3
-  return { bed: String(bed), mult, score: bed * mult }
+  return null
 }
 
 /**
