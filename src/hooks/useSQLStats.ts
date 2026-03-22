@@ -193,15 +193,33 @@ const emptyData: SQLStatsData = {
   milestones: [],
 }
 
+/** Tab types matching StatsProfile */
+export type StatsTab = 'uebersicht' | 'x01' | 'cricketco' | 'insights' | 'trends' | 'analyse' | 'erfolge'
+
+// Track which tab groups have been loaded per player
+type LoadedGroups = Set<string>
+
 /**
- * Hook zum Laden aller SQL-Statistiken für einen Spieler
+ * Hook zum Laden von SQL-Statistiken für einen Spieler — Lazy per Tab.
+ * Lädt nur die Stats die der aktive Tab braucht. Bereits geladene Daten bleiben gecacht.
  */
-export function useSQLStats(playerId: string | undefined): SQLStatsState {
+export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 'uebersicht'): SQLStatsState {
   const [state, setState] = useState<SQLStatsState>({
     loading: true,
     error: null,
     data: emptyData,
   })
+  const [loadedGroups, setLoadedGroups] = useState<LoadedGroups>(new Set())
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | undefined>()
+
+  useEffect(() => {
+    // Player changed → reset
+    if (playerId !== currentPlayerId) {
+      setCurrentPlayerId(playerId)
+      setLoadedGroups(new Set())
+      setState({ loading: true, error: null, data: emptyData })
+    }
+  }, [playerId, currentPlayerId])
 
   useEffect(() => {
     if (!playerId) {
@@ -209,115 +227,200 @@ export function useSQLStats(playerId: string | undefined): SQLStatsState {
       return
     }
 
-    let cancelled = false
-    const pid = playerId // Capture for closure
+    // Determine which groups this tab needs
+    const needed = getGroupsForTab(activeTab)
+    const missing = needed.filter(g => !loadedGroups.has(g))
 
-    async function loadStats() {
-      setState(prev => ({ ...prev, loading: true, error: null }))
+    if (missing.length === 0) {
+      // All data for this tab already loaded
+      setState(prev => ({ ...prev, loading: false }))
+      return
+    }
+
+    let cancelled = false
+    const pid = playerId
+
+    async function loadTabStats() {
+      setState(prev => ({ ...prev, loading: true }))
 
       try {
-        // Alle Stats parallel laden (Basis + Erweitert)
-        const [
-          general, x01, cricket, atb, atbBestTimes, quick, streaks, headToHead,
-          stats121, special, achievements, bobs27, operation, killer,
-          x01_301, x01_501, x01_701, x01_901,
-          // New Stats
-          crossGameDashboard, segmentAccuracy, doubleRates, trebleRates,
-          formCurve, sessionPerf, checkoutByRemaining, clutchStats,
-          cricketFieldMPR, bobs27Progression, bobs27DoubleWeakness,
-          fullAchievements, crossGameH2H, timeInsights, trainingRecommendations,
-          // Session & Streaks
-          todaySession, winStreaks,
-          // Player Insights
-          fieldAccuracy, doubleSuccessPerField, playerTypeProfile,
-          crossGameWinRates, timeOfDayStats, dayOfWeekPerformance, milestones,
-        ] = await Promise.all([
-          getGeneralPlayerStats(pid),
-          getX01FullStats(pid),
-          getCricketFullStats(pid),
-          getATBFullStats(pid),
-          getATBBestTimes(pid),
-          getQuickStats(pid),
-          getPlayerStreaks(pid),
-          getAllHeadToHeadForPlayer(pid),
-          get121FullStats(pid),
-          getSpecialStats(pid),
-          getPlayerAchievements(pid),
-          getBobs27FullStats(pid),
-          getOperationFullStats(pid),
-          getKillerFullStats(pid),
-          getX01FullStats(pid, 301),
-          getX01FullStats(pid, 501),
-          getX01FullStats(pid, 701),
-          getX01FullStats(pid, 901),
-          // New Stats
-          getCrossGameDashboard(pid),
-          getX01SegmentAccuracy(pid),
-          getX01DoubleRates(pid),
-          getX01TrebleRates(pid),
-          getX01FormCurve(pid),
-          getSessionPerformance(pid),
-          getCheckoutByRemaining(pid),
-          getClutchStats(pid),
-          getCricketFieldMPR(pid),
-          getBobs27Progression(pid),
-          getBobs27DoubleWeakness(pid),
-          getFullAchievements(pid),
-          getCrossGameHeadToHead(pid),
-          getTimeInsights(pid),
-          getTrainingRecommendations(pid),
-          // Session & Streaks
-          getTodaySessionStats(pid).catch(() => null),
-          getWinStreaks(pid).catch(() => null),
-          // Player Insights
-          getFieldAccuracy(pid).catch(() => []),
-          getDoubleSuccessPerField(pid).catch(() => []),
-          getPlayerTypeProfile(pid).catch(() => null),
-          getCrossGameWinRates(pid).catch(() => []),
-          getTimeOfDayStats(pid).catch(() => []),
-          getDayOfWeekPerformance(pid).catch(() => []),
-          getPlayerMilestones(pid).catch(() => []),
-        ])
+        const partial: Partial<SQLStatsData> = {}
+
+        // Load only missing groups in parallel
+        const loaders: Promise<void>[] = []
+
+        for (const group of missing) {
+          loaders.push(loadGroup(pid, group, partial))
+        }
+
+        await Promise.all(loaders)
 
         if (!cancelled) {
-          const x01ByScore = { 301: x01_301, 501: x01_501, 701: x01_701, 901: x01_901 }
-          setState({
+          setLoadedGroups(prev => {
+            const next = new Set(prev)
+            for (const g of missing) next.add(g)
+            return next
+          })
+          setState(prev => ({
             loading: false,
             error: null,
-            data: {
-              general, x01, cricket, atb, atbBestTimes, quick, streaks, headToHead,
-              stats121, special, achievements, bobs27, operation, killer, x01ByScore,
-              crossGameDashboard, segmentAccuracy, doubleRates, trebleRates,
-              formCurve, sessionPerformance: sessionPerf.sessions, warmupEffect: sessionPerf.warmup,
-              checkoutByRemaining, clutchStats,
-              cricketFieldMPR, bobs27Progression, bobs27DoubleWeakness,
-              fullAchievements, crossGameH2H, timeInsights, trainingRecommendations,
-              todaySession, winStreaks,
-              fieldAccuracy, doubleSuccessPerField, playerTypeProfile,
-              crossGameWinRates, timeOfDayStats, dayOfWeekPerformance, milestones,
-            },
-          })
+            data: { ...prev.data, ...partial },
+          }))
         }
       } catch (err) {
         if (!cancelled) {
           console.error('Error loading SQL stats:', err)
-          setState({
+          setState(prev => ({
+            ...prev,
             loading: false,
             error: err instanceof Error ? err.message : 'Unbekannter Fehler',
-            data: emptyData,
-          })
+          }))
         }
       }
     }
 
-    loadStats()
+    loadTabStats()
 
-    return () => {
-      cancelled = true
-    }
-  }, [playerId])
+    return () => { cancelled = true }
+  }, [playerId, activeTab, loadedGroups, currentPlayerId])
 
   return state
+}
+
+/** Maps tabs to required data groups */
+function getGroupsForTab(tab: StatsTab): string[] {
+  switch (tab) {
+    case 'uebersicht':
+      return ['core', 'x01variants']
+    case 'x01':
+      return ['core', 'x01variants', 'x01detail']
+    case 'cricketco':
+      return ['core', 'cricket', 'minigames']
+    case 'insights':
+      return ['core', 'insights', 'playerinsights']
+    case 'trends':
+      return ['core'] // Trends loads its own data via separate queries
+    case 'analyse':
+      return ['core', 'minigames']
+    case 'erfolge':
+      return ['core', 'achievements', 'insights', 'playerinsights']
+    default:
+      return ['core']
+  }
+}
+
+/** Load a specific data group */
+async function loadGroup(pid: string, group: string, out: Partial<SQLStatsData>): Promise<void> {
+  const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
+    p.catch((err) => { console.warn(`[Stats] ${group} query failed:`, err.message); return fallback })
+
+  switch (group) {
+    case 'core': {
+      const [general, quick, streaks, headToHead, special, achievements, atb, atbBestTimes] = await Promise.all([
+        safe(getGeneralPlayerStats(pid), null),
+        safe(getQuickStats(pid), null),
+        safe(getPlayerStreaks(pid), null),
+        safe(getAllHeadToHeadForPlayer(pid), []),
+        safe(getSpecialStats(pid), null),
+        safe(getPlayerAchievements(pid), []),
+        safe(getATBFullStats(pid), null),
+        safe(getATBBestTimes(pid), []),
+      ])
+      Object.assign(out, { general, quick, streaks, headToHead, special, achievements, atb, atbBestTimes })
+      break
+    }
+    case 'x01variants': {
+      const [x01, x01_301, x01_501, x01_701, x01_901] = await Promise.all([
+        safe(getX01FullStats(pid), null),
+        safe(getX01FullStats(pid, 301), null),
+        safe(getX01FullStats(pid, 501), null),
+        safe(getX01FullStats(pid, 701), null),
+        safe(getX01FullStats(pid, 901), null),
+      ])
+      Object.assign(out, { x01, x01ByScore: { 301: x01_301, 501: x01_501, 701: x01_701, 901: x01_901 } })
+      break
+    }
+    case 'x01detail': {
+      const [stats121, checkoutByRemaining] = await Promise.all([
+        safe(get121FullStats(pid), null),
+        safe(getCheckoutByRemaining(pid), []),
+      ])
+      Object.assign(out, { stats121, checkoutByRemaining })
+      break
+    }
+    case 'cricket': {
+      const [cricket, cricketFieldMPR] = await Promise.all([
+        safe(getCricketFullStats(pid), null),
+        safe(getCricketFieldMPR(pid), []),
+      ])
+      Object.assign(out, { cricket, cricketFieldMPR })
+      break
+    }
+    case 'minigames': {
+      const [bobs27, operation, killer] = await Promise.all([
+        safe(getBobs27FullStats(pid), null),
+        safe(getOperationFullStats(pid), null),
+        safe(getKillerFullStats(pid), null),
+      ])
+      Object.assign(out, { bobs27, operation, killer })
+      break
+    }
+    case 'insights': {
+      const [crossGameDashboard, clutchStats, segmentAccuracy, doubleRates, trebleRates,
+             crossGameH2H, sessionPerf, timeInsights] = await Promise.all([
+        safe(getCrossGameDashboard(pid), null),
+        safe(getClutchStats(pid), null),
+        safe(getX01SegmentAccuracy(pid), []),
+        safe(getX01DoubleRates(pid), []),
+        safe(getX01TrebleRates(pid), []),
+        safe(getCrossGameHeadToHead(pid), []),
+        safe(getSessionPerformance(pid), { sessions: [] as SessionPerformance[], warmup: null as WarmupEffect | null }),
+        safe(getTimeInsights(pid), null),
+      ])
+      Object.assign(out, {
+        crossGameDashboard, clutchStats, segmentAccuracy, doubleRates, trebleRates,
+        crossGameH2H,
+        sessionPerformance: sessionPerf?.sessions ?? [],
+        warmupEffect: sessionPerf?.warmup ?? null,
+        timeInsights,
+      })
+      break
+    }
+    case 'playerinsights': {
+      const [fieldAccuracy, doubleSuccessPerField, playerTypeProfile,
+             crossGameWinRates, timeOfDayStats, dayOfWeekPerformance, milestones] = await Promise.all([
+        safe(getFieldAccuracy(pid), []),
+        safe(getDoubleSuccessPerField(pid), []),
+        safe(getPlayerTypeProfile(pid), null),
+        safe(getCrossGameWinRates(pid), []),
+        safe(getTimeOfDayStats(pid), []),
+        safe(getDayOfWeekPerformance(pid), []),
+        safe(getPlayerMilestones(pid), []),
+      ])
+      Object.assign(out, {
+        fieldAccuracy, doubleSuccessPerField, playerTypeProfile,
+        crossGameWinRates, timeOfDayStats, dayOfWeekPerformance, milestones,
+      })
+      break
+    }
+    case 'achievements': {
+      const [fullAchievements, formCurve, bobs27Progression, bobs27DoubleWeakness,
+             trainingRecommendations, todaySession, winStreaks] = await Promise.all([
+        safe(getFullAchievements(pid), []),
+        safe(getX01FormCurve(pid), []),
+        safe(getBobs27Progression(pid), []),
+        safe(getBobs27DoubleWeakness(pid), []),
+        safe(getTrainingRecommendations(pid), []),
+        safe(getTodaySessionStats(pid), null),
+        safe(getWinStreaks(pid), null),
+      ])
+      Object.assign(out, {
+        fullAchievements, formCurve, bobs27Progression, bobs27DoubleWeakness,
+        trainingRecommendations, todaySession, winStreaks,
+      })
+      break
+    }
+  }
 }
 
 /**

@@ -36,7 +36,7 @@ export default function StatsProfile({
 
   // SQL Stats laden
   const selected: Profile | undefined = profiles[cursor]
-  const sqlStats = useSQLStats(selected?.id)
+  const sqlStats = useSQLStats(selected?.id, activeTab)
 
   // X01 Career Stats (für Checkout-Heatmap)
   const x01Career = useMemo(() => {
