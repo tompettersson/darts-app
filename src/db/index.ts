@@ -81,12 +81,77 @@ export async function execMany(statements: Array<{ sql: string; params?: unknown
   await apiRequest({ type: 'execMany', statements })
 }
 
+// ============================================================================
+// Automatic Request Batching (DataLoader pattern)
+// Queries called in the same microtask are batched into a single HTTP request.
+// ============================================================================
+
+type PendingQuery = {
+  sql: string
+  params?: unknown[]
+  mode: 'all' | 'one'
+  resolve: (value: any) => void
+  reject: (error: any) => void
+}
+
+let pendingBatch: PendingQuery[] | null = null
+
+function enqueueQuery(sql: string, params: unknown[] | undefined, mode: 'all' | 'one'): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (!pendingBatch) {
+      pendingBatch = []
+      // Flush on next microtask — collects all queries from the current tick
+      Promise.resolve().then(flushBatch)
+    }
+    pendingBatch.push({ sql, params, mode, resolve, reject })
+  })
+}
+
+async function flushBatch() {
+  const batch = pendingBatch
+  pendingBatch = null
+  if (!batch || batch.length === 0) return
+
+  // Single query — no need for batch overhead
+  if (batch.length === 1) {
+    const q = batch[0]
+    try {
+      const type = q.mode === 'one' ? 'queryOne' : 'query'
+      const result = await apiRequest({ type, sql: q.sql, params: q.params })
+      q.resolve(result)
+    } catch (e) {
+      q.reject(e)
+    }
+    return
+  }
+
+  // Multiple queries — send as batch
+  try {
+    const results = await apiRequest<Array<{ data: unknown; error?: string }>>({
+      type: 'batch',
+      queries: batch.map(q => ({ sql: q.sql, params: q.params, mode: q.mode })),
+    })
+
+    for (let i = 0; i < batch.length; i++) {
+      const r = results[i]
+      if (r?.error) {
+        batch[i].reject(new Error(`[DB API] ${r.error}`))
+      } else {
+        batch[i].resolve(r?.data)
+      }
+    }
+  } catch (e) {
+    // Network error — reject all
+    for (const q of batch) q.reject(e)
+  }
+}
+
 /**
  * Führt eine Query aus und gibt alle Ergebnisse zurück
  */
 export async function query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
   await initDB()
-  return apiRequest<T[]>({ type: 'query', sql, params })
+  return enqueueQuery(sql, params, 'all')
 }
 
 /**
@@ -94,7 +159,7 @@ export async function query<T = Record<string, unknown>>(sql: string, params?: u
  */
 export async function queryOne<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | null> {
   await initDB()
-  return apiRequest<T | null>({ type: 'queryOne', sql, params })
+  return enqueueQuery(sql, params, 'one')
 }
 
 /**
