@@ -447,45 +447,43 @@ export type DBX01Match = {
 export async function dbGetX01Matches(): Promise<DBX01Match[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    match_name: string | null
-    notes: string | null
-    created_at: string
-    finished: number
-    finished_at: string | null
-  }>('SELECT * FROM x01_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; match_name: string | null; notes: string | null
+      created_at: string; finished: number; finished_at: string | null
+    }>('SELECT * FROM x01_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM x01_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string }>(
+      'SELECT match_id, player_id FROM x01_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBX01Match[] = []
-
-  for (const m of matches) {
-    // Events laden
-    const events = await query<{ data: string }>(
-      'SELECT data FROM x01_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
-
-    // Player IDs laden
-    const players = await query<{ player_id: string }>(
-      'SELECT player_id FROM x01_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    result.push({
-      id: m.id,
-      title: m.title,
-      matchName: m.match_name,
-      notes: m.notes,
-      createdAt: m.created_at,
-      finished: m.finished === 1,
-      finishedAt: m.finished_at,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
-      playerIds: players.map((p) => p.player_id),
-    })
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, string[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p.player_id); else playersByMatch.set(p.match_id, [p.player_id])
   }
 
-  return result
+  return matches.map((m) => ({
+    id: m.id,
+    title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
+    createdAt: m.created_at,
+    finished: m.finished === 1,
+    finishedAt: m.finished_at,
+    events: (eventsByMatch.get(m.id) ?? []).map((d) => fromJSON(d)).filter(Boolean),
+    playerIds: playersByMatch.get(m.id) ?? [],
+  }))
 }
 
 export async function dbGetX01MatchById(matchId: string): Promise<DBX01Match | null> {
@@ -661,43 +659,43 @@ export type DBCricketMatch = {
 export async function dbGetCricketMatches(): Promise<DBCricketMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    match_name: string | null
-    notes: string | null
-    created_at: string
-    finished: number
-    finished_at: string | null
-  }>('SELECT * FROM cricket_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; match_name: string | null; notes: string | null
+      created_at: string; finished: number; finished_at: string | null
+    }>('SELECT * FROM cricket_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM cricket_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string }>(
+      'SELECT match_id, player_id FROM cricket_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBCricketMatch[] = []
-
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM cricket_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
-
-    const players = await query<{ player_id: string }>(
-      'SELECT player_id FROM cricket_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    result.push({
-      id: m.id,
-      title: m.title,
-      matchName: m.match_name,
-      notes: m.notes,
-      createdAt: m.created_at,
-      finished: m.finished === 1,
-      finishedAt: m.finished_at,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
-      playerIds: players.map((p) => p.player_id),
-    })
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, string[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p.player_id); else playersByMatch.set(p.match_id, [p.player_id])
   }
 
-  return result
+  return matches.map((m) => ({
+    id: m.id,
+    title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
+    createdAt: m.created_at,
+    finished: m.finished === 1,
+    finishedAt: m.finished_at,
+    events: (eventsByMatch.get(m.id) ?? []).map((d) => fromJSON(d)).filter(Boolean),
+    playerIds: playersByMatch.get(m.id) ?? [],
+  }))
 }
 
 export async function dbGetCricketMatchById(matchId: string): Promise<DBCricketMatch | null> {
@@ -846,40 +844,45 @@ export type DBATBMatch = {
 export async function dbGetATBMatches(): Promise<DBATBMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    mode: string
-    direction: string
-    structure_kind: string | null
-    best_of_legs: number | null
-    generated_sequence: string | null
-  }>('SELECT * FROM atb_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      mode: string; direction: string
+      structure_kind: string | null; best_of_legs: number | null
+      generated_sequence: string | null
+    }>('SELECT * FROM atb_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM atb_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM atb_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBATBMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM atb_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
-
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM atb_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
     // Player details aus Start-Event holen
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p) => ({ playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1 }))
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -891,13 +894,11 @@ export async function dbGetATBMatches(): Promise<DBATBMatch[]> {
       mode: m.mode,
       direction: m.direction,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       structure: m.structure_kind ? { kind: m.structure_kind, bestOfLegs: m.best_of_legs } : undefined,
       generatedSequence: m.generated_sequence ? (fromJSON<any[]>(m.generated_sequence) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbGetATBMatchById(matchId: string): Promise<DBATBMatch | null> {
@@ -1072,46 +1073,48 @@ export type DBCTFMatch = {
 export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    multiplier_mode: string | null
-    rotate_order: number
-    bull_position: string | null
-    structure_kind: string | null
-    best_of_legs: number | null
-    legs_per_set: number | null
-    best_of_sets: number | null
-    generated_sequence: string | null
-    capture_field_winners: string | null
-    capture_total_scores: string | null
-  }>('SELECT * FROM ctf_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      multiplier_mode: string | null; rotate_order: number; bull_position: string | null
+      structure_kind: string | null; best_of_legs: number | null
+      legs_per_set: number | null; best_of_sets: number | null
+      generated_sequence: string | null
+      capture_field_winners: string | null; capture_total_scores: string | null
+    }>('SELECT * FROM ctf_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM ctf_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM ctf_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBCTFMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM ctf_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM ctf_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p) => ({
       playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
     }))
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -1121,7 +1124,7 @@ export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
       winnerId: m.winner_id,
       winnerDarts: m.winner_darts,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       structure: m.structure_kind
         ? m.structure_kind === 'legs'
           ? { kind: 'legs', bestOfLegs: m.best_of_legs }
@@ -1135,10 +1138,8 @@ export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
       generatedSequence: m.generated_sequence ? (fromJSON<any[]>(m.generated_sequence) ?? undefined) : undefined,
       captureFieldWinners: m.capture_field_winners ? (fromJSON<any>(m.capture_field_winners) ?? undefined) : undefined,
       captureTotalScores: m.capture_total_scores ? (fromJSON<any>(m.capture_total_scores) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
@@ -1269,50 +1270,49 @@ export type DBStrMatch = {
 export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    mode: string
-    target_number: number | null
-    number_order: string | null
-    turn_order: string | null
-    ring_mode: string | null
-    bull_mode: string | null
-    bull_position: string | null
-    structure_kind: string | null
-    best_of_legs: number | null
-    legs_per_set: number | null
-    best_of_sets: number | null
-    generated_order: string | null
-    leg_wins: string | null
-    set_wins: string | null
-  }>('SELECT * FROM str_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      mode: string; target_number: number | null
+      number_order: string | null; turn_order: string | null
+      ring_mode: string | null; bull_mode: string | null; bull_position: string | null
+      structure_kind: string | null; best_of_legs: number | null
+      legs_per_set: number | null; best_of_sets: number | null
+      generated_order: string | null; leg_wins: string | null; set_wins: string | null
+    }>('SELECT * FROM str_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM str_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM str_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBStrMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM str_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM str_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p: any) => ({
       playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
     }))
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -1329,7 +1329,7 @@ export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
       bullMode: m.bull_mode,
       bullPosition: m.bull_position,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       structure: m.structure_kind
         ? m.structure_kind === 'legs'
           ? { kind: 'legs', bestOfLegs: m.best_of_legs }
@@ -1338,10 +1338,8 @@ export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
       generatedOrder: m.generated_order ? (fromJSON<number[]>(m.generated_order) ?? undefined) : undefined,
       legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
       setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
@@ -1488,43 +1486,46 @@ export type DBHighscoreMatch = {
 export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    target_score: number
-    structure_kind: string | null
-    target_legs: number | null
-    legs_per_set: number | null
-    target_sets: number | null
-    leg_wins: string | null
-    set_wins: string | null
-  }>('SELECT * FROM highscore_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      target_score: number; structure_kind: string | null
+      target_legs: number | null; legs_per_set: number | null; target_sets: number | null
+      leg_wins: string | null; set_wins: string | null
+    }>('SELECT * FROM highscore_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM highscore_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM highscore_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBHighscoreMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM highscore_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM highscore_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p: any) => ({
       id: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
     }))
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -1535,7 +1536,7 @@ export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
       winnerDarts: m.winner_darts,
       targetScore: m.target_score,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       structure: m.structure_kind
         ? m.structure_kind === 'legs'
           ? { kind: 'legs', targetLegs: m.target_legs }
@@ -1543,10 +1544,8 @@ export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
         : undefined,
       legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
       setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<void> {
@@ -1696,43 +1695,46 @@ export type DBShanghaiMatch = {
 export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    structure_kind: string | null
-    best_of_legs: number | null
-    legs_per_set: number | null
-    best_of_sets: number | null
-    final_scores: string | null
-    leg_wins: string | null
-    set_wins: string | null
-  }>('SELECT * FROM shanghai_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      structure_kind: string | null; best_of_legs: number | null
+      legs_per_set: number | null; best_of_sets: number | null
+      final_scores: string | null; leg_wins: string | null; set_wins: string | null
+    }>('SELECT * FROM shanghai_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM shanghai_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM shanghai_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBShanghaiMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM shanghai_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM shanghai_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p: any) => ({
       playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
     }))
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -1742,7 +1744,7 @@ export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
       winnerId: m.winner_id,
       winnerDarts: m.winner_darts,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       structure: m.structure_kind
         ? m.structure_kind === 'legs'
           ? { kind: 'legs', bestOfLegs: m.best_of_legs }
@@ -1751,10 +1753,8 @@ export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
       finalScores: m.final_scores ? (fromJSON<Record<string, number>>(m.final_scores) ?? undefined) : undefined,
       legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
       setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbGetShanghaiMatchById(matchId: string): Promise<DBShanghaiMatch | null> {
@@ -1956,38 +1956,41 @@ export type DBKillerMatch = {
 export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    final_standings: string | null
-    structure_kind: string | null
-    best_of_legs: number | null
-    legs_per_set: number | null
-    best_of_sets: number | null
-    leg_wins: string | null
-    set_wins: string | null
-  }>('SELECT * FROM killer_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      final_standings: string | null; structure_kind: string | null
+      best_of_legs: number | null; legs_per_set: number | null; best_of_sets: number | null
+      leg_wins: string | null; set_wins: string | null
+    }>('SELECT * FROM killer_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM killer_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM killer_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBKillerMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM killer_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM killer_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p: any) => ({
       playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
     }))
@@ -1999,7 +2002,7 @@ export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
         ? { kind: 'legs', bestOfLegs: m.best_of_legs }
         : undefined)
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -2009,16 +2012,14 @@ export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
       winnerId: m.winner_id,
       winnerDarts: m.winner_darts,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       config: startEvt?.config,
       finalStandings: m.final_standings ? (fromJSON<any[]>(m.final_standings) ?? undefined) : undefined,
       structure,
       legWins: m.leg_wins ? (fromJSON<Record<string, number>>(m.leg_wins) ?? undefined) : undefined,
       setWins: m.set_wins ? (fromJSON<Record<string, number>>(m.set_wins) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbGetKillerMatchById(matchId: string): Promise<DBKillerMatch | null> {
@@ -2240,41 +2241,46 @@ export type DBBobs27Match = {
 export async function dbGetBobs27Matches(): Promise<DBBobs27Match[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    start_score: number | null
-    darts_per_target: number | null
-    include_bull: number | null
-    allow_negative: number | null
-    final_scores: string | null
-  }>('SELECT * FROM bobs27_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      start_score: number | null; darts_per_target: number | null
+      include_bull: number | null; allow_negative: number | null
+      final_scores: string | null
+    }>('SELECT * FROM bobs27_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM bobs27_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM bobs27_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBBobs27Match[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM bobs27_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM bobs27_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
-
-    const startEvt = events.length > 0 ? fromJSON<any>(events[0].data) : null
+    const startEvt = evtData.length > 0 ? fromJSON<any>(evtData[0]) : null
     const playerDetails = startEvt?.players ?? players.map((p: any) => ({
       playerId: p.player_id, name: p.player_id, isGuest: p.is_guest === 1,
     }))
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -2284,7 +2290,7 @@ export async function dbGetBobs27Matches(): Promise<DBBobs27Match[]> {
       winnerId: m.winner_id,
       winnerDarts: m.winner_darts,
       players: playerDetails,
-      events: events.map((e) => fromJSON(e.data)).filter(Boolean),
+      events: evtData.map((d) => fromJSON(d)).filter(Boolean),
       config: startEvt?.config ?? {
         startScore: m.start_score ?? 27,
         dartsPerTarget: m.darts_per_target ?? 3,
@@ -2293,10 +2299,8 @@ export async function dbGetBobs27Matches(): Promise<DBBobs27Match[]> {
       },
       targets: startEvt?.targets,
       finalScores: m.final_scores ? (fromJSON<Record<string, number>>(m.final_scores) ?? undefined) : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbGetBobs27MatchById(matchId: string): Promise<DBBobs27Match | null> {
@@ -2491,39 +2495,44 @@ export type DBOperationMatch = {
 export async function dbGetOperationMatches(): Promise<DBOperationMatch[]> {
   await ensureDB()
 
-  const matches = await query<{
-    id: string
-    title: string
-    created_at: string
-    finished: number
-    finished_at: string | null
-    duration_ms: number | null
-    winner_id: string | null
-    winner_darts: number | null
-    legs_count: number
-    target_mode: string
-    final_scores: string | null
-    leg_wins: string | null
-  }>('SELECT * FROM operation_matches ORDER BY created_at DESC')
+  // Batch: 3 Queries statt 2*N+1
+  const [matches, allEvents, allPlayers] = await Promise.all([
+    query<{
+      id: string; title: string; created_at: string; finished: number
+      finished_at: string | null; duration_ms: number | null
+      winner_id: string | null; winner_darts: number | null
+      legs_count: number; target_mode: string
+      final_scores: string | null; leg_wins: string | null
+    }>('SELECT * FROM operation_matches ORDER BY created_at DESC'),
+    query<{ match_id: string; data: string }>(
+      'SELECT match_id, data FROM operation_events ORDER BY match_id, seq'
+    ),
+    query<{ match_id: string; player_id: string; is_guest: number }>(
+      'SELECT match_id, player_id, is_guest FROM operation_match_players ORDER BY match_id, position'
+    ),
+  ])
 
-  const result: DBOperationMatch[] = []
+  // Group by match_id
+  const eventsByMatch = new Map<string, string[]>()
+  for (const e of allEvents) {
+    const arr = eventsByMatch.get(e.match_id)
+    if (arr) arr.push(e.data); else eventsByMatch.set(e.match_id, [e.data])
+  }
+  const playersByMatch = new Map<string, { player_id: string; is_guest: number }[]>()
+  for (const p of allPlayers) {
+    const arr = playersByMatch.get(p.match_id)
+    if (arr) arr.push(p); else playersByMatch.set(p.match_id, [p])
+  }
 
-  for (const m of matches) {
-    const events = await query<{ data: string }>(
-      'SELECT data FROM operation_events WHERE match_id = ? ORDER BY seq',
-      [m.id]
-    )
-
-    const players = await query<{ player_id: string; is_guest: number }>(
-      'SELECT player_id, is_guest FROM operation_match_players WHERE match_id = ? ORDER BY position',
-      [m.id]
-    )
+  return matches.map((m) => {
+    const evtData = eventsByMatch.get(m.id) ?? []
+    const players = playersByMatch.get(m.id) ?? []
 
     // Spielernamen aus dem MatchStarted Event holen
-    const parsedEvents = events.map((e) => fromJSON(e.data)).filter(Boolean)
+    const parsedEvents = evtData.map((d) => fromJSON(d)).filter(Boolean)
     const startEvt: any = parsedEvents.find((e: any) => e.type === 'OperationMatchStarted')
 
-    result.push({
+    return {
       id: m.id,
       title: m.title,
       createdAt: m.created_at,
@@ -2543,10 +2552,8 @@ export async function dbGetOperationMatches(): Promise<DBOperationMatch[]> {
       config: startEvt?.config ?? { legsCount: m.legs_count, targetMode: m.target_mode },
       finalScores: m.final_scores ? fromJSON(m.final_scores) ?? undefined : undefined,
       legWins: m.leg_wins ? fromJSON(m.leg_wins) ?? undefined : undefined,
-    })
-  }
-
-  return result
+    }
+  })
 }
 
 export async function dbGetOperationMatchById(matchId: string): Promise<DBOperationMatch | null> {
