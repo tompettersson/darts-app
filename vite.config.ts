@@ -158,16 +158,19 @@ function localApiProxy(): Plugin {
               })
               if (rows.length === 0) continue
 
-              stats[table] = rows.length
-              console.log(`[OPFS Migration] ${table}: ${rows.length} Zeilen`)
+              console.log(`[OPFS Migration] ${table}: ${rows.length} Zeilen gelesen`)
 
               // Insert rows into Postgres
+              let ok = 0, fail = 0, firstError = ''
               for (const row of rows) {
-                const columns = Object.keys(row)
-                const placeholders = columns.map((_, i) => `$${i + 1}`)
-                const values = columns.map(c => row[c])
+                const cols = Object.keys(row)
+                const placeholders = cols.map((_, i) => `$${i + 1}`)
+                // Convert Uint8Array blobs to Buffer for Postgres
+                const values = cols.map(c => {
+                  const v = row[c]
+                  return v instanceof Uint8Array ? Buffer.from(v) : v
+                })
 
-                // Use ON CONFLICT DO NOTHING to skip duplicates
                 const pks: Record<string, string[]> = {
                   profiles: ['id'], system_meta: ['key'],
                   x01_matches: ['id'], x01_match_players: ['match_id', 'player_id'],
@@ -198,13 +201,15 @@ function localApiProxy(): Plugin {
                 const conflict = pk ? ` ON CONFLICT (${pk.join(', ')}) DO NOTHING` : ''
 
                 try {
-                  await pgSql(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
+                  await pgSql.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
+                  ok++
                 } catch (insertErr: any) {
-                  if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('already exists')) {
-                    console.warn(`[OPFS Migration] Insert ${table}:`, insertErr.message?.slice(0, 100))
-                  }
+                  fail++
+                  if (!firstError) firstError = insertErr.message?.slice(0, 200) || 'unknown'
                 }
               }
+              stats[table] = ok
+              console.log(`[OPFS Migration] ${table}: ${ok} OK, ${fail} fehlgeschlagen${firstError ? ` (erster Fehler: ${firstError})` : ''}`)
             } catch (tableErr: any) {
               console.warn(`[OPFS Migration] Tabelle ${table} übersprungen:`, tableErr.message)
             }

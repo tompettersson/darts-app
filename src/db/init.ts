@@ -189,14 +189,21 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
  */
 async function tryOpfsMigration(): Promise<void> {
   try {
-    // Check if Postgres already has match data (simple count, no SQLite functions)
+    // Check if migration is still needed (check multiple tables)
     const { query } = await import('./index')
-    const countResult = await query<{ count: string }>('SELECT count(*) as count FROM x01_matches')
-    const matchCount = parseInt(countResult[0]?.count ?? '0', 10)
-    if (matchCount > 0) {
-      console.debug('[OPFS Migration] Postgres hat bereits', matchCount, 'Matches, überspringe')
+    const countResult = await query<{ x01: string; cricket: string; atb: string }>(`SELECT
+      (SELECT count(*) FROM x01_events) as x01,
+      (SELECT count(*) FROM cricket_matches) as cricket,
+      (SELECT count(*) FROM atb_matches) as atb`)
+    const x01Events = parseInt(countResult[0]?.x01 ?? '0', 10)
+    const cricket = parseInt(countResult[0]?.cricket ?? '0', 10)
+    const atb = parseInt(countResult[0]?.atb ?? '0', 10)
+    // Only skip if ALL major tables have data
+    if (x01Events > 5000 && cricket > 0 && atb > 0) {
+      console.debug('[OPFS Migration] Postgres hat bereits Daten, überspringe')
       return
     }
+    console.debug(`[OPFS Migration] Prüfe... x01_events=${x01Events}, cricket=${cricket}, atb=${atb} → Migration nötig`)
 
     // Dynamically import migration module
     const { migrateOpfsToPostgres } = await import('./migrate-opfs')
