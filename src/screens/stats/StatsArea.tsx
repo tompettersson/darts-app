@@ -131,7 +131,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
     }
 
     return (
-      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <div style={{ height: 60 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (
@@ -322,14 +322,8 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
     return (
       <Suspense fallback={suspenseFallback}>
         <div style={styles.page}>
-          <div style={styles.headerRow}>
-            <h2 style={{ margin: 0, color: colors.fg }}>Spieler-Statistiken</h2>
-            <button style={styles.backBtn} onClick={() => setView('stats-menu')}>
-              ← Zurück
-            </button>
-          </div>
-
           <StatsProfile
+            onBack={() => setView('stats-menu')}
             onOpenMatch={(matchId: string) => {
               setDetailMatchId(matchId)
               setReturnFromMatchDetails('player-profile')

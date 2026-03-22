@@ -21,9 +21,11 @@ type Tab = 'uebersicht' | 'x01' | 'cricketco' | 'insights' | 'trends' | 'analyse
 
 export default function StatsProfile({
   onOpenMatch,
+  onBack,
   initialTab,
 }: {
   onOpenMatch?: (matchId: string) => void
+  onBack?: () => void
   initialTab?: Tab
 }) {
   const [profiles, setProfiles] = useState<Profile[]>(() => getProfiles())
@@ -113,6 +115,7 @@ export default function StatsProfile({
       borderBottom: `2px solid ${colors.border}`,
       marginBottom: 16,
       overflowX: 'auto',
+      WebkitOverflowScrolling: 'touch',  // iOS smooth scroll
       scrollbarWidth: 'none',          // Firefox
       msOverflowStyle: 'none',         // IE/Edge
     } as React.CSSProperties,
@@ -171,26 +174,35 @@ export default function StatsProfile({
     statsLabel: {
       fontSize: 14,
       color: colors.fgDim,
+      minWidth: 0,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      marginRight: 8,
     } as React.CSSProperties,
     statsValue: {
       fontSize: 14,
       fontWeight: 600,
       color: colors.fg,
+      flexShrink: 0,
     } as React.CSSProperties,
     statsValueGood: {
       fontSize: 14,
       fontWeight: 600,
       color: colors.success,
+      flexShrink: 0,
     } as React.CSSProperties,
     statsValueBad: {
       fontSize: 14,
       fontWeight: 600,
       color: colors.error,
+      flexShrink: 0,
     } as React.CSSProperties,
     statsValueHighlight: {
       fontSize: 16,
       fontWeight: 700,
       color: isArcade ? colors.accent : '#2563EB',
+      flexShrink: 0,
     } as React.CSSProperties,
 
     // No data
@@ -296,6 +308,30 @@ export default function StatsProfile({
 
   return (
     <div style={s.shell}>
+      {/* Header mit Zurück-Button */}
+      {onBack && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Spieler-Statistiken</h2>
+          <button
+            style={{
+              height: 36,
+              borderRadius: 10,
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1.2,
+              padding: '6px 10px',
+              fontWeight: 600,
+              color: colors.fg,
+            }}
+            onClick={onBack}
+          >
+            ← Zurück
+          </button>
+        </div>
+      )}
+
       {/* Spieler-Navigation */}
       <div style={s.playerNav}>
         <button

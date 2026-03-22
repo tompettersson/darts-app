@@ -235,7 +235,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
 
   if (!storedMatch) {
     return (
-      <div style={{ background: '#181c20', minHeight: '100vh', color: '#e5e7eb', padding: 20 }}>
+      <div style={{ background: '#181c20', minHeight: '100dvh', color: '#e5e7eb', padding: 20 }}>
         <p>Match nicht gefunden.</p>
         <button onClick={onAbort} style={{ color: '#e5e7eb', background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
           Zurueck
@@ -669,7 +669,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     <div
       style={{
         background: '#181c20',
-        minHeight: '100vh',
+        minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         color: '#e5e7eb',

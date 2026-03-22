@@ -1898,7 +1898,7 @@ export default function App() {
     ]
 
     return (
-      <div className="screen-enter" key="settings" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="screen-enter" key="settings" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
 
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
@@ -2006,7 +2006,7 @@ export default function App() {
     }
 
     return (
-      <div className="screen-enter" key="profiles-menu" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="screen-enter" key="profiles-menu" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <div style={{ height: 60 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (
@@ -2118,7 +2118,7 @@ export default function App() {
 
   if (isArcade) {
     return (
-      <div className="screen-enter" key="menu-arcade" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="screen-enter" key="menu-arcade" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
             <h1 style={{

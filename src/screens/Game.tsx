@@ -775,7 +775,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       // Im Multiplayer warten wir auf Server-Sync
       if (isMultiplayer) {
         return (
-          <div className="g-page" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
+          <div className="g-page" style={{ display: 'grid', placeItems: 'center', minHeight: '100dvh' }}>
             <div style={{ textAlign: 'center' }}>
               <h3>Warte auf Spielstand vom Server...</h3>
               <div style={{

@@ -395,7 +395,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
   const titleStyle: React.CSSProperties = { margin: 0, color: colors.fg, textAlign: 'center' }
 
   return (
-    <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
       <div style={{ height: 60 }} />
       <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
         {/* Step 1: Spielauswahl */}

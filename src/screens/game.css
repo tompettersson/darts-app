@@ -4,8 +4,7 @@
 html, body, #root {
   margin: 0;
   padding: 0;
-  height: 100vh;
-  height: 100dvh; /* dynamic viewport height for mobile browsers */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -19,6 +18,8 @@ html, body, #root {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  /* Ensure bottom content (buttons, back links) is never cut off on mobile */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* Design Tokens - mapped to global theme variables */

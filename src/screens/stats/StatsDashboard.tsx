@@ -1831,7 +1831,7 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
     }
 
     return (
-      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
         <div style={{ height: 60 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (

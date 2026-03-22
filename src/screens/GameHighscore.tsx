@@ -605,7 +605,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
 
   return (
     <div style={{
-      height: '100vh',
+      height: '100dvh',
       background: c.bg,
       display: 'flex',
       flexDirection: 'column',

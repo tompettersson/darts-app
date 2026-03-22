@@ -407,7 +407,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
 
   if (!storedMatch || !state.match) {
     return (
-      <div style={{ background: c.bg, minHeight: '100vh', color: c.textBright, padding: 20 }}>
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
         <p>Match nicht gefunden.</p>
         <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
           Zurueck
@@ -742,7 +742,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
       background: playerColorBgEnabled && activePlayerId
         ? `linear-gradient(180deg, ${playerColor}20 0%, ${playerColor}05 100%)`
         : c.bg,
-      minHeight: '100vh', color: c.textBright,
+      minHeight: '100dvh', color: c.textBright,
       transition: 'background 0.5s ease',
     }}>
       {/* Pause Overlay */}
@@ -801,7 +801,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        minHeight: 'calc(100vh - 50px)',
+        minHeight: 'calc(100dvh - 50px)',
       }}>
         {/* Haupt-Content */}
         <div style={{

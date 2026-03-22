@@ -15,7 +15,7 @@ export const ui: Record<string, CSSProperties> = {
   page: {
     display: 'grid',
     gap: 16,
-    padding: 12,
+    padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
     background: '#f8fafc', // leichtes Grau-Blau für App-Hintergrund
     minHeight: '100vh',
     boxSizing: 'border-box',
@@ -26,7 +26,7 @@ export const ui: Record<string, CSSProperties> = {
     display: 'grid',
     placeItems: 'center',
     minHeight: '70vh',
-    padding: 12,
+    padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
   },
   centerInner: {
     display: 'grid',
@@ -213,7 +213,7 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
     page: {
       display: 'grid',
       gap: 16,
-      padding: 12,
+      padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
       background: colors.bg,
       minHeight: '100vh',
       boxSizing: 'border-box',
@@ -225,7 +225,7 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       display: 'grid',
       placeItems: 'center',
       minHeight: '70vh',
-      padding: 12,
+      padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
       background: colors.bg,
       color: colors.fg,
     },

@@ -190,7 +190,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
   if (!storedMatch || !state.match) {
     return (
-      <div style={{ background: c.bg, minHeight: '100vh', color: c.textBright, padding: 20 }}>
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
         <p>Match nicht gefunden.</p>
         <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
           Zurueck
@@ -344,7 +344,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   }, [players, state.currentPlayerIndex, isMulti])
 
   return (
-    <div style={{ background: c.bg, minHeight: '100vh', color: c.textBright }}>
+    <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright }}>
       {/* Pause Overlay */}
       {gamePaused && (
         <PauseOverlay
@@ -386,7 +386,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        minHeight: 'calc(100vh - 50px)',
+        minHeight: 'calc(100dvh - 50px)',
       }}>
         {/* Haupt-Content */}
         <div style={{

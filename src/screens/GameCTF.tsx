@@ -200,7 +200,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
 
   if (!storedMatch || !state.match) {
     return (
-      <div style={{ background: c.bg, minHeight: '100vh', color: c.textBright, padding: 20 }}>
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
         <p>Match nicht gefunden.</p>
         <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
           Zurueck
@@ -660,7 +660,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
         background: playerColorBgEnabled && activePlayerColor
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
           : c.bg,
-        height: '100vh',
+        height: '100dvh',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
