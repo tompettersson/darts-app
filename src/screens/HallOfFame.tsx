@@ -142,9 +142,12 @@ export default function HallOfFame({ onBack }: Props) {
   const s = {
     shell: {
       maxWidth: 600,
+      width: '100%',
       margin: '0 auto',
-      padding: '16px 16px 40px',
+      padding: '16px 12px 40px',
       background: 'transparent',
+      boxSizing: 'border-box' as const,
+      overflowX: 'hidden' as const,
     } as React.CSSProperties,
 
     // Hero Title

@@ -54,7 +54,7 @@ export default function StatsProfile({
 
   // Styles (theme-aware)
   const s = useMemo(() => ({
-    shell: { maxWidth: 960, margin: '0 auto', padding: '16px 12px 40px', background: 'transparent', overflowX: 'hidden' } as React.CSSProperties,
+    shell: { maxWidth: 960, width: '100%', margin: '0 auto', padding: '16px 12px 40px', background: 'transparent', overflowX: 'hidden', boxSizing: 'border-box' } as React.CSSProperties,
 
     // Player Navigation
     playerNav: {

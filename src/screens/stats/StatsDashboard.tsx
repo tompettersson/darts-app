@@ -189,17 +189,23 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
   const s = useMemo(() => ({
     shell: {
       maxWidth: 800,
+      width: '100%',
       margin: '0 auto',
-      padding: '16px 16px 40px',
+      padding: '16px 12px 40px',
       background: colors.bg,
       color: colors.fg,
+      boxSizing: 'border-box',
+      overflowX: 'hidden',
     } as React.CSSProperties,
     shellWide: {
       maxWidth: 800,
+      width: '100%',
       margin: '0 auto',
       padding: '16px 4px 40px',
       background: colors.bg,
       color: colors.fg,
+      boxSizing: 'border-box',
+      overflowX: 'hidden',
     } as React.CSSProperties,
 
     // Header Navigation
