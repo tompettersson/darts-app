@@ -184,6 +184,45 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
 }
 
 /**
+ * One-time OPFS → Postgres migration.
+ * Checks if Postgres has no X01 matches but OPFS SQLite has data.
+ */
+async function tryOpfsMigration(): Promise<void> {
+  try {
+    // Check if Postgres already has match data
+    const existingMatches = await dbGetX01Matches()
+    if (existingMatches.length > 0) {
+      console.debug('[OPFS Migration] Postgres hat bereits Matches, überspringe')
+      return
+    }
+
+    // Dynamically import migration module (loads sqlite-wasm only when needed)
+    const { readOpfsData, writeToPostgres } = await import('./migrate-opfs')
+
+    const dump = await readOpfsData()
+    if (!dump) return
+
+    const x01Count = dump.x01Matches?.length ?? 0
+    const cricketCount = dump.cricketMatches?.length ?? 0
+    if (x01Count === 0 && cricketCount === 0) {
+      console.debug('[OPFS Migration] Keine Matches in OPFS, überspringe')
+      return
+    }
+
+    console.debug(`[OPFS Migration] Starte Migration: ${x01Count} X01, ${cricketCount} Cricket Matches...`)
+    const result = await writeToPostgres(dump)
+
+    if (result.success) {
+      console.log('[OPFS Migration] ✅ Migration erfolgreich!', result.stats)
+    } else {
+      console.warn('[OPFS Migration] ⚠️ Migration teilweise fehlgeschlagen', result.stats)
+    }
+  } catch (e) {
+    console.warn('[OPFS Migration] Übersprungen:', e)
+  }
+}
+
+/**
  * Kompletter App-Start: DB initialisieren, Daten laden
  */
 export async function startupWithSQLite(): Promise<{
@@ -198,6 +237,9 @@ export async function startupWithSQLite(): Promise<{
     console.warn('[App Startup] Postgres nicht verfügbar')
     return { dbInit, dataLoaded: null }
   }
+
+  // Try one-time OPFS → Postgres migration
+  await tryOpfsMigration()
 
   const dataLoaded = await loadAllDataFromSQLite()
 
