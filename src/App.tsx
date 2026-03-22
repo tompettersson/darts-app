@@ -74,7 +74,6 @@ const NewGame = React.lazy(() => import('./screens/NewGame'))
 const NewGameStart = React.lazy(() => import('./screens/NewGameStart'))
 const CreateProfile = React.lazy(() => import('./screens/CreateProfile'))
 const ProfileList = React.lazy(() => import('./screens/ProfileList'))
-const ProfileBackup = React.lazy(() => import('./screens/ProfileBackup'))
 const NewGameCricket = React.lazy(() => import('./screens/NewGameCricket'))
 const NewGameATB = React.lazy(() => import('./screens/NewGameATB'))
 const NewGame121 = React.lazy(() => import('./screens/NewGame121'))
@@ -207,7 +206,6 @@ type View =
   | 'create-profile'
   | 'profiles'
   | 'profiles-menu'
-  | 'profiles-backup'
   | 'settings'
   | 'multiplayer-lobby-host'
   | 'multiplayer-lobby-join'
@@ -317,7 +315,6 @@ export default function App() {
         'settings': 'profiles-menu',
         'profiles': 'profiles-menu',
         'create-profile': 'profiles-menu',
-        'profiles-backup': 'profiles-menu',
       }
 
       const target = backMap[view]
@@ -1882,10 +1879,6 @@ export default function App() {
     return <div className="screen-enter" key="profiles"><ProfileList onBack={() => setView('profiles-menu')} /></div>
   }
 
-  if (view === 'profiles-backup') {
-    return <div className="screen-enter" key="profiles-backup"><ProfileBackup onBack={() => setView('profiles-menu')} /></div>
-  }
-
   // EINSTELLUNGEN (Theme, Kommentator-Stimme etc.)
   if (view === 'settings') {
     // screen-enter wrapper applied below in the return
@@ -2005,7 +1998,6 @@ export default function App() {
     const profilesItems: PickerItem[] = [
       { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen', icon: <span style={{ fontSize: 20 }}>{'\u270F\uFE0F'}</span> },
       { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen', icon: <span style={{ fontSize: 20 }}>{'\u2795'}</span> },
-      { id: 'profiles-backup', label: 'Backup & Restore', sub: 'Speichern oder importieren', icon: <span style={{ fontSize: 20 }}>{'\uD83D\uDCBE'}</span> },
       { id: 'settings', label: 'Einstellungen', sub: 'Theme, Stimme', icon: <MenuIconSettings /> },
     ]
 
@@ -2041,11 +2033,6 @@ export default function App() {
                   <button onClick={() => setView('create-profile')} style={styles.tile}>
                     <div style={styles.title}>Neues Profil</div>
                     <div style={styles.sub}>Spieler anlegen</div>
-                  </button>
-
-                  <button onClick={() => setView('profiles-backup')} style={styles.tile}>
-                    <div style={styles.title}>Backup & Restore</div>
-                    <div style={styles.sub}>Speichern oder importieren</div>
                   </button>
 
                   <button onClick={() => setView('settings')} style={styles.tile}>
@@ -2120,7 +2107,7 @@ export default function App() {
     { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : 'Kein laufendes Spiel', icon: <MenuIconContinue /> },
     { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket', icon: <MenuIconNewGame /> },
     { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores', icon: <MenuIconStats /> },
-    { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Backup, Theme', icon: <MenuIconSettings /> },
+    { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Theme', icon: <MenuIconSettings /> },
   ]
 
   const handleMenuConfirm = (index: number) => {
@@ -2223,7 +2210,7 @@ export default function App() {
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconSettings /></div>
                   <div>
                     <div style={styles.title}>Einstellungen</div>
-                    <div style={styles.sub}>Profile, Backup, Theme</div>
+                    <div style={styles.sub}>Profile, Theme</div>
                   </div>
                 </button>
               </div>
