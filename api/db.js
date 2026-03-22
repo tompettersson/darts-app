@@ -67,6 +67,21 @@ function convertSQL(sqlStr) {
   if (/INSERT\s+OR\s+IGNORE/i.test(result)) result = convertInsertOrIgnore(result)
   result = convertPlaceholders(result)
   result = result.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
+  // SQLite functions → Postgres equivalents
+  result = result.replace(/json_extract\((\w+(?:\.\w+)?),\s*'\$\.(\w+)'\)/g, '($1::jsonb->>\'$2\')')
+  result = result.replace(/json_extract\((\w+(?:\.\w+)?),\s*\$(\d+)\)/g, '($1::jsonb->>($$$2))')
+  result = result.replace(/json_each\((\w+(?:\.\w+)?),\s*'\$\.(\w+)'\)/g, 'jsonb_array_elements(($1)::jsonb->\'$2\')')
+  result = result.replace(/json_each\((\w+(?:\.\w+)?)\)/g, 'jsonb_array_elements(($1)::jsonb)')
+  result = result.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_, fmt, expr) => {
+    const pgFmt = fmt.replace('%Y', 'YYYY').replace('%m', 'MM').replace('%d', 'DD').replace('%H', 'HH24').replace('%M', 'MI').replace('%S', 'SS').replace('%W', 'IW')
+    return `to_char((${expr.trim()})::timestamp, '${pgFmt}')`
+  })
+  result = result.replace(/\bdate\(([^,)]+),\s*'start of month'\)/g, 'date_trunc(\'month\', ($1)::date)')
+  result = result.replace(/\bdate\(([^,)]+),\s*'([^']+)'\)/g, '(($1)::date + interval \'$2\')')
+  result = result.replace(/\bdate\(([^)]+)\)/g, '($1)::date')
+  result = result.replace(/\bround\(([^,]+),\s*(\d+)\)/g, 'round(($1)::numeric, $2)')
+  result = result.replace(/\bIFNULL\(/gi, 'COALESCE(')
+  result = result.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, 'string_agg(($1)::text, \',\')')
   return result
 }
 

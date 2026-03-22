@@ -189,10 +189,12 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
  */
 async function tryOpfsMigration(): Promise<void> {
   try {
-    // Check if Postgres already has match data
-    const existingMatches = await dbGetX01Matches()
-    if (existingMatches.length > 0) {
-      console.debug('[OPFS Migration] Postgres hat bereits Matches, überspringe')
+    // Check if Postgres already has match data (simple count, no SQLite functions)
+    const { query } = await import('./index')
+    const countResult = await query<{ count: string }>('SELECT count(*) as count FROM x01_matches')
+    const matchCount = parseInt(countResult[0]?.count ?? '0', 10)
+    if (matchCount > 0) {
+      console.debug('[OPFS Migration] Postgres hat bereits', matchCount, 'Matches, überspringe')
       return
     }
 
