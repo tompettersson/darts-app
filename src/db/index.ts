@@ -95,19 +95,24 @@ type PendingQuery = {
 }
 
 let pendingBatch: PendingQuery[] | null = null
+let flushTimer: ReturnType<typeof setTimeout> | null = null
 
 function enqueueQuery(sql: string, params: unknown[] | undefined, mode: 'all' | 'one'): Promise<any> {
   return new Promise((resolve, reject) => {
     if (!pendingBatch) {
       pendingBatch = []
-      // Flush on next microtask — collects all queries from the current tick
-      Promise.resolve().then(flushBatch)
     }
     pendingBatch.push({ sql, params, mode, resolve, reject })
+
+    // Reset flush timer — collect queries for 5ms window.
+    // This batches sequential await chains within the same logical operation.
+    if (flushTimer) clearTimeout(flushTimer)
+    flushTimer = setTimeout(flushBatch, 5)
   })
 }
 
 async function flushBatch() {
+  flushTimer = null
   const batch = pendingBatch
   pendingBatch = null
   if (!batch || batch.length === 0) return
