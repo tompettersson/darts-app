@@ -17,7 +17,7 @@ export const ui: Record<string, CSSProperties> = {
     gap: 16,
     padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
     background: '#f8fafc', // leichtes Grau-Blau für App-Hintergrund
-    minHeight: '100vh',
+    minHeight: '100dvh',
     boxSizing: 'border-box',
   },
 
@@ -215,7 +215,7 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       gap: 16,
       padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
       background: colors.bg,
-      minHeight: '100vh',
+      minHeight: '100dvh',
       boxSizing: 'border-box',
       color: colors.fg,
     },

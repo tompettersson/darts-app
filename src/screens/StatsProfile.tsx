@@ -54,7 +54,7 @@ export default function StatsProfile({
 
   // Styles (theme-aware)
   const s = useMemo(() => ({
-    shell: { maxWidth: 960, margin: '0 auto', padding: '16px 16px 40px', background: 'transparent' } as React.CSSProperties,
+    shell: { maxWidth: 960, margin: '0 auto', padding: '16px 12px 40px', background: 'transparent', overflowX: 'hidden' } as React.CSSProperties,
 
     // Player Navigation
     playerNav: {
@@ -126,8 +126,8 @@ export default function StatsProfile({
       msOverflowStyle: 'none',         // IE/Edge
     } as React.CSSProperties,
     tab: (active: boolean) => ({
-      padding: '12px 20px',
-      fontSize: 14,
+      padding: '12px 14px',
+      fontSize: 13,
       fontWeight: active ? 700 : 500,
       color: active ? colors.fg : colors.fgDim,
       background: 'transparent',
@@ -146,6 +146,7 @@ export default function StatsProfile({
         : colors.bgCard,
       borderRadius: 8,
       border: `1px solid ${playerColor ? playerColor + '40' : colors.border}`,
+      overflow: 'hidden',
     }) as React.CSSProperties,
 
     // Stats Card

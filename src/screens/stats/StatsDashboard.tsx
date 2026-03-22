@@ -302,9 +302,10 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
     selectionRow: {
       display: 'grid',
       gridTemplateColumns: '1fr auto 1fr',
-      gap: 12,
+      gap: 8,
       alignItems: 'center',
       marginBottom: 16,
+      minWidth: 0,
     } as React.CSSProperties,
     vsText: {
       fontSize: 14,
@@ -315,6 +316,8 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
       display: 'flex',
       flexDirection: 'column',
       gap: 4,
+      minWidth: 0,
+      overflow: 'hidden',
     } as React.CSSProperties,
     selectLabel: {
       fontSize: 11,
@@ -333,16 +336,18 @@ export default function StatsDashboard({ onBack, onOpenMatch, onOpenCricketMatch
       background: colors.bgInput,
       color: colors.fg,
       width: '100%',
+      minWidth: 0,
     } as React.CSSProperties,
 
     // Mode Tabs
     modeTabs: {
       display: 'flex',
-      gap: 8,
+      gap: 6,
       justifyContent: 'center',
+      flexWrap: 'wrap' as const,
     } as React.CSSProperties,
     modeTab: (active: boolean): React.CSSProperties => ({
-      padding: '8px 20px',
+      padding: '8px 12px',
       borderRadius: 8,
       border: active ? `2px solid ${colors.accent}` : `2px solid ${colors.border}`,
       background: active ? colors.bgSoft : colors.bgCard,
