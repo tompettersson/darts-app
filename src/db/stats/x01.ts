@@ -324,7 +324,7 @@ export async function getBestMatchAverages(limit: number = 10): Promise<BestPerf
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') = mp.player_id
       AND m.finished = 1
-    GROUP BY m.id, mp.player_id
+    GROUP BY m.id, mp.player_id, p.name, m.title, m.created_at
     HAVING COUNT(*) >= 3
     ORDER BY avg DESC
     LIMIT ?
@@ -367,8 +367,8 @@ export async function getMost180sInMatch(limit: number = 10): Promise<BestPerfor
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') = mp.player_id
       AND m.finished = 1
-    GROUP BY m.id, mp.player_id
-    HAVING count_180 > 0
+    GROUP BY m.id, mp.player_id, p.name, m.title, m.created_at
+    HAVING SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END) > 0
     ORDER BY count_180 DESC
     LIMIT ?
   `, [limit])

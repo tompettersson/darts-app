@@ -785,8 +785,8 @@ export async function getPlayerMilestones(playerId: string): Promise<Milestone[]
         AND json_extract(e.data, '$.legId') = lr.leg_id
         AND e.type = 'VisitAdded'
         AND json_extract(e.data, '$.playerId') = ?
-      GROUP BY lr.match_id, lr.leg_id
-      HAVING darts_count <= 12
+      GROUP BY lr.match_id, lr.leg_id, lr.ts
+      HAVING SUM(json_array_length(e.data, '$.darts')) <= 12
       ORDER BY darts_count ASC, lr.ts ASC
       LIMIT 1
     `, [playerId, playerId, playerId])
@@ -836,7 +836,7 @@ export async function getPlayerMilestones(playerId: string): Promise<Milestone[]
       JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY avg DESC
       LIMIT 1
     `, [playerId, playerId])

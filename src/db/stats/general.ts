@@ -241,7 +241,7 @@ export async function get121FullStats(playerId: string): Promise<Stats121Full> {
         AND json_extract(e.data, '$.legId') = lr.leg_id
         AND e.type = 'VisitAdded'
         AND json_extract(e.data, '$.playerId') = ?
-      GROUP BY lr.leg_id
+      GROUP BY lr.leg_id, lr.winner_id
     )
     SELECT
       COUNT(*) as total_legs,
@@ -395,7 +395,7 @@ export async function getSpecialStats(playerId: string): Promise<SpecialStatsSQL
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
     WHERE m.finished = 1
-    GROUP BY m.id
+    GROUP BY m.id, m.created_at
     ORDER BY m.created_at DESC
     LIMIT 5
   `, [playerId, playerId, playerId])
@@ -411,7 +411,7 @@ export async function getSpecialStats(playerId: string): Promise<SpecialStatsSQL
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
     WHERE m.finished = 1
-    GROUP BY m.id
+    GROUP BY m.id, m.created_at
     ORDER BY m.created_at DESC
     LIMIT 5 OFFSET 5
   `, [playerId, playerId])
@@ -926,7 +926,10 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
             WHERE mf.type = 'MatchFinished'
               AND json_extract(mf.data, '$.winnerPlayerId') = ?
             GROUP BY mf.match_id
-            HAVING busts = 0
+            HAVING (SELECT COUNT(*) FROM x01_events be
+               WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
+               AND json_extract(be.data, '$.playerId') = ?
+               AND json_extract(be.data, '$.bust') = 1) = 0
           )
         ), 0) as clean_match_wins
       FROM (
@@ -942,7 +945,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
           AND json_extract(e.data, '$.playerId') = ?
         GROUP BY leg_id
       )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
+    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
 
     const bestLeg = legStats?.best_leg_darts ?? 999
     achievements.push({
@@ -1682,7 +1685,7 @@ export async function getCrossGameHeadToHead(playerId: string): Promise<CrossGam
             JOIN profiles p ON p.id = mp2.player_id
             WHERE m.finished = 1
               AND (SELECT COUNT(*) FROM ${cfg.ptable} WHERE match_id = m.id) = 2
-            GROUP BY mp2.player_id
+            GROUP BY mp2.player_id, p.name, p.color
           `, [playerId, playerId, playerId])
         } else {
           const c = cfg as { table: string; ptable: string; etable: string; winEvent: string; label: string }
@@ -1702,7 +1705,7 @@ export async function getCrossGameHeadToHead(playerId: string): Promise<CrossGam
             JOIN profiles p ON p.id = mp2.player_id
             WHERE m.finished = 1
               AND (SELECT COUNT(*) FROM ${c.ptable} WHERE match_id = m.id) = 2
-            GROUP BY mp2.player_id
+            GROUP BY mp2.player_id, p.name, p.color
           `, [playerId, playerId, playerId])
         }
 

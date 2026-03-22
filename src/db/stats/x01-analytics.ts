@@ -277,7 +277,7 @@ export async function getX01FormCurve(playerId: string, limit: number = 20): Pro
       JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at DESC
       LIMIT ?
     `, [playerId, playerId, playerId, playerId, limit])
@@ -318,7 +318,7 @@ export async function getSessionPerformance(playerId: string): Promise<{ session
       JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at ASC
     `, [playerId, playerId, playerId])
 
@@ -423,7 +423,7 @@ async function getMultiModeWarmupEffects(playerId: string): Promise<ModeWarmupEf
       JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN cricket_events e ON e.match_id = m.id AND e.type = 'CricketTurnAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at ASC
     `, [playerId, playerId])
 
@@ -446,7 +446,7 @@ async function getMultiModeWarmupEffects(playerId: string): Promise<ModeWarmupEf
       JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN highscore_events e ON e.match_id = m.id AND e.type = 'HighscoreTurnAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at ASC
     `, [playerId, playerId])
 
@@ -469,7 +469,7 @@ async function getMultiModeWarmupEffects(playerId: string): Promise<ModeWarmupEf
       JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN shanghai_events e ON e.match_id = m.id AND e.type = 'ShanghaiTurnAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at ASC
     `, [playerId, playerId])
 
@@ -527,7 +527,7 @@ async function getMultiModeWarmupEffects(playerId: string): Promise<ModeWarmupEf
       JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN atb_events e ON e.match_id = m.id AND e.type = 'ATBTurnAdded' AND json_extract(e.data, '$.playerId') = ?
       WHERE m.finished = 1
-      GROUP BY m.id
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at ASC
     `, [playerId, playerId])
 
@@ -599,7 +599,7 @@ export async function getCheckoutByRemaining(playerId: string): Promise<Checkout
         AND json_extract(e.data, '$.bust') IS NOT 1
         AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) % 2 = 0
       GROUP BY remaining
-      HAVING attempts >= 2
+      HAVING COUNT(*) >= 2
       ORDER BY remaining ASC
     `, [playerId, playerId])
 

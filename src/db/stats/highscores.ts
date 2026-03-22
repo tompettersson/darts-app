@@ -62,7 +62,7 @@ export async function getHighscoreMostWins(limit: number = 10): Promise<Highscor
     WHERE w.winner_id IS NOT NULL
       AND w.winner_id NOT LIKE 'guest-%'
       AND w.winner_id NOT LIKE 'temp-%'
-    GROUP BY w.winner_id
+    GROUP BY w.winner_id, p.name, p.color
     ORDER BY total_wins DESC
     LIMIT ?
   `, [limit])
@@ -114,7 +114,7 @@ export async function getHighscoreBestWinrate(limit: number = 10): Promise<Highs
     JOIN profiles p ON p.id = pm.player_id
     WHERE pm.player_id NOT LIKE 'guest-%'
       AND pm.player_id NOT LIKE 'temp-%'
-    GROUP BY pm.player_id
+    GROUP BY pm.player_id, p.name, p.color
     HAVING COUNT(*) >= 10
     ORDER BY win_rate DESC
     LIMIT ?
@@ -151,7 +151,7 @@ export async function getHighscoreMost180s(limit: number = 10): Promise<Highscor
       AND json_extract(e.data, '$.visitScore') = 180
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     ORDER BY count_180 DESC
     LIMIT ?
   `, [limit])
@@ -187,7 +187,7 @@ export async function getHighscoreBestCareerAvg(limit: number = 10): Promise<Hig
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     HAVING SUM(json_array_length(e.data, '$.darts')) >= 100
     ORDER BY avg DESC
     LIMIT ?
@@ -225,7 +225,7 @@ export async function getHighscoreBestCheckoutPct(limit: number = 10): Promise<H
       AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     HAVING COUNT(*) >= 20
     ORDER BY checkout_pct DESC
     LIMIT ?
@@ -261,7 +261,7 @@ export async function getHighscoreHighestVisit(limit: number = 10): Promise<High
     WHERE e.type = 'VisitAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     ORDER BY best_visit DESC
     LIMIT ?
   `, [limit])
@@ -297,7 +297,7 @@ export async function getHighscoreHighestCheckout(limit: number = 10): Promise<H
       AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     ORDER BY best_checkout DESC
     LIMIT ?
   `, [limit])
@@ -345,7 +345,7 @@ export async function getHighscoreBestLeg(variant: number, limit: number = 10): 
     FROM leg_darts ld
     JOIN profiles p ON p.id = ld.player_id
     WHERE ld.darts_count > 0
-    GROUP BY ld.player_id
+    GROUP BY ld.player_id, p.name, p.color
     ORDER BY best_darts ASC
     LIMIT ?
   `, [variant, limit])
@@ -389,7 +389,7 @@ export async function getHighscoreBestMatchAvg(variant: number, limit: number = 
       MAX(ma.avg) as best_avg
     FROM match_avgs ma
     JOIN profiles p ON p.id = ma.player_id
-    GROUP BY ma.player_id
+    GROUP BY ma.player_id, p.name, p.color
     ORDER BY best_avg DESC
     LIMIT ?
   `, [variant, limit])
@@ -428,7 +428,7 @@ export async function getHighscoreBestMPT(limit: number = 10): Promise<Highscore
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     HAVING COUNT(*) >= 50
     ORDER BY mpt DESC
     LIMIT ?
@@ -468,7 +468,7 @@ export async function getHighscoreBestMPD(limit: number = 10): Promise<Highscore
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
     HAVING SUM(COALESCE(
       CAST(json_extract(e.data, '$.dartCount') AS INTEGER),
       json_array_length(e.data, '$.darts')
@@ -507,8 +507,8 @@ export async function getHighscoreMostTriples(limit: number = 10): Promise<Highs
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
-    HAVING total_triples > 0
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+    HAVING SUM(CAST(json_extract(e.data, '$.tripleCount') AS INTEGER)) > 0
     ORDER BY total_triples DESC
     LIMIT ?
   `, [limit])
@@ -543,8 +543,8 @@ export async function getHighscoreBestTurnMarks(limit: number = 10): Promise<Hig
     WHERE e.type = 'CricketTurnAdded'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
       AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId')
-    HAVING best_marks > 0
+    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+    HAVING MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)) > 0
     ORDER BY best_marks DESC
     LIMIT ?
   `, [limit])
@@ -585,7 +585,7 @@ export async function getHighscoreATBFastest(mode: string, limit: number = 10): 
       AND m.winner_id IS NOT NULL
       AND m.winner_id NOT LIKE 'guest-%'
       AND m.winner_id NOT LIKE 'temp-%'
-    GROUP BY m.winner_id
+    GROUP BY m.winner_id, p.name, p.color
     ORDER BY best_time ASC
     LIMIT ?
   `, [mode, limit])
@@ -622,7 +622,7 @@ export async function getHighscoreATBFewestDarts(mode: string, limit: number = 1
       AND m.winner_id IS NOT NULL
       AND m.winner_id NOT LIKE 'guest-%'
       AND m.winner_id NOT LIKE 'temp-%'
-    GROUP BY m.winner_id
+    GROUP BY m.winner_id, p.name, p.color
     ORDER BY best_darts ASC
     LIMIT ?
   `, [mode, limit])
@@ -657,7 +657,7 @@ export async function getHighscoreATBMostWins(limit: number = 10): Promise<Highs
       AND m.winner_id IS NOT NULL
       AND m.winner_id NOT LIKE 'guest-%'
       AND m.winner_id NOT LIKE 'temp-%'
-    GROUP BY m.winner_id
+    GROUP BY m.winner_id, p.name, p.color
     ORDER BY total_wins DESC
     LIMIT ?
   `, [limit])
@@ -744,8 +744,8 @@ export async function getHighscoreBobs27BestHitRate(limit: number = 10): Promise
     WHERE m.finished = 1
       AND e.type = 'Bobs27Throw'
       AND json_extract(e.data, '$.playerId') = mp.player_id
-    GROUP BY mp.player_id
-    HAVING match_count >= 5
+    GROUP BY mp.player_id, p.name, p.color
+    HAVING COUNT(DISTINCT m.id) >= 5
     ORDER BY hit_rate DESC
     LIMIT ?
   `, [limit])
@@ -778,7 +778,7 @@ export async function getHighscoreBobs27MostWins(limit: number = 10): Promise<Hi
     JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.winner_id IS NOT NULL
-    GROUP BY m.winner_id
+    GROUP BY m.winner_id, p.name, p.color
     ORDER BY total_wins DESC
     LIMIT ?
   `, [limit])
@@ -832,7 +832,7 @@ export async function getHighscoreOperationBestScore(limit: number = 10): Promis
       WHERE m.finished = 1
         AND e.type = 'OperationDart'
         AND json_extract(e.data, '$.playerId') = mp.player_id
-      GROUP BY mp.player_id, m.id
+      GROUP BY mp.player_id, m.id, p.name, p.color, m.created_at
     )
     SELECT player_id, player_name, player_color, match_id, match_date, hits
     FROM match_player_hits
@@ -876,8 +876,8 @@ export async function getHighscoreOperationBestAvgPPD(limit: number = 10): Promi
     WHERE m.finished = 1
       AND e.type = 'OperationDart'
       AND json_extract(e.data, '$.playerId') = mp.player_id
-    GROUP BY mp.player_id
-    HAVING match_count >= 5
+    GROUP BY mp.player_id, p.name, p.color
+    HAVING COUNT(DISTINCT m.id) >= 5
     ORDER BY avg_ppd DESC
     LIMIT ?
   `, [limit])
@@ -916,8 +916,8 @@ export async function getHighscoreOperationBestHitRate(limit: number = 10): Prom
     WHERE m.finished = 1
       AND e.type = 'OperationDart'
       AND json_extract(e.data, '$.playerId') = mp.player_id
-    GROUP BY mp.player_id
-    HAVING match_count >= 5
+    GROUP BY mp.player_id, p.name, p.color
+    HAVING COUNT(DISTINCT m.id) >= 5
     ORDER BY hit_rate DESC
     LIMIT ?
   `, [limit])
@@ -950,7 +950,7 @@ export async function getHighscoreOperationMostWins(limit: number = 10): Promise
     JOIN profiles p ON p.id = m.winner_id
     WHERE m.finished = 1
       AND m.winner_id IS NOT NULL
-    GROUP BY m.winner_id
+    GROUP BY m.winner_id, p.name, p.color
     ORDER BY total_wins DESC
     LIMIT ?
   `, [limit])
@@ -1111,7 +1111,7 @@ export async function getCricketHighscoreBestWinrate(limit: number = 5): Promise
     JOIN profiles p ON p.id = pm.player_id
     WHERE pm.player_id NOT LIKE 'guest-%'
       AND pm.player_id NOT LIKE 'temp-%'
-    GROUP BY pm.player_id
+    GROUP BY pm.player_id, p.name, p.color
     HAVING COUNT(*) >= 10
     ORDER BY win_rate DESC
     LIMIT ?
@@ -1160,7 +1160,7 @@ export async function getCricketHighscoreHighestLegScore(limit: number = 5): Pro
     FROM turn_data td
     JOIN cricket_matches m ON m.id = td.match_id
     JOIN profiles p ON p.id = td.player_id
-    GROUP BY td.player_id, td.match_id, td.leg_num
+    GROUP BY td.player_id, td.match_id, td.leg_num, p.name, p.color, m.created_at
     ORDER BY total_marks DESC
     LIMIT ?
   `, [limit])
@@ -1282,8 +1282,8 @@ export async function getCricketHighscoreMostBullsInLeg(limit: number = 5): Prom
     FROM turn_data td
     JOIN cricket_matches m ON m.id = td.match_id
     JOIN profiles p ON p.id = td.player_id
-    GROUP BY td.player_id, td.match_id, td.leg_num
-    HAVING bulls > 0
+    GROUP BY td.player_id, td.match_id, td.leg_num, p.name, p.color, m.created_at
+    HAVING SUM(td.bulls) > 0
     ORDER BY bulls DESC
     LIMIT ?
   `, [limit])
