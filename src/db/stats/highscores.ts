@@ -981,7 +981,7 @@ export async function getHighscoreOperationLongestStreak(limit: number = 10): Pr
         e.match_id,
         json_extract(e.data, '$.playerId') as player_id,
         json_extract(e.data, '$.legIndex') as leg_index,
-        json_extract(e.data, '$.isHit') as is_hit,
+        CAST(json_extract(e.data, '$.isHit') AS INTEGER) as is_hit,
         ROW_NUMBER() OVER (
           PARTITION BY e.match_id, json_extract(e.data, '$.playerId'), json_extract(e.data, '$.legIndex')
           ORDER BY e.rowid

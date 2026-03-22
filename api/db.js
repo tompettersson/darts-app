@@ -307,6 +307,27 @@ function convertSQL(sqlStr) {
   return r
 }
 
+// Post-processing: Convert numeric strings to numbers in query results.
+// Neon/pg returns bigint/numeric as strings (e.g. "35" instead of 35).
+// This causes string concatenation bugs in JavaScript (e.g. "35"+"15" = "3515").
+function coerceNumericValues(rows) {
+  if (!Array.isArray(rows)) return rows
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    for (const key of Object.keys(row)) {
+      const val = row[key]
+      if (typeof val === 'string' && val !== '' && !isNaN(val) && !isNaN(parseFloat(val))) {
+        // Don't convert UUIDs, dates, player IDs, hex strings, etc.
+        // Only convert if it looks purely numeric (digits, optional sign, optional decimal)
+        if (/^-?\d+(\.\d+)?$/.test(val)) {
+          row[key] = Number(val)
+        }
+      }
+    }
+  }
+  return rows
+}
+
 // Request Handler
 
 module.exports = async (req, res) => {
@@ -337,12 +358,14 @@ module.exports = async (req, res) => {
       case 'query': {
         const pgSQL = convertSQL(body.sql)
         const rows = await db.query(pgSQL, body.params)
-        return res.json({ data: rows })
+        return res.json({ data: coerceNumericValues(rows) })
       }
       case 'queryOne': {
         const pgSQL = convertSQL(body.sql)
         const rows = await db.query(pgSQL, body.params)
-        return res.json({ data: rows[0] ?? null })
+        const row = rows[0] ?? null
+        if (row) coerceNumericValues([row])
+        return res.json({ data: row })
       }
       case 'exec': {
         const pgSQL = convertSQL(body.sql)
@@ -364,6 +387,7 @@ module.exports = async (req, res) => {
             try {
               const pgSQL = convertSQL(q.sql)
               const rows = await db.query(pgSQL, q.params)
+              coerceNumericValues(rows)
               return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
             } catch (e) {
               return { error: e.message }

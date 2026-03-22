@@ -281,15 +281,30 @@ function localApiProxy(): Plugin {
             return r
           }
 
+          // Neon/pg returns bigint/numeric as strings — coerce to JS numbers
+          function coerceNumericValues(rows: any[]) {
+            for (const row of rows) {
+              if (!row || typeof row !== 'object') continue
+              for (const key of Object.keys(row)) {
+                const val = row[key]
+                if (typeof val === 'string' && val !== '' && /^-?\d+(\.\d+)?$/.test(val)) {
+                  row[key] = Number(val)
+                }
+              }
+            }
+            return rows
+          }
+
           let data: unknown = null
 
           switch (body.type) {
             case 'query': {
-              data = await sql.query(convertSQL(body.sql), body.params)
+              data = coerceNumericValues(await sql.query(convertSQL(body.sql), body.params))
               break
             }
             case 'queryOne': {
               const rows = await sql.query(convertSQL(body.sql), body.params)
+              if (rows[0]) coerceNumericValues([rows[0]])
               data = rows[0] ?? null
               break
             }
@@ -309,6 +324,7 @@ function localApiProxy(): Plugin {
                 body.queries.map(async (q: any) => {
                   try {
                     const rows = await sql.query(convertSQL(q.sql), q.params)
+                    coerceNumericValues(rows)
                     return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
                   } catch (e: any) {
                     return { error: e.message }
