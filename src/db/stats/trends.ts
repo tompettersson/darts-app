@@ -100,7 +100,7 @@ export async function getCTFMonthlyAvgScore(playerId: string): Promise<TrendPoin
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
+        strftime('%Y-%m', created_at) as month,
         AVG(match_score) as avg_score,
         COUNT(*) as match_count
       FROM (
@@ -189,7 +189,7 @@ export async function getHighscoreMonthlyAvgScore(playerId: string): Promise<Tre
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
+        strftime('%Y-%m', created_at) as month,
         AVG(match_score) as avg_score,
         COUNT(*) as match_count
       FROM (

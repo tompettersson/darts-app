@@ -57,16 +57,12 @@ export async function getX01MonthlyCheckout(playerId: string): Promise<TrendPoin
   }>(`
     SELECT
       strftime('%Y-%m', m.created_at) as month,
-      (SELECT COUNT(*) FROM x01_events e2
-       WHERE e2.match_id = m.id
-       AND e2.type = 'LegFinished'
-       AND json_extract(e2.data, '$.winnerPlayerId') = ?) as legs_won,
-      (SELECT COUNT(*) FROM x01_events e3
-       WHERE e3.match_id = m.id
-       AND e3.type = 'LegFinished') as legs_played,
+      SUM(CASE WHEN e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as legs_won,
+      SUM(CASE WHEN e.type = 'LegFinished' THEN 1 ELSE 0 END) as legs_played,
       COUNT(DISTINCT m.id) as match_count
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+    LEFT JOIN x01_events e ON e.match_id = m.id AND e.type = 'LegFinished'
     WHERE m.finished = 1
     GROUP BY strftime('%Y-%m', m.created_at)
     ORDER BY month ASC
@@ -438,25 +434,16 @@ export async function getMonthlyStats(playerId: string): Promise<MonthlyStats[]>
     legs_won: number
     legs_lost: number
   }>(`
-    WITH player_matches AS (
-      SELECT m.id, m.created_at
-      FROM x01_matches m
-      JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-      WHERE m.finished = 1
-    )
     SELECT
-      strftime('%Y-%m', pm.created_at) as month,
-      COUNT(DISTINCT pm.id) as matches_played,
-      (SELECT COUNT(*) FROM x01_events e
-       WHERE e.match_id IN (SELECT id FROM player_matches WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', pm.created_at))
-       AND e.type = 'LegFinished'
-       AND json_extract(e.data, '$.winnerPlayerId') = ?) as legs_won,
-      (SELECT COUNT(*) FROM x01_events e
-       WHERE e.match_id IN (SELECT id FROM player_matches WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', pm.created_at))
-       AND e.type = 'LegFinished'
-       AND json_extract(e.data, '$.winnerPlayerId') != ?) as legs_lost
-    FROM player_matches pm
-    GROUP BY month
+      strftime('%Y-%m', m.created_at) as month,
+      COUNT(DISTINCT m.id) as matches_played,
+      SUM(CASE WHEN e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as legs_won,
+      SUM(CASE WHEN e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') != ? THEN 1 ELSE 0 END) as legs_lost
+    FROM x01_matches m
+    JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+    LEFT JOIN x01_events e ON e.match_id = m.id AND e.type = 'LegFinished'
+    WHERE m.finished = 1
+    GROUP BY strftime('%Y-%m', m.created_at)
     ORDER BY month DESC
     LIMIT 12
   `, [playerId, playerId, playerId])
