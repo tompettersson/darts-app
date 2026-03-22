@@ -357,6 +357,21 @@ module.exports = async (req, res) => {
         }
         return res.json({ data: null })
       }
+      case 'batch': {
+        // Execute multiple queries in parallel, return all results
+        const results = await Promise.all(
+          body.queries.map(async (q) => {
+            try {
+              const pgSQL = convertSQL(q.sql)
+              const rows = await db.query(pgSQL, q.params)
+              return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
+            } catch (e) {
+              return { error: e.message }
+            }
+          })
+        )
+        return res.json({ data: results })
+      }
       case 'schema': {
         for (const stmt of body.statements) {
           await db.query(convertSQL(stmt))

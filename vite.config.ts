@@ -304,6 +304,19 @@ function localApiProxy(): Plugin {
               }
               break
             }
+            case 'batch': {
+              data = await Promise.all(
+                body.queries.map(async (q: any) => {
+                  try {
+                    const rows = await sql.query(convertSQL(q.sql), q.params)
+                    return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
+                  } catch (e: any) {
+                    return { error: e.message }
+                  }
+                })
+              )
+              break
+            }
           }
 
           res.writeHead(200, { 'Content-Type': 'application/json' })

@@ -9,6 +9,7 @@ import {
   query,
   queryOne,
   transaction,
+  batchQuery,
   generateId,
   nowISO,
   toJSON,
@@ -426,6 +427,174 @@ export async function dbDeleteProfile(id: string): Promise<void> {
       console.warn(`[DB] Cascade delete failed for: ${sql.split(' ')[2]}`, e)
     }
   }
+}
+
+// ============================================================================
+// Batch Load All Data (single HTTP request for startup)
+// ============================================================================
+
+/** Match types with events tables */
+const MATCH_TYPES_WITH_EVENTS = [
+  { key: 'x01', matchTable: 'x01_matches', eventTable: 'x01_events', playerTable: 'x01_match_players', orderMatches: 'created_at DESC' },
+  { key: 'cricket', matchTable: 'cricket_matches', eventTable: 'cricket_events', playerTable: 'cricket_match_players', orderMatches: 'created_at DESC' },
+  { key: 'atb', matchTable: 'atb_matches', eventTable: 'atb_events', playerTable: 'atb_match_players', orderMatches: 'created_at DESC' },
+  { key: 'str', matchTable: 'str_matches', eventTable: 'str_events', playerTable: 'str_match_players', orderMatches: 'created_at DESC' },
+  { key: 'highscore', matchTable: 'highscore_matches', eventTable: 'highscore_events', playerTable: 'highscore_match_players', orderMatches: 'created_at DESC' },
+  { key: 'shanghai', matchTable: 'shanghai_matches', eventTable: 'shanghai_events', playerTable: 'shanghai_match_players', orderMatches: 'created_at DESC' },
+  { key: 'killer', matchTable: 'killer_matches', eventTable: 'killer_events', playerTable: 'killer_match_players', orderMatches: 'created_at DESC' },
+  { key: 'ctf', matchTable: 'ctf_matches', eventTable: 'ctf_events', playerTable: 'ctf_match_players', orderMatches: 'created_at DESC' },
+  { key: 'bobs27', matchTable: 'bobs27_matches', eventTable: 'bobs27_events', playerTable: 'bobs27_match_players', orderMatches: 'created_at DESC' },
+  { key: 'operation', matchTable: 'operation_matches', eventTable: 'operation_events', playerTable: 'operation_match_players', orderMatches: 'created_at DESC' },
+] as const
+
+type BatchLoadResult = {
+  profiles: DBProfile[]
+  x01: { matches: any[]; events: any[]; players: any[] }
+  cricket: { matches: any[]; events: any[]; players: any[] }
+  atb: { matches: any[]; events: any[]; players: any[] }
+  str: { matches: any[]; events: any[]; players: any[] }
+  highscore: { matches: any[]; events: any[]; players: any[] }
+  shanghai: { matches: any[]; events: any[]; players: any[] }
+  killer: { matches: any[]; events: any[]; players: any[] }
+  ctf: { matches: any[]; events: any[]; players: any[] }
+  bobs27: { matches: any[]; events: any[]; players: any[] }
+  operation: { matches: any[]; events: any[]; players: any[] }
+}
+
+/**
+ * Lädt ALLE Daten in einem einzigen HTTP-Request via Batch-API.
+ * 1 query für Profiles + 3 queries pro Match-Typ (matches, events, players) = 31 queries, 1 HTTP-Request.
+ */
+export async function dbLoadAllDataBatch(): Promise<BatchLoadResult> {
+  await ensureDB()
+
+  // Build batch query array: profiles + 3 per match type
+  const queries: Array<{ sql: string; params?: unknown[] }> = [
+    { sql: 'SELECT * FROM profiles ORDER BY name' },
+  ]
+
+  for (const mt of MATCH_TYPES_WITH_EVENTS) {
+    queries.push(
+      { sql: `SELECT * FROM ${mt.matchTable} ORDER BY ${mt.orderMatches}` },
+      { sql: `SELECT match_id, data FROM ${mt.eventTable} ORDER BY match_id, seq` },
+      { sql: `SELECT match_id, player_id FROM ${mt.playerTable} ORDER BY match_id, position` },
+    )
+  }
+
+  const results = await batchQuery(queries)
+
+  // Parse results: index 0 = profiles, then groups of 3
+  const profiles = ((results[0]?.data ?? []) as any[]).map((r: any) => ({
+    id: r.id, name: r.name, color: r.color, createdAt: r.created_at, updatedAt: r.updated_at,
+  }))
+
+  const parsed: Record<string, { matches: any[]; events: any[]; players: any[] }> = {}
+  for (let i = 0; i < MATCH_TYPES_WITH_EVENTS.length; i++) {
+    const base = 1 + i * 3
+    parsed[MATCH_TYPES_WITH_EVENTS[i].key] = {
+      matches: (results[base]?.data ?? []) as any[],
+      events: (results[base + 1]?.data ?? []) as any[],
+      players: (results[base + 2]?.data ?? []) as any[],
+    }
+  }
+
+  return { profiles, ...parsed } as BatchLoadResult
+}
+
+/**
+ * Helper: Group rows by match_id into a Map
+ */
+function groupByMatchId<T extends { match_id: string }>(rows: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>()
+  for (const row of rows) {
+    const arr = map.get(row.match_id)
+    if (arr) arr.push(row); else map.set(row.match_id, [row])
+  }
+  return map
+}
+
+/**
+ * Assembles X01 matches from batch data
+ */
+export function assembleX01Matches(data: { matches: any[]; events: any[]; players: any[] }): DBX01Match[] {
+  const eventsByMatch = groupByMatchId(data.events)
+  const playersByMatch = groupByMatchId(data.players)
+
+  return data.matches.map((m: any) => ({
+    id: m.id,
+    title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
+    createdAt: m.created_at,
+    finished: m.finished === 1 || m.finished === true,
+    finishedAt: m.finished_at,
+    events: (eventsByMatch.get(m.id) ?? []).map((e: any) => fromJSON(e.data)).filter(Boolean),
+    playerIds: (playersByMatch.get(m.id) ?? []).map((p: any) => p.player_id),
+  }))
+}
+
+/**
+ * Assembles Cricket matches from batch data
+ */
+export function assembleCricketMatches(data: { matches: any[]; events: any[]; players: any[] }): DBCricketMatch[] {
+  const eventsByMatch = groupByMatchId(data.events)
+  const playersByMatch = groupByMatchId(data.players)
+
+  return data.matches.map((m: any) => ({
+    id: m.id,
+    title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
+    createdAt: m.created_at,
+    finished: m.finished === 1 || m.finished === true,
+    events: (eventsByMatch.get(m.id) ?? []).map((e: any) => {
+      const ev = fromJSON(e.data) as any
+      return ev?.type === 'CricketTurnAdded' ? enrichCricketEvent(ev) : ev
+    }).filter(Boolean),
+    playerIds: (playersByMatch.get(m.id) ?? []).map((p: any) => p.player_id),
+  })) as DBCricketMatch[]
+}
+
+/**
+ * Assembles generic matches (ATB, STR, Highscore, etc.) from batch data
+ */
+export function assembleGenericMatches(
+  data: { matches: any[]; events: any[]; players: any[] },
+  enrichFn?: (ev: any) => any,
+): any[] {
+  const eventsByMatch = groupByMatchId(data.events)
+  const playersByMatch = groupByMatchId(data.players)
+
+  return data.matches.map((m: any) => {
+    const events = (eventsByMatch.get(m.id) ?? []).map((e: any) => {
+      const ev = fromJSON(e.data)
+      return enrichFn ? enrichFn(ev) : ev
+    }).filter(Boolean)
+    const players = (playersByMatch.get(m.id) ?? []).map((p: any) => p.player_id)
+
+    // Extract extra match-level data from start events
+    const startEvent = events.find((e: any) => e.type?.includes('Started') || e.type?.includes('MatchStarted'))
+
+    return {
+      ...m,
+      id: m.id,
+      title: m.title,
+      matchName: m.match_name ?? undefined,
+      notes: m.notes ?? undefined,
+      createdAt: m.created_at,
+      finished: m.finished === 1 || m.finished === true,
+      finishedAt: m.finished_at ?? undefined,
+      events,
+      playerIds: players,
+      // Common fields that some match types use
+      winnerId: m.winner_id ?? undefined,
+      finalScores: m.final_scores ? (typeof m.final_scores === 'string' ? JSON.parse(m.final_scores) : m.final_scores) : undefined,
+      finalStandings: m.final_standings ? (typeof m.final_standings === 'string' ? JSON.parse(m.final_standings) : m.final_standings) : undefined,
+      config: m.config ? (typeof m.config === 'string' ? JSON.parse(m.config) : m.config) : undefined,
+      durationMs: m.duration_ms ?? undefined,
+      includeBull: m.include_bull != null ? (m.include_bull === 1 || m.include_bull === true) : undefined,
+    }
+  })
 }
 
 // ============================================================================

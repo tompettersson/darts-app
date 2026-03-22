@@ -98,6 +98,18 @@ export async function queryOne<T = Record<string, unknown>>(sql: string, params?
 }
 
 /**
+ * Führt mehrere Queries in einem einzigen HTTP-Request aus.
+ * Jeder Query-Eintrag hat { sql, params?, mode?: 'all' | 'one' }.
+ * Gibt ein Array von Ergebnissen zurück (eins pro Query).
+ */
+export type BatchQuery = { sql: string; params?: unknown[]; mode?: 'all' | 'one' }
+
+export async function batchQuery(queries: BatchQuery[]): Promise<Array<{ data: unknown; error?: string }>> {
+  await initDB()
+  return apiRequest<Array<{ data: unknown; error?: string }>>({ type: 'batch', queries })
+}
+
+/**
  * Führt mehrere Statements in einer Transaktion aus
  */
 export async function transaction(statements: Array<{ sql: string; params?: unknown[] }>): Promise<void> {
