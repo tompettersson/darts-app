@@ -916,21 +916,19 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
         COALESCE(MIN(darts_in_leg), 999) as best_leg_darts,
         COALESCE((
           SELECT COUNT(*) FROM (
-            SELECT mf.match_id,
-              (SELECT COUNT(*) FROM x01_events be
-               WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
-               AND json_extract(be.data, '$.playerId') = ?
-               AND json_extract(be.data, '$.bust') = 1) as busts
+            SELECT mf.match_id
             FROM x01_events mf
             JOIN x01_match_players mfp ON mfp.match_id = mf.match_id AND mfp.player_id = ?
             WHERE mf.type = 'MatchFinished'
               AND json_extract(mf.data, '$.winnerPlayerId') = ?
+              AND NOT EXISTS (
+                SELECT 1 FROM x01_events be
+                WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
+                AND json_extract(be.data, '$.playerId') = ?
+                AND json_extract(be.data, '$.bust') = 1
+              )
             GROUP BY mf.match_id
-            HAVING (SELECT COUNT(*) FROM x01_events be
-               WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
-               AND json_extract(be.data, '$.playerId') = ?
-               AND json_extract(be.data, '$.bust') = 1) = 0
-          )
+          ) clean_wins
         ), 0) as clean_match_wins
       FROM (
         SELECT json_extract(e.data, '$.legId') as leg_id,
@@ -945,7 +943,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
           AND json_extract(e.data, '$.playerId') = ?
         GROUP BY leg_id
       )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
+    `, [playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
 
     const bestLeg = legStats?.best_leg_darts ?? 999
     achievements.push({
