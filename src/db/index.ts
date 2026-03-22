@@ -1,82 +1,39 @@
 // src/db/index.ts
-// Public API für SQLite Database
-// Kommuniziert mit dem Web Worker
-
-import type { WorkerRequest, WorkerResponse } from './worker'
+// Public API für Postgres Database (Neon)
+// Kommuniziert mit Vercel Serverless Functions via HTTP
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type PendingRequest = {
-  resolve: (value: unknown) => void
-  reject: (error: Error) => void
-}
-
 export type DBStatus = 'uninitialized' | 'initializing' | 'ready' | 'error'
 
 // ============================================================================
-// Worker Management
+// API Communication
 // ============================================================================
 
-let worker: Worker | null = null
-let requestId = 0
-let pendingRequests = new Map<number, PendingRequest>()
 let status: DBStatus = 'uninitialized'
 let initPromise: Promise<void> | null = null
-let dbVersion = 0
 
-function createWorker(): Worker {
-  // Vite Worker Import
-  return new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+/** API base URL — in dev: Vite proxy, in prod: same origin */
+function getApiUrl(): string {
+  return '/api/db'
 }
 
-function sendRequest<T = unknown>(request: WorkerRequest): Promise<T> {
-  return new Promise((resolve, reject) => {
-    if (!worker) {
-      reject(new Error('Database worker not initialized'))
-      return
-    }
-
-    const id = ++requestId
-    pendingRequests.set(id, {
-      resolve: resolve as (value: unknown) => void,
-      reject,
-    })
-
-    worker.postMessage({ id, ...request })
+async function apiRequest<T = unknown>(body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(getApiUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
-}
 
-function handleMessage(event: MessageEvent<WorkerResponse & { id?: number }>) {
-  const { id, ...response } = event.data
-
-  // Initial ready message (no id)
-  if (response.type === 'ready' && id === undefined) {
-    return
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error(`[DB API] ${error.error || response.statusText}`)
   }
 
-  if (id === undefined) return
-
-  const pending = pendingRequests.get(id)
-  if (!pending) return
-  pendingRequests.delete(id)
-
-  switch (response.type) {
-    case 'ready':
-      dbVersion = response.version
-      pending.resolve(undefined)
-      break
-    case 'result':
-      pending.resolve(response.data)
-      break
-    case 'exported':
-      pending.resolve(response.data)
-      break
-    case 'error':
-      pending.reject(new Error(response.message))
-      break
-  }
+  const result = await response.json()
+  return result.data as T
 }
 
 // ============================================================================
@@ -84,8 +41,8 @@ function handleMessage(event: MessageEvent<WorkerResponse & { id?: number }>) {
 // ============================================================================
 
 /**
- * Initialisiert die Datenbank
- * Wird automatisch beim ersten Query aufgerufen
+ * Initialisiert die Datenbank-Verbindung
+ * Prüft ob der API-Endpoint erreichbar ist
  */
 export async function initDB(): Promise<void> {
   if (status === 'ready') return
@@ -94,19 +51,13 @@ export async function initDB(): Promise<void> {
   initPromise = (async () => {
     try {
       status = 'initializing'
-
-      worker = createWorker()
-      worker.onmessage = handleMessage
-      worker.onerror = (e) => {
-        console.error('[DB] Worker error:', e)
-        status = 'error'
-      }
-
-      await sendRequest({ type: 'init' })
+      // Simple health check — query the DB version
+      await apiRequest({ type: 'queryOne', sql: "SELECT value FROM system_meta WHERE key = 'db_version'" })
       status = 'ready'
-      console.debug('[DB] Initialized, version:', dbVersion)
+      console.debug('[DB] Connected to Postgres via API')
     } catch (e) {
       status = 'error'
+      console.error('[DB] API connection failed:', e)
       throw e
     }
   })()
@@ -119,7 +70,7 @@ export async function initDB(): Promise<void> {
  */
 export async function exec(sql: string, params?: unknown[]): Promise<void> {
   await initDB()
-  return sendRequest({ type: 'exec', sql, params })
+  await apiRequest({ type: 'exec', sql, params })
 }
 
 /**
@@ -127,7 +78,7 @@ export async function exec(sql: string, params?: unknown[]): Promise<void> {
  */
 export async function execMany(statements: Array<{ sql: string; params?: unknown[] }>): Promise<void> {
   await initDB()
-  return sendRequest({ type: 'execMany', statements })
+  await apiRequest({ type: 'execMany', statements })
 }
 
 /**
@@ -135,7 +86,7 @@ export async function execMany(statements: Array<{ sql: string; params?: unknown
  */
 export async function query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
   await initDB()
-  return sendRequest<T[]>({ type: 'query', sql, params })
+  return apiRequest<T[]>({ type: 'query', sql, params })
 }
 
 /**
@@ -143,7 +94,7 @@ export async function query<T = Record<string, unknown>>(sql: string, params?: u
  */
 export async function queryOne<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | null> {
   await initDB()
-  return sendRequest<T | null>({ type: 'queryOne', sql, params })
+  return apiRequest<T | null>({ type: 'queryOne', sql, params })
 }
 
 /**
@@ -151,24 +102,18 @@ export async function queryOne<T = Record<string, unknown>>(sql: string, params?
  */
 export async function transaction(statements: Array<{ sql: string; params?: unknown[] }>): Promise<void> {
   await initDB()
-  return sendRequest({ type: 'transaction', statements })
+  await apiRequest({ type: 'transaction', statements })
 }
 
 /**
- * Exportiert die gesamte Datenbank als Uint8Array
+ * Export/Import nicht verfügbar bei Postgres — Stubs für Kompatibilität
  */
 export async function exportDB(): Promise<Uint8Array> {
-  await initDB()
-  return sendRequest<Uint8Array>({ type: 'export' })
+  throw new Error('exportDB not supported with Postgres backend')
 }
 
-/**
- * Importiert eine Datenbank aus einem Uint8Array
- * ACHTUNG: Ersetzt die komplette bestehende Datenbank!
- */
-export async function importDB(data: Uint8Array): Promise<void> {
-  await initDB()
-  return sendRequest({ type: 'import', data })
+export async function importDB(_data: Uint8Array): Promise<void> {
+  throw new Error('importDB not supported with Postgres backend')
 }
 
 /**
@@ -182,7 +127,7 @@ export function getDBStatus(): DBStatus {
  * Gibt die aktuelle Datenbankversion zurück
  */
 export function getDBVersion(): number {
-  return dbVersion
+  return 10 // Fixed — managed by migrations
 }
 
 /**
@@ -193,20 +138,11 @@ export function isDBReady(): boolean {
 }
 
 /**
- * Schließt die Datenbankverbindung
+ * Schließt die Datenbankverbindung (no-op bei HTTP)
  */
 export async function closeDB(): Promise<void> {
-  if (!worker) return
-
-  try {
-    await sendRequest({ type: 'close' })
-  } finally {
-    worker.terminate()
-    worker = null
-    status = 'uninitialized'
-    initPromise = null
-    pendingRequests.clear()
-  }
+  status = 'uninitialized'
+  initPromise = null
 }
 
 // ============================================================================
