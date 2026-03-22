@@ -1,8 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { neon } from '@neondatabase/serverless'
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
 
-// Neon SQL client — uses HTTP, no persistent connection needed
-const sql = neon(process.env.DATABASE_URL!)
+// Neon SQL client — lazy init to surface missing env vars clearly
+let _sql: NeonQueryFunction | null = null
+function getSQL(): NeonQueryFunction {
+  if (!_sql) {
+    const url = process.env.DATABASE_URL
+    if (!url) throw new Error('DATABASE_URL environment variable is not set')
+    _sql = neon(url)
+  }
+  return _sql
+}
 
 // ============================================================================
 // SQL Conversion: SQLite → Postgres
@@ -138,30 +146,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = req.body as DBRequest
+    const db = getSQL()
 
     switch (body.type) {
       case 'query': {
         const pgSQL = convertSQL(body.sql)
-        const rows = await sql.query(pgSQL, body.params as any[])
+        const rows = await db.query(pgSQL, body.params as any[])
         return res.json({ data: rows })
       }
 
       case 'queryOne': {
         const pgSQL = convertSQL(body.sql)
-        const rows = await sql.query(pgSQL, body.params as any[])
+        const rows = await db.query(pgSQL, body.params as any[])
         return res.json({ data: rows[0] ?? null })
       }
 
       case 'exec': {
         const pgSQL = convertSQL(body.sql)
-        await sql.query(pgSQL, body.params as any[])
+        await db.query(pgSQL, body.params as any[])
         return res.json({ data: null })
       }
 
       case 'execMany': {
         for (const stmt of body.statements) {
           const pgSQL = convertSQL(stmt.sql)
-          await sql(pgSQL, stmt.params as any[])
+          await db(pgSQL, stmt.params as any[])
         }
         return res.json({ data: null })
       }
@@ -171,7 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Execute sequentially — atomicity is best-effort for now.
         for (const stmt of body.statements) {
           const pgSQL = convertSQL(stmt.sql)
-          await sql(pgSQL, stmt.params as any[])
+          await db(pgSQL, stmt.params as any[])
         }
         return res.json({ data: null })
       }
@@ -179,7 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'schema': {
         for (const stmt of body.statements) {
           const pgSQL = convertSQL(stmt)
-          await sql.query(pgSQL)
+          await db.query(pgSQL)
         }
         return res.json({ data: null })
       }
