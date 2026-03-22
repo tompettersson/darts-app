@@ -2015,7 +2015,6 @@ export default function App() {
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
               <ArcadeScrollPicker
                 items={profilesItems}
                 selectedIndex={profilesPickerIndex}
@@ -2026,7 +2025,6 @@ export default function App() {
             </div>
           ) : (
             <div style={styles.centerInner}>
-              <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
               <div style={styles.card}>
                 <div style={{ display: 'grid', gap: 8 }}>
                   <button onClick={() => setView('profiles')} style={styles.tile}>

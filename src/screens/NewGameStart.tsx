@@ -411,7 +411,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
         {step === 'type' && (
           isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-              <h1 style={titleStyle}>Neues Spiel</h1>
               <ArcadeScrollPicker
                 items={pickerItems}
                 selectedIndex={pickerIndex}
@@ -422,8 +421,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
             </div>
           ) : (
             <div style={styles.centerInner}>
-              <h1 style={titleStyle}>Neues Spiel</h1>
-
               {/* Quick-Start: Letztes Spiel wiederholen */}
               {lastConfig && (
                 <button
