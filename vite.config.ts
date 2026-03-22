@@ -132,28 +132,30 @@ function localApiProxy(): Plugin {
         const sqliteBytes = Buffer.concat(chunks)
 
         try {
-          const Database = (await import('better-sqlite3')).default
+          const initSqlJs = (await import('sql.js')).default
+          const SQL = await initSqlJs()
           const { neon } = await import('@neondatabase/serverless')
           const { config } = await import('dotenv')
           config()
-          const sql = neon(process.env.DATABASE_URL!)
+          const pgSql = neon(process.env.DATABASE_URL!)
 
-          // Write SQLite bytes to temp file
-          const { writeFileSync, unlinkSync } = await import('fs')
-          const { join } = await import('path')
-          const { tmpdir } = await import('os')
-          const tmpFile = join(tmpdir(), `darts-migrate-${Date.now()}.sqlite`)
-          writeFileSync(tmpFile, sqliteBytes)
-
-          const db = new Database(tmpFile, { readonly: true })
+          const db = new SQL.Database(new Uint8Array(sqliteBytes))
           const stats: Record<string, number> = {}
 
           // Get all tables
-          const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]
+          const tablesResult = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+          const tables = tablesResult[0]?.values?.map((r: any) => ({ name: r[0] as string })) || []
 
           for (const { name: table } of tables) {
             try {
-              const rows = db.prepare(`SELECT * FROM ${table}`).all() as Record<string, any>[]
+              const result = db.exec(`SELECT * FROM ${table}`)
+              if (!result[0]) continue
+              const columns = result[0].columns
+              const rows = result[0].values.map((vals: any[]) => {
+                const row: Record<string, any> = {}
+                columns.forEach((col: string, i: number) => { row[col] = vals[i] })
+                return row
+              })
               if (rows.length === 0) continue
 
               stats[table] = rows.length
@@ -196,7 +198,7 @@ function localApiProxy(): Plugin {
                 const conflict = pk ? ` ON CONFLICT (${pk.join(', ')}) DO NOTHING` : ''
 
                 try {
-                  await sql(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
+                  await pgSql(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
                 } catch (insertErr: any) {
                   if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('already exists')) {
                     console.warn(`[OPFS Migration] Insert ${table}:`, insertErr.message?.slice(0, 100))
@@ -209,7 +211,6 @@ function localApiProxy(): Plugin {
           }
 
           db.close()
-          unlinkSync(tmpFile)
 
           const totalRows = Object.values(stats).reduce((s, n) => s + n, 0)
           console.log(`[OPFS Migration] ✅ ${totalRows} Zeilen aus ${Object.keys(stats).length} Tabellen migriert`)
