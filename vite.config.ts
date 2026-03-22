@@ -50,8 +50,13 @@ function localApiProxy(): Plugin {
             outbox: ['id'],
           }
 
+          // Column reference pattern: optional table alias + column name
+          const COL = '\\w+(?:\\.\\w+)?'
+
           const convertSQL = (s: string) => {
             let r = s.trim()
+
+            // 1. INSERT OR REPLACE → ON CONFLICT DO UPDATE
             const ior = r.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/is)
             if (ior) {
               const [, table, colStr, vals] = ior
@@ -60,28 +65,175 @@ function localApiProxy(): Plugin {
               const updates = cols.filter(c => !pks.includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ')
               r = `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${vals}) ON CONFLICT (${pks.join(', ')}) DO UPDATE SET ${updates}`
             }
+
+            // 2. INSERT OR IGNORE → ON CONFLICT DO NOTHING
             if (/INSERT\s+OR\s+IGNORE/i.test(r)) {
               const m = r.match(/INSERT\s+OR\s+IGNORE\s+INTO\s+(\w+)/is)
               const pks = m ? (TABLE_PKS[m[1]] || ['id']) : ['id']
               r = r.replace(/INSERT\s+OR\s+IGNORE/i, 'INSERT') + ` ON CONFLICT (${pks.join(', ')}) DO NOTHING`
             }
-            r = convertPlaceholders(r)
+
+            // 3. INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
             r = r.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
-            // SQLite functions → Postgres equivalents
-            r = r.replace(/json_extract\((\w+(?:\.\w+)?),\s*'\$\.(\w+)'\)/g, '($1::jsonb->>\'$2\')')
-            r = r.replace(/json_extract\((\w+(?:\.\w+)?),\s*\$(\d+)\)/g, '($1::jsonb->>($$$2))')
-            r = r.replace(/json_each\((\w+(?:\.\w+)?),\s*'\$\.(\w+)'\)/g, 'jsonb_array_elements(($1)::jsonb->\'$2\')')
-            r = r.replace(/json_each\((\w+(?:\.\w+)?)\)/g, 'jsonb_array_elements(($1)::jsonb)')
-            r = r.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_, fmt, expr) => {
-              const pgFmt = fmt.replace('%Y', 'YYYY').replace('%m', 'MM').replace('%d', 'DD').replace('%H', 'HH24').replace('%M', 'MI').replace('%S', 'SS').replace('%W', 'IW')
+
+            // 4. e.rowid → e.seq
+            r = r.replace(/\b(\w+)\.rowid\b/g, '$1.seq')
+
+            // ============================================================
+            // JSON functions — order matters! More specific patterns first.
+            // ============================================================
+
+            // 5a. CAST(json_extract(col, '$.' || ?) AS TYPE) → dynamic path with CAST
+            r = r.replace(
+              new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
+              (_, col, type) => {
+                const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
+                return `(${col}::jsonb->>('$.' || ?))::${pgType}`
+              }
+            )
+
+            // 5b. CAST(json_extract(col, '$.path') AS TYPE) → (col::jsonb->>'path')::type
+            r = r.replace(
+              new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
+              (_, col, path, type) => {
+                const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
+                const parts = path.split('.')
+                if (parts.length === 1) {
+                  return `(${col}::jsonb->>'${path}')::${pgType}`
+                }
+                const intermediate = parts.slice(0, -1).map((p: string) => `->'${p}'`).join('')
+                const last = parts[parts.length - 1]
+                return `(${col}::jsonb${intermediate}->>'${last}')::${pgType}`
+              }
+            )
+
+            // 6. json_each(json_extract(col, '$.path')) → jsonb_array_elements((col::jsonb->'path'))
+            r = r.replace(
+              new RegExp(`json_each\\(json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)\\)`, 'gi'),
+              (_, col, path) => {
+                const parts = path.split('.')
+                const nav = parts.map((p: string) => `->'${p}'`).join('')
+                return `jsonb_array_elements((${col})::jsonb${nav})`
+              }
+            )
+
+            // 7. json_each(col, '$.path') → jsonb_array_elements((col)::jsonb->'path')
+            r = r.replace(
+              new RegExp(`json_each\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
+              (_, col, path) => {
+                const parts = path.split('.')
+                const nav = parts.map((p: string) => `->'${p}'`).join('')
+                return `jsonb_array_elements((${col})::jsonb${nav})`
+              }
+            )
+
+            // 8. json_each(col) → jsonb_array_elements((col)::jsonb)
+            r = r.replace(
+              new RegExp(`json_each\\((${COL})\\)`, 'gi'),
+              (_, col) => `jsonb_array_elements((${col})::jsonb)`
+            )
+
+            // 9. json_array_length(col, '$.path') → jsonb_array_length((col)::jsonb->'path')
+            r = r.replace(
+              new RegExp(`json_array_length\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
+              (_, col, path) => {
+                const parts = path.split('.')
+                const nav = parts.map((p: string) => `->'${p}'`).join('')
+                return `jsonb_array_length((${col})::jsonb${nav})`
+              }
+            )
+
+            // 10. json_array_length(col) → jsonb_array_length((col)::jsonb)
+            r = r.replace(
+              new RegExp(`json_array_length\\((${COL})\\)`, 'gi'),
+              (_, col) => `jsonb_array_length((${col})::jsonb)`
+            )
+
+            // 11a. json_extract(col, '$.' || ?) → dynamic path without CAST
+            r = r.replace(
+              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)`, 'gi'),
+              (_, col) => `(${col}::jsonb->>('$.' || ?))`
+            )
+
+            // 11b. json_extract(col, '$.path[#-1].key') → array last element access
+            r = r.replace(
+              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.([^']*\\[#-1\\][^']*)'\\)`, 'gi'),
+              (_, col, path) => {
+                const m = path.match(/^(\w+)\[#-1\](?:\.(.+))?$/)
+                if (!m) return `(${col}::jsonb->>'${path}')`
+                const arrayField = m[1]
+                const rest = m[2]
+                if (rest) {
+                  const parts = rest.split('.')
+                  const intermediate = parts.slice(0, -1).map((p: string) => `->'${p}'`).join('')
+                  const last = parts[parts.length - 1]
+                  return `(${col}::jsonb->'${arrayField}'->-1${intermediate}->>'${last}')`
+                }
+                return `(${col}::jsonb->'${arrayField}'->-1)`
+              }
+            )
+
+            // 11c. json_extract(col, '$.key.subkey') → nested path or simple path
+            r = r.replace(
+              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
+              (_, col, path) => {
+                const parts = path.split('.')
+                if (parts.length === 1) {
+                  return `(${col}::jsonb->>'${path}')`
+                }
+                const intermediate = parts.slice(0, -1).map((p: string) => `->'${p}'`).join('')
+                const last = parts[parts.length - 1]
+                return `(${col}::jsonb${intermediate}->>'${last}')`
+              }
+            )
+
+            // ============================================================
+            // Date/time functions
+            // ============================================================
+
+            // 12. strftime('%fmt', expr) → to_char((expr)::timestamp, 'pgfmt')
+            r = r.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_: string, fmt: string, expr: string) => {
+              const pgFmt = fmt
+                .replace(/%Y/g, 'YYYY')
+                .replace(/%m/g, 'MM')
+                .replace(/%d/g, 'DD')
+                .replace(/%H/g, 'HH24')
+                .replace(/%M/g, 'MI')
+                .replace(/%S/g, 'SS')
+                .replace(/%w/g, 'D')
+                .replace(/%W/g, 'IW')
               return `to_char((${expr.trim()})::timestamp, '${pgFmt}')`
             })
-            r = r.replace(/\bdate\(([^,)]+),\s*'start of month'\)/g, 'date_trunc(\'month\', ($1)::date)')
-            r = r.replace(/\bdate\(([^,)]+),\s*'([^']+)'\)/g, '(($1)::date + interval \'$2\')')
+
+            // 13. date(expr, 'start of month') → date_trunc('month', (expr)::date)
+            r = r.replace(/\bdate\(([^,)]+),\s*'start of month'\)/g, "date_trunc('month', ($1)::date)")
+
+            // 14. date(expr, 'modifier') → ((expr)::date + interval 'modifier')
+            r = r.replace(/\bdate\(([^,)]+),\s*'([^']+)'\)/g, "(($1)::date + interval '$2')")
+
+            // 15. date(expr) → (expr)::date
             r = r.replace(/\bdate\(([^)]+)\)/g, '($1)::date')
+
+            // ============================================================
+            // Other function conversions
+            // ============================================================
+
+            // 16. round(expr, n) → round((expr)::numeric, n)
             r = r.replace(/\bround\(([^,]+),\s*(\d+)\)/g, 'round(($1)::numeric, $2)')
+
+            // 17. IFNULL → COALESCE
             r = r.replace(/\bIFNULL\(/gi, 'COALESCE(')
-            r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, 'string_agg(($1)::text, \',\')')
+
+            // 18. GROUP_CONCAT(expr) → string_agg((expr)::text, ',')
+            r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, "string_agg(($1)::text, ',')")
+
+            // ============================================================
+            // Placeholder conversion — MUST be last
+            // ============================================================
+
+            // 19. ? → $1, $2, ...
+            r = convertPlaceholders(r)
+
             return r
           }
 

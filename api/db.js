@@ -13,11 +13,6 @@ function getSQL() {
 
 // SQL Conversion: SQLite → Postgres
 
-function convertPlaceholders(sqlStr) {
-  let index = 0
-  return sqlStr.replace(/\?/g, () => `$${++index}`)
-}
-
 const TABLE_PKS = {
   profiles: ['id'], system_meta: ['key'],
   x01_matches: ['id'], x01_match_players: ['match_id', 'player_id'],
@@ -61,28 +56,198 @@ function convertInsertOrIgnore(sqlStr) {
   return base
 }
 
+function convertPlaceholders(sqlStr) {
+  let index = 0
+  return sqlStr.replace(/\?/g, () => `$${++index}`)
+}
+
+// Column reference pattern: optional table alias + column name (e.g. e.data, m.final_scores, d.value)
+const COL = '\\w+(?:\\.\\w+)?'
+
 function convertSQL(sqlStr) {
-  let result = sqlStr.trim()
-  if (/INSERT\s+OR\s+REPLACE/i.test(result)) result = convertInsertOrReplace(result)
-  if (/INSERT\s+OR\s+IGNORE/i.test(result)) result = convertInsertOrIgnore(result)
-  result = convertPlaceholders(result)
-  result = result.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
-  // SQLite functions → Postgres equivalents
-  result = result.replace(/json_extract\((\w+(?:\.\w+)?),\s*'\$\.(\w+)'\)/g, '($1::jsonb->>\'$2\')')
-  result = result.replace(/json_extract\((\w+(?:\.\w+)?),\s*\$(\d+)\)/g, '($1::jsonb->>($$$2))')
-  result = result.replace(/json_each\((\w+(?:\.\w+)?),\s*'\$\.(\w+)'\)/g, 'jsonb_array_elements(($1)::jsonb->\'$2\')')
-  result = result.replace(/json_each\((\w+(?:\.\w+)?)\)/g, 'jsonb_array_elements(($1)::jsonb)')
-  result = result.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_, fmt, expr) => {
-    const pgFmt = fmt.replace('%Y', 'YYYY').replace('%m', 'MM').replace('%d', 'DD').replace('%H', 'HH24').replace('%M', 'MI').replace('%S', 'SS').replace('%W', 'IW')
+  let r = sqlStr.trim()
+
+  // 1. INSERT OR REPLACE → ON CONFLICT DO UPDATE
+  if (/INSERT\s+OR\s+REPLACE/i.test(r)) r = convertInsertOrReplace(r)
+
+  // 2. INSERT OR IGNORE → ON CONFLICT DO NOTHING
+  if (/INSERT\s+OR\s+IGNORE/i.test(r)) r = convertInsertOrIgnore(r)
+
+  // 3. INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
+  r = r.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
+
+  // 4. e.rowid → e.seq
+  r = r.replace(/\b(\w+)\.rowid\b/g, '$1.seq')
+
+  // ============================================================
+  // JSON functions — order matters! More specific patterns first.
+  // ============================================================
+
+  // 5a. CAST(json_extract(col, '$.' || ?) AS TYPE) → (col::jsonb->>($N))::type
+  //     Dynamic path with CAST — must come before other CAST+json_extract patterns
+  r = r.replace(
+    new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
+    (_, col, type) => {
+      const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
+      return `(${col}::jsonb->>('$.' || ?))::${pgType}`
+    }
+  )
+
+  // 5b. CAST(json_extract(col, '$.path') AS TYPE) → (col::jsonb->>'path')::type
+  r = r.replace(
+    new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
+    (_, col, path, type) => {
+      const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
+      // Handle nested paths like 'aim.bed' → use -> for intermediate, ->> for last
+      const parts = path.split('.')
+      if (parts.length === 1) {
+        return `(${col}::jsonb->>'${path}')::${pgType}`
+      }
+      // Nested: col::jsonb->'a'->'b'->>'c'
+      const intermediate = parts.slice(0, -1).map(p => `->'${p}'`).join('')
+      const last = parts[parts.length - 1]
+      return `(${col}::jsonb${intermediate}->>'${last}')::${pgType}`
+    }
+  )
+
+  // 5c. CAST(strftime(...) AS TYPE) — handle CAST wrapping strftime before strftime conversion
+  //     This is handled naturally since we convert strftime below, but CAST around it stays valid.
+
+  // 6. json_each(json_extract(col, '$.path')) alias → jsonb_array_elements((col::jsonb->'path')) alias
+  r = r.replace(
+    new RegExp(`json_each\\(json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)\\)`, 'gi'),
+    (_, col, path) => {
+      const parts = path.split('.')
+      const nav = parts.map(p => `->'${p}'`).join('')
+      return `jsonb_array_elements((${col})::jsonb${nav})`
+    }
+  )
+
+  // 7. json_each(col, '$.path') → jsonb_array_elements((col)::jsonb->'path')
+  r = r.replace(
+    new RegExp(`json_each\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
+    (_, col, path) => {
+      const parts = path.split('.')
+      const nav = parts.map(p => `->'${p}'`).join('')
+      return `jsonb_array_elements((${col})::jsonb${nav})`
+    }
+  )
+
+  // 8. json_each(col) → jsonb_array_elements((col)::jsonb)
+  r = r.replace(
+    new RegExp(`json_each\\((${COL})\\)`, 'gi'),
+    (_, col) => `jsonb_array_elements((${col})::jsonb)`
+  )
+
+  // 9. json_array_length(col, '$.path') → jsonb_array_length((col)::jsonb->'path')
+  r = r.replace(
+    new RegExp(`json_array_length\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
+    (_, col, path) => {
+      const parts = path.split('.')
+      const nav = parts.map(p => `->'${p}'`).join('')
+      return `jsonb_array_length((${col})::jsonb${nav})`
+    }
+  )
+
+  // 10. json_array_length(col) → jsonb_array_length((col)::jsonb)
+  r = r.replace(
+    new RegExp(`json_array_length\\((${COL})\\)`, 'gi'),
+    (_, col) => `jsonb_array_length((${col})::jsonb)`
+  )
+
+  // 11a. json_extract(col, '$.' || ?) → (col::jsonb->>('$.' || ?))
+  //      Dynamic path without CAST (the CAST variant was handled above in step 5a)
+  r = r.replace(
+    new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)`, 'gi'),
+    (_, col) => `(${col}::jsonb->>('$.' || ?))`
+  )
+
+  // 11b. json_extract(col, '$.path[#-1].key') → special array access
+  //      e.g. json_extract(e.data, '$.darts[#-1].bed') → (e.data::jsonb->'darts'->>-1)::jsonb->>'bed'
+  //      Postgres: col::jsonb->'darts'->-1->>'bed'
+  r = r.replace(
+    new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.([^']*\\[#-1\\][^']*)'\\)`, 'gi'),
+    (_, col, path) => {
+      // Parse path like 'darts[#-1].bed'
+      const match = path.match(/^(\w+)\[#-1\](?:\.(.+))?$/)
+      if (!match) return `(${col}::jsonb->>'${path}')`
+      const arrayField = match[1]
+      const rest = match[2]
+      if (rest) {
+        // col::jsonb->'darts'->-1->>'bed'
+        const parts = rest.split('.')
+        const intermediate = parts.slice(0, -1).map(p => `->'${p}'`).join('')
+        const last = parts[parts.length - 1]
+        return `(${col}::jsonb->'${arrayField}'->-1${intermediate}->>'${last}')`
+      }
+      return `(${col}::jsonb->'${arrayField}'->-1)`
+    }
+  )
+
+  // 11c. json_extract(col, '$.key.subkey') → nested path with ->> for last key
+  //      e.g. json_extract(d.value, '$.aim.bed') → (d.value::jsonb->'aim'->>'bed')
+  //      Must come before simple json_extract to handle multi-part paths
+  r = r.replace(
+    new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
+    (_, col, path) => {
+      const parts = path.split('.')
+      if (parts.length === 1) {
+        return `(${col}::jsonb->>'${path}')`
+      }
+      const intermediate = parts.slice(0, -1).map(p => `->'${p}'`).join('')
+      const last = parts[parts.length - 1]
+      return `(${col}::jsonb${intermediate}->>'${last}')`
+    }
+  )
+
+  // ============================================================
+  // Date/time functions
+  // ============================================================
+
+  // 12. strftime('%fmt', expr) → to_char((expr)::timestamp, 'pgfmt')
+  r = r.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_, fmt, expr) => {
+    const pgFmt = fmt
+      .replace(/%Y/g, 'YYYY')
+      .replace(/%m/g, 'MM')
+      .replace(/%d/g, 'DD')
+      .replace(/%H/g, 'HH24')
+      .replace(/%M/g, 'MI')
+      .replace(/%S/g, 'SS')
+      .replace(/%w/g, 'D')
+      .replace(/%W/g, 'IW')
     return `to_char((${expr.trim()})::timestamp, '${pgFmt}')`
   })
-  result = result.replace(/\bdate\(([^,)]+),\s*'start of month'\)/g, 'date_trunc(\'month\', ($1)::date)')
-  result = result.replace(/\bdate\(([^,)]+),\s*'([^']+)'\)/g, '(($1)::date + interval \'$2\')')
-  result = result.replace(/\bdate\(([^)]+)\)/g, '($1)::date')
-  result = result.replace(/\bround\(([^,]+),\s*(\d+)\)/g, 'round(($1)::numeric, $2)')
-  result = result.replace(/\bIFNULL\(/gi, 'COALESCE(')
-  result = result.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, 'string_agg(($1)::text, \',\')')
-  return result
+
+  // 13. date(expr, 'start of month') → date_trunc('month', (expr)::date)
+  r = r.replace(/\bdate\(([^,)]+),\s*'start of month'\)/g, "date_trunc('month', ($1)::date)")
+
+  // 14. date(expr, 'modifier') → ((expr)::date + interval 'modifier')
+  r = r.replace(/\bdate\(([^,)]+),\s*'([^']+)'\)/g, "(($1)::date + interval '$2')")
+
+  // 15. date(expr) → (expr)::date
+  r = r.replace(/\bdate\(([^)]+)\)/g, '($1)::date')
+
+  // ============================================================
+  // Other function conversions
+  // ============================================================
+
+  // 16. round(expr, n) → round((expr)::numeric, n) — Postgres requires numeric for precision
+  r = r.replace(/\bround\(([^,]+),\s*(\d+)\)/g, 'round(($1)::numeric, $2)')
+
+  // 17. IFNULL(a, b) → COALESCE(a, b)
+  r = r.replace(/\bIFNULL\(/gi, 'COALESCE(')
+
+  // 18. GROUP_CONCAT(expr) → string_agg((expr)::text, ',')
+  r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, "string_agg(($1)::text, ',')")
+
+  // ============================================================
+  // Placeholder conversion — MUST be last
+  // ============================================================
+
+  // 19. ? → $1, $2, ... (must happen after all other conversions that reference ?)
+  r = convertPlaceholders(r)
+
+  return r
 }
 
 // Request Handler
