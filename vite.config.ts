@@ -231,14 +231,15 @@ function localApiProxy(): Plugin {
             // Post-conversion fixes for jsonb type mismatches
             // ============================================================
 
-            // 20. IS NOT <number> → != <number>
-            r = r.replace(/\bIS\s+NOT\s+(\d+)\b/gi, '!= $1')
+            // 20. IS NOT <number> → IS DISTINCT FROM '<number>'
+            r = r.replace(/\bIS\s+NOT\s+(\d+)\b/gi, "IS DISTINCT FROM '$1'")
 
             // 21. SUM/AVG on jsonb extraction → cast to numeric
             r = r.replace(/\b(SUM|AVG)\((\([^)]*::jsonb->>(?:'[^']*'|\([^)]*\))\))\)/gi, '$1(($2)::numeric)')
 
-            // 22. jsonb->>'key') = <integer> → cast to integer
-            r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>|>=|<=|>|<)\s*(\d+)\b/g, '$1::integer $2 $3')
+            // 22. jsonb->>'key') = <integer> → compare as text
+            r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>)\s*(\d+)\b/g, "$1 $2 '$3'")
+            r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(>=|<=|>|<)\s*(\d+)\b/g, '$1::numeric $2 $3')
 
             // 23. round on ::real → ensure numeric
             r = r.replace(/\bround\(([^,]*?)::real([^,]*),\s*(\d+)\)/gi, 'round(($1::real$2)::numeric, $3)')

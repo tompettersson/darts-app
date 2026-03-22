@@ -244,17 +244,18 @@ function convertSQL(sqlStr) {
   // Post-conversion fixes for jsonb type mismatches
   // ============================================================
 
-  // 20. IS NOT <number> → != <number> (SQLite syntax not valid in Postgres)
-  r = r.replace(/\bIS\s+NOT\s+(\d+)\b/gi, '!= $1')
+  // 20. IS NOT <number> → IS DISTINCT FROM '<number>' (null-safe comparison)
+  r = r.replace(/\bIS\s+NOT\s+(\d+)\b/gi, "IS DISTINCT FROM '$1'")
 
   // 21. SUM((...::jsonb->>'key')) → SUM((...::jsonb->>'key')::numeric)
   //     When SUM/AVG wraps a jsonb extraction, cast to numeric
   r = r.replace(/\b(SUM|AVG)\((\([^)]*::jsonb->>(?:'[^']*'|\([^)]*\))\))\)/gi, '$1(($2)::numeric)')
 
-  // 22. jsonb->>'key') = <integer> → cast the jsonb text result to integer for comparison
-  //     Pattern: (col::jsonb->>'key') = 1  →  (col::jsonb->>'key')::integer = 1
-  //     Also handles !=, <>, >, <, >=, <=
-  r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>|>=|<=|>|<)\s*(\d+)\b/g, '$1::integer $2 $3')
+  // 22. jsonb->>'key') = <integer> → compare as text: ->>'key') = '<integer>'
+  //     Using text comparison avoids issues with boolean/null JSON values
+  r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>)\s*(\d+)\b/g, "$1 $2 '$3'")
+  // For >, <, >=, <= we need numeric cast
+  r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(>=|<=|>|<)\s*(\d+)\b/g, '$1::numeric $2 $3')
 
   // 23. round(...::real..., n) — ensure the first arg is numeric for Postgres
   //     This catches cases where CAST AS REAL was converted but round needs numeric
