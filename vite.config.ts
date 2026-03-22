@@ -83,12 +83,12 @@ function localApiProxy(): Plugin {
             // JSON functions — order matters! More specific patterns first.
             // ============================================================
 
-            // 5a. CAST(json_extract(col, '$.' || ?) AS TYPE) → dynamic path with CAST
+            // 5a. CAST(json_extract(col, '$.' || expr) AS TYPE) → dynamic path with CAST
             r = r.replace(
-              new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
-              (_, col, type) => {
+              new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*(\\?|${COL})\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
+              (_, col, dynExpr, type) => {
                 const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
-                return `(${col}::jsonb->>('$.' || ?))::${pgType}`
+                return `(${col}::jsonb->>(${dynExpr}))::${pgType}`
               }
             )
 
@@ -149,10 +149,10 @@ function localApiProxy(): Plugin {
               (_, col) => `jsonb_array_length((${col})::jsonb)`
             )
 
-            // 11a. json_extract(col, '$.' || ?) → dynamic path without CAST
+            // 11a. json_extract(col, '$.' || expr) → dynamic path without CAST
             r = r.replace(
-              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)`, 'gi'),
-              (_, col) => `(${col}::jsonb->>('$.' || ?))`
+              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*(\\?|${COL})\\)`, 'gi'),
+              (_, col, dynExpr) => `(${col}::jsonb->>(${dynExpr}))`
             )
 
             // 11b. json_extract(col, '$.path[#-1].key') → array last element access

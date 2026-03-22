@@ -843,7 +843,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
   // Der finishing dart ist darts[finishingDartSeq - 1]
   const topDouble = await queryOne<{ bed: string | null, cnt: number }>(`
     SELECT
-      json_extract(e.data, '$.darts[' || (CAST(json_extract(e.data, '$.finishingDartSeq') AS INTEGER) - 1) || '].bed') as bed,
+      e.data::jsonb->'darts'->((e.data::jsonb->>'finishingDartSeq')::integer - 1)->>'bed' as bed,
       COUNT(*) as cnt
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?

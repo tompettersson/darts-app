@@ -111,13 +111,14 @@ function convertSQL(sqlStr) {
   // JSON functions — order matters! More specific patterns first.
   // ============================================================
 
-  // 5a. CAST(json_extract(col, '$.' || ?) AS TYPE) → (col::jsonb->>($N))::type
+  // 5a. CAST(json_extract(col, '$.' || expr) AS TYPE) → (col::jsonb->>(expr))::type
   //     Dynamic path with CAST — must come before other CAST+json_extract patterns
+  //     Matches both '$.' || ? and '$.' || column_ref
   r = r.replace(
-    new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
-    (_, col, type) => {
+    new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*(\\?|${COL})\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
+    (_, col, dynExpr, type) => {
       const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
-      return `(${col}::jsonb->>('$.' || ?))::${pgType}`
+      return `(${col}::jsonb->>(${dynExpr}))::${pgType}`
     }
   )
 
@@ -183,11 +184,12 @@ function convertSQL(sqlStr) {
     (_, col) => `jsonb_array_length((${col})::jsonb)`
   )
 
-  // 11a. json_extract(col, '$.' || ?) → (col::jsonb->>('$.' || ?))
+  // 11a. json_extract(col, '$.' || expr) → (col::jsonb->>(expr))
   //      Dynamic path without CAST (the CAST variant was handled above in step 5a)
+  //      Matches both '$.' || ? and '$.' || column_ref
   r = r.replace(
-    new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*\\?\\)`, 'gi'),
-    (_, col) => `(${col}::jsonb->>('$.' || ?))`
+    new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*(\\?|${COL})\\)`, 'gi'),
+    (_, col, dynExpr) => `(${col}::jsonb->>(${dynExpr}))`
   )
 
   // 11b. json_extract(col, '$.path[#-1].key') → special array access
