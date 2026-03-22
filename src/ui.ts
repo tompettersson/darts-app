@@ -16,9 +16,11 @@ export const ui: Record<string, CSSProperties> = {
     display: 'grid',
     gap: 16,
     padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
-    background: '#f8fafc', // leichtes Grau-Blau für App-Hintergrund
+    background: '#f8fafc',
     minHeight: '100dvh',
     boxSizing: 'border-box',
+    overflowX: 'hidden',
+    maxWidth: '100%',
   },
 
   /** Zentrier-Helfer für Menüs/Formulare */
@@ -218,6 +220,8 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       minHeight: '100dvh',
       boxSizing: 'border-box',
       color: colors.fg,
+      overflowX: 'hidden',
+      maxWidth: '100%',
     },
 
     // Zentrier-Helfer
