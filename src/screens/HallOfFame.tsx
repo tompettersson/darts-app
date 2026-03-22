@@ -178,9 +178,15 @@ export default function HallOfFame({ onBack }: Props) {
       display: 'flex',
       gap: 8,
       marginBottom: 16,
+      overflowX: 'auto',
+      flexWrap: 'nowrap',
+      whiteSpace: 'nowrap',
+      WebkitOverflowScrolling: 'touch',
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
     } as React.CSSProperties,
     tab: (isActive: boolean) => ({
-      flex: 1,
+      flex: '0 0 auto',
       padding: '10px 16px',
       borderRadius: 8,
       border: isActive ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
@@ -359,6 +365,10 @@ export default function HallOfFame({ onBack }: Props) {
     return (
       <div style={styles.page}>
         <div style={s.shell}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Highscores</h2>
+            <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
+          </div>
           {heroTitle}
           <div style={s.contentBox}>
             <div style={s.emptyState as React.CSSProperties}>
@@ -374,6 +384,10 @@ export default function HallOfFame({ onBack }: Props) {
     return (
       <div style={styles.page}>
         <div style={s.shell}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Highscores</h2>
+            <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
+          </div>
           {heroTitle}
           <div style={s.contentBox}>
             <div style={s.emptyState as React.CSSProperties}>
@@ -388,10 +402,16 @@ export default function HallOfFame({ onBack }: Props) {
   return (
     <div style={styles.page}>
       <div style={s.shell}>
+        {/* Header mit Zurück-Button */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Highscores</h2>
+          <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
+        </div>
+
         {heroTitle}
 
         {/* Tab Bar */}
-        <div style={s.tabBar} role="tablist" aria-label="Spielmodus-Filter">
+        <div style={s.tabBar} className="hide-scrollbar" role="tablist" aria-label="Spielmodus-Filter">
           {(['all', 'x01', 'cricket', 'atb', 'bobs27', 'operation'] as HighscoreGameType[]).map(tab => (
             <button
               key={tab}
@@ -535,12 +555,6 @@ export default function HallOfFame({ onBack }: Props) {
           )
         })()}
 
-        {/* Back Button */}
-        <div style={s.backArea}>
-          <button style={styles.backBtn} onClick={onBack}>
-            ← Zurück
-          </button>
-        </div>
       </div>
     </div>
   )

@@ -396,7 +396,16 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
 
   return (
     <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-      <div style={{ height: 60 }} />
+      {/* Zurück-Button am oberen Rand */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 0' }}>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Neues Spiel</h2>
+        {step !== 'type' ? (
+          <button style={styles.backBtn} onClick={() => setStep('type')} aria-label="Zurück" title="Zurück">← Zurück</button>
+        ) : onBack ? (
+          <button style={styles.backBtn} onClick={onBack} aria-label="Zurück" title="Zurück">← Zurück</button>
+        ) : null}
+      </div>
+      <div style={{ height: 20 }} />
       <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
         {/* Step 1: Spielauswahl */}
         {step === 'type' && (
@@ -837,14 +846,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
         )}
       </div>
 
-      {/* Zurück-Button am unteren Rand */}
-      <div style={{ textAlign: 'center', padding: '12px 0' }}>
-        {step !== 'type' ? (
-          <button style={styles.backBtn} onClick={() => setStep('type')} aria-label="Zurück" title="Zurück">← Zurück</button>
-        ) : onBack ? (
-          <button style={styles.backBtn} onClick={onBack} aria-label="Zurück" title="Zurück">← Zurück</button>
-        ) : null}
-      </div>
     </div>
   )
 }

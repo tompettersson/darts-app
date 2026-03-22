@@ -132,7 +132,11 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
 
     return (
       <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-        <div style={{ height: 60 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 0' }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Statistiken</h2>
+          <button style={styles.backBtn} onClick={onBackToMenu}>← Zurück</button>
+        </div>
+        <div style={{ height: 20 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
@@ -179,9 +183,6 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
           )}
         </div>
 
-        <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <button style={styles.backBtn} onClick={onBackToMenu}>← Zurück</button>
-        </div>
       </div>
     )
   }

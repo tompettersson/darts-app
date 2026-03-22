@@ -89,7 +89,9 @@ export default function StatsProfile({
       flexDirection: 'column',
       alignItems: 'center',
       gap: 4,
-      minWidth: 200,
+      minWidth: 0,
+      flex: 1,
+      overflow: 'hidden',
     } as React.CSSProperties,
     colorDot: (color?: string) => ({
       width: 12,
@@ -102,6 +104,10 @@ export default function StatsProfile({
       fontWeight: 800,
       textAlign: 'center',
       color: colors.fg,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      maxWidth: '100%',
     } as React.CSSProperties,
     playerMeta: {
       fontSize: 12,

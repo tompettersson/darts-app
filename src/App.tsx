@@ -1899,7 +1899,10 @@ export default function App() {
 
     return (
       <div className="screen-enter" key="settings" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-        <h1 style={{ margin: 0, color: colors.fg, textAlign: 'center' }}>Einstellungen</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', marginBottom: 8 }}>
+          <h1 style={{ margin: 0, color: colors.fg }}>Einstellungen</h1>
+          <button style={styles.backBtn} onClick={() => setView('profiles-menu')}>← Zurück</button>
+        </div>
 
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           <div style={styles.centerInner}>
@@ -1987,9 +1990,6 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <button style={styles.backBtn} onClick={() => setView('profiles-menu')}>← Zurück</button>
-        </div>
       </div>
     )
   }
@@ -2007,7 +2007,11 @@ export default function App() {
 
     return (
       <div className="screen-enter" key="profiles-menu" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-        <div style={{ height: 60 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 0' }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Einstellungen</h2>
+          <button style={styles.backBtn} onClick={() => setView('menu')}>← Zurück</button>
+        </div>
+        <div style={{ height: 20 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
           {isArcade ? (
             <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
@@ -2049,9 +2053,6 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <button style={styles.backBtn} onClick={() => setView('menu')}>← Zurück</button>
-        </div>
       </div>
     )
   }
