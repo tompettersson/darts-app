@@ -118,6 +118,110 @@ function localApiProxy(): Plugin {
           res.end(JSON.stringify({ error: err.message }))
         }
       })
+
+      // OPFS Migration endpoint: receives raw SQLite bytes, parses with better-sqlite3, writes to Postgres
+      server.middlewares.use('/api/migrate-opfs', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405)
+          res.end(JSON.stringify({ error: 'POST only' }))
+          return
+        }
+
+        const chunks: Buffer[] = []
+        for await (const chunk of req) chunks.push(chunk as Buffer)
+        const sqliteBytes = Buffer.concat(chunks)
+
+        try {
+          const Database = (await import('better-sqlite3')).default
+          const { neon } = await import('@neondatabase/serverless')
+          const { config } = await import('dotenv')
+          config()
+          const sql = neon(process.env.DATABASE_URL!)
+
+          // Write SQLite bytes to temp file
+          const { writeFileSync, unlinkSync } = await import('fs')
+          const { join } = await import('path')
+          const { tmpdir } = await import('os')
+          const tmpFile = join(tmpdir(), `darts-migrate-${Date.now()}.sqlite`)
+          writeFileSync(tmpFile, sqliteBytes)
+
+          const db = new Database(tmpFile, { readonly: true })
+          const stats: Record<string, number> = {}
+
+          // Get all tables
+          const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]
+
+          for (const { name: table } of tables) {
+            try {
+              const rows = db.prepare(`SELECT * FROM ${table}`).all() as Record<string, any>[]
+              if (rows.length === 0) continue
+
+              stats[table] = rows.length
+              console.log(`[OPFS Migration] ${table}: ${rows.length} Zeilen`)
+
+              // Insert rows into Postgres
+              for (const row of rows) {
+                const columns = Object.keys(row)
+                const placeholders = columns.map((_, i) => `$${i + 1}`)
+                const values = columns.map(c => row[c])
+
+                // Use ON CONFLICT DO NOTHING to skip duplicates
+                const pks: Record<string, string[]> = {
+                  profiles: ['id'], system_meta: ['key'],
+                  x01_matches: ['id'], x01_match_players: ['match_id', 'player_id'],
+                  x01_events: ['id'], x01_player_stats: ['player_id'],
+                  x01_finishing_doubles: ['player_id', 'double_field'],
+                  cricket_matches: ['id'], cricket_match_players: ['match_id', 'player_id'],
+                  cricket_events: ['id'], cricket_player_stats: ['player_id'],
+                  atb_matches: ['id'], atb_match_players: ['match_id', 'player_id'],
+                  atb_events: ['id'], atb_highscores: ['id'],
+                  ctf_matches: ['id'], ctf_match_players: ['match_id', 'player_id'],
+                  ctf_events: ['id'],
+                  str_matches: ['id'], str_match_players: ['match_id', 'player_id'],
+                  str_events: ['id'],
+                  highscore_matches: ['id'], highscore_match_players: ['match_id', 'player_id'],
+                  highscore_events: ['id'],
+                  shanghai_matches: ['id'], shanghai_match_players: ['match_id', 'player_id'],
+                  shanghai_events: ['id'],
+                  killer_matches: ['id'], killer_match_players: ['match_id', 'player_id'],
+                  killer_events: ['id'],
+                  bobs27_matches: ['id'], bobs27_match_players: ['match_id', 'player_id'],
+                  bobs27_events: ['id'],
+                  operation_matches: ['id'], operation_match_players: ['match_id', 'player_id'],
+                  operation_events: ['id'],
+                  stats_121: ['player_id'], stats_121_doubles: ['player_id', 'double_field'],
+                  outbox: ['id'],
+                }
+                const pk = pks[table]
+                const conflict = pk ? ` ON CONFLICT (${pk.join(', ')}) DO NOTHING` : ''
+
+                try {
+                  await sql(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
+                } catch (insertErr: any) {
+                  if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('already exists')) {
+                    console.warn(`[OPFS Migration] Insert ${table}:`, insertErr.message?.slice(0, 100))
+                  }
+                }
+              }
+            } catch (tableErr: any) {
+              console.warn(`[OPFS Migration] Tabelle ${table} übersprungen:`, tableErr.message)
+            }
+          }
+
+          db.close()
+          unlinkSync(tmpFile)
+
+          const totalRows = Object.values(stats).reduce((s, n) => s + n, 0)
+          console.log(`[OPFS Migration] ✅ ${totalRows} Zeilen aus ${Object.keys(stats).length} Tabellen migriert`)
+
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true, stats, totalRows }))
+        } catch (err: any) {
+          console.error('[OPFS Migration] Fehler:', err.message)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: err.message }))
+        }
+      })
     },
   }
 }

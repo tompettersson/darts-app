@@ -198,26 +198,11 @@ async function tryOpfsMigration(): Promise<void> {
       return
     }
 
-    // Dynamically import migration module (loads sqlite-wasm only when needed)
-    const { readOpfsData, writeToPostgres } = await import('./migrate-opfs')
-
-    const dump = await readOpfsData()
-    if (!dump) return
-
-    const x01Count = dump.x01Matches?.length ?? 0
-    const cricketCount = dump.cricketMatches?.length ?? 0
-    if (x01Count === 0 && cricketCount === 0) {
-      console.debug('[OPFS Migration] Keine Matches in OPFS, überspringe')
-      return
-    }
-
-    console.debug(`[OPFS Migration] Starte Migration: ${x01Count} X01, ${cricketCount} Cricket Matches...`)
-    const result = await writeToPostgres(dump)
-
-    if (result.success) {
-      console.log('[OPFS Migration] ✅ Migration erfolgreich!', result.stats)
-    } else {
-      console.warn('[OPFS Migration] ⚠️ Migration teilweise fehlgeschlagen', result.stats)
+    // Dynamically import migration module
+    const { migrateOpfsToPostgres } = await import('./migrate-opfs')
+    const success = await migrateOpfsToPostgres()
+    if (success) {
+      console.log('[OPFS Migration] ✅ Migration erfolgreich!')
     }
   } catch (e) {
     console.warn('[OPFS Migration] Übersprungen:', e)
