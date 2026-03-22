@@ -228,10 +228,26 @@ function localApiProxy(): Plugin {
             r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, "string_agg(($1)::text, ',')")
 
             // ============================================================
+            // Post-conversion fixes for jsonb type mismatches
+            // ============================================================
+
+            // 20. IS NOT <number> → != <number>
+            r = r.replace(/\bIS\s+NOT\s+(\d+)\b/gi, '!= $1')
+
+            // 21. SUM/AVG on jsonb extraction → cast to numeric
+            r = r.replace(/\b(SUM|AVG)\((\([^)]*::jsonb->>(?:'[^']*'|\([^)]*\))\))\)/gi, '$1(($2)::numeric)')
+
+            // 22. jsonb->>'key') = <integer> → cast to integer
+            r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>|>=|<=|>|<)\s*(\d+)\b/g, '$1::integer $2 $3')
+
+            // 23. round on ::real → ensure numeric
+            r = r.replace(/\bround\(([^,]*?)::real([^,]*),\s*(\d+)\)/gi, 'round(($1::real$2)::numeric, $3)')
+
+            // ============================================================
             // Placeholder conversion — MUST be last
             // ============================================================
 
-            // 19. ? → $1, $2, ...
+            // 24. ? → $1, $2, ...
             r = convertPlaceholders(r)
 
             return r
