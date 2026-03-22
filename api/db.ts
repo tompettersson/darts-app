@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
+import { neon } from '@neondatabase/serverless'
 
 // Neon SQL client — lazy init to surface missing env vars clearly
-let _sql: NeonQueryFunction | null = null
-function getSQL(): NeonQueryFunction {
+let _sql: ReturnType<typeof neon> | null = null
+function getSQL() {
   if (!_sql) {
     const url = process.env.DATABASE_URL
     if (!url) throw new Error('DATABASE_URL environment variable is not set')
@@ -138,6 +138,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
+  }
+
+  if (req.method === 'GET') {
+    // Health check
+    try {
+      const db = getSQL()
+      const rows = await db.query('SELECT 1 as ok')
+      return res.json({ status: 'ok', db: 'connected', rows })
+    } catch (e: any) {
+      return res.status(500).json({ status: 'error', message: e.message })
+    }
   }
 
   if (req.method !== 'POST') {
