@@ -1,7 +1,7 @@
 // src/db/init.ts
 // Öffentlicher Entry-Point für Postgres Database (Neon)
 
-import { initDB, isDBReady, getDBStatus, getDBVersion, closeDB, batchQuery } from './index'
+import { initDB, isDBReady, getDBStatus, getDBVersion, closeDB } from './index'
 import {
   dbGetProfiles,
   dbGetX01Matches,
@@ -19,10 +19,6 @@ import {
   dbLoadX01Leaderboards,
   dbLoadCricketLeaderboards,
   dbLoadAllCricketPlayerStats,
-  dbLoadAllDataBatch,
-  assembleX01Matches,
-  assembleCricketMatches,
-  assembleGenericMatches,
 } from './storage'
 import { warmMemCache, warmAllCaches, warmStats121Cache } from '../storage'
 import { warmCricketPlayerStatsCache } from '../stats/computePlayerStats'
@@ -94,21 +90,24 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
   const startTime = Date.now()
 
   try {
-    // BATCH: Alle Daten in einem einzigen HTTP-Request laden (31 Queries, 1 Roundtrip)
-    const batch = await dbLoadAllDataBatch()
+    const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
+      p.catch((err) => { console.warn('[DB Init] Query failed:', err.message); return fallback })
 
-    // Matches aus Batch-Daten zusammenbauen
-    const profiles = batch.profiles
-    const x01Matches = assembleX01Matches(batch.x01)
-    const cricketMatches = assembleCricketMatches(batch.cricket)
-    const atbMatches = assembleGenericMatches(batch.atb)
-    const strMatches = assembleGenericMatches(batch.str)
-    const highscoreMatches = assembleGenericMatches(batch.highscore)
-    const shanghaiMatches = assembleGenericMatches(batch.shanghai)
-    const killerMatches = assembleGenericMatches(batch.killer)
-    const ctfMatches = assembleGenericMatches(batch.ctf)
-    const bobs27Matches = assembleGenericMatches(batch.bobs27)
-    const operationMatches = assembleGenericMatches(batch.operation)
+    // Alle Match-Daten parallel laden (jede Funktion macht intern 3 gebatchte Queries)
+    const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
+           shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([
+      safe(dbGetProfiles(), []),
+      safe(dbGetX01Matches(), []),
+      safe(dbGetCricketMatches(), []),
+      safe(dbGetATBMatches(), []),
+      safe(dbGetStrMatches(), []),
+      safe(dbGetHighscoreMatches(), []),
+      safe(dbGetShanghaiMatches(), []),
+      safe(dbGetKillerMatches(), []),
+      safe(dbGetCTFMatches(), []),
+      safe(dbGetBobs27Matches(), []),
+      safe(dbGetOperationMatches(), []),
+    ])
 
     // Memory-Caches direkt befüllen
     warmAllCaches({
@@ -134,9 +133,6 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     })
 
     // Stats & Leaderboards in Memory-Cache laden
-    const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
-      p.catch((err) => { console.warn('[DB Init] Query failed:', err.message); return fallback })
-
     try {
       const [x01Stats, stats121, x01Lb, cricketLb, cricketStats] = await Promise.all([
         safe(dbLoadAllX01PlayerStats(), {}),

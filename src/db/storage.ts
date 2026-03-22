@@ -616,19 +616,15 @@ export type DBX01Match = {
 export async function dbGetX01Matches(): Promise<DBX01Match[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; match_name: string | null; notes: string | null
-      created_at: string; finished: number; finished_at: string | null
-    }>('SELECT * FROM x01_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM x01_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string }>(
-      'SELECT match_id, player_id FROM x01_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM x01_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM x01_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id FROM x01_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -828,19 +824,15 @@ export type DBCricketMatch = {
 export async function dbGetCricketMatches(): Promise<DBCricketMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; match_name: string | null; notes: string | null
-      created_at: string; finished: number; finished_at: string | null
-    }>('SELECT * FROM cricket_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM cricket_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string }>(
-      'SELECT match_id, player_id FROM cricket_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM cricket_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM cricket_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id FROM cricket_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -1013,23 +1005,15 @@ export type DBATBMatch = {
 export async function dbGetATBMatches(): Promise<DBATBMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      mode: string; direction: string
-      structure_kind: string | null; best_of_legs: number | null
-      generated_sequence: string | null
-    }>('SELECT * FROM atb_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM atb_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM atb_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM atb_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM atb_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM atb_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -1242,25 +1226,15 @@ export type DBCTFMatch = {
 export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      multiplier_mode: string | null; rotate_order: number; bull_position: string | null
-      structure_kind: string | null; best_of_legs: number | null
-      legs_per_set: number | null; best_of_sets: number | null
-      generated_sequence: string | null
-      capture_field_winners: string | null; capture_total_scores: string | null
-    }>('SELECT * FROM ctf_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM ctf_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM ctf_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM ctf_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM ctf_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM ctf_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -1439,26 +1413,15 @@ export type DBStrMatch = {
 export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      mode: string; target_number: number | null
-      number_order: string | null; turn_order: string | null
-      ring_mode: string | null; bull_mode: string | null; bull_position: string | null
-      structure_kind: string | null; best_of_legs: number | null
-      legs_per_set: number | null; best_of_sets: number | null
-      generated_order: string | null; leg_wins: string | null; set_wins: string | null
-    }>('SELECT * FROM str_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM str_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM str_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM str_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM str_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM str_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -1655,23 +1618,15 @@ export type DBHighscoreMatch = {
 export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      target_score: number; structure_kind: string | null
-      target_legs: number | null; legs_per_set: number | null; target_sets: number | null
-      leg_wins: string | null; set_wins: string | null
-    }>('SELECT * FROM highscore_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM highscore_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM highscore_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM highscore_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM highscore_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM highscore_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -1864,23 +1819,15 @@ export type DBShanghaiMatch = {
 export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      structure_kind: string | null; best_of_legs: number | null
-      legs_per_set: number | null; best_of_sets: number | null
-      final_scores: string | null; leg_wins: string | null; set_wins: string | null
-    }>('SELECT * FROM shanghai_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM shanghai_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM shanghai_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM shanghai_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM shanghai_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM shanghai_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -2125,23 +2072,15 @@ export type DBKillerMatch = {
 export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      final_standings: string | null; structure_kind: string | null
-      best_of_legs: number | null; legs_per_set: number | null; best_of_sets: number | null
-      leg_wins: string | null; set_wins: string | null
-    }>('SELECT * FROM killer_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM killer_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM killer_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM killer_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM killer_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM killer_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -2410,23 +2349,15 @@ export type DBBobs27Match = {
 export async function dbGetBobs27Matches(): Promise<DBBobs27Match[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      start_score: number | null; darts_per_target: number | null
-      include_bull: number | null; allow_negative: number | null
-      final_scores: string | null
-    }>('SELECT * FROM bobs27_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM bobs27_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM bobs27_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM bobs27_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM bobs27_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM bobs27_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
@@ -2664,22 +2595,15 @@ export type DBOperationMatch = {
 export async function dbGetOperationMatches(): Promise<DBOperationMatch[]> {
   await ensureDB()
 
-  // Batch: 3 Queries statt 2*N+1
-  const [matches, allEvents, allPlayers] = await Promise.all([
-    query<{
-      id: string; title: string; created_at: string; finished: number
-      finished_at: string | null; duration_ms: number | null
-      winner_id: string | null; winner_darts: number | null
-      legs_count: number; target_mode: string
-      final_scores: string | null; leg_wins: string | null
-    }>('SELECT * FROM operation_matches ORDER BY created_at DESC'),
-    query<{ match_id: string; data: string }>(
-      'SELECT match_id, data FROM operation_events ORDER BY match_id, seq'
-    ),
-    query<{ match_id: string; player_id: string; is_guest: number }>(
-      'SELECT match_id, player_id, is_guest FROM operation_match_players ORDER BY match_id, position'
-    ),
+  // Single HTTP request with 3 queries via batch API
+  const results = await batchQuery([
+    { sql: 'SELECT * FROM operation_matches ORDER BY created_at DESC' },
+    { sql: 'SELECT match_id, data FROM operation_events ORDER BY match_id, seq' },
+    { sql: 'SELECT match_id, player_id, is_guest FROM operation_match_players ORDER BY match_id, position' },
   ])
+  const matches = (results[0]?.data ?? []) as any[]
+  const allEvents = (results[1]?.data ?? []) as any[]
+  const allPlayers = (results[2]?.data ?? []) as any[]
 
   // Group by match_id
   const eventsByMatch = new Map<string, string[]>()
