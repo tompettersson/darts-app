@@ -304,7 +304,7 @@ export function getProfiles(): Profile[] {
 }
 
 export function saveProfiles(list: Profile[]) {
-  profilesCache = null  // Cache invalidieren, damit neu sortiert wird
+  profilesCache = list  // Cache aktualisieren
   usageCountsCache = null
 }
 

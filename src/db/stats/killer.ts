@@ -74,7 +74,7 @@ export async function getKillerFullStats(playerId: string): Promise<KillerFullSt
           AND m.final_standings IS NOT NULL
           AND json_extract(value, '$.playerId') = ?
       )
-      SELECT AVG(pos) as avg_placement FROM standings
+      SELECT AVG(CAST(pos AS REAL)) as avg_placement FROM standings
     `, [playerId, playerId])
 
     // Avg Rounds pro Match (max roundNumber aus KillerTurnAdded)
@@ -91,7 +91,7 @@ export async function getKillerFullStats(playerId: string): Promise<KillerFullSt
           AND e.match_id IN (SELECT id FROM killer_matches WHERE finished = 1)
         GROUP BY e.match_id
       )
-      SELECT AVG(max_round) as avg_rounds FROM match_rounds
+      SELECT AVG(CAST(max_round AS REAL)) as avg_rounds FROM match_rounds
     `, [playerId])
 
     const totalDarts = eventStats?.total_darts ?? 0

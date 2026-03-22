@@ -56,6 +56,34 @@ function convertInsertOrIgnore(sqlStr) {
   return base
 }
 
+function convertRoundCalls(sqlStr) {
+  const pattern = /\bround\(/gi
+  let result = ''
+  let lastIndex = 0
+  let match
+  while ((match = pattern.exec(sqlStr)) !== null) {
+    const start = match.index + match[0].length
+    let depth = 1, lastComma = -1
+    let i = start
+    for (; i < sqlStr.length && depth > 0; i++) {
+      if (sqlStr[i] === '(') depth++
+      else if (sqlStr[i] === ')') depth--
+      else if (sqlStr[i] === ',' && depth === 1) lastComma = i
+    }
+    if (lastComma === -1) {
+      // single-arg round() — keep as-is
+      result += sqlStr.slice(lastIndex, i)
+    } else {
+      const expr = sqlStr.slice(start, lastComma)
+      const prec = sqlStr.slice(lastComma + 1, i - 1).trim()
+      result += sqlStr.slice(lastIndex, match.index) + `round((${expr})::numeric, ${prec})`
+    }
+    lastIndex = i
+  }
+  result += sqlStr.slice(lastIndex)
+  return result
+}
+
 function convertPlaceholders(sqlStr) {
   let index = 0
   return sqlStr.replace(/\?/g, () => `$${++index}`)
@@ -232,13 +260,21 @@ function convertSQL(sqlStr) {
   // ============================================================
 
   // 16. round(expr, n) → round((expr)::numeric, n) — Postgres requires numeric for precision
-  r = r.replace(/\bround\(([^,]+),\s*(\d+)\)/g, 'round(($1)::numeric, $2)')
+  //     Use balanced-parentheses matching to handle nested function calls with commas
+  r = convertRoundCalls(r)
 
   // 17. IFNULL(a, b) → COALESCE(a, b)
   r = r.replace(/\bIFNULL\(/gi, 'COALESCE(')
 
   // 18. GROUP_CONCAT(expr) → string_agg((expr)::text, ',')
   r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, "string_agg(($1)::text, ',')")
+
+  // ============================================================
+  // Lateral join fix: ", jsonb_array_elements(...)" → "CROSS JOIN LATERAL jsonb_array_elements(...)"
+  // In SQLite, ", json_each(e.col)" after JOINs works as implicit cross join.
+  // In Postgres, set-returning functions referencing other FROM entries need LATERAL.
+  // ============================================================
+  r = r.replace(/,\s*jsonb_array_elements\(/g, ' CROSS JOIN LATERAL jsonb_array_elements(')
 
   // ============================================================
   // Post-conversion fixes for jsonb type mismatches
@@ -257,9 +293,7 @@ function convertSQL(sqlStr) {
   // For >, <, >=, <= we need numeric cast
   r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(>=|<=|>|<)\s*(\d+)\b/g, '$1::numeric $2 $3')
 
-  // 23. round(...::real..., n) — ensure the first arg is numeric for Postgres
-  //     This catches cases where CAST AS REAL was converted but round needs numeric
-  r = r.replace(/\bround\(([^,]*?)::real([^,]*),\s*(\d+)\)/gi, 'round(($1::real$2)::numeric, $3)')
+  // 23. (removed — now handled by convertRoundCalls in step 16)
 
   // ============================================================
   // Placeholder conversion — MUST be last

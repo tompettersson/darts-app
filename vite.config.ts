@@ -219,13 +219,41 @@ function localApiProxy(): Plugin {
             // ============================================================
 
             // 16. round(expr, n) → round((expr)::numeric, n)
-            r = r.replace(/\bround\(([^,]+),\s*(\d+)\)/g, 'round(($1)::numeric, $2)')
+            //     Use balanced-parentheses matching for nested function calls
+            {
+              const pattern = /\bround\(/gi
+              let result = '', lastIndex = 0, m
+              while ((m = pattern.exec(r)) !== null) {
+                const start = m.index + m[0].length
+                let depth = 1, lastComma = -1, i = start
+                for (; i < r.length && depth > 0; i++) {
+                  if (r[i] === '(') depth++
+                  else if (r[i] === ')') depth--
+                  else if (r[i] === ',' && depth === 1) lastComma = i
+                }
+                if (lastComma === -1) {
+                  result += r.slice(lastIndex, i)
+                } else {
+                  const expr = r.slice(start, lastComma)
+                  const prec = r.slice(lastComma + 1, i - 1).trim()
+                  result += r.slice(lastIndex, m.index) + `round((${expr})::numeric, ${prec})`
+                }
+                lastIndex = i
+              }
+              result += r.slice(lastIndex)
+              r = result
+            }
 
             // 17. IFNULL → COALESCE
             r = r.replace(/\bIFNULL\(/gi, 'COALESCE(')
 
             // 18. GROUP_CONCAT(expr) → string_agg((expr)::text, ',')
             r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, "string_agg(($1)::text, ',')")
+
+            // ============================================================
+            // Lateral join fix: ", jsonb_array_elements(...)" → "CROSS JOIN LATERAL ..."
+            // ============================================================
+            r = r.replace(/,\s*jsonb_array_elements\(/g, ' CROSS JOIN LATERAL jsonb_array_elements(')
 
             // ============================================================
             // Post-conversion fixes for jsonb type mismatches
@@ -241,8 +269,7 @@ function localApiProxy(): Plugin {
             r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>)\s*(\d+)\b/g, "$1 $2 '$3'")
             r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(>=|<=|>|<)\s*(\d+)\b/g, '$1::numeric $2 $3')
 
-            // 23. round on ::real → ensure numeric
-            r = r.replace(/\bround\(([^,]*?)::real([^,]*),\s*(\d+)\)/gi, 'round(($1::real$2)::numeric, $3)')
+            // 23. (removed — now handled by balanced-paren round conversion in step 16)
 
             // ============================================================
             // Placeholder conversion — MUST be last
