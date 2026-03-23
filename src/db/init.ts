@@ -241,7 +241,7 @@ export async function startupWithSQLite(): Promise<{
   try {
     const res = await fetch('/api/auth', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': 'darts-2024-local' },
       body: JSON.stringify({ type: 'migrate-passwords' }),
     })
     const migResult = await res.json()

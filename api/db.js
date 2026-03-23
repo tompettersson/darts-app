@@ -330,13 +330,25 @@ function coerceNumericValues(rows) {
 
 // Request Handler
 
+// Simple API key guard — prevents unauthorized direct API access
+const API_KEY = process.env.API_SECRET || 'darts-2024-local'
+
+function checkApiKey(req) {
+  return req.headers['x-api-key'] === API_KEY
+}
+
 module.exports = async (req, res) => {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Api-Key')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
+
+  // API key check (skip for GET health check)
+  if (req.method === 'POST' && !checkApiKey(req)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
 
   if (req.method === 'GET') {
     try {

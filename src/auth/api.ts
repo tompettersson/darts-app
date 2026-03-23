@@ -2,11 +2,12 @@
 // Client-side helpers for auth API calls
 
 const AUTH_URL = '/api/auth'
+const API_KEY = 'darts-2024-local'
 
 async function authRequest<T>(body: Record<string, unknown>): Promise<T> {
   const res = await fetch(AUTH_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY },
     body: JSON.stringify(body),
   })
   if (!res.ok) {

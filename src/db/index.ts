@@ -20,10 +20,13 @@ function getApiUrl(): string {
   return '/api/db'
 }
 
+/** API key for simple access control */
+const API_KEY = 'darts-2024-local'
+
 async function apiRequest<T = unknown>(body: Record<string, unknown>): Promise<T> {
   const response = await fetch(getApiUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY },
     body: JSON.stringify(body),
   })
 

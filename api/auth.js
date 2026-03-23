@@ -14,14 +14,22 @@ function getSQL() {
   return _sql
 }
 
+// Simple API key guard
+const API_KEY = process.env.API_SECRET || 'darts-2024-local'
+
 module.exports = async (req, res) => {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Api-Key')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  // API key check
+  if (req.headers['x-api-key'] !== API_KEY) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
 
   try {
     const body = req.body

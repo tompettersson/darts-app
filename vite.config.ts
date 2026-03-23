@@ -10,7 +10,7 @@ function localApiProxy(): Plugin {
     configureServer(server) {
       server.middlewares.use('/api/db', async (req, res) => {
         if (req.method === 'OPTIONS') {
-          res.writeHead(200, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' })
+          res.writeHead(200, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key' })
           res.end()
           return
         }
