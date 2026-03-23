@@ -253,7 +253,7 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
               {mixedList.map((p) => {
                 const isSel = selected.includes(p.id)
                 return (

@@ -1132,19 +1132,27 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }, [turn, gamePaused])
 
   // ===== Layout Konstanten =====
-  const ROW_H = 32
-  const headerBarHeight = 28
+  // Responsive widths based on screen size and player count
+  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 800
+  const isMobileScreen = screenWidth < 600
+  const playerCount = order.length
 
-  const PLAYER_CARD_WIDTH = 140
-  const CRICKET_CARD_WIDTH_MIN = 220
-  const CRICKET_CARD_WIDTH_MAX = 260
+  const ROW_H = isMobileScreen ? 26 : 32
+  const headerBarHeight = isMobileScreen ? 22 : 28
+
+  // On mobile with many players, use compact layout
+  const PLAYER_CARD_WIDTH = isMobileScreen
+    ? Math.max(60, Math.floor((screenWidth - 140) / Math.min(playerCount, 4)))
+    : 140
+  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 120 : 220
+  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 140 : 260
 
   function playerCardStyle(active: boolean, playerColor?: string): React.CSSProperties {
     const color = playerColor || '#f97316'
     return {
       border: active ? `2px solid ${color}` : '1px solid #e5e7eb',
       background: active ? `${color}10` : '#fff',
-      borderRadius: 12,
+      borderRadius: isMobileScreen ? 8 : 12,
       position: 'relative',
       overflow: 'hidden',
       width: PLAYER_CARD_WIDTH,
@@ -1152,8 +1160,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       maxWidth: PLAYER_CARD_WIDTH,
       display: 'flex',
       flexDirection: 'column',
-      padding: 10,
-      paddingTop: 10,
+      padding: isMobileScreen ? 4 : 10,
+      paddingTop: isMobileScreen ? 4 : 10,
       boxShadow: active ? `0 0 20px ${color}50, 0 0 40px ${color}30` : 'none',
       transition: 'box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease',
     }
@@ -1162,7 +1170,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const cricketCardStyle: React.CSSProperties = {
     border: '1px solid #e5e7eb',
     background: '#fff',
-    borderRadius: 12,
+    borderRadius: isMobileScreen ? 8 : 12,
     position: 'relative',
     overflow: 'hidden',
     minWidth: CRICKET_CARD_WIDTH_MIN,
@@ -1170,8 +1178,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     width: CRICKET_CARD_WIDTH_MAX,
     display: 'flex',
     flexDirection: 'column',
-    padding: 10,
-    paddingTop: 10,
+    padding: isMobileScreen ? 4 : 10,
+    paddingTop: isMobileScreen ? 4 : 10,
   }
 
   function PlayerHeader({
@@ -1187,6 +1195,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }) {
     const justifyContent = side === 'left' ? 'flex-end' : 'flex-start'
     const textAlign = side === 'left' ? 'right' : 'left'
+    const fontSize = isMobileScreen ? 11 : 14
 
     return (
       <div
@@ -1197,12 +1206,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           alignItems: 'baseline',
           justifyContent,
           fontWeight: 700,
-          fontSize: 14,
+          fontSize,
           lineHeight: `${headerBarHeight}px`,
-          marginBottom: 6,
+          marginBottom: isMobileScreen ? 2 : 6,
           textAlign,
           width: '100%',
-          gap: 8,
+          gap: isMobileScreen ? 2 : 8,
         }}
       >
         <span
@@ -1212,7 +1221,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             textOverflow: 'ellipsis',
             flexShrink: 1,
             fontWeight: 700,
-            fontSize: 14,
+            fontSize,
             lineHeight: `${headerBarHeight}px`,
           }}
         >
@@ -1895,9 +1904,11 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
               display: 'grid',
               gridTemplateColumns,
               alignItems: 'start',
-              gap: 12,
+              gap: isMobileScreen ? 4 : 12,
               width: '100%',
               justifyContent: 'center',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
             }}
           >
             {gridCells.map((cell, idx) => {

@@ -404,7 +404,7 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
                 }}
               />
             )}
-            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
               {mixedList.filter(p => {
                 if (!playerSearch.trim()) return true
                 return p.name.toLowerCase().includes(playerSearch.trim().toLowerCase())
