@@ -62,7 +62,7 @@ function computeMostHitField(allEvents: DartsEvent[], legId: string | null, play
     }
   }
   const sorted = Object.entries(hitCount).sort((a, b) => b[1] - a[1])
-  if (sorted.length === 0) return '\u2013'
+  if (sorted.length === 0) return '–'
   return `${sorted[0][0]} (${sorted[0][1]}\u00D7)`
 }
 
@@ -75,7 +75,7 @@ function computeMostCommonScore(allEvents: DartsEvent[], legId: string | null, p
     scoreCount[v.visitScore] = (scoreCount[v.visitScore] ?? 0) + 1
   }
   const sorted = Object.entries(scoreCount).sort((a, b) => Number(b[1]) - Number(a[1]))
-  if (sorted.length === 0) return '\u2013'
+  if (sorted.length === 0) return '–'
   return `${sorted[0][0]} (${sorted[0][1]}\u00D7)`
 }
 
@@ -249,7 +249,7 @@ export default function X01EndScreen({
   }
 
   rows.push({
-    label: 'H\u00F6chste Aufnahme',
+    label: 'Höchste Aufnahme',
     values: players.map((p) => {
       const hv = highestVisitMatch[p.playerId] ?? 0
       return <span key={p.playerId}>{hv > 0 ? hv : '\u2014'}</span>
@@ -274,7 +274,7 @@ export default function X01EndScreen({
   })
 
   rows.push({
-    label: 'H\u00E4ufigste Punktzahl',
+    label: 'Häufigste Punktzahl',
     values: players.map((p) => (
       <span key={p.playerId}>{computeMostCommonScore(events, null, p.playerId)}</span>
     )),
@@ -291,16 +291,16 @@ export default function X01EndScreen({
     <div className="g-page">
       <div className="g-header">
         <h2 className="g-title">
-          {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} \u2013 beendet
+          {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} – beendet
         </h2>
         <div style={{ display: 'flex', gap: 8 }}>
           {onRematch && (
             <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700 }}>
-              \u21BB Nochmal
+              ↻ Nochmal
             </button>
           )}
           <button className="g-btn" onClick={onExit}>
-            Zur\u00FCck ins Men\u00FC
+            Zurück ins Menü
           </button>
         </div>
       </div>
@@ -560,11 +560,11 @@ export default function X01EndScreen({
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         {onRematch && (
           <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700 }}>
-            \u21BB Nochmal
+            ↻ Nochmal
           </button>
         )}
         <button className="g-btn" onClick={onExit}>
-          Zur\u00FCck ins Men\u00FC
+          Zurück ins Menü
         </button>
       </div>
     </div>

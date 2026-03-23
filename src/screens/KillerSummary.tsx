@@ -153,7 +153,7 @@ function KillerSummaryContent({
           <div style={{ ...styles.card, marginBottom: 16, padding: '10px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontWeight: 600 }}>
-                Killer \u2013 Ergebnis
+                Killer – Ergebnis
               </span>
               <div style={{ display: 'flex', gap: 6 }}>
                 <span style={{
@@ -480,7 +480,7 @@ function KillerSummaryContent({
                         <td style={tdLabelStyle}>Qualifiziert</td>
                         {validPlayers.map(p => (
                           <td key={p.playerId} style={{ ...tdStyle, fontWeight: 600, color: p.stats!.qualifiedInRound ? colors.success : colors.fgDim }}>
-                            {p.stats!.qualifiedInRound ? `Runde ${p.stats!.qualifiedInRound}` : '\u2013'}
+                            {p.stats!.qualifiedInRound ? `Runde ${p.stats!.qualifiedInRound}` : '–'}
                           </td>
                         ))}
                       </tr>

@@ -180,7 +180,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch }: Props) 
           <div style={{ ...styles.card, marginBottom: 16, padding: '10px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontWeight: 600 }}>
-                Capture the Field {'\u2013'} Ergebnis
+                Capture the Field {'–'} Ergebnis
               </span>
               <span style={{
                 background: colors.accent,

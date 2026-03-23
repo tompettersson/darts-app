@@ -408,7 +408,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             <div style={styles.card}>
               <h2 style={{ margin: 0 }}>Match nicht gefunden</h2>
               <div style={{ marginTop: 10 }}>
-                <button style={styles.backBtn} onClick={onBack}>{'\u2190'} Zurueck</button>
+                <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
               </div>
             </div>
           </div>

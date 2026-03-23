@@ -389,7 +389,7 @@ export default function PlayersOverview({ onSelectPlayer }: PlayersOverviewProps
                       <div style={styles.statStrong}>
                         {highestCheckout ?? 0}
                       </div>
-                      <div style={styles.statSub}>h\u00F6chster Finish</div>
+                      <div style={styles.statSub}>höchster Finish</div>
                     </td>
 
                     {/* Lieblingsdouble */}

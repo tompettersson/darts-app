@@ -785,7 +785,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
             color: '#eab308',
             fontWeight: 600,
           }}>
-            Leg {state.currentLegIndex + 1} | {Object.entries(state.legWinsByPlayer).filter(([,w]) => w > 0).map(([pid, w]) => `${playerNames[pid] ?? '?'}: ${w}`).join(' \u2013 ')}
+            Leg {state.currentLegIndex + 1} | {Object.entries(state.legWinsByPlayer).filter(([,w]) => w > 0).map(([pid, w]) => `${playerNames[pid] ?? '?'}: ${w}`).join(' – ')}
           </span>
         )}
         {state.structure.kind === 'sets' && (
