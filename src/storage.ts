@@ -585,21 +585,21 @@ export function getOpenMatch(): StoredMatch | undefined {
 export function persistEvents(
   matchId: string,
   events: DartsEvent[]
-) {
+): Promise<void> {
   const list = getMatches()
   const idx = list.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
   list[idx] = { ...list[idx], events }
   saveMatches(list)
 
-  // Async SQLite update mit Error-Tracking
-  dbUpdateX01Events(matchId, events).catch(err => trackDBError('x01-events', matchId, err))
+  // Await DB write to prevent data loss on quick navigation
+  return dbUpdateX01Events(matchId, events).catch(err => trackDBError('x01-events', matchId, err))
 }
 
-export function finishMatch(matchId: string) {
+export function finishMatch(matchId: string): Promise<void> {
   const list = getMatches()
   const idx = list.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   list[idx] = { ...list[idx], finished: true }
   saveMatches(list)
@@ -607,8 +607,8 @@ export function finishMatch(matchId: string) {
   const last = getLastOpenMatchId()
   if (last === matchId) setLastOpenMatchId(undefined)
 
-  // Async SQLite update mit Error-Tracking
-  dbFinishX01Match(matchId).catch(err => trackDBError('x01-finish', matchId, err))
+  // Await DB write to prevent data loss on quick navigation
+  return dbFinishX01Match(matchId).catch(err => trackDBError('x01-finish', matchId, err))
 }
 
 /** Setzt Spielname und Bemerkungen für ein Match (nur einmal möglich). */

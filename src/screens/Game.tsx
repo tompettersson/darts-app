@@ -815,7 +815,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
   }, [matchStored, match, state.legs.length, onExit, isMultiplayer])
 
   // -------- helper to finalize match safely (TS-safe non-null args) --------
-  function finalizeIfFinished(
+  async function finalizeIfFinished(
     allEvents: DartsEvent[],
     matchNonNull: MatchStarted,
     matchStoredNonNull: {
@@ -826,7 +826,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       playerIds: string[]
       finished?: boolean
     }
-  ): boolean {
+  ): Promise<boolean> {
     const tmpApplied = applyEvents(allEvents)
     const mStruct = matchNonNull.structure
 
@@ -878,17 +878,17 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       // Just set local state optimistically
       setEvents(finalEvents)
     } else {
-      // React-State zuerst setzen, dann persist versuchen
+      // React-State zuerst setzen, dann persist AWAIT-en (verhindert Datenverlust bei "noch mal spielen")
       setEvents(finalEvents)
       try {
-        persistEvents(matchStoredNonNull.id, finalEvents)
+        await persistEvents(matchStoredNonNull.id, finalEvents)
       } catch (persistErr) {
         console.warn('finalizeIfFinished persist failed:', persistErr)
       }
     }
     setCurrent([])
 
-    try { finishMatch(matchStoredNonNull.id) } catch (e) { console.warn('finishMatch failed:', e) }
+    try { await finishMatch(matchStoredNonNull.id) } catch (e) { console.warn('finishMatch failed:', e) }
 
     try {
       finishMatchUpload(
