@@ -1157,9 +1157,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       borderRadius: isMobileScreen ? 8 : 12,
       position: 'relative',
       overflow: 'hidden',
-      width: PLAYER_CARD_WIDTH,
-      minWidth: PLAYER_CARD_WIDTH,
-      maxWidth: PLAYER_CARD_WIDTH,
+      width: isMobileScreen ? '100%' : PLAYER_CARD_WIDTH,
+      minWidth: isMobileScreen ? 0 : PLAYER_CARD_WIDTH,
+      maxWidth: isMobileScreen ? undefined : PLAYER_CARD_WIDTH,
       display: 'flex',
       flexDirection: 'column',
       padding: isMobileScreen ? 4 : 10,
@@ -1176,9 +1176,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     borderRadius: isMobileScreen ? 8 : 12,
     position: 'relative',
     overflow: 'hidden',
-    minWidth: CRICKET_CARD_WIDTH_MIN,
-    maxWidth: CRICKET_CARD_WIDTH_MAX,
-    width: CRICKET_CARD_WIDTH_MAX,
+    minWidth: isMobileScreen ? 0 : CRICKET_CARD_WIDTH_MIN,
+    maxWidth: isMobileScreen ? undefined : CRICKET_CARD_WIDTH_MAX,
+    width: isMobileScreen ? '100%' : CRICKET_CARD_WIDTH_MAX,
     display: 'flex',
     flexDirection: 'column',
     padding: isMobileScreen ? 4 : 10,
@@ -1499,9 +1499,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   ]
 
   const gridTemplateColumns = [
-    ...leftIds.map(() => `${PLAYER_CARD_WIDTH}px`),
-    `${CRICKET_CARD_WIDTH_MAX}px`,
-    ...rightIds.map(() => `${PLAYER_CARD_WIDTH}px`),
+    ...leftIds.map(() => isMobileScreen ? '1fr' : `${PLAYER_CARD_WIDTH}px`),
+    isMobileScreen ? `${CRICKET_CARD_WIDTH_MAX}px` : `${CRICKET_CARD_WIDTH_MAX}px`,
+    ...rightIds.map(() => isMobileScreen ? '1fr' : `${PLAYER_CARD_WIDTH}px`),
   ].join(' ')
 
   // Sticky Header
