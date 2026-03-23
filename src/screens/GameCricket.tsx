@@ -1140,12 +1140,13 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const ROW_H = isMobileScreen ? 26 : 32
   const headerBarHeight = isMobileScreen ? 22 : 28
 
-  // On mobile: fit all columns within screen width
-  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 80 : 220
-  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 90 : 260
+  // On mobile: fit all columns within screen width (accounting for gaps + borders)
+  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 70 : 220
+  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 80 : 260
   const mobilePlayersOnScreen = Math.min(playerCount, 4)
+  const mobileGaps = (mobilePlayersOnScreen + 1) * 4 // gaps between columns
   const PLAYER_CARD_WIDTH = isMobileScreen
-    ? Math.max(50, Math.floor((screenWidth - CRICKET_CARD_WIDTH_MAX - 16) / mobilePlayersOnScreen))
+    ? Math.max(50, Math.floor((screenWidth - CRICKET_CARD_WIDTH_MAX - mobileGaps - 24) / mobilePlayersOnScreen))
     : 140
 
   function playerCardStyle(active: boolean, playerColor?: string): React.CSSProperties {
@@ -1165,6 +1166,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       paddingTop: isMobileScreen ? 4 : 10,
       boxShadow: active ? `0 0 20px ${color}50, 0 0 40px ${color}30` : 'none',
       transition: 'box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease',
+      boxSizing: 'border-box',
     }
   }
 
