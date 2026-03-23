@@ -17,9 +17,17 @@ async function authRequest<T>(body: Record<string, unknown>): Promise<T> {
   return res.json()
 }
 
-export async function verifyPassword(profileId: string, password: string): Promise<boolean> {
-  const result = await authRequest<{ valid: boolean }>({ type: 'verify', profileId, password })
+export async function verifyPassword(profileId: string, password: string): Promise<{ valid: boolean; sessionToken?: string }> {
+  return authRequest<{ valid: boolean; sessionToken?: string }>({ type: 'verify', profileId, password })
+}
+
+export async function validateSession(sessionToken: string): Promise<boolean> {
+  const result = await authRequest<{ valid: boolean }>({ type: 'validate-session', sessionToken })
   return result.valid
+}
+
+export async function logoutSession(sessionToken: string): Promise<void> {
+  await authRequest({ type: 'logout', sessionToken })
 }
 
 export async function verifyMultiplePlayers(

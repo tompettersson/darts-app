@@ -1,12 +1,13 @@
 // src/auth/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { verifyPassword } from './api'
+import { verifyPassword, logoutSession, validateSession } from './api'
 
 export type AuthUser = {
   profileId: string
   name: string
   isAdmin: boolean
   isGuest: boolean
+  sessionToken?: string
 }
 
 type AuthContextType = {
@@ -41,11 +42,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
+  // Validate stored session on app start
+  useEffect(() => {
+    if (!user?.sessionToken || user.isGuest) return
+    validateSession(user.sessionToken).then(valid => {
+      if (!valid) {
+        // Session expired or invalidated (logged in elsewhere)
+        console.warn('[Auth] Session ungültig — bitte erneut anmelden')
+        setUser(null)
+        localStorage.removeItem(LS_KEY)
+      }
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const login = useCallback(async (profileId: string, name: string, password: string, isAdmin: boolean): Promise<boolean> => {
     try {
-      const valid = await verifyPassword(profileId, password)
-      if (valid) {
-        setUser({ profileId, name, isAdmin, isGuest: false })
+      const result = await verifyPassword(profileId, password)
+      if (result.valid && result.sessionToken) {
+        setUser({ profileId, name, isAdmin, isGuest: false, sessionToken: result.sessionToken })
         return true
       }
       return false
@@ -59,10 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ profileId: 'guest', name: 'Gast', isAdmin: false, isGuest: true })
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    if (user?.sessionToken) {
+      try { await logoutSession(user.sessionToken) } catch {}
+    }
     setUser(null)
     localStorage.removeItem(LS_KEY)
-  }, [])
+  }, [user])
 
   const value: AuthContextType = {
     user,

@@ -23,10 +23,26 @@ function getApiUrl(): string {
 /** API key for simple access control */
 const API_KEY = 'darts-2024-local'
 
+/** Get session token from LocalStorage (if logged in) */
+function getSessionToken(): string {
+  try {
+    const stored = localStorage.getItem('darts-auth-user')
+    if (stored) {
+      const user = JSON.parse(stored)
+      return user.sessionToken || ''
+    }
+  } catch {}
+  return ''
+}
+
 async function apiRequest<T = unknown>(body: Record<string, unknown>): Promise<T> {
   const response = await fetch(getApiUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': API_KEY,
+      'X-Session-Token': getSessionToken(),
+    },
     body: JSON.stringify(body),
   })
 

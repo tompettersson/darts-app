@@ -36,7 +36,7 @@ module.exports = async (req, res) => {
     const db = getSQL()
 
     switch (body.type) {
-      // ---- Verify single player password ----
+      // ---- Verify single player password (creates session) ----
       case 'verify': {
         const { profileId, password } = body
         if (!profileId || !password) return res.json({ valid: false })
@@ -46,7 +46,45 @@ module.exports = async (req, res) => {
         if (!hash) return res.json({ valid: false })
 
         const valid = await bcrypt.compare(password, hash)
-        return res.json({ valid })
+        if (!valid) return res.json({ valid: false })
+
+        // Create session — invalidate any existing sessions for this profile
+        const sessionToken = crypto.randomUUID()
+        const now = new Date().toISOString()
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+        await db`DELETE FROM sessions WHERE profile_id = ${profileId}`
+        await db`INSERT INTO sessions (session_token, profile_id, created_at, expires_at, last_used_at)
+                  VALUES (${sessionToken}, ${profileId}, ${now}, ${expiresAt}, ${now})`
+
+        return res.json({ valid: true, sessionToken })
+      }
+
+      // ---- Validate session token ----
+      case 'validate-session': {
+        const { sessionToken } = body
+        if (!sessionToken) return res.json({ valid: false })
+
+        const rows = await db`SELECT profile_id, expires_at FROM sessions WHERE session_token = ${sessionToken}`
+        if (!rows[0]) return res.json({ valid: false })
+
+        if (rows[0].expires_at < new Date().toISOString()) {
+          await db`DELETE FROM sessions WHERE session_token = ${sessionToken}`
+          return res.json({ valid: false })
+        }
+
+        // Update last used
+        await db`UPDATE sessions SET last_used_at = ${new Date().toISOString()} WHERE session_token = ${sessionToken}`
+        return res.json({ valid: true, profileId: rows[0].profile_id })
+      }
+
+      // ---- Logout (delete session) ----
+      case 'logout': {
+        const { sessionToken } = body
+        if (sessionToken) {
+          await db`DELETE FROM sessions WHERE session_token = ${sessionToken}`
+        }
+        return res.json({ success: true })
       }
 
       // ---- Verify multiple players (game start) ----
