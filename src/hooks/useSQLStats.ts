@@ -284,6 +284,42 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     return () => { cancelled = true }
   }, [playerId, activeTab, loadedGroups, currentPlayerId])
 
+  // Background prefetch: after initial tab loads, load ALL remaining groups
+  useEffect(() => {
+    if (!playerId || state.loading || loadedGroups.size === 0) return
+
+    const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
+    const remaining = ALL_GROUPS.filter(g => !loadedGroups.has(g))
+    if (remaining.length === 0) return
+
+    let cancelled = false
+    const pid = playerId
+
+    // Small delay so the UI renders first
+    const timer = setTimeout(async () => {
+      try {
+        const partial: Partial<SQLStatsData> = {}
+        await Promise.all(remaining.map(g => loadGroup(pid, g, partial)))
+
+        if (!cancelled) {
+          setLoadedGroups(prev => {
+            const next = new Set(prev)
+            for (const g of remaining) next.add(g)
+            return next
+          })
+          setState(prev => ({
+            ...prev,
+            data: { ...prev.data, ...partial },
+          }))
+        }
+      } catch {
+        // Background prefetch errors are non-critical
+      }
+    }, 100)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [playerId, state.loading, loadedGroups])
+
   return state
 }
 
