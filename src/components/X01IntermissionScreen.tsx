@@ -321,20 +321,21 @@ export default function X01IntermissionScreen({
             <div className="g-modalSub">Klick auf „Details" zeigt den ausführlichen Verlauf.</div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button
               className="g-btn"
               onClick={() => setViewMode(v => v === 'stats' ? 'bericht' : 'stats')}
-              style={viewMode === 'bericht' ? { background: '#2563eb', color: '#fff' } : undefined}
+              style={viewMode === 'bericht' ? { background: '#2563eb', color: '#fff', fontSize: 13 } : { fontSize: 13 }}
             >
               {viewMode === 'stats' ? 'Bericht' : 'Stats'}
             </button>
-            <button className="g-btn" onClick={() => setShowDetails((v) => !v)}>
+            <button className="g-btn" onClick={() => setShowDetails((v) => !v)} style={{ fontSize: 13 }}>
               {showDetails ? 'Details verbergen' : 'Details anzeigen'}
             </button>
             <button
               className="g-btn"
               onClick={onContinue}
+              style={{ fontSize: 13 }}
             >
               Weiter →
             </button>
@@ -413,11 +414,11 @@ export default function X01IntermissionScreen({
               legDuration = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
             }
 
-            // Table Styles
-            const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#475569', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
-            const thRight: React.CSSProperties = { textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#0f172a', padding: '8px 12px', borderBottom: '2px solid #e5e7eb' }
-            const tdLeft: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151' }
-            const tdRight: React.CSSProperties = { padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }
+            // Table Styles (compact for mobile)
+            const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#475569', padding: '6px 8px', borderBottom: '2px solid #e5e7eb' }
+            const thRight: React.CSSProperties = { textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#0f172a', padding: '6px 8px', borderBottom: '2px solid #e5e7eb' }
+            const tdLeft: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151', fontSize: 13 }
+            const tdRight: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: 13 }
             const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
 
             // Winner-Farben für Leg-Statistik

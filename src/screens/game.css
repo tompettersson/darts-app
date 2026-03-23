@@ -800,6 +800,16 @@ html, body, #root {
     padding: 8px;
   }
   .g-modal {
-    padding: 10px;
+    padding: 8px;
+    width: min(760px, 100vw - 16px);
+  }
+  .g-modalHeader {
+    gap: 6px;
+  }
+  .g-modalTitle {
+    font-size: 14px;
+  }
+  .g-modalSub {
+    display: none;
   }
 }
