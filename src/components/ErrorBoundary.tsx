@@ -18,6 +18,21 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack)
+
+    // Auto-recover from stale chunk errors (happens after new deployment)
+    if (error.message?.includes('Failed to fetch dynamically imported module') ||
+        error.message?.includes('Loading chunk') ||
+        error.message?.includes('Loading CSS chunk')) {
+      // Clear all caches and reload
+      if ('caches' in window) {
+        caches.keys().then(names => names.forEach(name => caches.delete(name)))
+      }
+      navigator.serviceWorker?.getRegistrations().then(regs =>
+        regs.forEach(r => r.unregister())
+      )
+      // Small delay to let cache clearing finish, then reload
+      setTimeout(() => window.location.reload(), 300)
+    }
   }
 
   render() {
