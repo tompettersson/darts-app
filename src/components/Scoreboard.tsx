@@ -112,9 +112,11 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
   const stopListeningRef = useRef<(() => void) | null>(null)
   const [inputMode, setInputMode] = useState<InputMode>('keyboard')
   const [numBufDisplay, setNumBufDisplay] = useState('')
-  const [isMobile, setIsMobile] = useState(false)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 599px)').matches
+  )
 
-  // Detect narrow screens for mobile input
+  // Listen for screen size changes
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 599px)')
     setIsMobile(mq.matches)
