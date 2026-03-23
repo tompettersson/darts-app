@@ -14,6 +14,8 @@ import {
 import { dbSaveX01Match } from '../db/storage'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 type Props = {
   onCancel?: () => void
@@ -41,6 +43,8 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
   const [selected, setSelected] = useState<string[]>([])
   const [order, setOrder] = useState<string[]>([])
   const [targetWins, setTargetWins] = useState(2) // First to N Legs
+
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
 
   const maxPlayers = 8
   const canStart = selected.length >= 1 && selected.length <= maxPlayers
@@ -121,7 +125,7 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
     return `121 DO – ${names.length ? names.join(' vs ') : 'neues Match'}`
   }, [order, selected, mixedList])
 
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     const playerIds = dedupeIds(order).filter((pid) => selected.includes(pid))
@@ -195,6 +199,20 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
     }).catch(err => console.warn('[NewGame121] SQLite save failed:', err))
 
     onStarted?.(matchId)
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playerIds = dedupeIds(order).filter((pid) => selected.includes(pid))
+    const idToGuest = new Map(guests.map(g => [g.id, g]))
+    const idToProfile = new Map(profiles.map(p => [p.id, p]))
+    const playersForVerify = playerIds.map((pid) => {
+      const g = idToGuest.get(pid)
+      if (g) return { id: g.id, name: g.name, color: g.color }
+      const pr = idToProfile.get(pid)!
+      return { id: pr.id, name: pr.name, color: pr.color }
+    })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   // Styles
@@ -299,6 +317,15 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
           </div>
         </div>
       </div>
+
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

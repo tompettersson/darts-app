@@ -6,6 +6,8 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getProfiles } from '../storage'
 import type { HighscoreStructure, HighscorePlayer } from '../types/highscore'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 type Props = {
   onCancel?: () => void
@@ -123,6 +125,8 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
     setOrder((o) => dedupeIds([...o, gid]))
   }
 
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
+
   const canStart = selected.length >= 1 && selected.length <= maxPlayers && targetScore >= 300 && targetScore <= 999
 
   const pill = (active: boolean): React.CSSProperties => ({
@@ -148,7 +152,7 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
     }
   }
 
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     const orderedPlayers: HighscorePlayer[] = order
@@ -168,6 +172,18 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
       : { kind: 'sets', targetSets, legsPerSet }
 
     onStart?.({ players: orderedPlayers, targetScore, structure })
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playersForVerify = order
+      .filter((pid) => selected.includes(pid))
+      .map((pid) => {
+        const profile = mixedList.find((p) => p.id === pid)
+        const guest = guests.find((g) => g.id === pid)
+        return { id: pid, name: profile?.name ?? guest?.name ?? pid, color: (profile as any)?.color }
+      })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   return (
@@ -517,6 +533,15 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
       >
         Spiel starten
       </button>
+
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

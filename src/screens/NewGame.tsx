@@ -12,6 +12,8 @@ import {
 import { dbSaveX01Match } from '../db/storage'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 import './game.css'
 
 type ModeStr = '121-double-out' | '301-double-out' | '501-double-out' | '701-double-out' | '901-double-out'
@@ -83,6 +85,8 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rulesDisabled])
+
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
 
   const canStart =
     selected.length >= 1 &&
@@ -189,7 +193,7 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     return `${score} ${rules} – ${names.length ? names.join(' vs ') : 'neues Match'}`
   }, [score, order, selected, mixedList, inRule, outRule, rulesDisabled])
 
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     // Letzte Spielkonfiguration speichern (für Quick-Start)
@@ -286,6 +290,20 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     }).catch(err => console.warn('[NewGame] SQLite save failed:', err))
 
     onStarted?.(matchId)
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playerIds = dedupeIds(order).filter((pid) => selected.includes(pid))
+    const idToGuest = new Map(guests.map(g => [g.id, g]))
+    const idToProfile = new Map(profiles.map(p => [p.id, p]))
+    const playersForVerify = playerIds.map((pid) => {
+      const g = idToGuest.get(pid)
+      if (g) return { id: g.id, name: g.name, color: g.color }
+      const pr = idToProfile.get(pid)!
+      return { id: pr.id, name: pr.name }
+    })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   const pillActive: React.CSSProperties = {
@@ -483,6 +501,15 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
           </div>
         </div>
       </div>
+
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

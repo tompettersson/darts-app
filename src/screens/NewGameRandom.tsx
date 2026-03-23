@@ -5,6 +5,8 @@ import React, { useMemo, useState } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getProfiles } from '../storage'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 type Profile = { id: string; name: string; createdAt: string; updatedAt: string; color?: string }
 
@@ -118,6 +120,8 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
     setOrder((o) => dedupeIds([...o, gid]))
   }
 
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
+
   const canStart = selected.length >= 1 && selected.length <= maxPlayers
 
   const pillActive: React.CSSProperties = {
@@ -129,7 +133,7 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
   const pillInactive: React.CSSProperties = { ...styles.pill }
   const pill = (active: boolean) => active ? pillActive : pillInactive
 
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     const orderedPlayers = order
@@ -150,6 +154,18 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
         : { kind: 'sets', bestOfSets, legsPerSet }
 
     onStart({ players: orderedPlayers, structure })
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playersForVerify = order
+      .filter((pid) => selected.includes(pid))
+      .map((pid) => {
+        const profile = mixedList.find((p) => p.id === pid)
+        const guest = guests.find((g) => g.id === pid)
+        return { id: pid, name: profile?.name ?? guest?.name ?? pid, color: (profile as any)?.color }
+      })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   return (
@@ -361,6 +377,14 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
           </button>
         </div>
       </div>
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

@@ -7,6 +7,8 @@ import { useTheme } from '../ThemeProvider'
 import { createKillerMatchShell } from '../storage'
 import { assignTargetsAuto } from '../dartsKiller'
 import type { KillerMatchConfig, KillerPlayer, KillerStructure } from '../types/killer'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 type Props = {
   profiles: { id: string; name: string; color?: string }[]
@@ -152,6 +154,8 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
     return new Set(nums).size !== nums.length
   })()
 
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
+
   const canStart = canProceedStep1 && (targetAssignment === 'auto' || (allManualAssigned && !manualHasDuplicates))
 
   // --- Pill helper ---
@@ -187,7 +191,7 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
   })
 
   // --- Start handler ---
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     const players: KillerPlayer[] = orderedSelected.map((pid) => {
@@ -227,6 +231,16 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
 
     const stored = createKillerMatchShell(players, config, assignments, structure)
     onStart(stored.id)
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playersForVerify = orderedSelected.map((pid) => {
+      const profile = mixedList.find((p) => p.id === pid)
+      const guest = guests.find((g) => g.id === pid)
+      return { id: pid, name: profile?.name ?? guest?.name ?? pid, color: profile?.color }
+    })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   // ===== RENDER =====
@@ -715,6 +729,14 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
           )}
         </div>
       </div>
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

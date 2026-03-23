@@ -6,6 +6,8 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getProfiles } from '../storage'
 import type { CTFStructure, CTFMultiplierMode, CTFMatchConfig, CTFSequenceMode } from '../types/captureTheField'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 type Props = {
   onCancel?: () => void
@@ -122,6 +124,8 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
     setOrder((o) => dedupeIds([...o, gid]))
   }
 
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
+
   const canStart = selected.length >= 2 && selected.length <= maxPlayers
 
   const pill = (active: boolean, disabled = false): React.CSSProperties => ({
@@ -139,7 +143,7 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
     } : {}),
   })
 
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     const orderedPlayers = order
@@ -161,6 +165,18 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
     const config: CTFMatchConfig = { multiplierMode, rotateOrder, retryZeroDrawFields, sequenceMode }
 
     onStart?.({ players: orderedPlayers, structure, config })
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playersForVerify = order
+      .filter((pid) => selected.includes(pid))
+      .map((pid) => {
+        const profile = mixedList.find((p) => p.id === pid)
+        const guest = guests.find((g) => g.id === pid)
+        return { id: pid, name: profile?.name ?? guest?.name ?? pid, color: (profile as any)?.color }
+      })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   return (
@@ -447,6 +463,14 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
           </button>
         </div>
       </div>
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

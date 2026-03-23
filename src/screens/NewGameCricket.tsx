@@ -4,6 +4,8 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getProfiles } from '../storage'
 import { CricketSetup } from "./newgame/../../types/cricket"
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 
 type Props = {
@@ -113,7 +115,37 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
     setOrder((o) => dedupeIds([...o, gid]))
   }
 
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
+
   const canStart = selected.length >= 1 && selected.length <= maxPlayers
+
+  const handleStartConfirmed = () => {
+    if (!canStart) return
+    const ids = dedupeIds(order).filter((pid) => selected.includes(pid))
+    const idToGuest = new Map(guests.map(g => [g.id, g]))
+    const idToProfile = new Map(profiles.map(p => [p.id, p]))
+    const players = ids.map((pid) => {
+      const g = idToGuest.get(pid)
+      if (g) return { id: g.id, name: g.name, isGuest: true, color: g.color }
+      const pr = idToProfile.get(pid)!
+      return { id: pr.id, name: pr.name }
+    })
+    onStart?.({ cfg, players, orderIds: ids, targetWins })
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const ids = dedupeIds(order).filter((pid) => selected.includes(pid))
+    const idToGuest = new Map(guests.map(g => [g.id, g]))
+    const idToProfile = new Map(profiles.map(p => [p.id, p]))
+    const playersForVerify = ids.map((pid) => {
+      const g = idToGuest.get(pid)
+      if (g) return { id: g.id, name: g.name, color: g.color }
+      const pr = idToProfile.get(pid)!
+      return { id: pr.id, name: pr.name }
+    })
+    requestStart(playersForVerify, handleStartConfirmed)
+  }
 
   const pillActive: React.CSSProperties = {
     ...styles.pill,
@@ -203,23 +235,20 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
         <button
           style={{ ...styles.backBtn, ...(canStart ? { borderColor: isArcade ? colors.accent : '#111827', background: isArcade ? colors.accent : '#111827', color: '#fff', fontWeight: 700 } : {}) }}
           disabled={!canStart}
-          onClick={() => {
-            if (!canStart) return
-            const ids = dedupeIds(order).filter((pid) => selected.includes(pid))
-            const idToGuest = new Map(guests.map(g => [g.id, g]))
-            const idToProfile = new Map(profiles.map(p => [p.id, p]))
-            const players = ids.map((pid) => {
-              const g = idToGuest.get(pid)
-              if (g) return { id: g.id, name: g.name, isGuest: true, color: g.color }
-              const pr = idToProfile.get(pid)!
-              return { id: pr.id, name: pr.name }
-            })
-            onStart?.({ cfg, players, orderIds: ids, targetWins })
-          }}
+          onClick={handleStart}
         >
           Spiel starten
         </button>
       </div>
+
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }

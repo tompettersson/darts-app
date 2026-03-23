@@ -10,6 +10,8 @@ import { useTheme } from '../ThemeProvider'
 import type { StrTargetNumber, StrRingMode, StrBullMode, StrBullPosition } from '../types/straeusschen'
 import type { StrMode, StrNumberOrder, StrTurnOrder, StrStructure, StrPlayer } from '../dartsStraeusschen'
 import { getTargetLabel } from '../dartsStraeusschen'
+import PasswordVerifyModal from '../components/PasswordVerifyModal'
+import { usePasswordGatedStart } from '../hooks/usePasswordGatedStart'
 
 type Props = {
   onCancel?: () => void
@@ -62,6 +64,8 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
   const [guests, setGuests] = useState<GuestPick[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [order, setOrder] = useState<string[]>([])
+
+  const { pendingPlayers, requestStart, onVerified, onCancelled, skipPlayerId } = usePasswordGatedStart()
 
   const maxPlayers = 8
   const canStart = selected.length >= 1
@@ -131,7 +135,7 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
     setOrder(o => dedupeIds([...o, gid]))
   }
 
-  const handleStart = () => {
+  const handleStartConfirmed = () => {
     if (!canStart) return
 
     const playerIds = dedupeIds(order).filter(pid => selected.includes(pid))
@@ -162,6 +166,20 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
       bullMode: bullRelevant ? bullMode : undefined,
       bullPosition: (mode === 'all' && numberOrder === 'fixed') ? bullPosition : undefined,
     })
+  }
+
+  const handleStart = () => {
+    if (!canStart) return
+    const playerIds = dedupeIds(order).filter(pid => selected.includes(pid))
+    const idToGuest = new Map(guests.map(g => [g.id, g]))
+    const idToProfile = new Map(profiles.map(p => [p.id, p]))
+    const playersForVerify = playerIds.map(pid => {
+      const g = idToGuest.get(pid)
+      if (g) return { id: g.id, name: g.name, color: g.color }
+      const pr = idToProfile.get(pid)!
+      return { id: pr.id, name: pr.name, color: pr.color }
+    })
+    requestStart(playersForVerify, handleStartConfirmed)
   }
 
   // Pill styles
@@ -420,6 +438,15 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
           </div>
         </div>
       </div>
+
+      {pendingPlayers && (
+        <PasswordVerifyModal
+          players={pendingPlayers.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+          skipPlayerId={skipPlayerId}
+          onSuccess={onVerified}
+          onCancel={onCancelled}
+        />
+      )}
     </div>
   )
 }
