@@ -388,7 +388,7 @@ module.exports = async (req, res) => {
       case 'transaction': {
         for (const stmt of body.statements) {
           const pgSQL = convertSQL(stmt.sql)
-          await db(pgSQL, stmt.params)
+          await db.query(pgSQL, stmt.params)
         }
         return res.json({ data: null })
       }
