@@ -222,6 +222,9 @@ export default function App() {
   const { theme, setTheme, colors, isArcade } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
+  // Auth
+  const auth = useAuth()
+
   // SQLite Loading State
   const [dbLoading, setDbLoading] = useState(true)
 
@@ -529,8 +532,6 @@ export default function App() {
   }
 
   // ---------- Auth Gate ----------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const auth = useAuth()
   if (!auth.user) {
     return <LoginScreen />
   }
