@@ -2338,9 +2338,27 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ ...styles.sub, textAlign: 'center' }}>
-              Gäste fügst du direkt im Spiel unter "Spieler" hinzu.
-            </div>
+            {/* Angemeldete Spieler auf diesem Gerät */}
+            {auth.verifiedPlayers.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+                {auth.verifiedPlayers.map(p => (
+                  <span key={p.profileId} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '3px 10px', borderRadius: 999,
+                    background: colors.bgMuted, border: `1px solid ${colors.border}`,
+                    fontSize: 12, fontWeight: 600, color: colors.fgDim,
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 9999, background: '#22c55e', flexShrink: 0 }} />
+                    {p.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {auth.isGuest && (
+              <div style={{ ...styles.sub, textAlign: 'center', marginTop: 8 }}>
+                Gast-Modus: Spiele werden nicht gespeichert.
+              </div>
+            )}
           </div>
         </div>
       </div>

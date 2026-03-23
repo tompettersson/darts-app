@@ -10,6 +10,13 @@ export type AuthUser = {
   sessionToken?: string
 }
 
+/** A player verified on this device (co-authenticated) */
+export type VerifiedPlayer = {
+  profileId: string
+  name: string
+  color?: string
+}
+
 type AuthContextType = {
   user: AuthUser | null
   login: (profileId: string, name: string, password: string, isAdmin: boolean) => Promise<boolean>
@@ -18,9 +25,18 @@ type AuthContextType = {
   isLoggedIn: boolean
   isAdmin: boolean
   isGuest: boolean
+  /** All players verified on this device (main user + co-authenticated) */
+  verifiedPlayers: VerifiedPlayer[]
+  /** Add a player to the verified list (after password check during game start) */
+  addVerifiedPlayer: (player: VerifiedPlayer) => void
+  /** Check if a player is already verified on this device */
+  isPlayerVerified: (profileId: string) => boolean
+  /** Remove a single co-authenticated player */
+  removeVerifiedPlayer: (profileId: string) => void
 }
 
 const LS_KEY = 'darts-auth-user'
+const LS_VERIFIED = 'darts-verified-players'
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
@@ -33,7 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null
   })
 
-  // Persist to LocalStorage
+  const [verifiedPlayers, setVerifiedPlayers] = useState<VerifiedPlayer[]>(() => {
+    try {
+      const stored = localStorage.getItem(LS_VERIFIED)
+      if (stored) return JSON.parse(stored)
+    } catch {}
+    return []
+  })
+
+  // Persist user to LocalStorage
   useEffect(() => {
     if (user && !user.isGuest) {
       localStorage.setItem(LS_KEY, JSON.stringify(user))
@@ -42,15 +66,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
+  // Persist verified players to LocalStorage
+  useEffect(() => {
+    if (verifiedPlayers.length > 0) {
+      localStorage.setItem(LS_VERIFIED, JSON.stringify(verifiedPlayers))
+    } else {
+      localStorage.removeItem(LS_VERIFIED)
+    }
+  }, [verifiedPlayers])
+
   // Validate stored session on app start
   useEffect(() => {
     if (!user?.sessionToken || user.isGuest) return
     validateSession(user.sessionToken).then(valid => {
       if (!valid) {
-        // Session expired or invalidated (logged in elsewhere)
         console.warn('[Auth] Session ungültig — bitte erneut anmelden')
         setUser(null)
+        setVerifiedPlayers([])
         localStorage.removeItem(LS_KEY)
+        localStorage.removeItem(LS_VERIFIED)
       }
     }).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,6 +94,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await verifyPassword(profileId, password)
       if (result.valid && result.sessionToken) {
         setUser({ profileId, name, isAdmin, isGuest: false, sessionToken: result.sessionToken })
+        // Main user is always in verified list
+        setVerifiedPlayers([{ profileId, name }])
         return true
       }
       return false
@@ -71,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginAsGuest = useCallback(() => {
     setUser({ profileId: 'guest', name: 'Gast', isAdmin: false, isGuest: true })
+    setVerifiedPlayers([])
   }, [])
 
   const logout = useCallback(async () => {
@@ -78,8 +115,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try { await logoutSession(user.sessionToken) } catch {}
     }
     setUser(null)
+    setVerifiedPlayers([])
     localStorage.removeItem(LS_KEY)
+    localStorage.removeItem(LS_VERIFIED)
   }, [user])
+
+  const addVerifiedPlayer = useCallback((player: VerifiedPlayer) => {
+    setVerifiedPlayers(prev => {
+      if (prev.some(p => p.profileId === player.profileId)) return prev
+      return [...prev, player]
+    })
+  }, [])
+
+  const isPlayerVerified = useCallback((profileId: string): boolean => {
+    return verifiedPlayers.some(p => p.profileId === profileId)
+  }, [verifiedPlayers])
+
+  const removeVerifiedPlayer = useCallback((profileId: string) => {
+    setVerifiedPlayers(prev => prev.filter(p => p.profileId !== profileId))
+  }, [])
 
   const value: AuthContextType = {
     user,
@@ -89,6 +143,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoggedIn: !!user && !user.isGuest,
     isAdmin: !!user?.isAdmin,
     isGuest: !!user?.isGuest,
+    verifiedPlayers,
+    addVerifiedPlayer,
+    isPlayerVerified,
+    removeVerifiedPlayer,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -2,6 +2,7 @@
 // Sequential password verification for multi-player game start
 import React, { useState, useEffect, useRef } from 'react'
 import { verifyPassword } from '../auth/api'
+import { useAuth } from '../auth/AuthContext'
 import { useTheme } from '../ThemeProvider'
 
 type PlayerToVerify = {
@@ -19,8 +20,14 @@ type Props = {
 
 export default function PasswordVerifyModal({ players, skipPlayerId, onSuccess, onCancel }: Props) {
   const { colors, isArcade } = useTheme()
-  // Filter: skip logged-in user and guests
-  const toVerify = players.filter(p => p.id !== skipPlayerId && !p.id.startsWith('guest-') && !p.id.startsWith('temp-'))
+  const { isPlayerVerified, addVerifiedPlayer } = useAuth()
+  // Filter: skip logged-in user, guests, and already-verified players on this device
+  const toVerify = players.filter(p =>
+    p.id !== skipPlayerId &&
+    !p.id.startsWith('guest-') &&
+    !p.id.startsWith('temp-') &&
+    !isPlayerVerified(p.id)
+  )
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [password, setPassword] = useState('')
@@ -50,8 +57,10 @@ export default function PasswordVerifyModal({ players, skipPlayerId, onSuccess, 
     setError('')
 
     try {
-      const valid = await verifyPassword(current.id, password)
-      if (valid) {
+      const result = await verifyPassword(current.id, password)
+      if (result.valid) {
+        // Add to verified players on this device (won't need password again)
+        addVerifiedPlayer({ profileId: current.id, name: current.name, color: current.color })
         setPassword('')
         if (currentIndex + 1 >= toVerify.length) {
           onSuccess()
