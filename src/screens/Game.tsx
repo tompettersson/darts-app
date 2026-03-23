@@ -1162,6 +1162,28 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     setLastVisitByPlayer({})
   }
 
+  // Separate undo for last visit only (mobile input uses this)
+  const handleUndoLastVisit = () => {
+    if (isPaused || current.length > 0) return // Only when no current darts
+    if (!leg || !matchStored) return
+    const lastVisitIdx = events.map((e, i) => ({ e, i }))
+      .filter(({ e }) => isVisitAdded(e) && e.legId === leg.legId)
+      .pop()?.i
+    if (lastVisitIdx === undefined) return
+    const removeCount = events.length - lastVisitIdx
+    const newEvents = events.slice(0, lastVisitIdx)
+    cancelDebouncedAnnounce()
+    if (multiplayer?.enabled) {
+      multiplayer.undo(removeCount)
+    } else {
+      persistEvents(matchStored.id, newEvents)
+      setEvents(newEvents)
+    }
+    setCurrent([])
+    setFlashByPlayer({})
+    setLastVisitByPlayer({})
+  }
+
   const confirmVisit = (forcedDarts?: Dart[]) => {
     try {
       if (isPaused) return
@@ -1899,7 +1921,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
               {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug — warte...
             </div>
           )}
-          <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} />
+          <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
@@ -2171,7 +2193,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
                       {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
                     </div>
                   )}
-                  <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} compact={true} />
+                  <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} compact={true} />
                 </div>
               </div>
             )

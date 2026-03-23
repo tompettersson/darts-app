@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import type { Bed } from '../darts501'
 import { startListening, isSpeechInputSupported, type DartResult } from '../speechInput'
 import DartboardInput from './DartboardInput'
+import MobileScoreInput from './MobileScoreInput'
 
 type InputMode = 'keyboard' | 'dartboard'
 
@@ -18,6 +19,7 @@ type Props = {
   thrownDarts?: ThrownDart[] // Actual dart details for slot display
   theme?: 'light' | 'arcade'
   onUndoLastDart?: () => void // Backspace: letzten Dart in aktueller Aufnahme rückgängig
+  onUndoLastVisit?: () => void // Letzte bestätigte Aufnahme rückgängig
   compact?: boolean // Kompaktes quadratisches Layout für Arcade-Modus
 }
 
@@ -102,7 +104,7 @@ function dartSlotColorDark(d: ThrownDart): { bg: string; border: string; text: s
   return { bg: '#172554', border: '#60a5fa', text: '#93c5fd' }
 }
 
-export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, theme = 'light', onUndoLastDart, compact = false }: Props) {
+export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, theme = 'light', onUndoLastDart, onUndoLastVisit, compact = false }: Props) {
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'processing'>('idle')
   const [voiceMode, setVoiceMode] = useState<1 | 3 | null>(null)
@@ -110,8 +112,31 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
   const stopListeningRef = useRef<(() => void) | null>(null)
   const [inputMode, setInputMode] = useState<InputMode>('keyboard')
   const [numBufDisplay, setNumBufDisplay] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Detect narrow screens for mobile input
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 499px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const dark = theme === 'arcade'
+
+  // Mobile: render compact 4x4 grid
+  if (isMobile) {
+    return (
+      <MobileScoreInput
+        onThrow={onThrow}
+        dartsThrown={dartsThrown}
+        thrownDarts={thrownDarts}
+        onUndoLastDart={onUndoLastDart}
+        onUndoLastVisit={onUndoLastVisit}
+      />
+    )
+  }
 
   // Speech Recognition Support prüfen
   const speechSupported = isSpeechInputSupported()
