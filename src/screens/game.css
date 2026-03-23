@@ -783,9 +783,17 @@ html, body, #root {
   .g-sub, .g-avg {
     font-size: 11px;
   }
-  /* Hide chart on mobile in-game to save space */
+  /* Hide chart and desktop toolbar on mobile to save space */
   .g-chart-mobile-hide {
     display: none !important;
+  }
+  /* Compact player cards: hide dart columns, show only score */
+  .g-player-darts-col {
+    display: none !important;
+  }
+  .g-player-grid {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
   }
   .g-page {
     gap: 8px;

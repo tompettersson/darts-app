@@ -271,7 +271,7 @@ function PlayerTurnCard({
       fontSize: 12,
       fontWeight: 700,
     },
-    grid: { display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'stretch' },
+    grid: { display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'stretch' } as React.CSSProperties,
     col: { display: 'grid', gap: 6, alignContent: 'start' },
     colTitle: { fontSize: 12, opacity: 0.7, fontWeight: 600 },
     bubble: {
@@ -337,8 +337,8 @@ function PlayerTurnCard({
         {isActive && <div style={{ ...s.pill, marginLeft: 8 }}>am Zug</div>}
       </div>
 
-      <div style={s.grid}>
-        <div style={s.col}>
+      <div style={s.grid} className="g-player-grid">
+        <div style={s.col} className="g-player-darts-col">
           <div style={s.colTitle}>Aktuelle Würfe</div>
           {cur.map((v, i) => (
             <div key={i} style={s.bubble} className={v != null ? 'dart-slot-fill' : undefined}>
@@ -393,7 +393,7 @@ function PlayerTurnCard({
           })()}
         </div>
 
-        <div style={s.col}>
+        <div style={s.col} className="g-player-darts-col">
           <div style={s.colTitle}>Letzte Aufnahme</div>
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -2201,9 +2201,9 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         </div>
       )}
 
-      {/* Manuelle Steuerung - nur im Classic-Modus */}
+      {/* Manuelle Steuerung - nur im Classic-Modus, versteckt auf Mobile (MobileScoreInput hat eigene Buttons) */}
       {!isArcade && (
-        <div className="g-toolbar">
+        <div className="g-toolbar g-chart-mobile-hide">
           <button className="g-btn" onClick={() => setCurrent((l) => l.slice(0, -1))} disabled={current.length === 0 || isPaused}>
             ← Back
           </button>
