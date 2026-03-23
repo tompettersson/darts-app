@@ -63,6 +63,10 @@ import {
   type StoredMatch,
 } from './storage'
 
+// Auth
+import { useAuth } from './auth/AuthContext'
+const LoginScreen = React.lazy(() => import('./screens/LoginScreen'))
+
 // X01 Engine Types
 import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501'
 
@@ -522,6 +526,13 @@ export default function App() {
         </div>
       </div>
     )
+  }
+
+  // ---------- Auth Gate ----------
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const auth = useAuth()
+  if (!auth.user) {
+    return <LoginScreen />
   }
 
   // ---------- View Routing ----------

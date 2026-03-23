@@ -237,6 +237,21 @@ export async function startupWithSQLite(): Promise<{
 
   const dataLoaded = await loadAllDataFromSQLite()
 
+  // One-time: migrate passwords for all profiles
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'migrate-passwords' }),
+    })
+    const migResult = await res.json()
+    if (migResult.migrated) {
+      console.debug(`[Auth] Passwörter migriert: ${migResult.count} Profile`)
+    }
+  } catch (e) {
+    console.warn('[Auth] Passwort-Migration übersprungen:', e)
+  }
+
   console.debug('[App Startup] Abgeschlossen')
   return { dbInit, dataLoaded }
 }

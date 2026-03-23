@@ -209,7 +209,7 @@ export function getDBStatus(): DBStatus {
  * Gibt die aktuelle Datenbankversion zurück
  */
 export function getDBVersion(): number {
-  return 10 // Fixed — managed by migrations
+  return 11 // Fixed — managed by migrations
 }
 
 /**

@@ -1,7 +1,7 @@
 // src/db/schema.ts
 // SQLite Schema für Darts 501 Engine
 
-export const CURRENT_DB_VERSION = 10
+export const CURRENT_DB_VERSION = 11
 
 // ============================================================================
 // Core Tables
@@ -982,6 +982,18 @@ export const MIGRATIONS: Migration[] = [
     ],
     down: [
       'DROP TABLE IF EXISTS cricket_player_stats',
+    ],
+  },
+  {
+    version: 11,
+    name: 'add_auth_columns',
+    up: [
+      'ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password_hash TEXT',
+      'ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_admin INTEGER DEFAULT 0',
+    ],
+    down: [
+      'ALTER TABLE profiles DROP COLUMN IF EXISTS password_hash',
+      'ALTER TABLE profiles DROP COLUMN IF EXISTS is_admin',
     ],
   },
 ]
