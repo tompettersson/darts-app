@@ -1954,7 +1954,7 @@ export default function App() {
 
   // ---------- PROFILE / BACKUP (bleibt im Hauptmenü) ----------
 
-  if (view === 'create-profile') {
+  if (view === 'create-profile' && !auth.isGuest) {
     return <div className="screen-enter" key="create-profile"><CreateProfile onCancel={() => setView('profiles-menu')} onDone={() => setView('profiles-menu')} /></div>
   }
 
@@ -2098,8 +2098,10 @@ export default function App() {
 
   if (view === 'profiles-menu') {
     const profilesItems: PickerItem[] = [
-      { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen', icon: <span style={{ fontSize: 20 }}>{'\u270F\uFE0F'}</span> },
-      { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen', icon: <span style={{ fontSize: 20 }}>{'\u2795'}</span> },
+      ...(!auth.isGuest ? [
+        { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen', icon: <span style={{ fontSize: 20 }}>{'\u270F\uFE0F'}</span> },
+        { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen', icon: <span style={{ fontSize: 20 }}>{'\u2795'}</span> },
+      ] : []),
       { id: 'settings', label: 'Einstellungen', sub: 'Theme, Stimme', icon: <MenuIconSettings /> },
     ]
 
@@ -2129,15 +2131,19 @@ export default function App() {
             <div style={styles.centerInner}>
               <div style={styles.card}>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <button onClick={() => setView('profiles')} style={styles.tile}>
-                    <div style={styles.title}>Profil bearbeiten</div>
-                    <div style={styles.sub}>Umbenennen & löschen</div>
-                  </button>
+                  {!auth.isGuest && (
+                    <>
+                      <button onClick={() => setView('profiles')} style={styles.tile}>
+                        <div style={styles.title}>Profil bearbeiten</div>
+                        <div style={styles.sub}>Umbenennen & löschen</div>
+                      </button>
 
-                  <button onClick={() => setView('create-profile')} style={styles.tile}>
-                    <div style={styles.title}>Neues Profil</div>
-                    <div style={styles.sub}>Spieler anlegen</div>
-                  </button>
+                      <button onClick={() => setView('create-profile')} style={styles.tile}>
+                        <div style={styles.title}>Neues Profil</div>
+                        <div style={styles.sub}>Spieler anlegen</div>
+                      </button>
+                    </>
+                  )}
 
                   <button onClick={() => setView('settings')} style={styles.tile}>
                     <div style={styles.title}>Einstellungen</div>
