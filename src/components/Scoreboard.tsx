@@ -116,7 +116,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
 
   // Detect narrow screens for mobile input
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 499px)')
+    const mq = window.matchMedia('(max-width: 599px)')
     setIsMobile(mq.matches)
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
     mq.addEventListener('change', handler)

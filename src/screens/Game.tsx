@@ -1889,9 +1889,9 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
             })}
           </div>
 
-          {/* Score Progression Chart */}
+          {/* Score Progression Chart — hidden on mobile to save space */}
           {chartData && (
-            <div style={{
+            <div className="g-chart-mobile-hide" style={{
               marginTop: 8,
               borderRadius: 12,
               overflow: 'hidden',

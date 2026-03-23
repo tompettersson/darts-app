@@ -224,6 +224,17 @@ html, body, #root {
 .g-toolbar {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 599px) {
+  .g-toolbar {
+    gap: 4px;
+  }
+  .g-toolbar .g-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
 }
 
 /* Utility */
@@ -747,16 +758,38 @@ html, body, #root {
 }
 
 /* ===== Responsive: Player Grid auf Mobile ===== */
-@media (max-width: 520px) {
+@media (max-width: 599px) {
   .g-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 6px;
+  }
+  .g-card {
+    padding: 8px;
+    gap: 6px;
   }
   .g-mainRow {
-    grid-template-columns: 1fr 80px;
+    grid-template-columns: 1fr 60px;
+    gap: 6px;
   }
   .g-bigNum {
-    font-size: 28px;
+    font-size: 26px;
+  }
+  .g-nameRow {
+    font-size: 14px;
+  }
+  .g-meta {
+    font-size: 11px;
+  }
+  .g-sub, .g-avg {
+    font-size: 11px;
+  }
+  /* Hide chart on mobile in-game to save space */
+  .g-chart-mobile-hide {
+    display: none !important;
+  }
+  .g-page {
+    gap: 8px;
+    padding: 8px;
   }
   .g-modal {
     padding: 10px;
