@@ -653,11 +653,11 @@ export function getFinishedNon121Matches(): StoredMatch[] {
 }
 
 /** Nur falls du mal ein leeres Shell-Match brauchst. */
-export function createMatchShell(args: {
+export async function createMatchShell(args: {
   id?: string
   title: string
   playerIds: string[]
-}): StoredMatch {
+}): Promise<StoredMatch> {
   const matchId = args.id ?? id()
   const stored: StoredMatch = {
     id: matchId,
@@ -674,18 +674,22 @@ export function createMatchShell(args: {
   saveMatches(list)
   setLastOpenMatchId(matchId)
 
-  // Async SQLite save mit Error-Tracking
-  dbSaveX01Match({
-    id: stored.id,
-    title: stored.title,
-    matchName: stored.matchName ?? null,
-    notes: stored.notes ?? null,
-    createdAt: stored.createdAt,
-    finished: stored.finished ?? false,
-    finishedAt: null,
-    events: stored.events,
-    playerIds: stored.playerIds,
-  }).catch(err => trackDBError('x01-create', stored.id, err))
+  // Await DB write to ensure match is saved before gameplay starts
+  try {
+    await dbSaveX01Match({
+      id: stored.id,
+      title: stored.title,
+      matchName: stored.matchName ?? null,
+      notes: stored.notes ?? null,
+      createdAt: stored.createdAt,
+      finished: stored.finished ?? false,
+      finishedAt: null,
+      events: stored.events,
+      playerIds: stored.playerIds,
+    })
+  } catch (err) {
+    trackDBError('x01-create', stored.id, err)
+  }
 
   return stored
 }
