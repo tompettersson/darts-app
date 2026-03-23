@@ -1,7 +1,7 @@
 // src/hooks/useSQLStats.ts
 // Hook zum Laden aller SQL-basierten Statistiken für einen Spieler
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   getGeneralPlayerStats,
   getX01FullStats,
@@ -209,15 +209,17 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     error: null,
     data: emptyData,
   })
-  const [loadedGroups, setLoadedGroups] = useState<LoadedGroups>(new Set())
+  const loadedGroupsRef = useRef<LoadedGroups>(new Set())
+  const [loadTrigger, setLoadTrigger] = useState(0) // used to re-trigger effects
   const [currentPlayerId, setCurrentPlayerId] = useState<string | undefined>()
 
   useEffect(() => {
     // Player changed → reset
     if (playerId !== currentPlayerId) {
       setCurrentPlayerId(playerId)
-      setLoadedGroups(new Set())
+      loadedGroupsRef.current = new Set()
       setState({ loading: true, error: null, data: emptyData })
+      setLoadTrigger(t => t + 1)
     }
   }, [playerId, currentPlayerId])
 
@@ -229,10 +231,9 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
 
     // Determine which groups this tab needs
     const needed = getGroupsForTab(activeTab)
-    const missing = needed.filter(g => !loadedGroups.has(g))
+    const missing = needed.filter(g => !loadedGroupsRef.current.has(g))
 
     if (missing.length === 0) {
-      // All data for this tab already loaded
       setState(prev => ({ ...prev, loading: false }))
       return
     }
@@ -245,27 +246,17 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
 
       try {
         const partial: Partial<SQLStatsData> = {}
-
-        // Load only missing groups in parallel
-        const loaders: Promise<void>[] = []
-
-        for (const group of missing) {
-          loaders.push(loadGroup(pid, group, partial))
-        }
-
-        await Promise.all(loaders)
+        await Promise.all(missing.map(g => loadGroup(pid, g, partial)))
 
         if (!cancelled) {
-          setLoadedGroups(prev => {
-            const next = new Set(prev)
-            for (const g of missing) next.add(g)
-            return next
-          })
+          for (const g of missing) loadedGroupsRef.current.add(g)
           setState(prev => ({
             loading: false,
             error: null,
             data: { ...prev.data, ...partial },
           }))
+          // Trigger background prefetch
+          setLoadTrigger(t => t + 1)
         }
       } catch (err) {
         if (!cancelled) {
@@ -280,33 +271,28 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     }
 
     loadTabStats()
-
     return () => { cancelled = true }
-  }, [playerId, activeTab, loadedGroups, currentPlayerId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, activeTab, loadTrigger])
 
   // Background prefetch: after initial tab loads, load ALL remaining groups
   useEffect(() => {
-    if (!playerId || state.loading || loadedGroups.size === 0) return
+    if (!playerId || state.loading || loadedGroupsRef.current.size === 0) return
 
     const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
-    const remaining = ALL_GROUPS.filter(g => !loadedGroups.has(g))
+    const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
     if (remaining.length === 0) return
 
     let cancelled = false
     const pid = playerId
 
-    // Small delay so the UI renders first
     const timer = setTimeout(async () => {
       try {
         const partial: Partial<SQLStatsData> = {}
         await Promise.all(remaining.map(g => loadGroup(pid, g, partial)))
 
         if (!cancelled) {
-          setLoadedGroups(prev => {
-            const next = new Set(prev)
-            for (const g of remaining) next.add(g)
-            return next
-          })
+          for (const g of remaining) loadedGroupsRef.current.add(g)
           setState(prev => ({
             ...prev,
             data: { ...prev.data, ...partial },
@@ -318,7 +304,8 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     }, 100)
 
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [playerId, state.loading, loadedGroups])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, state.loading, loadTrigger])
 
   return state
 }
