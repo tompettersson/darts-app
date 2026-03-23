@@ -73,6 +73,9 @@ import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501
 // Types (erased at compile time)
 import type { Preset } from './screens/NewGameStart'
 
+// Lazy-loaded Admin & Auth Screens
+const AdminPanel = React.lazy(() => import('./screens/AdminPanel'))
+
 // Lazy-loaded NewGame & Profile Screens
 const NewGame = React.lazy(() => import('./screens/NewGame'))
 const NewGameStart = React.lazy(() => import('./screens/NewGameStart'))
@@ -125,6 +128,70 @@ import type { DartsEvent as DartsEventType } from './darts501'
 import ArcadeScrollPicker, { type PickerItem } from './components/ArcadeScrollPicker'
 
 // --- Main Menu SVG Icons (24x24) ---
+// Inline password change screen
+function ChangePasswordScreen({ profileId, onBack, colors, isArcade }: {
+  profileId: string; onBack: () => void; colors: any; isArcade: boolean
+}) {
+  const styles = getThemedUI(colors, isArcade)
+  const [oldPw, setOldPw] = React.useState('')
+  const [newPw, setNewPw] = React.useState('')
+  const [confirmPw, setConfirmPw] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const [success, setSuccess] = React.useState(false)
+
+  async function handleChange() {
+    if (newPw !== confirmPw) { setError('Passwörter stimmen nicht überein'); return }
+    if (newPw.length < 2) { setError('Passwort zu kurz'); return }
+    setBusy(true); setError('')
+    try {
+      const { changePassword } = await import('./auth/api')
+      const result = await changePassword(profileId, oldPw, newPw)
+      if (result.success) { setSuccess(true); setOldPw(''); setNewPw(''); setConfirmPw('') }
+      else setError(result.error || 'Fehler')
+    } catch (e: any) { setError(e.message) }
+    setBusy(false)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', borderRadius: 8,
+    border: `1px solid ${colors.border}`, background: colors.bgInput,
+    color: colors.fg, fontSize: 15, outline: 'none', boxSizing: 'border-box',
+  }
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.headerRow}>
+        <h2 style={{ margin: 0, color: colors.fg }}>Passwort ändern</h2>
+        <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
+      </div>
+      <div style={styles.centerPage}>
+        <div style={styles.centerInner}>
+          <div style={styles.card}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <input type="password" value={oldPw} onChange={e => { setOldPw(e.target.value); setError('') }}
+                placeholder="Altes Passwort" style={inputStyle} />
+              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+                placeholder="Neues Passwort" style={inputStyle} />
+              <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleChange()}
+                placeholder="Neues Passwort bestätigen" style={inputStyle} />
+              {error && <div style={{ color: colors.error, fontSize: 13, fontWeight: 600 }}>{error}</div>}
+              {success && <div style={{ color: colors.success, fontSize: 13, fontWeight: 600 }}>Passwort geändert!</div>}
+              <button onClick={handleChange} disabled={busy || !oldPw || !newPw || !confirmPw}
+                style={{ padding: '12px', borderRadius: 8, border: 'none', background: colors.accent,
+                  color: isArcade ? '#0a0a0a' : '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                  opacity: busy ? 0.6 : 1 }}>
+                {busy ? 'Wird geändert...' : 'Passwort ändern'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const MenuIconContinue = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
     <rect x="2" y="3" width="20" height="18" rx="3" fill="#1d3557" />
@@ -211,6 +278,8 @@ type View =
   | 'profiles'
   | 'profiles-menu'
   | 'settings'
+  | 'admin'
+  | 'change-password'
   | 'multiplayer-lobby-host'
   | 'multiplayer-lobby-join'
   | 'checkout-quiz'
@@ -322,6 +391,8 @@ export default function App() {
         'settings': 'profiles-menu',
         'profiles': 'profiles-menu',
         'create-profile': 'profiles-menu',
+        'admin': 'profiles-menu',
+        'change-password': 'profiles-menu',
       }
 
       const target = backMap[view]
@@ -1891,6 +1962,25 @@ export default function App() {
     return <div className="screen-enter" key="profiles"><ProfileList onBack={() => setView('profiles-menu')} /></div>
   }
 
+  // ADMIN PANEL
+  if (view === 'admin' && auth.isAdmin) {
+    return <div className="screen-enter" key="admin"><AdminPanel onBack={() => setView('profiles-menu')} /></div>
+  }
+
+  // PASSWORT ÄNDERN
+  if (view === 'change-password' && !auth.isGuest) {
+    return (
+      <div className="screen-enter" key="change-password">
+        <ChangePasswordScreen
+          profileId={auth.user!.profileId}
+          onBack={() => setView('profiles-menu')}
+          colors={colors}
+          isArcade={isArcade}
+        />
+      </div>
+    )
+  }
+
   // EINSTELLUNGEN (Theme, Kommentator-Stimme etc.)
   if (view === 'settings') {
     // screen-enter wrapper applied below in the return
@@ -2053,11 +2143,32 @@ export default function App() {
                     <div style={styles.title}>Einstellungen</div>
                     <div style={styles.sub}>Theme, Stimme</div>
                   </button>
+
+                  {!auth.isGuest && (
+                    <button onClick={() => setView('change-password')} style={styles.tile}>
+                      <div style={styles.title}>Passwort ändern</div>
+                      <div style={styles.sub}>Eigenes Passwort ändern</div>
+                    </button>
+                  )}
+
+                  {auth.isAdmin && (
+                    <button onClick={() => setView('admin')} style={styles.tile}>
+                      <div style={styles.title}>Admin</div>
+                      <div style={styles.sub}>Spieler & Passwörter verwalten</div>
+                    </button>
+                  )}
+
+                  <button onClick={() => auth.logout()} style={{ ...styles.tile, borderColor: colors.error }}>
+                    <div style={{ ...styles.title, color: colors.error }}>Abmelden</div>
+                    <div style={styles.sub}>Zurück zum Login</div>
+                  </button>
                 </div>
               </div>
 
               <div style={{ ...styles.sub, textAlign: 'center', marginTop: 8 }}>
-                Gäste fügst du direkt beim Spielstart hinzu.
+                {auth.isGuest
+                  ? 'Du bist als Gast angemeldet. Melde dich an um Spiele zu speichern.'
+                  : `Angemeldet als ${auth.user?.name}`}
               </div>
             </div>
           )}
