@@ -195,8 +195,23 @@ export function initSpeech() {
 /**
  * Spricht Text mit ElevenLabs (oder Web Speech Fallback)
  */
+// Queue management: cancel pending speech when new one arrives
+let pendingSpeechTimer: ReturnType<typeof setTimeout> | null = null
+let speechBusy = false
+
 export async function speak(text: string, options?: { pitch?: number; rate?: number; volume?: number }) {
   if (!enabled) return
+
+  // Cancel any pending queued speech
+  if (pendingSpeechTimer) {
+    clearTimeout(pendingSpeechTimer)
+    pendingSpeechTimer = null
+  }
+
+  // If currently speaking, cancel and replace immediately
+  if (typeof speechSynthesis !== 'undefined') {
+    speechSynthesis.cancel()
+  }
 
   if (!API_KEY) {
     speakWebSpeechFallback(text, options)
@@ -208,6 +223,12 @@ export async function speak(text: string, options?: { pitch?: number; rate?: num
     currentAudio = null
   }
 
+  // If a speech API call is in flight, skip this one (don't queue)
+  if (speechBusy) return
+  speechBusy = true
+  // Auto-reset busy flag after 3s max (safety net)
+  const busyTimer = setTimeout(() => { speechBusy = false }, 3000)
+
   const cacheKey = text.toLowerCase().trim()
   if (audioCache.has(cacheKey)) {
     const audio = new Audio(audioCache.get(cacheKey)!)
@@ -217,6 +238,8 @@ export async function speak(text: string, options?: { pitch?: number; rate?: num
       console.warn('Audio playback failed:', err)
       speakWebSpeechFallback(text, options)
     })
+    speechBusy = false
+    clearTimeout(busyTimer)
     return
   }
 
@@ -259,6 +282,9 @@ export async function speak(text: string, options?: { pitch?: number; rate?: num
   } catch (err) {
     console.warn('ElevenLabs fetch error:', err)
     speakWebSpeechFallback(text, options)
+  } finally {
+    speechBusy = false
+    clearTimeout(busyTimer)
   }
 }
 

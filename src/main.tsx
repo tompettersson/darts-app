@@ -10,6 +10,10 @@ import Skeleton from './components/Skeleton'
 // Global styles (viewport, theme tokens, animations)
 import './screens/game.css'
 
+// Error logging (install global handlers)
+import { installGlobalErrorHandlers } from './errorLog'
+installGlobalErrorHandlers()
+
 // SQLite DB Module laden (registriert Console Helpers)
 import './db/init'
 

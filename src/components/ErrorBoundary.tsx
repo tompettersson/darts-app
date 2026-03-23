@@ -1,4 +1,5 @@
 import React from 'react'
+import { logError } from '../errorLog'
 
 interface Props {
   children: React.ReactNode
@@ -18,6 +19,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack)
+    logError(error, 'ErrorBoundary')
 
     // Auto-recover from stale chunk errors (happens after new deployment)
     if (error.message?.includes('Failed to fetch dynamically imported module') ||
