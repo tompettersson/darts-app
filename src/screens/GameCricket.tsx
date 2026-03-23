@@ -1140,12 +1140,13 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const ROW_H = isMobileScreen ? 26 : 32
   const headerBarHeight = isMobileScreen ? 22 : 28
 
-  // On mobile with many players, use compact layout
+  // On mobile: fit all columns within screen width
+  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 80 : 220
+  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 90 : 260
+  const mobilePlayersOnScreen = Math.min(playerCount, 4)
   const PLAYER_CARD_WIDTH = isMobileScreen
-    ? Math.max(60, Math.floor((screenWidth - 140) / Math.min(playerCount, 4)))
+    ? Math.max(50, Math.floor((screenWidth - CRICKET_CARD_WIDTH_MAX - 16) / mobilePlayersOnScreen))
     : 140
-  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 120 : 220
-  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 140 : 260
 
   function playerCardStyle(active: boolean, playerColor?: string): React.CSSProperties {
     const color = playerColor || '#f97316'
@@ -1897,7 +1898,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       {/* VIEW MODE: Classic oder Arcade */}
       {!isArcade ? (
         /* NEUES LAYOUT: Spieler oben, darunter Leg-Verlauf + Eingabe nebeneinander */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobileScreen ? 6 : 12, width: '100%', maxWidth: isMobileScreen ? screenWidth : undefined, margin: '0 auto' }}>
           {/* OBERER BEREICH: Spieler-Grid */}
           <div
             style={{
@@ -1916,7 +1917,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 // Cricket-Column: Nur Marks, keine Buttons mehr
                 return (
                   <div key={`c-${idx}`} style={cricketCardStyle}>
-                    {/* Cricket Header mit aktueller Runde */}
+                    {/* Cricket Header */}
                     <div
                       style={{
                         minHeight: headerBarHeight,
@@ -1924,26 +1925,19 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 700,
-                        fontSize: 14,
+                        fontSize: isMobileScreen ? 11 : 14,
                         lineHeight: `${headerBarHeight}px`,
-                        marginBottom: 6,
+                        marginBottom: isMobileScreen ? 2 : 6,
                         textAlign: 'center',
                         width: '100%',
-                        gap: 8,
-                        flexWrap: 'wrap',
                       }}
                     >
-                      <span>Cricket</span>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          opacity: 0.7,
-                          marginTop: 4,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
-                      </span>
+                      {isMobileScreen ? '' : 'Cricket'}
+                      {!isMobileScreen && (
+                        <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6 }}>
+                          {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
+                        </span>
+                      )}
                     </div>
 
                     {/* Target-Felder (nur Anzeige, keine Buttons) */}
@@ -1964,15 +1958,15 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                           <div
                             key={tKey}
                             style={{
-                              borderRadius: 8,
-                              padding: '4px 10px',
+                              borderRadius: isMobileScreen ? 4 : 8,
+                              padding: isMobileScreen ? '2px 4px' : '4px 10px',
                               background: isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : '#fff'),
                               border: isCrazyTarget ? '2px solid #f59e0b' : '1px solid #e5e7eb',
                               display: 'flex',
                               justifyContent: 'center',
                               alignItems: 'center',
                               fontWeight: 700,
-                              fontSize: 14,
+                              fontSize: isMobileScreen ? 12 : 14,
                               color: closedAll ? '#94a3b8' : '#111827',
                               textDecoration: closedAll ? 'line-through' : 'none',
                             }}
@@ -1990,16 +1984,17 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             })}
           </div>
 
-          {/* UNTERER BEREICH: Turn History links + Eingabe-Buttons rechts */}
+          {/* UNTERER BEREICH: Eingabe + Leg-Verlauf */}
           <div
             style={{
               display: 'flex',
-              gap: 16,
+              flexDirection: isMobileScreen ? 'column-reverse' : 'row',
+              gap: isMobileScreen ? 8 : 16,
               justifyContent: 'center',
             }}
           >
-            {/* LINKS: Turn History / Leg-Verlauf (feste Breite) */}
-            <div style={{ width: 300, flexShrink: 0, overflow: 'hidden' }}>
+            {/* Leg-Verlauf (unter Eingabe auf Mobile, links auf Desktop) */}
+            <div style={{ width: isMobileScreen ? '100%' : 300, flexShrink: 0, overflow: 'hidden', maxHeight: isMobileScreen ? 150 : undefined }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#374151' }}>
                 Leg-Verlauf
               </div>
@@ -2011,8 +2006,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
               />
             </div>
 
-            {/* RECHTS: Eingabe-Buttons (feste Breite) */}
-            <div style={{ width: 300, flexShrink: 0 }}>
+            {/* Eingabe-Buttons (oben auf Mobile, rechts auf Desktop) */}
+            <div style={{ width: isMobileScreen ? '100%' : 300, flexShrink: 0 }}>
               {/* Crazy Pro: Vorschau aller 3 Ziele */}
               {match.style === 'crazy' && match.crazyMode === 'pro' && crazyTargets && crazyTargets.length === 3 && (
                 <div
