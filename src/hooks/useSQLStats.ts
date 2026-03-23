@@ -218,6 +218,7 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     if (playerId !== currentPlayerId) {
       setCurrentPlayerId(playerId)
       loadedGroupsRef.current = new Set()
+      prefetchDoneRef.current = false
       setState({ loading: true, error: null, data: emptyData })
       setLoadTrigger(t => t + 1)
     }
@@ -276,15 +277,17 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
   }, [playerId, activeTab, loadTrigger])
 
   // Background prefetch: after initial tab loads, load ALL remaining groups
+  const prefetchDoneRef = useRef(false)
   useEffect(() => {
-    if (!playerId || state.loading || loadedGroupsRef.current.size === 0) return
+    if (!playerId || state.loading || loadedGroupsRef.current.size === 0 || prefetchDoneRef.current) return
 
     const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
     const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
-    if (remaining.length === 0) return
+    if (remaining.length === 0) { prefetchDoneRef.current = true; return }
 
     let cancelled = false
     const pid = playerId
+    prefetchDoneRef.current = true // Only run once per player
 
     const timer = setTimeout(async () => {
       try {
@@ -300,8 +303,9 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
         }
       } catch {
         // Background prefetch errors are non-critical
+        prefetchDoneRef.current = false // Allow retry on error
       }
-    }, 100)
+    }, 500) // Longer delay to let tab loads finish first
 
     return () => { cancelled = true; clearTimeout(timer) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
