@@ -697,7 +697,7 @@ export async function createMatchShell(args: {
 /**
  * Vollständiger X01-Match-Start
  */
-export function createNewMatch(cfg: NewGameConfig): StoredMatch {
+export async function createNewMatch(cfg: NewGameConfig): Promise<StoredMatch> {
   const matchId = id()
   const legId = id()
 
@@ -772,18 +772,22 @@ export function createNewMatch(cfg: NewGameConfig): StoredMatch {
   saveMatches(list)
   setLastOpenMatchId(matchId)
 
-  // Async SQLite save mit Error-Tracking
-  dbSaveX01Match({
-    id: stored.id,
-    title: stored.title,
-    matchName: stored.matchName ?? null,
-    notes: stored.notes ?? null,
-    createdAt: stored.createdAt,
-    finished: stored.finished ?? false,
-    finishedAt: null,
-    events: stored.events,
-    playerIds: stored.playerIds,
-  }).catch(err => trackDBError('x01-create', stored.id, err))
+  // Await DB write to prevent data loss
+  try {
+    await dbSaveX01Match({
+      id: stored.id,
+      title: stored.title,
+      matchName: stored.matchName ?? null,
+      notes: stored.notes ?? null,
+      createdAt: stored.createdAt,
+      finished: stored.finished ?? false,
+      finishedAt: null,
+      events: stored.events,
+      playerIds: stored.playerIds,
+    })
+  } catch (err) {
+    trackDBError('x01-create', stored.id, err)
+  }
 
   return stored
 }

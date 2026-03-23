@@ -171,9 +171,7 @@ module.exports = async (req, res) => {
 
       // ---- One-time: migrate all profiles to have passwords ----
       case 'migrate-passwords': {
-        // Check if already done
-        const meta = await db`SELECT value FROM system_meta WHERE key = 'passwords_migrated'`
-        if (meta[0]?.value === 'true') return res.json({ migrated: false, reason: 'already done' })
+        // Always check for profiles without passwords (new profiles may exist)
 
         // Get all profiles without password
         const profiles = await db`SELECT id, name FROM profiles WHERE password_hash IS NULL`

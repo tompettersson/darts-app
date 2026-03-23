@@ -705,7 +705,7 @@ export default function App() {
     return (
       <NewGameRandom
         onCancel={() => setView('new-start')}
-        onStart={({ players, structure }) => {
+        onStart={async ({ players, structure }) => {
           const result = generateRandomGame()
           console.log('Zufallsspiel:', describeRandomGame(result))
 
@@ -775,6 +775,17 @@ export default function App() {
             all.unshift(stored)
             saveMatches(all)
             setLastOpenMatchId(matchId)
+
+            // Await DB write
+            try {
+              const { dbSaveX01Match } = await import('./db/storage')
+              await dbSaveX01Match({
+                id: stored.id, title: stored.title, matchName: null, notes: null,
+                createdAt: stored.createdAt, finished: false, finishedAt: null,
+                events: stored.events, playerIds: stored.playerIds,
+              })
+            } catch (err) { console.warn('[RandomGame] DB save failed:', err) }
+
             setActiveMatchId(matchId)
             setLastActivity('x01', matchId)
             setView('game')

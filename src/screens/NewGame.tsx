@@ -193,7 +193,7 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     return `${score} ${rules} – ${names.length ? names.join(' vs ') : 'neues Match'}`
   }, [score, order, selected, mixedList, inRule, outRule, rulesDisabled])
 
-  const handleStartConfirmed = () => {
+  const handleStartConfirmed = async () => {
     if (!canStart) return
 
     // Letzte Spielkonfiguration speichern (für Quick-Start)
@@ -276,18 +276,22 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     saveMatches(all)
     setLastOpenMatchId(matchId)
 
-    // Match auch in SQLite speichern (fire-and-forget)
-    dbSaveX01Match({
-      id: stored.id,
-      title: stored.title,
-      matchName: null,
-      notes: null,
-      createdAt: stored.createdAt,
-      finished: false,
-      finishedAt: null,
-      events: stored.events,
-      playerIds: stored.playerIds,
-    }).catch(err => console.warn('[NewGame] SQLite save failed:', err))
+    // Match in DB speichern — AWAIT um Datenverlust zu verhindern
+    try {
+      await dbSaveX01Match({
+        id: stored.id,
+        title: stored.title,
+        matchName: null,
+        notes: null,
+        createdAt: stored.createdAt,
+        finished: false,
+        finishedAt: null,
+        events: stored.events,
+        playerIds: stored.playerIds,
+      })
+    } catch (err) {
+      console.warn('[NewGame] DB save failed:', err)
+    }
 
     onStarted?.(matchId)
   }

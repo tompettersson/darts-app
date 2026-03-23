@@ -125,7 +125,7 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
     return `121 DO – ${names.length ? names.join(' vs ') : 'neues Match'}`
   }, [order, selected, mixedList])
 
-  const handleStartConfirmed = () => {
+  const handleStartConfirmed = async () => {
     if (!canStart) return
 
     const playerIds = dedupeIds(order).filter((pid) => selected.includes(pid))
@@ -185,18 +185,22 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
     saveMatches(all)
     setLastOpenMatchId(matchId)
 
-    // Match auch in SQLite speichern (fire-and-forget)
-    dbSaveX01Match({
-      id: stored.id,
-      title: stored.title,
-      matchName: null,
-      notes: null,
-      createdAt: stored.createdAt,
-      finished: false,
-      finishedAt: null,
-      events: stored.events,
-      playerIds: stored.playerIds,
-    }).catch(err => console.warn('[NewGame121] SQLite save failed:', err))
+    // Await DB write
+    try {
+      await dbSaveX01Match({
+        id: stored.id,
+        title: stored.title,
+        matchName: null,
+        notes: null,
+        createdAt: stored.createdAt,
+        finished: false,
+        finishedAt: null,
+        events: stored.events,
+        playerIds: stored.playerIds,
+      })
+    } catch (err) {
+      console.warn('[NewGame121] DB save failed:', err)
+    }
 
     onStarted?.(matchId)
   }
