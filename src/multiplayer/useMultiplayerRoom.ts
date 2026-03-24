@@ -10,6 +10,8 @@ import type {
   ServerMessage,
   RoomPlayer,
   RoomPhase,
+  GameConfig,
+  PlayerOrder,
 } from './protocol'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
@@ -20,11 +22,22 @@ export type MultiplayerState = {
   phase: RoomPhase
   events: any[]
   error: string | null
+  gameConfig: GameConfig | null
+  playerOrder: string[]
+  orderType: PlayerOrder
 }
 
 export type MultiplayerActions = {
-  createRoom: (matchId: string, gameType: string, hostPlayer: PlayerRef, initialEvents: any[]) => void
-  joinRoom: (matchId: string, player: PlayerRef) => void
+  // Lobby actions (new)
+  createRoom: (hostPlayer: PlayerRef) => void
+  joinRoom: (player: PlayerRef) => void
+  addLocalPlayers: (players: PlayerRef[]) => void
+  removePlayer: (playerId: string) => void
+  setGameConfig: (config: GameConfig) => void
+  setPlayerOrder: (playerIds: string[], orderType: PlayerOrder) => void
+  startGame: (matchId: string, gameType: string, events: any[]) => void
+
+  // Game actions (existing)
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   playerReady: (playerId: string) => void
@@ -44,15 +57,15 @@ export function useMultiplayerRoom(
   const [phase, setPhase] = useState<RoomPhase>('lobby')
   const [events, setEvents] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [gameConfig, setGameConfig] = useState<GameConfig | null>(null)
+  const [playerOrder, setPlayerOrder] = useState<string[]>([])
+  const [orderType, setOrderType] = useState<PlayerOrder>('manual')
 
   const socketRef = useRef<PartySocket | null>(null)
   const onRemoteEventsRef = useRef(onRemoteEvents)
   const onRemoteUndoRef = useRef(onRemoteUndo)
-
-  // Queue for messages that arrive before socket is open
   const pendingQueueRef = useRef<ClientMessage[]>([])
 
-  // Keep callback refs current
   onRemoteEventsRef.current = onRemoteEvents
   onRemoteUndoRef.current = onRemoteUndo
 
@@ -77,7 +90,6 @@ export function useMultiplayerRoom(
     socket.addEventListener('open', () => {
       setStatus('connected')
       setError(null)
-      // Flush any queued messages
       const queue = pendingQueueRef.current
       pendingQueueRef.current = []
       for (const msg of queue) {
@@ -109,7 +121,12 @@ export function useMultiplayerRoom(
           setEvents(msg.events)
           setPlayers(msg.players)
           setPhase(msg.phase)
-          onRemoteEventsRef.current?.(msg.events, 0)
+          setGameConfig(msg.gameConfig)
+          setPlayerOrder(msg.playerOrder)
+          setOrderType(msg.orderType)
+          if (msg.events.length > 0) {
+            onRemoteEventsRef.current?.(msg.events, 0)
+          }
           break
         case 'events':
           setEvents(prev => {
@@ -118,7 +135,6 @@ export function useMultiplayerRoom(
               onRemoteEventsRef.current?.(msg.events, msg.fromIndex)
               return updated
             }
-            // Index mismatch — request full sync
             socket.send(JSON.stringify({ type: 'sync-request' }))
             return prev
           })
@@ -132,6 +148,13 @@ export function useMultiplayerRoom(
           break
         case 'phase-change':
           setPhase(msg.phase)
+          break
+        case 'game-config-update':
+          setGameConfig(msg.config)
+          break
+        case 'player-order-update':
+          setPlayerOrder(msg.playerIds)
+          setOrderType(msg.orderType)
           break
         case 'error':
           setError(msg.message)
@@ -147,7 +170,7 @@ export function useMultiplayerRoom(
     }
   }, [roomId])
 
-  // Send helper — queues if socket not ready yet
+  // Send helper
   const sendMsg = useCallback((msg: ClientMessage) => {
     const socket = socketRef.current
     if (!socket) {
@@ -157,30 +180,41 @@ export function useMultiplayerRoom(
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(msg))
     } else {
-      // Queue message — will be flushed on 'open'
-      console.debug('[Multiplayer] Socket not open yet, queuing message:', msg.type)
       pendingQueueRef.current.push(msg)
     }
   }, [])
 
-  // Actions
-  const createRoom = useCallback((matchId: string, gameType: string, hostPlayer: PlayerRef, initialEvents: any[]) => {
-    sendMsg({
-      type: 'create-room',
-      matchId,
-      gameType,
-      hostPlayer,
-      events: initialEvents,
-    })
+  // ---- Lobby Actions ----
+
+  const createRoom = useCallback((hostPlayer: PlayerRef) => {
+    sendMsg({ type: 'create-room', hostPlayer })
   }, [sendMsg])
 
-  const joinRoom = useCallback((matchId: string, player: PlayerRef) => {
-    sendMsg({
-      type: 'join-room',
-      matchId,
-      player,
-    })
+  const joinRoom = useCallback((player: PlayerRef) => {
+    sendMsg({ type: 'join-room', player })
   }, [sendMsg])
+
+  const addLocalPlayers = useCallback((localPlayers: PlayerRef[]) => {
+    sendMsg({ type: 'add-local-players', players: localPlayers })
+  }, [sendMsg])
+
+  const removePlayer = useCallback((playerId: string) => {
+    sendMsg({ type: 'remove-player', playerId })
+  }, [sendMsg])
+
+  const setGameConfigAction = useCallback((config: GameConfig) => {
+    sendMsg({ type: 'set-game-config', config })
+  }, [sendMsg])
+
+  const setPlayerOrderAction = useCallback((pids: string[], ot: PlayerOrder) => {
+    sendMsg({ type: 'set-player-order', playerIds: pids, orderType: ot })
+  }, [sendMsg])
+
+  const startGame = useCallback((matchId: string, gameType: string, initialEvents: any[]) => {
+    sendMsg({ type: 'start-game', matchId, gameType, events: initialEvents })
+  }, [sendMsg])
+
+  // ---- Game Actions ----
 
   const submitEvents = useCallback((evts: any[]) => {
     sendMsg({ type: 'submit-events', events: evts })
@@ -207,12 +241,20 @@ export function useMultiplayerRoom(
     setPhase('lobby')
     setEvents([])
     setError(null)
+    setGameConfig(null)
+    setPlayerOrder([])
+    setOrderType('manual')
   }, [])
 
-  const state: MultiplayerState = { status, players, phase, events, error }
+  const state: MultiplayerState = {
+    status, players, phase, events, error,
+    gameConfig, playerOrder, orderType,
+  }
+
   const actions: MultiplayerActions = {
-    createRoom, joinRoom, submitEvents, undo,
-    playerReady, requestSync, disconnect,
+    createRoom, joinRoom, addLocalPlayers, removePlayer,
+    setGameConfig: setGameConfigAction, setPlayerOrder: setPlayerOrderAction,
+    startGame, submitEvents, undo, playerReady, requestSync, disconnect,
   }
 
   return [state, actions]

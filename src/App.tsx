@@ -1607,11 +1607,11 @@ export default function App() {
           // Message will be queued until socket is open
           const profiles = getProfiles()
           const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
-          mpActions.createRoom(multiplayerMatchId!, multiplayerGameType ?? 'x01', {
+          mpActions.createRoom({
             playerId: multiplayerMyPlayerId,
             name: myProfile?.name ?? multiplayerMyPlayerId,
             color: myProfile?.color,
-          }, multiplayerRemoteEvents ?? [])
+          })
         }}
         onJoinRoom={() => {}}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
@@ -1647,7 +1647,7 @@ export default function App() {
           // Message will be queued until socket is open
           const profiles = getProfiles()
           const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
-          mpActions.joinRoom(code, {
+          mpActions.joinRoom({
             playerId: multiplayerMyPlayerId,
             name: myProfile?.name ?? multiplayerMyPlayerId,
             color: myProfile?.color,

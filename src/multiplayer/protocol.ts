@@ -4,23 +4,110 @@
 
 import type { PlayerRef } from '../darts501'
 
+// ---- Game Configuration ----
+
+/** Full game configuration, set by the host in the lobby */
+export type GameConfig = {
+  gameType: 'x01' | 'cricket' | 'atb' | 'ctf' | 'str' | 'highscore' | 'shanghai' | 'killer' | 'bobs27' | 'operation'
+
+  // X01
+  startScore?: number           // 501, 301, 121, etc.
+  outRule?: string               // 'double-out', 'straight-out', etc.
+  inRule?: string                // 'double-in', 'straight-in', etc.
+  bestOfLegs?: number
+  bestOfSets?: number
+  structureKind?: 'legs' | 'sets'
+
+  // Cricket
+  cricketRange?: 'short' | 'long'
+  cricketStyle?: 'standard' | 'cutthroat' | 'simple' | 'crazy'
+  cricketCrazyMode?: 'normal' | 'pro'
+  cricketCrazyScoringMode?: 'simple' | 'standard' | 'cutthroat'
+  cricketLegs?: number
+
+  // ATB
+  atbMode?: string
+  atbDirection?: string
+  atbLives?: number
+  atbLegs?: number
+
+  // CTF
+  ctfRounds?: number
+  ctfLegs?: number
+
+  // Sträußchen
+  strRingMode?: 'triple' | 'double'
+  strLegs?: number
+
+  // Highscore
+  highscoreRounds?: number
+  highscoreLegs?: number
+
+  // Shanghai
+  shanghaiLegs?: number
+
+  // Killer
+  killerLives?: number
+  killerLegs?: number
+  killerSets?: number
+
+  // Bobs 27
+  bobs27Legs?: number
+
+  // Operation
+  operationRounds?: number
+  operationLegs?: number
+}
+
+// ---- Player Order ----
+
+export type PlayerOrder = 'manual' | 'random'
+
 // ---- Client → Server Messages ----
 
-/** Host creates the match room with initial setup */
+/** Host creates the room (no game config yet, just the room) */
 export type CreateRoomMsg = {
   type: 'create-room'
-  matchId: string
-  gameType: string
   hostPlayer: PlayerRef
-  /** Initial events (MatchStarted, LegStarted, etc.) */
-  events: any[]
 }
 
 /** Guest joins an existing room */
 export type JoinRoomMsg = {
   type: 'join-room'
-  matchId: string
   player: PlayerRef
+}
+
+/** Device adds local players to the room */
+export type AddLocalPlayersMsg = {
+  type: 'add-local-players'
+  players: PlayerRef[]
+}
+
+/** Remove a player from the room */
+export type RemovePlayerMsg = {
+  type: 'remove-player'
+  playerId: string
+}
+
+/** Host sets/updates the game configuration */
+export type SetGameConfigMsg = {
+  type: 'set-game-config'
+  config: GameConfig
+}
+
+/** Host sets player order */
+export type SetPlayerOrderMsg = {
+  type: 'set-player-order'
+  playerIds: string[]    // Ordered list of player IDs
+  orderType: PlayerOrder // 'manual' or 'random'
+}
+
+/** Host starts the game (sends initial match events) */
+export type StartGameMsg = {
+  type: 'start-game'
+  matchId: string
+  gameType: string
+  events: any[]          // Initial events (MatchStarted, LegStarted, etc.)
 }
 
 /** Player submits new events (VisitAdded, LegFinished, etc.) */
@@ -50,6 +137,11 @@ export type SyncRequestMsg = {
 export type ClientMessage =
   | CreateRoomMsg
   | JoinRoomMsg
+  | AddLocalPlayersMsg
+  | RemovePlayerMsg
+  | SetGameConfigMsg
+  | SetPlayerOrderMsg
+  | StartGameMsg
   | SubmitEventsMsg
   | UndoMsg
   | PlayerReadyMsg
@@ -63,6 +155,9 @@ export type SyncMsg = {
   events: any[]
   players: RoomPlayer[]
   phase: RoomPhase
+  gameConfig: GameConfig | null
+  playerOrder: string[]       // Ordered player IDs
+  orderType: PlayerOrder
 }
 
 /** New events broadcast to all clients */
@@ -93,6 +188,19 @@ export type PhaseChangeMsg = {
   phase: RoomPhase
 }
 
+/** Game config updated by host */
+export type GameConfigUpdateMsg = {
+  type: 'game-config-update'
+  config: GameConfig
+}
+
+/** Player order updated */
+export type PlayerOrderUpdateMsg = {
+  type: 'player-order-update'
+  playerIds: string[]
+  orderType: PlayerOrder
+}
+
 /** Error from server */
 export type ErrorMsg = {
   type: 'error'
@@ -106,6 +214,8 @@ export type ServerMessage =
   | UndoBroadcastMsg
   | PlayersUpdateMsg
   | PhaseChangeMsg
+  | GameConfigUpdateMsg
+  | PlayerOrderUpdateMsg
   | ErrorMsg
 
 // ---- Shared Types ----
@@ -119,6 +229,8 @@ export type RoomPlayer = {
   isHost: boolean
   isReady: boolean
   connected: boolean
+  deviceId: string    // Which WebSocket connection owns this player
+  isLocal: boolean    // True if this player was added as a local player (not the connection owner)
 }
 
 /** Generate a short room code (6 chars, uppercase alphanumeric) */

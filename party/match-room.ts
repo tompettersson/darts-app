@@ -7,11 +7,15 @@ import type {
   ServerMessage,
   RoomPlayer,
   RoomPhase,
+  GameConfig,
+  PlayerOrder,
   SyncMsg,
   EventsBroadcastMsg,
   UndoBroadcastMsg,
   PlayersUpdateMsg,
   PhaseChangeMsg,
+  GameConfigUpdateMsg,
+  PlayerOrderUpdateMsg,
   ErrorMsg,
 } from '../src/multiplayer/protocol'
 
@@ -36,16 +40,22 @@ type ConnectionContext = {
   request: Request
 }
 
-// Connection state: which player is this connection?
-type ConnState = { playerId: string }
+// Connection state: which device and players are on this connection
+type ConnState = {
+  deviceId: string      // = ws.id
+  playerIds: string[]   // All player IDs managed by this connection
+}
 
 // Room state (in memory, backed by Durable Storage)
 type RoomState = {
-  events: unknown[] // DartsEvent[] - stored as unknown to avoid importing darts501 in party server
+  events: unknown[]
   players: RoomPlayer[]
   phase: RoomPhase
   matchId: string
   gameType: string
+  gameConfig: GameConfig | null
+  playerOrder: string[]     // Ordered list of player IDs
+  orderType: PlayerOrder
   createdAt: number
 }
 
@@ -67,7 +77,10 @@ export default class MatchRoom {
     players: [],
     phase: 'lobby',
     matchId: '',
-    gameType: 'x01',
+    gameType: '',
+    gameConfig: null,
+    playerOrder: [],
+    orderType: 'manual',
     createdAt: Date.now(),
   }
 
@@ -79,7 +92,6 @@ export default class MatchRoom {
   }
 
   async onStart() {
-    // Load state from Durable Storage on room startup
     const saved = await this.party.storage.get<RoomState>('room')
     if (saved) {
       this.state = saved
@@ -93,28 +105,39 @@ export default class MatchRoom {
   async onConnect(ws: Connection, ctx: ConnectionContext) {
     this.connections.set(ws.id, ws)
 
-    // New connection gets a sync if room is initialized
-    if (this.state.matchId) {
-      const syncMsg: SyncMsg = {
-        type: 'sync',
-        events: this.state.events as any,
-        players: this.state.players,
-        phase: this.state.phase,
+    // If room is initialized, send sync to reconnecting client
+    if (this.state.players.length > 0) {
+      // Try to reconnect: check if this device had players before
+      const connState = ws.state as ConnState | null
+      if (connState?.playerIds) {
+        for (const pid of connState.playerIds) {
+          const player = this.state.players.find(p => p.playerId === pid)
+          if (player) {
+            player.connected = true
+            player.deviceId = ws.id
+          }
+        }
+        this.broadcastPlayers()
+        this.save()
       }
-      send(ws, syncMsg)
+
+      this.sendSync(ws)
     }
   }
 
   onClose(ws: Connection) {
     this.connections.delete(ws.id)
-    const connState = ws.state as ConnState | null
-    if (connState?.playerId) {
-      const player = this.state.players.find(p => p.playerId === connState.playerId)
-      if (player) {
-        player.connected = false
-        this.broadcastPlayers()
-        this.save()
+    // Mark ALL players from this device as disconnected
+    let changed = false
+    for (const p of this.state.players) {
+      if (p.deviceId === ws.id) {
+        p.connected = false
+        changed = true
       }
+    }
+    if (changed) {
+      this.broadcastPlayers()
+      this.save()
     }
   }
 
@@ -138,6 +161,21 @@ export default class MatchRoom {
       case 'join-room':
         this.handleJoinRoom(ws, msg)
         break
+      case 'add-local-players':
+        this.handleAddLocalPlayers(ws, msg)
+        break
+      case 'remove-player':
+        this.handleRemovePlayer(ws, msg)
+        break
+      case 'set-game-config':
+        this.handleSetGameConfig(ws, msg)
+        break
+      case 'set-player-order':
+        this.handleSetPlayerOrder(ws, msg)
+        break
+      case 'start-game':
+        this.handleStartGame(ws, msg)
+        break
       case 'submit-events':
         this.handleSubmitEvents(ws, msg)
         break
@@ -148,17 +186,18 @@ export default class MatchRoom {
         this.handlePlayerReady(ws, msg)
         break
       case 'sync-request':
-        this.handleSyncRequest(ws)
+        this.sendSync(ws)
         break
       default:
-        send(ws, { type: 'error', message: `Unknown message type` })
+        send(ws, { type: 'error', message: 'Unknown message type' })
     }
   }
 
   // ---- Handlers ----
 
   private handleCreateRoom(ws: Connection, msg: ClientMessage & { type: 'create-room' }) {
-    if (this.state.matchId) {
+    // Room can only be created once
+    if (this.state.players.length > 0) {
       send(ws, { type: 'error', message: 'Room already created', code: 'ROOM_EXISTS' })
       return
     }
@@ -168,34 +207,31 @@ export default class MatchRoom {
       name: msg.hostPlayer.name ?? msg.hostPlayer.playerId,
       color: msg.hostPlayer.color,
       isHost: true,
-      isReady: true,
+      isReady: false,
       connected: true,
+      deviceId: ws.id,
+      isLocal: false,
     }
 
     this.state = {
-      events: msg.events,
+      events: [],
       players: [hostPlayer],
       phase: 'lobby',
-      matchId: msg.matchId,
-      gameType: msg.gameType,
+      matchId: '',
+      gameType: '',
+      gameConfig: null,
+      playerOrder: [hostPlayer.playerId],
+      orderType: 'manual',
       createdAt: Date.now(),
     }
 
-    ws.setState({ playerId: hostPlayer.playerId } satisfies ConnState)
-
-    const syncMsg: SyncMsg = {
-      type: 'sync',
-      events: this.state.events as any,
-      players: this.state.players,
-      phase: this.state.phase,
-    }
-    send(ws, syncMsg)
-
+    ws.setState({ deviceId: ws.id, playerIds: [hostPlayer.playerId] } satisfies ConnState)
+    this.sendSync(ws)
     this.save()
   }
 
   private handleJoinRoom(ws: Connection, msg: ClientMessage & { type: 'join-room' }) {
-    if (!this.state.matchId) {
+    if (this.state.players.length === 0) {
       send(ws, { type: 'error', message: 'Room not found', code: 'NO_ROOM' })
       return
     }
@@ -204,11 +240,23 @@ export default class MatchRoom {
     if (existing) {
       // Reconnect
       existing.connected = true
-      ws.setState({ playerId: existing.playerId } satisfies ConnState)
+      existing.deviceId = ws.id
+      const connState = (ws.state as ConnState) || { deviceId: ws.id, playerIds: [] }
+      if (!connState.playerIds.includes(existing.playerId)) {
+        connState.playerIds.push(existing.playerId)
+      }
+      connState.deviceId = ws.id
+      ws.setState(connState)
     } else {
       // New player joining
       if (this.state.phase !== 'lobby') {
         send(ws, { type: 'error', message: 'Game already started', code: 'GAME_STARTED' })
+        return
+      }
+
+      // Duplicate check
+      if (this.state.players.some(p => p.playerId === msg.player.playerId)) {
+        send(ws, { type: 'error', message: 'Spieler bereits im Raum', code: 'DUPLICATE_PLAYER' })
         return
       }
 
@@ -219,28 +267,175 @@ export default class MatchRoom {
         isHost: false,
         isReady: false,
         connected: true,
+        deviceId: ws.id,
+        isLocal: false,
       }
       this.state.players.push(newPlayer)
-      ws.setState({ playerId: newPlayer.playerId } satisfies ConnState)
+      this.state.playerOrder.push(newPlayer.playerId)
+
+      ws.setState({ deviceId: ws.id, playerIds: [newPlayer.playerId] } satisfies ConnState)
     }
 
-    // Send full sync to the joining player
-    const syncMsg: SyncMsg = {
-      type: 'sync',
-      events: this.state.events as any,
-      players: this.state.players,
-      phase: this.state.phase,
-    }
-    send(ws, syncMsg)
-
-    // Broadcast updated player list to everyone else
+    this.sendSync(ws)
     this.broadcastPlayers()
+    this.save()
+  }
+
+  private handleAddLocalPlayers(ws: Connection, msg: ClientMessage & { type: 'add-local-players' }) {
+    if (this.state.phase !== 'lobby') {
+      send(ws, { type: 'error', message: 'Can only add players in lobby', code: 'WRONG_PHASE' })
+      return
+    }
+
+    const connState = (ws.state as ConnState) || { deviceId: ws.id, playerIds: [] }
+    const added: string[] = []
+
+    for (const p of msg.players) {
+      // Duplicate check
+      if (this.state.players.some(existing => existing.playerId === p.playerId)) {
+        send(ws, { type: 'error', message: `Spieler "${p.name}" ist bereits im Raum`, code: 'DUPLICATE_PLAYER' })
+        continue
+      }
+
+      const newPlayer: RoomPlayer = {
+        playerId: p.playerId,
+        name: p.name ?? p.playerId,
+        color: p.color,
+        isHost: false,
+        isReady: false,
+        connected: true,
+        deviceId: ws.id,
+        isLocal: true,
+      }
+      this.state.players.push(newPlayer)
+      this.state.playerOrder.push(newPlayer.playerId)
+      added.push(newPlayer.playerId)
+    }
+
+    if (added.length > 0) {
+      connState.playerIds = [...(connState.playerIds || []), ...added]
+      ws.setState(connState)
+      this.broadcastPlayers()
+      this.save()
+    }
+  }
+
+  private handleRemovePlayer(ws: Connection, msg: ClientMessage & { type: 'remove-player' }) {
+    if (this.state.phase !== 'lobby') {
+      send(ws, { type: 'error', message: 'Can only remove players in lobby', code: 'WRONG_PHASE' })
+      return
+    }
+
+    const connState = ws.state as ConnState | null
+    const target = this.state.players.find(p => p.playerId === msg.playerId)
+    if (!target) return
+
+    // Only allow: own local players, or host can remove anyone
+    const isOwnPlayer = target.deviceId === ws.id
+    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
+
+    if (!isOwnPlayer && !isHost) {
+      send(ws, { type: 'error', message: 'Nicht berechtigt', code: 'UNAUTHORIZED' })
+      return
+    }
+
+    // Can't remove the host
+    if (target.isHost) {
+      send(ws, { type: 'error', message: 'Host kann nicht entfernt werden', code: 'CANNOT_REMOVE_HOST' })
+      return
+    }
+
+    this.state.players = this.state.players.filter(p => p.playerId !== msg.playerId)
+    this.state.playerOrder = this.state.playerOrder.filter(id => id !== msg.playerId)
+
+    // Update connection state
+    if (connState?.playerIds) {
+      connState.playerIds = connState.playerIds.filter(id => id !== msg.playerId)
+      ws.setState(connState)
+    }
+
+    this.broadcastPlayers()
+    this.save()
+  }
+
+  private handleSetGameConfig(ws: Connection, msg: ClientMessage & { type: 'set-game-config' }) {
+    // Only host can set config
+    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
+    if (!isHost) {
+      send(ws, { type: 'error', message: 'Nur der Host kann die Konfiguration ändern', code: 'NOT_HOST' })
+      return
+    }
+
+    this.state.gameConfig = msg.config
+    this.state.gameType = msg.config.gameType
+
+    // Reset ready status for all non-host players when config changes
+    for (const p of this.state.players) {
+      if (!p.isHost) p.isReady = false
+    }
+
+    const configMsg: GameConfigUpdateMsg = { type: 'game-config-update', config: msg.config }
+    broadcast(Array.from(this.connections.values()), configMsg)
+    this.broadcastPlayers() // Because ready status was reset
+    this.save()
+  }
+
+  private handleSetPlayerOrder(ws: Connection, msg: ClientMessage & { type: 'set-player-order' }) {
+    // Only host can set order
+    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
+    if (!isHost) {
+      send(ws, { type: 'error', message: 'Nur der Host kann die Reihenfolge ändern', code: 'NOT_HOST' })
+      return
+    }
+
+    this.state.playerOrder = msg.playerIds
+    this.state.orderType = msg.orderType
+
+    const orderMsg: PlayerOrderUpdateMsg = {
+      type: 'player-order-update',
+      playerIds: msg.playerIds,
+      orderType: msg.orderType,
+    }
+    broadcast(Array.from(this.connections.values()), orderMsg)
+    this.save()
+  }
+
+  private handleStartGame(ws: Connection, msg: ClientMessage & { type: 'start-game' }) {
+    // Only host can start
+    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
+    if (!isHost) {
+      send(ws, { type: 'error', message: 'Nur der Host kann das Spiel starten', code: 'NOT_HOST' })
+      return
+    }
+
+    if (this.state.players.length < 2) {
+      send(ws, { type: 'error', message: 'Mindestens 2 Spieler erforderlich', code: 'NOT_ENOUGH_PLAYERS' })
+      return
+    }
+
+    if (!this.state.gameConfig) {
+      send(ws, { type: 'error', message: 'Bitte zuerst Spielmodus wählen', code: 'NO_CONFIG' })
+      return
+    }
+
+    this.state.matchId = msg.matchId
+    this.state.gameType = msg.gameType
+    this.state.events = msg.events
+    this.state.phase = 'playing'
+
+    // Broadcast events + phase change to all
+    const eventsMsg: EventsBroadcastMsg = {
+      type: 'events',
+      events: msg.events as any,
+      fromIndex: 0,
+    }
+    broadcast(Array.from(this.connections.values()), eventsMsg)
+    this.broadcastPhase()
     this.save()
   }
 
   private handleSubmitEvents(ws: Connection, msg: ClientMessage & { type: 'submit-events' }) {
     if (this.state.phase === 'lobby') {
-      // Transition to playing on first events after lobby
       this.state.phase = 'playing'
       this.broadcastPhase()
     }
@@ -250,19 +445,17 @@ export default class MatchRoom {
 
     // Check if match is finished
     const lastEvent = msg.events[msg.events.length - 1] as any
-    if (lastEvent?.type === 'MatchFinished') {
+    if (lastEvent?.type === 'MatchFinished' || lastEvent?.type === 'CricketMatchFinished') {
       this.state.phase = 'finished'
       this.broadcastPhase()
     }
 
-    // Broadcast new events to all clients (including sender for confirmation)
     const broadcastMsg: EventsBroadcastMsg = {
       type: 'events',
       events: msg.events as any,
       fromIndex,
     }
     broadcast(Array.from(this.connections.values()), broadcastMsg)
-
     this.save()
   }
 
@@ -280,38 +473,32 @@ export default class MatchRoom {
       events: this.state.events as any,
     }
     broadcast(Array.from(this.connections.values()), undoMsg)
-
     this.save()
   }
 
   private handlePlayerReady(ws: Connection, msg: ClientMessage & { type: 'player-ready' }) {
     const player = this.state.players.find(p => p.playerId === msg.playerId)
     if (player) {
-      player.isReady = true
+      player.isReady = !player.isReady // Toggle
       this.broadcastPlayers()
-
-      // Check if all players are ready → start game
-      const allReady = this.state.players.length >= 2 && this.state.players.every(p => p.isReady)
-      if (allReady && this.state.phase === 'lobby') {
-        this.state.phase = 'playing'
-        this.broadcastPhase()
-      }
-
       this.save()
     }
   }
 
-  private handleSyncRequest(ws: Connection) {
+  // ---- Helpers ----
+
+  private sendSync(ws: Connection) {
     const syncMsg: SyncMsg = {
       type: 'sync',
       events: this.state.events as any,
       players: this.state.players,
       phase: this.state.phase,
+      gameConfig: this.state.gameConfig,
+      playerOrder: this.state.playerOrder,
+      orderType: this.state.orderType,
     }
     send(ws, syncMsg)
   }
-
-  // ---- Helpers ----
 
   private broadcastPlayers() {
     const msg: PlayersUpdateMsg = { type: 'players-update', players: this.state.players }
