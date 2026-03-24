@@ -665,13 +665,14 @@ export default function App() {
         }}
         onMultiplayerHost={() => {
           const profiles = getProfiles()
+          console.log('[Multiplayer Host] profiles:', profiles.length, profiles.map(p => p.name))
           if (profiles.length === 0) {
-            alert('Erstelle zuerst ein Profil unter Einstellungen')
+            showToast('Erstelle zuerst ein Profil unter Einstellungen')
             return
           }
           setMultiplayerMyPlayerId(profiles[0].id)
           setIsMultiplayerSetup(true)
-          setView('new-start')
+          // View ist schon 'new-start', step wird in NewGameStart zurückgesetzt
         }}
         onMultiplayerJoin={() => {
           const profiles = getProfiles()

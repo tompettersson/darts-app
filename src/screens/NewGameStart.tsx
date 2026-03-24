@@ -365,7 +365,10 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
 
   const handleOnlineConfirm = (index: number) => {
     const id = onlineItems[index].id
-    if (id === 'host') onMultiplayerHost?.()
+    if (id === 'host') {
+      onMultiplayerHost?.()
+      setStep('type') // Zurück zur Spielmodus-Auswahl
+    }
     else if (id === 'join') onMultiplayerJoin?.()
   }
 
@@ -824,7 +827,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <button
                   style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.host}` }}
-                  onClick={() => onMultiplayerHost?.()}
+                  onClick={() => { onMultiplayerHost?.(); setStep('type') }}
                   aria-label="Match hosten"
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
