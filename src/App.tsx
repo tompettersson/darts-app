@@ -614,7 +614,8 @@ export default function App() {
     return (
       <div className="screen-enter" key="new-start">
       <NewGameStart
-        onBack={() => setView('menu')}
+        isMultiplayerSetup={isMultiplayerSetup}
+        onBack={() => { setView('menu'); setIsMultiplayerSetup(false) }}
         onSelectPreset={(p: Preset) => {
           setPreset(p)
           setView('new-config')

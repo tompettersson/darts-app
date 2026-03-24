@@ -253,11 +253,13 @@ type Props = {
   onMultiplayerHost?: () => void
   /** Multiplayer Join */
   onMultiplayerJoin?: () => void
+  /** Zeigt an, dass wir im Multiplayer-Setup sind */
+  isMultiplayerSetup?: boolean
 }
 
 type Step = 'type' | 'preset' | 'cricket' | 'feldspiele' | 'funparty' | 'training' | 'online'
 
-export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin }: Props) {
+export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin, isMultiplayerSetup }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -397,8 +399,21 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
   return (
     <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
       {/* Zurück-Button am oberen Rand */}
+      {isMultiplayerSetup && (
+        <div style={{
+          margin: '8px 16px 0', padding: '10px 14px', borderRadius: 10,
+          background: isArcade ? '#1a2e4a' : '#eff6ff',
+          border: `1px solid ${isArcade ? '#3b82f6' : '#bfdbfe'}`,
+          color: isArcade ? '#93c5fd' : '#1d4ed8',
+          fontSize: 13, fontWeight: 700, textAlign: 'center',
+        }}>
+          Online-Match hosten — wähle einen Spielmodus
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 0' }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Neues Spiel</h2>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>
+          {isMultiplayerSetup ? 'Spielmodus wählen' : 'Neues Spiel'}
+        </h2>
         {step !== 'type' ? (
           <button style={styles.backBtn} onClick={() => setStep('type')} aria-label="Zurück" title="Zurück">← Zurück</button>
         ) : onBack ? (
