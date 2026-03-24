@@ -21,6 +21,15 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     console.error('[ErrorBoundary]', error, info.componentStack)
     logError(error, 'ErrorBoundary')
 
+    // Auto-recover from transient React render errors (e.g. orientation change race conditions)
+    if (error.message?.includes('310') ||
+        error.message?.includes('Objects are not valid as a React child') ||
+        error.message?.includes('Minified React error')) {
+      console.warn('[ErrorBoundary] Transient React error — auto-recovering...')
+      setTimeout(() => this.setState({ hasError: false, error: null }), 100)
+      return
+    }
+
     // Auto-recover from stale chunk errors (happens after new deployment)
     if (error.message?.includes('Failed to fetch dynamically imported module') ||
         error.message?.includes('Loading chunk') ||

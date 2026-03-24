@@ -356,6 +356,15 @@ export function isSpeechEnabled(): boolean {
 }
 
 /**
+ * Spricht Text OHNE die aktuelle Ansage abzubrechen.
+ * Reiht sich in die Queue ein und wartet bis die vorherige Ansage fertig ist.
+ */
+export function speakQueued(text: string, options?: { pitch?: number; rate?: number }) {
+  if (!enabled) return
+  speakWebSpeechFallback(text, options)
+}
+
+/**
  * Debounced Ansage: Wartet die angegebene Zeit ab bevor gesprochen wird.
  * Wird innerhalb der Wartezeit erneut aufgerufen, wird die vorherige
  * Ansage verworfen und nur die neue gesprochen. Verhindert "Ansage-Stau"
@@ -419,7 +428,7 @@ export function announceNextPlayer(playerName: string) {
     return
   }
   lastPlayerAnnounced = { name: playerName, time: now }
-  speak(t().nextPlayer(playerName))
+  speakQueued(t().nextPlayer(playerName))
 }
 
 let lastScoreAnnounced: { score: number; bust: boolean; time: number } | null = null
@@ -478,7 +487,7 @@ export function announcePlayerFinishArea(playerName: string, remaining: number) 
     return
   }
   lastFinishAreaAnnounced = { name: playerName, remaining, time: now }
-  speak(t().playerRemaining(playerName, remaining))
+  speakQueued(t().playerRemaining(playerName, remaining))
 }
 
 export function announceDouble(remaining: number) {

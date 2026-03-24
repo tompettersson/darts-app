@@ -185,7 +185,7 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
 
       {/* 4x4 Grid */}
       <div style={gridStyle}>
-        {/* Row 1: 1, 2, 3, Bull */}
+        {/* Row 1: 1, 2, 3, S */}
         <button style={btnBase} onClick={() => handleNumber(1)}>
           {teenMode ? '11' : '1'}
         </button>
@@ -195,16 +195,9 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
         <button style={btnBase} onClick={() => handleNumber(3)}>
           {teenMode ? '13' : '3'}
         </button>
-        <button style={{
-          ...btnBase,
-          background: isArcade ? '#2e1a1a' : '#fef2f2',
-          border: `1.5px solid ${isArcade ? '#dc2626' : '#fca5a5'}`,
-          color: isArcade ? '#fca5a5' : '#991b1b',
-        }} onClick={handleBull}>
-          B
-        </button>
+        <button style={multBtn(1)} onClick={() => handleMult(1)}>S</button>
 
-        {/* Row 2: 4, 5, 6, S */}
+        {/* Row 2: 4, 5, 6, D */}
         <button style={btnBase} onClick={() => handleNumber(4)}>
           {teenMode ? '14' : '4'}
         </button>
@@ -214,9 +207,9 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
         <button style={btnBase} onClick={() => handleNumber(6)}>
           {teenMode ? '16' : '6'}
         </button>
-        <button style={multBtn(1)} onClick={() => handleMult(1)}>S</button>
+        <button style={multBtn(2)} onClick={() => handleMult(2)}>D</button>
 
-        {/* Row 3: 7, 8, 9, D */}
+        {/* Row 3: 7, 8, 9, T */}
         <button style={btnBase} onClick={() => handleNumber(7)}>
           {teenMode ? '17' : '7'}
         </button>
@@ -226,9 +219,9 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
         <button style={btnBase} onClick={() => handleNumber(9)}>
           {teenMode ? '19' : '9'}
         </button>
-        <button style={multBtn(2)} onClick={() => handleMult(2)}>D</button>
+        <button style={multBtn(3)} onClick={() => handleMult(3)}>T</button>
 
-        {/* Row 4: 1X, 0, 20, T */}
+        {/* Row 4: 1X, 0, 20, B */}
         <button style={teenBtn} onClick={handleTeenToggle}>
           1+
         </button>
@@ -238,7 +231,14 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
         <button style={btnBase} onClick={handle20}>
           20
         </button>
-        <button style={multBtn(3)} onClick={() => handleMult(3)}>T</button>
+        <button style={{
+          ...btnBase,
+          background: isArcade ? '#2e1a1a' : '#fef2f2',
+          border: `1.5px solid ${isArcade ? '#dc2626' : '#fca5a5'}`,
+          color: isArcade ? '#fca5a5' : '#991b1b',
+        }} onClick={handleBull}>
+          B
+        </button>
       </div>
 
       {/* Undo buttons */}
