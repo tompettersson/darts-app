@@ -5,7 +5,7 @@ import { startListening, isSpeechInputSupported, type DartResult } from '../spee
 import DartboardInput from './DartboardInput'
 import MobileScoreInput from './MobileScoreInput'
 
-type InputMode = 'keyboard' | 'dartboard'
+type InputMode = 'keyboard' | 'dartboard' | 'mobile'
 
 /** Info about a thrown dart, used for slot display */
 type ThrownDart = {
@@ -465,8 +465,12 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
     return () => { if (stopListeningRef.current) stopListeningRef.current() }
   }, [])
 
+  const INPUT_MODES: InputMode[] = ['keyboard', 'dartboard', 'mobile']
+  const INPUT_MODE_LABELS: Record<InputMode, string> = { keyboard: 'Tastatur', dartboard: 'Dartscheibe', mobile: 'Numpad' }
+
   const toggleInputMode = () => {
-    setInputMode(inputMode === 'keyboard' ? 'dartboard' : 'keyboard')
+    const idx = INPUT_MODES.indexOf(inputMode)
+    setInputMode(INPUT_MODES[(idx + 1) % INPUT_MODES.length])
   }
 
   // Container-Style
@@ -659,7 +663,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
             ←
           </button>
           <div style={toggleLabelStyle}>
-            {inputMode === 'keyboard' ? 'Tastatur' : 'Dartscheibe'}
+            {INPUT_MODE_LABELS[inputMode]}
           </div>
           <button type="button" onClick={toggleInputMode} style={toggleBtnStyle} title="Zur anderen Eingabemethode wechseln" aria-label="Zur anderen Eingabemethode wechseln">
             →
@@ -980,6 +984,17 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
             </div>
           )}
         </>
+      )}
+
+      {/* Mobile Numpad Modus (auch auf PC) */}
+      {inputMode === 'mobile' && (
+        <MobileScoreInput
+          onThrow={onThrow}
+          dartsThrown={dartsThrown}
+          thrownDarts={thrownDarts}
+          onUndoLastDart={onUndoLastDart}
+          onUndoLastVisit={onUndoLastVisit}
+        />
       )}
     </div>
   )

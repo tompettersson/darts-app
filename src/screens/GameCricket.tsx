@@ -1942,7 +1942,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                       )}
                     </div>
 
-                    {/* Target-Felder (nur Anzeige, keine Buttons) */}
+                    {/* Target-Felder (klickbar als Eingabe) */}
                     <div
                       style={{
                         display: 'grid',
@@ -1957,8 +1957,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                         const isCrazyTarget = activeCrazyTarget === tKey
 
                         return (
-                          <div
+                          <button
                             key={tKey}
+                            onClick={() => addTarget(typeof t === 'number' ? t : t as 'BULL')}
                             style={{
                               borderRadius: isMobileScreen ? 4 : 8,
                               padding: isMobileScreen ? '2px 4px' : '4px 10px',
@@ -1971,11 +1972,13 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                               fontSize: isMobileScreen ? 12 : 14,
                               color: closedAll ? '#94a3b8' : '#111827',
                               textDecoration: closedAll ? 'line-through' : 'none',
+                              cursor: 'pointer',
+                              WebkitTapHighlightColor: 'transparent',
                             }}
                           >
                             {isCrazyTarget && '🎯 '}{String(t)}
                             {closedAll && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: '#64748b' }}>CLOSED</span>}
-                          </div>
+                          </button>
                         )
                       })}
                     </div>
