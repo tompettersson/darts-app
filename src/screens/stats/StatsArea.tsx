@@ -228,65 +228,59 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   if (view === 'match-history') {
     return (
       <Suspense fallback={suspenseFallback}>
-        <div style={styles.page}>
-          <div style={styles.centerPage}>
-            <div style={styles.centerInnerWide}>
-              <MatchHistory
-                onBack={() => setView('stats-menu')}
-                onOpenX01Match={(id: string) => {
-                  setDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('match-details')
-                }}
-                onOpenCricketMatch={(id: string) => {
-                  setCricketDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('cricket-match-details')
-                }}
-                onOpenATBMatch={(id: string) => {
-                  setAtbDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('atb-match-details')
-                }}
-                onOpenStrMatch={(id: string) => {
-                  setStrDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('str-match-details')
-                }}
-                onOpenHighscoreMatch={(id: string) => {
-                  setHighscoreDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('highscore-match-details')
-                }}
-                onOpenCTFMatch={(id: string) => {
-                  setCtfDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('ctf-match-details')
-                }}
-                onOpenShanghaiMatch={(id: string) => {
-                  setShanghaiDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('shanghai-match-details')
-                }}
-                onOpenKillerMatch={(id: string) => {
-                  setKillerDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('killer-match-details')
-                }}
-                onOpenBobs27Match={(id: string) => {
-                  setBobs27DetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('bobs27-match-details')
-                }}
-                onOpenOperationMatch={(id: string) => {
-                  setOperationDetailMatchId(id)
-                  setReturnFromMatchDetails('match-history')
-                  setView('operation-match-details')
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <MatchHistory
+          onBack={() => setView('stats-menu')}
+          onOpenX01Match={(id: string) => {
+            setDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('match-details')
+          }}
+          onOpenCricketMatch={(id: string) => {
+            setCricketDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('cricket-match-details')
+          }}
+          onOpenATBMatch={(id: string) => {
+            setAtbDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('atb-match-details')
+          }}
+          onOpenStrMatch={(id: string) => {
+            setStrDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('str-match-details')
+          }}
+          onOpenHighscoreMatch={(id: string) => {
+            setHighscoreDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('highscore-match-details')
+          }}
+          onOpenCTFMatch={(id: string) => {
+            setCtfDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('ctf-match-details')
+          }}
+          onOpenShanghaiMatch={(id: string) => {
+            setShanghaiDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('shanghai-match-details')
+          }}
+          onOpenKillerMatch={(id: string) => {
+            setKillerDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('killer-match-details')
+          }}
+          onOpenBobs27Match={(id: string) => {
+            setBobs27DetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('bobs27-match-details')
+          }}
+          onOpenOperationMatch={(id: string) => {
+            setOperationDetailMatchId(id)
+            setReturnFromMatchDetails('match-history')
+            setView('operation-match-details')
+          }}
+        />
       </Suspense>
     )
   }

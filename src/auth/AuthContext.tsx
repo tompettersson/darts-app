@@ -21,6 +21,8 @@ type AuthContextType = {
   user: AuthUser | null
   login: (profileId: string, name: string, password: string, isAdmin: boolean) => Promise<boolean>
   loginAsGuest: () => void
+  /** Dev-only: Login ohne Auth-Server (nur auf localhost) */
+  devLogin: (profileId: string, name: string, isAdmin: boolean) => void
   logout: () => void
   isLoggedIn: boolean
   isAdmin: boolean
@@ -37,6 +39,9 @@ type AuthContextType = {
 
 const LS_KEY = 'darts-auth-user'
 const LS_VERIFIED = 'darts-verified-players'
+
+/** Dev-Bypass: auf localhost Login ohne Auth-Server erlauben */
+export const IS_DEV_BYPASS = typeof window !== 'undefined' && window.location.hostname === 'localhost'
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
@@ -75,9 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [verifiedPlayers])
 
-  // Validate stored session on app start
+  // Validate stored session on app start (skip on localhost dev bypass)
   useEffect(() => {
     if (!user?.sessionToken || user.isGuest) return
+    if (IS_DEV_BYPASS && user.sessionToken === 'dev-bypass') return
     validateSession(user.sessionToken).then(valid => {
       if (!valid) {
         console.warn('[Auth] Session ungültig — bitte erneut anmelden')
@@ -110,6 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setVerifiedPlayers([])
   }, [])
 
+  const devLogin = useCallback((profileId: string, name: string, isAdmin: boolean) => {
+    if (!IS_DEV_BYPASS) return
+    setUser({ profileId, name, isAdmin, isGuest: false, sessionToken: 'dev-bypass' })
+    setVerifiedPlayers([{ profileId, name }])
+  }, [])
+
   const logout = useCallback(async () => {
     if (user?.sessionToken) {
       try { await logoutSession(user.sessionToken) } catch {}
@@ -139,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     login,
     loginAsGuest,
+    devLogin,
     logout,
     isLoggedIn: !!user && !user.isGuest,
     isAdmin: !!user?.isAdmin,

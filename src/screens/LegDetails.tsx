@@ -459,7 +459,7 @@ export default function LegDetails({ matchId, legId, onBackToMatch, onBackToSet 
         <div style={{ fontWeight: 800, marginBottom: 8 }}>Leg Summary</div>
 
         <div style={styles.tableWrap}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
             <thead>
               <tr>
                 <th style={styles.th}>Spieler</th>

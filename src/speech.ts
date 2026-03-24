@@ -19,8 +19,10 @@ export type { SpeechLang }
 export type VoiceLang = SpeechLang
 
 const VOICE_LANG_KEY = 'darts-voice-lang'
+const VOICE_NAME_KEY = 'darts-voice-name'
 
 let voiceLang: SpeechLang = (localStorage.getItem(VOICE_LANG_KEY) as SpeechLang) || 'en'
+let preferredVoiceName: string | null = localStorage.getItem(VOICE_NAME_KEY)
 
 /** Aktuellen Translation-Katalog zurückgeben */
 function t() { return speechTexts[voiceLang] }
@@ -32,10 +34,45 @@ export function getVoiceLang(): SpeechLang {
 export function setVoiceLang(lang: SpeechLang) {
   voiceLang = lang
   localStorage.setItem(VOICE_LANG_KEY, lang)
+  // Gespeicherte Stimme zurücksetzen bei Sprachwechsel
+  preferredVoiceName = null
+  localStorage.removeItem(VOICE_NAME_KEY)
   // Voice neu laden
   webSpeechInitialized = false
   webSpeechVoice = null
   initWebSpeechFallback()
+}
+
+/** Bevorzugte Stimme setzen (Name aus getAvailableVoices) */
+export function setPreferredVoice(voiceName: string | null) {
+  preferredVoiceName = voiceName
+  if (voiceName) {
+    localStorage.setItem(VOICE_NAME_KEY, voiceName)
+  } else {
+    localStorage.removeItem(VOICE_NAME_KEY)
+  }
+  // Voice neu laden mit neuer Präferenz
+  webSpeechInitialized = false
+  webSpeechVoice = null
+  initWebSpeechFallback()
+}
+
+export function getPreferredVoice(): string | null {
+  return preferredVoiceName
+}
+
+/** Verfügbare Stimmen für die aktuelle Sprache zurückgeben */
+export function getAvailableVoices(): { name: string; lang: string; isDefault: boolean }[] {
+  if (typeof speechSynthesis === 'undefined') return []
+  const voices = speechSynthesis.getVoices()
+  const langPrefix = LANG_LOCALE[voiceLang].slice(0, 2)
+  return voices
+    .filter(v => v.lang.startsWith(langPrefix))
+    .map(v => ({
+      name: v.name,
+      lang: v.lang,
+      isDefault: v.name === findBestVoice(voices)?.name,
+    }))
 }
 
 // Fallback: Web Speech API
@@ -69,8 +106,15 @@ function findBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | n
   const locale = LANG_LOCALE[voiceLang]
   const langPrefix = locale.slice(0, 2)
   const langVoices = voices.filter(v => v.lang.startsWith(langPrefix))
-  const preferred = PREFERRED_VOICES[voiceLang]
 
+  // 1. Vom User gewählte Stimme hat Priorität
+  if (preferredVoiceName) {
+    const userChoice = langVoices.find(v => v.name === preferredVoiceName)
+    if (userChoice) return userChoice
+  }
+
+  // 2. Automatische Auswahl (bevorzugt männlich)
+  const preferred = PREFERRED_VOICES[voiceLang]
   let bestVoice: SpeechSynthesisVoice | null = null
   for (const pref of preferred) {
     const found = langVoices.find(v => v.name.toLowerCase().includes(pref))

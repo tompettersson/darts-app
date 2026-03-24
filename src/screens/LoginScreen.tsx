@@ -1,12 +1,20 @@
 // src/screens/LoginScreen.tsx
 import React, { useState, useEffect } from 'react'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth, IS_DEV_BYPASS } from '../auth/AuthContext'
 import { getAuthProfiles, type AuthProfile } from '../auth/api'
+import { getProfiles, saveProfiles, type Profile } from '../storage'
+import { now } from '../darts501'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 
+// Dev-Testprofile für localhost
+const DEV_PROFILES = [
+  { id: 'dev-admin', name: 'Test-Admin', isAdmin: true, color: '#e63946' },
+  { id: 'dev-player', name: 'Test-Spieler', isAdmin: false, color: '#457b9d' },
+]
+
 export default function LoginScreen() {
-  const { login, loginAsGuest } = useAuth()
+  const { login, loginAsGuest, devLogin } = useAuth()
   const { colors, isArcade } = useTheme()
   const styles = getThemedUI(colors, isArcade)
   const [profiles, setProfiles] = useState<AuthProfile[]>([])
@@ -207,6 +215,41 @@ export default function LoginScreen() {
       <button style={s.guestBtn} onClick={loginAsGuest}>
         Als Gast fortfahren
       </button>
+
+      {IS_DEV_BYPASS && (
+        <div style={{ width: 'min(400px, 92vw)', marginTop: 16, padding: 16, borderRadius: 12,
+          border: `2px dashed ${colors.accent}`, background: `${colors.accent}10` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: colors.accent, marginBottom: 10, textAlign: 'center' }}>
+            Dev-Modus (localhost)
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {DEV_PROFILES.map(p => (
+              <button
+                key={p.id}
+                style={{
+                  ...s.guestBtn,
+                  width: '100%',
+                  borderColor: p.color,
+                  color: p.color,
+                  fontWeight: 700,
+                }}
+                onClick={() => {
+                  // Profil lokal anlegen falls noch nicht vorhanden
+                  const profiles = getProfiles()
+                  if (!profiles.some(x => x.id === p.id)) {
+                    const ts = now()
+                    const newProfile: Profile = { id: p.id, name: p.name, color: p.color, createdAt: ts, updatedAt: ts }
+                    saveProfiles([...profiles, newProfile])
+                  }
+                  devLogin(p.id, p.name, p.isAdmin)
+                }}
+              >
+                {p.isAdmin ? '🔧' : '🎯'} {p.name} {p.isAdmin ? '(Admin)' : '(Spieler)'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

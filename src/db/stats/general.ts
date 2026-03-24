@@ -44,100 +44,103 @@ export type GeneralPlayerStats = {
  * Allgemeine Spieler-Übersicht über alle Spielmodi
  */
 export async function getGeneralPlayerStats(playerId: string): Promise<GeneralPlayerStats> {
-  // X01 Stats (mit Solo-Erkennung: player_count = Anzahl Spieler im Match)
-  const x01 = await queryOne<{ matches: number; solo: number; wins: number; multi_wins: number; darts: number }>(`
-    WITH player_matches AS (
-      SELECT m.id,
-        (SELECT COUNT(*) FROM x01_match_players WHERE match_id = m.id) as player_count
-      FROM x01_matches m
-      JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-      WHERE m.finished = 1
-    )
-    SELECT
-      COUNT(*) as matches,
-      SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo,
-      (SELECT COUNT(*) FROM x01_events e2
-       WHERE e2.match_id IN (SELECT id FROM player_matches)
-       AND e2.type = 'MatchFinished'
-       AND json_extract(e2.data, '$.winnerPlayerId') = ?) as wins,
-      (SELECT COUNT(*) FROM x01_events e2
-       WHERE e2.match_id IN (SELECT id FROM player_matches WHERE player_count > 1)
-       AND e2.type = 'MatchFinished'
-       AND json_extract(e2.data, '$.winnerPlayerId') = ?) as multi_wins,
-      COALESCE((SELECT SUM(json_array_length(e3.data, '$.darts'))
-       FROM x01_events e3
-       JOIN x01_matches m3 ON m3.id = e3.match_id AND m3.finished = 1
-       JOIN x01_match_players mp3 ON mp3.match_id = m3.id AND mp3.player_id = ?
-       WHERE e3.type = 'VisitAdded' AND json_extract(e3.data, '$.playerId') = ?), 0) as darts
-    FROM player_matches
-  `, [playerId, playerId, playerId, playerId, playerId])
+  // Alle unabhängigen Queries parallel starten
+  const [x01, cricket, atb, dates, highlights] = await Promise.all([
+    // X01 Stats
+    queryOne<{ matches: number; solo: number; wins: number; multi_wins: number; darts: number }>(`
+      WITH player_matches AS (
+        SELECT m.id,
+          (SELECT COUNT(*) FROM x01_match_players WHERE match_id = m.id) as player_count
+        FROM x01_matches m
+        JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+      )
+      SELECT
+        COUNT(*) as matches,
+        SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo,
+        (SELECT COUNT(*) FROM x01_events e2
+         WHERE e2.match_id IN (SELECT id FROM player_matches)
+         AND e2.type = 'MatchFinished'
+         AND json_extract(e2.data, '$.winnerPlayerId') = ?) as wins,
+        (SELECT COUNT(*) FROM x01_events e2
+         WHERE e2.match_id IN (SELECT id FROM player_matches WHERE player_count > 1)
+         AND e2.type = 'MatchFinished'
+         AND json_extract(e2.data, '$.winnerPlayerId') = ?) as multi_wins,
+        COALESCE((SELECT SUM(json_array_length(e3.data, '$.darts'))
+         FROM x01_events e3
+         JOIN x01_matches m3 ON m3.id = e3.match_id AND m3.finished = 1
+         JOIN x01_match_players mp3 ON mp3.match_id = m3.id AND mp3.player_id = ?
+         WHERE e3.type = 'VisitAdded' AND json_extract(e3.data, '$.playerId') = ?), 0) as darts
+      FROM player_matches
+    `, [playerId, playerId, playerId, playerId, playerId]),
 
-  // Cricket Stats (mit Solo-Erkennung)
-  const cricket = await queryOne<{ matches: number; solo: number; wins: number; multi_wins: number }>(`
-    WITH player_matches AS (
-      SELECT m.id,
-        (SELECT COUNT(*) FROM cricket_match_players WHERE match_id = m.id) as player_count
-      FROM cricket_matches m
-      JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-      WHERE m.finished = 1
-    )
-    SELECT
-      COUNT(*) as matches,
-      SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo,
-      (SELECT COUNT(*) FROM cricket_events e2
-       WHERE e2.match_id IN (SELECT id FROM player_matches)
-       AND e2.type = 'CricketMatchFinished'
-       AND json_extract(e2.data, '$.winnerPlayerId') = ?) as wins,
-      (SELECT COUNT(*) FROM cricket_events e2
-       WHERE e2.match_id IN (SELECT id FROM player_matches WHERE player_count > 1)
-       AND e2.type = 'CricketMatchFinished'
-       AND json_extract(e2.data, '$.winnerPlayerId') = ?) as multi_wins
-    FROM player_matches
-  `, [playerId, playerId, playerId])
+    // Cricket Stats
+    queryOne<{ matches: number; solo: number; wins: number; multi_wins: number }>(`
+      WITH player_matches AS (
+        SELECT m.id,
+          (SELECT COUNT(*) FROM cricket_match_players WHERE match_id = m.id) as player_count
+        FROM cricket_matches m
+        JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+      )
+      SELECT
+        COUNT(*) as matches,
+        SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo,
+        (SELECT COUNT(*) FROM cricket_events e2
+         WHERE e2.match_id IN (SELECT id FROM player_matches)
+         AND e2.type = 'CricketMatchFinished'
+         AND json_extract(e2.data, '$.winnerPlayerId') = ?) as wins,
+        (SELECT COUNT(*) FROM cricket_events e2
+         WHERE e2.match_id IN (SELECT id FROM player_matches WHERE player_count > 1)
+         AND e2.type = 'CricketMatchFinished'
+         AND json_extract(e2.data, '$.winnerPlayerId') = ?) as multi_wins
+      FROM player_matches
+    `, [playerId, playerId, playerId]),
 
-  // ATB Stats (mit Solo-Erkennung)
-  const atb = await queryOne<{ matches: number; solo: number; wins: number; multi_wins: number }>(`
-    WITH player_matches AS (
-      SELECT m.id, m.winner_id,
-        (SELECT COUNT(*) FROM atb_match_players WHERE match_id = m.id) as player_count
-      FROM atb_matches m
-      JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-      WHERE m.finished = 1
-    )
-    SELECT
-      COUNT(*) as matches,
-      SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo,
-      SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) as wins,
-      SUM(CASE WHEN winner_id = ? AND player_count > 1 THEN 1 ELSE 0 END) as multi_wins
-    FROM player_matches
-  `, [playerId, playerId, playerId])
+    // ATB Stats
+    queryOne<{ matches: number; solo: number; wins: number; multi_wins: number }>(`
+      WITH player_matches AS (
+        SELECT m.id, m.winner_id,
+          (SELECT COUNT(*) FROM atb_match_players WHERE match_id = m.id) as player_count
+        FROM atb_matches m
+        JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+      )
+      SELECT
+        COUNT(*) as matches,
+        SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo,
+        SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) as wins,
+        SUM(CASE WHEN winner_id = ? AND player_count > 1 THEN 1 ELSE 0 END) as multi_wins
+      FROM player_matches
+    `, [playerId, playerId, playerId]),
 
-  // Dates
-  const dates = await queryOne<{ first_date: string; last_date: string }>(`
-    SELECT
-      MIN(created_at) as first_date,
-      MAX(created_at) as last_date
-    FROM (
-      SELECT created_at FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-      UNION ALL
-      SELECT created_at FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-      UNION ALL
-      SELECT created_at FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-    )
-  `, [playerId, playerId, playerId])
+    // Dates
+    queryOne<{ first_date: string; last_date: string }>(`
+      SELECT
+        MIN(created_at) as first_date,
+        MAX(created_at) as last_date
+      FROM (
+        SELECT created_at FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL
+        SELECT created_at FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        UNION ALL
+        SELECT created_at FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+      )
+    `, [playerId, playerId, playerId]),
 
-  // Highlights
-  const highlights = await queryOne<{ count_180: number; highest_checkout: number }>(`
-    SELECT
-      COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END), 0) as count_180,
-      COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-          THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END), 0) as highest_checkout
-    FROM x01_events e
-    JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
-    JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
-  `, [playerId, playerId])
+    // Highlights
+    queryOne<{ count_180: number; highest_checkout: number }>(`
+      SELECT
+        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END), 0) as count_180,
+        COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+            THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END), 0) as highest_checkout
+      FROM x01_events e
+      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'VisitAdded'
+        AND json_extract(e.data, '$.playerId') = ?
+    `, [playerId, playerId]),
+  ])
 
   const x01Matches = x01?.matches ?? 0
   const cricketMatches = cricket?.matches ?? 0
@@ -677,20 +680,193 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
   try {
     const achievements: Achievement[] = []
 
-    const totalMatches = await queryOne<{ cnt: number }>(`
-      SELECT COUNT(*) as cnt FROM (
-        SELECT id FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT id FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-      )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
+    // ===== PARALLELISIERT: Alle unabhängigen Queries gleichzeitig starten =====
+    const [totalMatches, rareScores, bestAvg, modesPlayed, streaks, checkoutPct, legStats, cricketStats, cricketSkill, playDates] = await Promise.all([
+      // 1. Total Matches (alle Modi)
+      queryOne<{ cnt: number }>(`
+        SELECT COUNT(*) as cnt FROM (
+          SELECT id FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT id FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        )
+      `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null),
+
+      // 2. X01-Scoring-Daten (kombiniert)
+      queryOne<{
+        count_180: number; count_171: number; count_170_checkout: number
+        highest_checkout: number; count_9darter_legs: number
+        count_ton: number; count_ton40: number; count_ton80: number; count_60plus: number
+        total_darts: number; total_points: number; total_visits: number
+        has_bull_finish: number; bust_count: number
+      }>(`
+        SELECT
+          COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END), 0) as count_180,
+          COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 171 THEN 1 ELSE 0 END), 0) as count_171,
+          COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+              THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END), 0) as highest_checkout,
+          COALESCE(SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+              AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) >= 170
+              THEN 1 ELSE 0 END), 0) as count_170_checkout,
+          0 as count_9darter_legs,
+          COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 100 THEN 1 ELSE 0 END), 0) as count_ton,
+          COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 140 THEN 1 ELSE 0 END), 0) as count_ton40,
+          COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 80 THEN 1 ELSE 0 END), 0) as count_ton80,
+          COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 60 THEN 1 ELSE 0 END), 0) as count_60plus,
+          COALESCE(SUM(json_array_length(e.data, '$.darts')), 0) as total_darts,
+          COALESCE(SUM(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)), 0) as total_points,
+          COUNT(*) as total_visits,
+          COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+            AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) = 50
+            THEN 1 ELSE 0 END), 0) as has_bull_finish,
+          COALESCE(SUM(CASE WHEN json_extract(e.data, '$.bust') = 1 THEN 1 ELSE 0 END), 0) as bust_count
+        FROM x01_events e
+        JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
+        WHERE e.type = 'VisitAdded'
+          AND json_extract(e.data, '$.playerId') = ?
+      `, [playerId, playerId]).catch(() => null),
+
+      // 3. Best Average
+      queryOne<{ best: number }>(`
+        SELECT MAX(avg) as best FROM (
+          SELECT AVG(
+            CAST(json_extract(e.data, '$.visitScore') AS REAL) /
+            NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+          ) as avg
+          FROM x01_matches m
+          JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+          JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
+          WHERE m.finished = 1
+          GROUP BY m.id
+        )
+      `, [playerId, playerId]).catch(() => null),
+
+      // 4. Modes Played
+      queryOne<{ modes: number }>(`
+        SELECT COUNT(DISTINCT mode) as modes FROM (
+          SELECT 'x01' as mode FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'cricket' FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'atb' FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'ctf' FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'str' FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'highscore' FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'shanghai' FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'killer' FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'bobs27' FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+          UNION SELECT 'operation' FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
+        )
+      `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null),
+
+      // 5. Player Streaks
+      getPlayerStreaks(playerId).catch(() => null),
+
+      // 6. Checkout Percentage
+      queryOne<{ best_pct: number }>(`
+        SELECT MAX(
+          CAST(doubles_hit AS REAL) / NULLIF(double_attempts, 0) * 100
+        ) as best_pct
+        FROM x01_player_stats
+        WHERE player_id = ? AND double_attempts >= 10
+      `, [playerId]).catch(() => null),
+
+      // 7. Leg Stats
+      queryOne<{ best_leg_darts: number; clean_match_wins: number }>(`
+        SELECT
+          COALESCE(MIN(darts_in_leg), 999) as best_leg_darts,
+          COALESCE((
+            SELECT COUNT(*) FROM (
+              SELECT mf.match_id
+              FROM x01_events mf
+              JOIN x01_match_players mfp ON mfp.match_id = mf.match_id AND mfp.player_id = ?
+              WHERE mf.type = 'MatchFinished'
+                AND json_extract(mf.data, '$.winnerPlayerId') = ?
+                AND NOT EXISTS (
+                  SELECT 1 FROM x01_events be
+                  WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
+                  AND json_extract(be.data, '$.playerId') = ?
+                  AND json_extract(be.data, '$.bust') = 1
+                )
+              GROUP BY mf.match_id
+            ) clean_wins
+          ), 0) as clean_match_wins
+        FROM (
+          SELECT json_extract(e.data, '$.legId') as leg_id,
+            SUM(json_array_length(e.data, '$.darts')) as darts_in_leg
+          FROM x01_events e
+          JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+          JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 AND m.starting_score >= 501
+          JOIN x01_events lf ON lf.match_id = e.match_id AND lf.type = 'LegFinished'
+            AND json_extract(lf.data, '$.legId') = json_extract(e.data, '$.legId')
+            AND json_extract(lf.data, '$.winnerPlayerId') = ?
+          WHERE e.type = 'VisitAdded'
+            AND json_extract(e.data, '$.playerId') = ?
+          GROUP BY leg_id
+        )
+      `, [playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null),
+
+      // 8. Cricket Stats
+      queryOne<{ matches: number; wins: number; max_marks: number }>(`
+        SELECT
+          COUNT(DISTINCT m.id) as matches,
+          COALESCE((
+            SELECT COUNT(*) FROM cricket_events we
+            JOIN cricket_match_players wmp ON wmp.match_id = we.match_id AND wmp.player_id = ?
+            WHERE we.type = 'CricketMatchFinished'
+              AND json_extract(we.data, '$.winnerPlayerId') = ?
+          ), 0) as wins,
+          COALESCE((
+            SELECT MAX(CAST(json_extract(ce.data, '$.marks') AS INTEGER))
+            FROM cricket_events ce
+            JOIN cricket_match_players cmp ON cmp.match_id = ce.match_id AND cmp.player_id = ?
+            WHERE ce.type = 'CricketTurnAdded' AND json_extract(ce.data, '$.playerId') = ?
+          ), 0) as max_marks
+        FROM cricket_matches m
+        JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+      `, [playerId, playerId, playerId, playerId, playerId]).catch(() => null),
+
+      // 9. Cricket Skill Stats
+      queryOne<{
+        total_triples: number; total_dbulls: number
+        best_turn_marks: number; total_marks: number; no_score_turns: number
+      }>(`
+        SELECT
+          COALESCE(SUM(CASE WHEN json_extract(d.value, '$.mult') = 3 AND json_extract(d.value, '$.target') != 'MISS' THEN 1 ELSE 0 END), 0) as total_triples,
+          COALESCE(SUM(CASE WHEN json_extract(d.value, '$.target') = 'BULL' AND json_extract(d.value, '$.mult') >= 2 THEN 1 ELSE 0 END), 0) as total_dbulls,
+          COALESCE(MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as best_turn_marks,
+          COALESCE(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as total_marks,
+          COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.marks') AS INTEGER) = 0 THEN 1 ELSE 0 END), 0) as no_score_turns
+        FROM cricket_events e
+        JOIN cricket_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1,
+        json_each(e.data, '$.darts') d
+        WHERE e.type = 'CricketTurnAdded' AND json_extract(e.data, '$.playerId') = ?
+      `, [playerId, playerId]).catch(() => null),
+
+      // 10. Play Dates (für Streak)
+      query<{ play_date: string }>(`
+        SELECT DISTINCT DATE(created_at) as play_date FROM (
+          SELECT created_at FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+          UNION ALL SELECT created_at FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
+        ) ORDER BY play_date
+      `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => [] as { play_date: string }[]),
+    ])
+
     const total = totalMatches?.cnt ?? 0
     for (const [target, title, desc] of [
       [1, 'Erster Pfeil', 'Erstes Match gespielt'],
@@ -706,41 +882,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
         unlocked: total >= target, value: total, target, progress: Math.min(1, total / target),
       })
     }
-
-    // Kombinierte Query: alle X01-Scoring-Daten in einem Scan
-    const rareScores = await queryOne<{
-      count_180: number; count_171: number; count_170_checkout: number
-      highest_checkout: number; count_9darter_legs: number
-      count_ton: number; count_ton40: number; count_ton80: number; count_60plus: number
-      total_darts: number; total_points: number; total_visits: number
-      has_bull_finish: number; bust_count: number
-    }>(`
-      SELECT
-        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END), 0) as count_180,
-        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 171 THEN 1 ELSE 0 END), 0) as count_171,
-        COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-            THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END), 0) as highest_checkout,
-        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-            AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) >= 170
-            THEN 1 ELSE 0 END), 0) as count_170_checkout,
-        0 as count_9darter_legs,
-        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 100 THEN 1 ELSE 0 END), 0) as count_ton,
-        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 140 THEN 1 ELSE 0 END), 0) as count_ton40,
-        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 80 THEN 1 ELSE 0 END), 0) as count_ton80,
-        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.visitScore') AS INTEGER) >= 60 THEN 1 ELSE 0 END), 0) as count_60plus,
-        COALESCE(SUM(json_array_length(e.data, '$.darts')), 0) as total_darts,
-        COALESCE(SUM(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)), 0) as total_points,
-        COUNT(*) as total_visits,
-        COALESCE(MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-          AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) = 50
-          THEN 1 ELSE 0 END), 0) as has_bull_finish,
-        COALESCE(SUM(CASE WHEN json_extract(e.data, '$.bust') = 1 THEN 1 ELSE 0 END), 0) as bust_count
-      FROM x01_events e
-      JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
-      JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-      WHERE e.type = 'VisitAdded'
-        AND json_extract(e.data, '$.playerId') = ?
-    `, [playerId, playerId]).catch(() => null)
 
     const c180 = rareScores?.count_180 ?? 0
     achievements.push({
@@ -804,20 +945,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       category: 'skill', unlocked: (rareScores?.count_170_checkout ?? 0) > 0, value: rareScores?.count_170_checkout ?? 0,
     })
 
-    const bestAvg = await queryOne<{ best: number }>(`
-      SELECT MAX(avg) as best FROM (
-        SELECT AVG(
-          CAST(json_extract(e.data, '$.visitScore') AS REAL) /
-          NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
-        ) as avg
-        FROM x01_matches m
-        JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-        JOIN x01_events e ON e.match_id = m.id AND e.type = 'VisitAdded' AND json_extract(e.data, '$.playerId') = ?
-        WHERE m.finished = 1
-        GROUP BY m.id
-      )
-    `, [playerId, playerId]).catch(() => null)
-
     const ba = bestAvg?.best ?? 0
     for (const [target, title, desc] of [
       [40, 'Solide', 'Match-Durchschnitt über 40'],
@@ -830,21 +957,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
         category: 'skill', unlocked: ba >= target, value: Math.round(ba * 10) / 10,
       })
     }
-
-    const modesPlayed = await queryOne<{ modes: number }>(`
-      SELECT COUNT(DISTINCT mode) as modes FROM (
-        SELECT 'x01' as mode FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'cricket' FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'atb' FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'ctf' FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'str' FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'highscore' FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'shanghai' FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'killer' FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'bobs27' FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-        UNION SELECT 'operation' FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1 LIMIT 1
-      )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
 
     const mp = modesPlayed?.modes ?? 0
     for (const [target, title, desc] of [
@@ -859,7 +971,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       })
     }
 
-    const streaks = await getPlayerStreaks(playerId).catch(() => null)
     const longestWin = streaks?.longestWinStreak ?? 0
     for (const [target, title, desc] of [
       [3, 'Heißer Lauf', '3 Siege in Folge'],
@@ -902,48 +1013,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       category: 'skill', unlocked: (rareScores?.has_bull_finish ?? 0) > 0,
     })
 
-    const checkoutPct = await queryOne<{ best_pct: number }>(`
-      SELECT MAX(
-        CAST(doubles_hit AS REAL) / NULLIF(double_attempts, 0) * 100
-      ) as best_pct
-      FROM x01_player_stats
-      WHERE player_id = ? AND double_attempts >= 10
-    `, [playerId]).catch(() => null)
     const bestPct = checkoutPct?.best_pct ?? 0
-    // Leg-basierte Achievements (schnelle Legs, saubere Matches)
-    const legStats = await queryOne<{ best_leg_darts: number; clean_match_wins: number }>(`
-      SELECT
-        COALESCE(MIN(darts_in_leg), 999) as best_leg_darts,
-        COALESCE((
-          SELECT COUNT(*) FROM (
-            SELECT mf.match_id
-            FROM x01_events mf
-            JOIN x01_match_players mfp ON mfp.match_id = mf.match_id AND mfp.player_id = ?
-            WHERE mf.type = 'MatchFinished'
-              AND json_extract(mf.data, '$.winnerPlayerId') = ?
-              AND NOT EXISTS (
-                SELECT 1 FROM x01_events be
-                WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
-                AND json_extract(be.data, '$.playerId') = ?
-                AND json_extract(be.data, '$.bust') = 1
-              )
-            GROUP BY mf.match_id
-          ) clean_wins
-        ), 0) as clean_match_wins
-      FROM (
-        SELECT json_extract(e.data, '$.legId') as leg_id,
-          SUM(json_array_length(e.data, '$.darts')) as darts_in_leg
-        FROM x01_events e
-        JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
-        JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 AND m.starting_score >= 501
-        JOIN x01_events lf ON lf.match_id = e.match_id AND lf.type = 'LegFinished'
-          AND json_extract(lf.data, '$.legId') = json_extract(e.data, '$.legId')
-          AND json_extract(lf.data, '$.winnerPlayerId') = ?
-        WHERE e.type = 'VisitAdded'
-          AND json_extract(e.data, '$.playerId') = ?
-        GROUP BY leg_id
-      )
-    `, [playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => null)
 
     const bestLeg = legStats?.best_leg_darts ?? 999
     achievements.push({
@@ -973,30 +1043,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
     })
 
     // ========== NEUE ACHIEVEMENTS: Cricket ==========
-    const cricketStats = await queryOne<{
-      matches: number
-      wins: number
-      max_marks: number
-    }>(`
-      SELECT
-        COUNT(DISTINCT m.id) as matches,
-        COALESCE((
-          SELECT COUNT(*) FROM cricket_events we
-          JOIN cricket_match_players wmp ON wmp.match_id = we.match_id AND wmp.player_id = ?
-          WHERE we.type = 'CricketMatchFinished'
-            AND json_extract(we.data, '$.winnerPlayerId') = ?
-        ), 0) as wins,
-        COALESCE((
-          SELECT MAX(CAST(json_extract(ce.data, '$.marks') AS INTEGER))
-          FROM cricket_events ce
-          JOIN cricket_match_players cmp ON cmp.match_id = ce.match_id AND cmp.player_id = ?
-          WHERE ce.type = 'CricketTurnAdded' AND json_extract(ce.data, '$.playerId') = ?
-        ), 0) as max_marks
-      FROM cricket_matches m
-      JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-      WHERE m.finished = 1
-    `, [playerId, playerId, playerId, playerId, playerId]).catch(() => null)
-
     const cm = cricketStats?.matches ?? 0
     achievements.push({
       id: 'cricket-first', title: 'Cricket Opener', description: 'Erstes Cricket-Match gespielt',
@@ -1024,27 +1070,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
       id: 'cricket-veteran', title: 'Cricket-Veteran', description: '100 Cricket-Matches gespielt',
       category: 'cricket', unlocked: cm >= 100, value: cm, target: 100, progress: Math.min(1, cm / 100),
     })
-
-    // Cricket: Triples und Bulls direkt aus Events zählen (zuverlässiger als Stats-Tabelle)
-    const cricketSkill = await queryOne<{
-      total_triples: number
-      total_dbulls: number
-      best_turn_marks: number
-      total_marks: number
-      no_score_turns: number
-    }>(`
-      SELECT
-        COALESCE(SUM(CASE WHEN json_extract(d.value, '$.mult') = 3 AND json_extract(d.value, '$.target') != 'MISS' THEN 1 ELSE 0 END), 0) as total_triples,
-        COALESCE(SUM(CASE WHEN json_extract(d.value, '$.target') = 'BULL' AND json_extract(d.value, '$.mult') >= 2 THEN 1 ELSE 0 END), 0) as total_dbulls,
-        COALESCE(MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as best_turn_marks,
-        COALESCE(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as total_marks,
-        COALESCE(SUM(CASE WHEN CAST(json_extract(e.data, '$.marks') AS INTEGER) = 0 THEN 1 ELSE 0 END), 0) as no_score_turns
-      FROM cricket_events e
-      JOIN cricket_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
-      JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1,
-      json_each(e.data, '$.darts') d
-      WHERE e.type = 'CricketTurnAdded' AND json_extract(e.data, '$.playerId') = ?
-    `, [playerId, playerId]).catch(() => null)
 
     const cTriples = cricketSkill?.total_triples ?? 0
     for (const [target, title, desc] of [
@@ -1091,21 +1116,6 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
 
     // ========== NEUE ACHIEVEMENTS: Vielseitigkeit (+ umkategorisierte Modi) ==========
     // Wochenkrieger: 7 Tage in Folge gespielt
-    const playDates = await query<{ play_date: string }>(`
-      SELECT DISTINCT DATE(created_at) as play_date FROM (
-        SELECT created_at FROM x01_matches m JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM cricket_matches m JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM atb_matches m JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM ctf_matches m JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM str_matches m JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM highscore_matches m JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM shanghai_matches m JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM killer_matches m JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM bobs27_matches m JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-        UNION ALL SELECT created_at FROM operation_matches m JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ? WHERE m.finished = 1
-      ) ORDER BY play_date
-    `, [playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId, playerId]).catch(() => [] as { play_date: string }[])
-
     let longestDayStreak = 0
     let currentDayStreak = 1
     const dates = playDates.map(r => r.play_date).filter(Boolean)

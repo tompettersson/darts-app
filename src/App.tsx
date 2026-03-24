@@ -231,7 +231,7 @@ const menuAccentColors = {
 }
 
 // Speech (Einstellungen)
-import { getVoiceLang, setVoiceLang, type SpeechLang } from './speech'
+import { getVoiceLang, setVoiceLang, getAvailableVoices, getPreferredVoice, setPreferredVoice, type SpeechLang } from './speech'
 
 // Types
 import type { CricketSetup } from './screens/newgame/CricketModePicker'
@@ -2007,14 +2007,14 @@ export default function App() {
 
     const themeOptions: { value: AppTheme; label: string; desc: string }[] = [
       { value: 'normal', label: 'Normal', desc: 'Helles, klassisches Design' },
-      { value: 'arcade', label: 'Arcade', desc: 'Dunkles LED-Design wie am Dartautomaten' },
+      { value: 'arcade', label: 'Dunkel', desc: 'Dunkles LED-Design wie am Dartautomaten' },
     ]
 
     return (
       <div className="screen-enter" key="settings" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px', marginBottom: 8 }}>
-          <h1 style={{ margin: 0, color: colors.fg }}>Einstellungen</h1>
-          <button style={styles.backBtn} onClick={() => setView('profiles-menu')}>← Zurück</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 12px', marginBottom: 8, flexShrink: 0, gap: 8 }}>
+          <h1 style={{ margin: 0, color: colors.fg, fontSize: 20, minWidth: 0 }}>Einstellungen</h1>
+          <button style={{ ...styles.backBtn, flexShrink: 0 }} onClick={() => setView('profiles-menu')}>← Zurück</button>
         </div>
 
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
@@ -2048,7 +2048,7 @@ export default function App() {
             {/* Voice Selection */}
             <div style={styles.card}>
               <div style={{ marginBottom: 12 }}>
-                <div style={styles.title}>Kommentator-Stimme</div>
+                <div style={styles.title}>Kommentator-Sprache</div>
                 <div style={styles.sub}>Sprache der Spielansagen</div>
               </div>
               <div style={{ display: 'grid', gap: 8 }}>
@@ -2072,6 +2072,63 @@ export default function App() {
                 ))}
               </div>
             </div>
+
+            {/* Voice Picker - verfügbare Stimmen des Geräts */}
+            {(() => {
+              const voices = getAvailableVoices()
+              const currentVoice = getPreferredVoice()
+              if (voices.length <= 1) return null
+              return (
+                <div style={styles.card}>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={styles.title}>Stimme</div>
+                    <div style={styles.sub}>Verfügbare Stimmen auf diesem Gerät</div>
+                  </div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <button
+                      onClick={() => { setPreferredVoice(null); setSettingsKey(k => k + 1) }}
+                      style={{
+                        ...styles.tile,
+                        padding: '10px 14px',
+                        opacity: !currentVoice ? 1 : 0.6,
+                      }}
+                    >
+                      <div style={styles.title}>Automatisch {!currentVoice ? '✓' : ''}</div>
+                      <div style={styles.sub}>Beste verfügbare Stimme</div>
+                    </button>
+                    {voices.map((v) => (
+                      <button
+                        key={v.name}
+                        onClick={() => {
+                          setPreferredVoice(v.name)
+                          setSettingsKey(k => k + 1)
+                          // Kurze Vorschau abspielen
+                          if (typeof speechSynthesis !== 'undefined') {
+                            speechSynthesis.cancel()
+                            const utt = new SpeechSynthesisUtterance('One hundred and eighty!')
+                            const allVoices = speechSynthesis.getVoices()
+                            const voice = allVoices.find(sv => sv.name === v.name)
+                            if (voice) { utt.voice = voice; utt.lang = voice.lang }
+                            utt.rate = 0.95; utt.pitch = 0.9
+                            speechSynthesis.speak(utt)
+                          }
+                        }}
+                        style={{
+                          ...styles.tile,
+                          padding: '10px 14px',
+                          opacity: currentVoice === v.name ? 1 : 0.6,
+                        }}
+                      >
+                        <div style={styles.title}>
+                          {v.name.replace(/Microsoft /g, '').replace(/Google /g, '')} {currentVoice === v.name ? '✓' : ''}
+                        </div>
+                        <div style={styles.sub}>{v.lang}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Spielerfarben-Hintergrund Toggle */}
             <div style={styles.card}>
@@ -2110,21 +2167,29 @@ export default function App() {
   if (view === 'profiles-menu') {
     const profilesItems: PickerItem[] = [
       ...(!auth.isGuest ? [
-        { id: 'profiles', label: 'Profil bearbeiten', sub: 'Umbenennen & löschen', icon: <span style={{ fontSize: 20 }}>{'\u270F\uFE0F'}</span> },
-        { id: 'create-profile', label: 'Neues Profil', sub: 'Spieler anlegen', icon: <span style={{ fontSize: 20 }}>{'\u2795'}</span> },
+        { id: 'profiles', label: 'Profil bearbeiten', sub: 'Name, Farbe, Passwort', icon: <span style={{ fontSize: 20 }}>{'\u270F\uFE0F'}</span> },
+        { id: 'create-profile', label: 'Neues Profil erstellen', sub: 'Spieler anlegen', icon: <span style={{ fontSize: 20 }}>{'\u2795'}</span> },
       ] : []),
       { id: 'settings', label: 'Einstellungen', sub: 'Theme, Stimme', icon: <MenuIconSettings /> },
+      ...(auth.isAdmin ? [
+        { id: 'admin', label: 'Admin', sub: 'Spieler & Passwörter verwalten', icon: <span style={{ fontSize: 20 }}>{'\u{1F6E0}\uFE0F'}</span> },
+      ] : []),
     ]
 
     const handleProfilesConfirm = (index: number) => {
-      setView(profilesItems[index].id as View)
+      const item = profilesItems[index]
+      if (item.id === 'logout') {
+        auth.logout()
+      } else {
+        setView(item.id as View)
+      }
     }
 
     return (
       <div className="screen-enter" key="profiles-menu" style={{ ...styles.page, display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 0' }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg }}>Einstellungen</h2>
-          <button style={styles.backBtn} onClick={() => setView('menu')}>← Zurück</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 12px 0', gap: 8, flexShrink: 0 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.fg, minWidth: 0 }}>Einstellungen</h2>
+          <button style={{ ...styles.backBtn, flexShrink: 0 }} onClick={() => setView('menu')}>← Zurück</button>
         </div>
         <div style={{ height: 20 }} />
         <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
@@ -2146,11 +2211,11 @@ export default function App() {
                     <>
                       <button onClick={() => setView('profiles')} style={styles.tile}>
                         <div style={styles.title}>Profil bearbeiten</div>
-                        <div style={styles.sub}>Umbenennen & löschen</div>
+                        <div style={styles.sub}>Name, Farbe, Passwort</div>
                       </button>
 
                       <button onClick={() => setView('create-profile')} style={styles.tile}>
-                        <div style={styles.title}>Neues Profil</div>
+                        <div style={styles.title}>Neues Profil erstellen</div>
                         <div style={styles.sub}>Spieler anlegen</div>
                       </button>
                     </>
@@ -2160,13 +2225,6 @@ export default function App() {
                     <div style={styles.title}>Einstellungen</div>
                     <div style={styles.sub}>Theme, Stimme</div>
                   </button>
-
-                  {!auth.isGuest && (
-                    <button onClick={() => setView('change-password')} style={styles.tile}>
-                      <div style={styles.title}>Passwort ändern</div>
-                      <div style={styles.sub}>Eigenes Passwort ändern</div>
-                    </button>
-                  )}
 
                   {auth.isAdmin && (
                     <button onClick={() => setView('admin')} style={styles.tile}>

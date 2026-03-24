@@ -48,8 +48,8 @@ export const themeColors = {
     borderStrong: '#cbd5e1',
 
     // Accent
-    accent: '#111827',
-    accentSoft: '#1e293b',
+    accent: '#2563eb',
+    accentSoft: '#1d4ed8',
 
     // Status
     success: '#16a34a',

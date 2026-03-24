@@ -15,7 +15,7 @@ export const ui: Record<string, CSSProperties> = {
   page: {
     display: 'grid',
     gap: 16,
-    padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+    padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)',
     background: '#f8fafc',
     minHeight: '100dvh',
     boxSizing: 'border-box',
@@ -28,7 +28,7 @@ export const ui: Record<string, CSSProperties> = {
     display: 'grid',
     placeItems: 'center',
     minHeight: '70vh',
-    padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+    padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)',
   },
   centerInner: {
     display: 'grid',
@@ -48,6 +48,8 @@ export const ui: Record<string, CSSProperties> = {
     justifyContent: 'space-between',
     gap: 8,
     margin: '2px 0 8px',
+    minWidth: 0,
+    overflow: 'hidden',
   },
 
   /** Hauptseiten-Headline (statt natives H1 Default) */
@@ -136,6 +138,8 @@ export const ui: Record<string, CSSProperties> = {
     padding: '6px 10px',
     fontWeight: 600,
     color: '#0f172a',
+    whiteSpace: 'nowrap' as const,
+    flexShrink: 0,
   },
 
   btnGhost: {
@@ -215,7 +219,7 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
     page: {
       display: 'grid',
       gap: 16,
-      padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+      padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)',
       background: colors.bg,
       minHeight: '100dvh',
       boxSizing: 'border-box',
@@ -229,7 +233,7 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       display: 'grid',
       placeItems: 'center',
       minHeight: '70vh',
-      padding: '12px 12px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+      padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)',
       background: colors.bg,
       color: colors.fg,
     },
@@ -251,6 +255,8 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       justifyContent: 'space-between',
       gap: 8,
       margin: '2px 0 8px',
+      minWidth: 0,
+      overflow: 'hidden',
     },
     pageHeadline: {
       margin: 0,
@@ -335,6 +341,8 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       padding: '6px 10px',
       fontWeight: 600,
       color: colors.fg,
+      whiteSpace: 'nowrap' as const,
+      flexShrink: 0,
     },
     btnGhost: {
       height: 36,

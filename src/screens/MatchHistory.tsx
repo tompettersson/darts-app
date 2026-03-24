@@ -50,11 +50,24 @@ type Props = {
   onOpenOperationMatch?: (matchId: string) => void
 }
 
-type Filter = 'all' | 'x01' | '121' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation'
+type Filter = 'all' | 'x01' | 'cricket' | 'training' | 'party'
+
+const FILTER_LABELS: Record<Filter, string> = {
+  all: 'Alle',
+  x01: 'X01',
+  cricket: 'Cricket',
+  training: 'Training',
+  party: 'Party',
+}
+
+const TRAINING_KINDS = new Set(['atb', 'str', 'highscore', 'bobs27', 'operation'])
+const PARTY_KINDS = new Set(['ctf', 'shanghai', 'killer'])
+
+const PAGE_SIZE = 20
 
 function fmtDate(s?: string) {
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 function safeTsFromMatch(m: { createdAt?: string; events?: any[] }) {
@@ -432,6 +445,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [showUnfinished, setShowUnfinished] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   // X01 Matches async laden (SQLite-aware)
   const [x01, setX01] = useState<StoredMatch[]>(() => getMatches())
@@ -632,17 +646,10 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       merged = merged.filter((m) => m.finished)
     }
 
-    if (filter === 'x01') merged = merged.filter((x) => x.kind === 'x01')
-    if (filter === '121') merged = merged.filter((x) => x.kind === '121')
+    if (filter === 'x01') merged = merged.filter((x) => x.kind === 'x01' || x.kind === '121')
     if (filter === 'cricket') merged = merged.filter((x) => x.kind === 'cricket')
-    if (filter === 'atb') merged = merged.filter((x) => x.kind === 'atb')
-    if (filter === 'str') merged = merged.filter((x) => x.kind === 'str')
-    if (filter === 'highscore') merged = merged.filter((x) => x.kind === 'highscore')
-    if (filter === 'ctf') merged = merged.filter((x) => x.kind === 'ctf')
-    if (filter === 'shanghai') merged = merged.filter((x) => x.kind === 'shanghai')
-    if (filter === 'killer') merged = merged.filter((x) => x.kind === 'killer')
-    if (filter === 'bobs27') merged = merged.filter((x) => x.kind === 'bobs27')
-    if (filter === 'operation') merged = merged.filter((x) => x.kind === 'operation')
+    if (filter === 'training') merged = merged.filter((x) => TRAINING_KINDS.has(x.kind))
+    if (filter === 'party') merged = merged.filter((x) => PARTY_KINDS.has(x.kind))
 
     // Suchfilter: Name, Datum, Spielernamen
     if (search.trim()) {
@@ -668,7 +675,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   return (
     <div style={styles.page}>
       <div style={styles.headerRow}>
-        <h2 style={{ margin: 0 }}>Matchhistorie</h2>
+        <h2 style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Matchhistorie</h2>
         <button style={styles.backBtn} onClick={onBack}>
           ← Zurück
         </button>
@@ -676,14 +683,13 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
 
       {/* Filter + Suche */}
       <div style={styles.card}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'grid', gap: 10 }}>
           {/* Filter Buttons */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }} role="tablist" aria-label="Spielmodus-Filter">
-            <span style={{ fontWeight: 700, color: colors.fg }}>Filter:</span>
-            {(['all', 'x01', '121', 'cricket', 'atb', 'ctf', 'shanghai', 'killer', 'bobs27', 'operation', 'str', 'highscore'] as const).map((f) => (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="tablist" aria-label="Spielmodus-Filter">
+            {(['all', 'x01', 'cricket', 'training', 'party'] as Filter[]).map((f) => (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => { setFilter(f); setVisibleCount(PAGE_SIZE) }}
                 role="tab"
                 aria-selected={filter === f}
                 style={{
@@ -701,7 +707,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                   fontWeight: 800,
                 }}
               >
-                {f === 'all' ? 'Alle' : f === 'x01' ? 'X01' : f === '121' ? '121' : f === 'cricket' ? 'Cricket' : f === 'atb' ? 'ATB' : f === 'ctf' ? 'CTF' : f === 'shanghai' ? 'Shanghai' : f === 'killer' ? 'Killer' : f === 'bobs27' ? "B27" : f === 'operation' ? 'OP' : f === 'str' ? 'Str' : 'HS'}
+                {FILTER_LABELS[f]}
               </button>
             ))}
 
@@ -729,12 +735,12 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
           </div>
 
           {/* Suchfeld */}
-          <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 180 }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE) }}
                 placeholder="Suche: Name, Datum, Spieler..."
                 aria-label="Matches durchsuchen"
                 style={{
@@ -780,18 +786,18 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         </div>
 
         <div style={{ ...styles.sub, marginTop: 8 }}>
-          {items.length} Match{items.length === 1 ? '' : 'es'} gefunden.
+          {items.length} Match{items.length === 1 ? '' : 'es'} gefunden{items.length > visibleCount ? ` (${Math.min(visibleCount, items.length)} angezeigt)` : ''}.
         </div>
       </div>
 
-      {/* Liste */}
+      {/* Liste (paginiert) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {items.length === 0 ? (
           <div style={{ padding: '12px 16px', background: colors.bgCard, borderRadius: 8, opacity: 0.75, color: colors.fgMuted }}>
             Keine Matches im aktuellen Filter.
           </div>
         ) : (
-          items.map((m) => (
+          items.slice(0, visibleCount).map((m) => (
             <div
               key={`${m.kind}:${m.id}`}
               onClick={() => {
@@ -809,17 +815,18 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                padding: '8px 12px',
+                gap: 8,
+                padding: '8px 10px',
                 background: m.finished ? colors.bgCard : (isArcade ? 'rgba(251,191,36,0.15)' : '#fefce8'),
                 borderRadius: 6,
                 cursor: 'pointer',
-                fontSize: 14,
+                fontSize: 13,
                 boxShadow: isArcade ? 'none' : '0 1px 2px rgba(0,0,0,0.05)',
                 border: m.finished
                   ? (isArcade ? `1px solid ${colors.border}` : 'none')
                   : `1px solid ${isArcade ? '#fbbf24' : '#fcd34d'}`,
                 opacity: m.finished ? 1 : 0.85,
+                overflow: 'hidden',
               }}
             >
               {!m.finished && (
@@ -835,37 +842,58 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                   Abgebr.
                 </span>
               )}
-              <span style={{ fontWeight: 700, minWidth: 70, color: colors.fg }}>
+              <span style={{ fontWeight: 700, flexShrink: 0, color: colors.fg, fontSize: 12 }}>
                 {m.matchName || m.mode}
                 {(m as any).isCrazy && ' 🤪'}
                 {(m as any).isCapture && ' 🚩'}
                 {(m as any).isSuddenDeath && ' ☠️'}
               </span>
-              <span style={{ flex: 1, fontSize: 12, color: colors.fgMuted }}>
+              <span style={{ flex: 1, fontSize: 11, color: colors.fgMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                 {m.playerNames.join(', ')}
               </span>
               {m.result && (
                 <span style={{
                   fontWeight: 800,
-                  fontSize: 15,
+                  fontSize: 13,
                   color: colors.fg,
                   background: colors.bgMuted,
-                  padding: '2px 8px',
+                  padding: '2px 6px',
                   borderRadius: 4,
-                  minWidth: 45,
+                  flexShrink: 0,
                   textAlign: 'center',
                 }}>
                   {m.result}
                 </span>
               )}
               {m.winnerName ? (
-                <span style={{ fontWeight: 600, color: colors.success, minWidth: 70 }}>{m.winnerName}</span>
+                <span style={{ fontWeight: 600, color: colors.success, flexShrink: 0, fontSize: 12 }}>{m.winnerName}</span>
               ) : (
-                <span style={{ color: colors.warning, fontWeight: 500, minWidth: 70 }}>offen</span>
+                <span style={{ color: colors.warning, fontWeight: 500, flexShrink: 0, fontSize: 12 }}>offen</span>
               )}
-              <span style={{ color: colors.fgDim, fontSize: 12 }}>{fmtDate(m.createdAt)}</span>
+              <span style={{ color: colors.fgDim, fontSize: 11, flexShrink: 0 }}>{fmtDate(m.createdAt)}</span>
             </div>
           ))
+        )}
+
+        {/* Mehr laden Button */}
+        {items.length > visibleCount && (
+          <button
+            onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+            style={{
+              marginTop: 8,
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: `1px solid ${colors.border}`,
+              background: colors.bgCard,
+              color: colors.fg,
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: 'pointer',
+              textAlign: 'center',
+            }}
+          >
+            Mehr laden ({items.length - visibleCount} weitere)
+          </button>
         )}
       </div>
     </div>
