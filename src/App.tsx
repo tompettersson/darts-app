@@ -665,14 +665,12 @@ export default function App() {
         }}
         onMultiplayerHost={() => {
           const profiles = getProfiles()
-          console.log('[Multiplayer Host] profiles:', profiles.length, profiles.map(p => p.name))
           if (profiles.length === 0) {
             showToast('Erstelle zuerst ein Profil unter Einstellungen')
             return
           }
           setMultiplayerMyPlayerId(profiles[0].id)
-          setIsMultiplayerSetup(true)
-          // View ist schon 'new-start', step wird in NewGameStart zurückgesetzt
+          setView('multiplayer-lobby-host')
         }}
         onMultiplayerJoin={() => {
           const profiles = getProfiles()
@@ -1592,7 +1590,7 @@ export default function App() {
   }
 
   // MULTIPLAYER LOBBY (Host)
-  if (view === 'multiplayer-lobby-host' && multiplayerMatchId) {
+  if (view === 'multiplayer-lobby-host') {
     return (
       <MultiplayerLobby
         mode="host"
@@ -1602,9 +1600,12 @@ export default function App() {
         error={mpState.error}
         myPlayerId={multiplayerMyPlayerId}
         roomCode={multiplayerRoomCode ?? ''}
+        gameConfig={mpState.gameConfig}
+        playerOrder={mpState.playerOrder}
+        orderType={mpState.orderType}
+        localProfiles={getProfiles()}
         onCreateRoom={(code) => {
           setMultiplayerRoomCode(code)
-          // Message will be queued until socket is open
           const profiles = getProfiles()
           const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
           mpActions.createRoom({
@@ -1614,9 +1615,17 @@ export default function App() {
           })
         }}
         onJoinRoom={() => {}}
+        onAddLocalPlayers={(players) => mpActions.addLocalPlayers(players as any)}
+        onRemovePlayer={(pid) => mpActions.removePlayer(pid)}
+        onSetGameConfig={(config) => mpActions.setGameConfig(config)}
+        onSetPlayerOrder={(pids, ot) => mpActions.setPlayerOrder(pids, ot)}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
-        onGameStart={() => {
-          setActiveMatchId(multiplayerMatchId!)
+        onStartGame={() => {
+          // TODO: Create match based on gameConfig + playerOrder, then send start-game
+          // For now, transition to game view
+          const config = mpState.gameConfig
+          if (!config) return
+          setMultiplayerGameType(config.gameType)
           setView('multiplayer-game')
         }}
         onBack={() => {
@@ -1624,6 +1633,7 @@ export default function App() {
           setMultiplayerRoomCode(null)
           setMultiplayerMatchId(null)
           setMultiplayerRemoteEvents(null)
+          setIsMultiplayerSetup(false)
           setView('menu')
         }}
       />
@@ -1641,10 +1651,13 @@ export default function App() {
         error={mpState.error}
         myPlayerId={multiplayerMyPlayerId}
         roomCode={multiplayerRoomCode ?? ''}
+        gameConfig={mpState.gameConfig}
+        playerOrder={mpState.playerOrder}
+        orderType={mpState.orderType}
+        localProfiles={getProfiles()}
         onCreateRoom={() => {}}
         onJoinRoom={(code) => {
           setMultiplayerRoomCode(code)
-          // Message will be queued until socket is open
           const profiles = getProfiles()
           const myProfile = profiles.find(p => p.id === multiplayerMyPlayerId)
           mpActions.joinRoom({
@@ -1653,24 +1666,24 @@ export default function App() {
             color: myProfile?.color,
           })
         }}
+        onAddLocalPlayers={(players) => mpActions.addLocalPlayers(players as any)}
+        onRemovePlayer={(pid) => mpActions.removePlayer(pid)}
+        onSetGameConfig={() => {}}
+        onSetPlayerOrder={() => {}}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
-        onGameStart={() => {
-          // Detect game type and matchId from synced events
-          const firstEvent = mpState.events[0] as any
-          if (firstEvent) {
-            setMultiplayerMatchId(firstEvent.matchId)
-            // Detect game type from first event type
-            const eventType: string = firstEvent.type ?? ''
-            if (eventType.startsWith('Cricket')) setMultiplayerGameType('cricket')
-            else if (eventType.startsWith('ATB')) setMultiplayerGameType('atb')
-            else if (eventType.startsWith('Str')) setMultiplayerGameType('str')
-            else if (eventType.startsWith('Highscore')) setMultiplayerGameType('highscore')
-            else if (eventType.startsWith('CTF')) setMultiplayerGameType('ctf')
-            else if (eventType.startsWith('Shanghai')) setMultiplayerGameType('shanghai')
-            else if (eventType.startsWith('Killer')) setMultiplayerGameType('killer')
-            else if (eventType.startsWith('Bobs27')) setMultiplayerGameType('bobs27')
-            else if (eventType.startsWith('Operation')) setMultiplayerGameType('operation')
-            else setMultiplayerGameType('x01')
+        onStartGame={() => {
+          // Detect game type from events or config
+          const config = mpState.gameConfig
+          if (config) {
+            setMultiplayerGameType(config.gameType)
+          } else {
+            const firstEvent = mpState.events[0] as any
+            if (firstEvent) {
+              const eventType: string = firstEvent.type ?? ''
+              if (eventType.startsWith('Cricket')) setMultiplayerGameType('cricket')
+              else if (eventType.startsWith('ATB')) setMultiplayerGameType('atb')
+              else setMultiplayerGameType('x01')
+            }
           }
           setView('multiplayer-game')
         }}
