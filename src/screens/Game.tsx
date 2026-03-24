@@ -76,6 +76,7 @@ import X01EndScreen from '../components/X01EndScreen'
 import MiniSparkline from '../components/MiniSparkline'
 import CelebrationEffect from '../components/CelebrationEffect'
 import './game.css'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // ---- Helpers ----
 function requiredToWinLocal(bestOf: number) {
@@ -707,6 +708,8 @@ type Props = {
 }
 
 export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props) {
+  useDisableScale() // Game screens handle their own responsive layout
+
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 

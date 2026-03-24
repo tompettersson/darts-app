@@ -125,6 +125,13 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
     return () => mq.removeEventListener('change', handler)
   }, [])
 
+  // IMPORTANT: These hooks must be called unconditionally (before any early return)
+  // to prevent React Error 310 when isMobile changes on rotation
+  const [hoverId, setHoverId] = useState<string | null>(null)
+  useEffect(() => {
+    return () => { if (stopListeningRef.current) stopListeningRef.current() }
+  }, [])
+
   const dark = theme === 'arcade'
 
   // Mobile: render compact 4x4 grid
@@ -399,7 +406,6 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
     gap: compact ? 4 : (dark ? 4 : 3),
   }
 
-  const [hoverId, setHoverId] = useState<string | null>(null)
   const hov = (id: string) => hoverId === id
 
   // Render content for special buttons (Bull/Miss)
@@ -460,10 +466,6 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
     setVoiceMode(null)
     setPartialDarts([])
   }
-
-  useEffect(() => {
-    return () => { if (stopListeningRef.current) stopListeningRef.current() }
-  }, [])
 
   const INPUT_MODES: InputMode[] = ['keyboard', 'dartboard', 'mobile']
   const INPUT_MODE_LABELS: Record<InputMode, string> = { keyboard: 'Tastatur', dartboard: 'Dartscheibe', mobile: 'Numpad' }

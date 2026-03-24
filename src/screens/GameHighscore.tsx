@@ -33,6 +33,7 @@ import GameControls, { PauseOverlay } from '../components/GameControls'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // Leg-Zusammenfassung Typ
 type HighscoreIntermission = {
@@ -65,6 +66,7 @@ type Props = {
 }
 
 export default function GameHighscore({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
   // Profile für Spielerfarben

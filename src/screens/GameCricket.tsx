@@ -32,6 +32,7 @@ import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '
 import CricketTurnList, { formatDartLabel, computeMarksDetail, type CricketTurnEntry } from '../components/CricketTurnList'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import { initSpeech, setSpeechEnabled, announceGameStart, announceNextPlayer, announceCrazyPlayerTarget, announceCricketLeg, announceCricketMatch, announceClosed, announceCricketMarks, announcePlayerNeeds, playTriple20Sound, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
+import { useDisableScale } from '../components/ScaleWrapper'
 import './game.css'
 
 type MultiplayerProp = {
@@ -599,6 +600,7 @@ function computeLegStats(
    Hauptkomponente
 =========================== */
 export default function GameCricket({ matchId, onExit, onShowCricketSummary, multiplayer }: Props) {
+  useDisableScale()
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 

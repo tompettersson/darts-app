@@ -44,6 +44,7 @@ import {
   debouncedAnnounce,
 } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // Intermission-Typ fuer Leg-Zusammenfassung
 type ShanghaiIntermission = {
@@ -84,6 +85,7 @@ type Props = {
 }
 
 export default function GameShanghai({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   // Shared theme colors
   const { c, isArcade, colors } = useGameColors()
 

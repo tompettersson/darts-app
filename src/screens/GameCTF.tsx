@@ -47,6 +47,7 @@ import {
   debouncedAnnounce,
 } from '../speech'
 import ATBCaptureScoreChart from '../components/ATBCaptureScoreChart'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // Intermission-Typ fuer Leg-Zusammenfassung
 type CTFIntermission = {
@@ -98,6 +99,7 @@ type Props = {
 }
 
 export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   // Theme-aware Farben
   const { c, isArcade, colors } = useGameColors()
 

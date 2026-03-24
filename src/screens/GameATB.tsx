@@ -46,6 +46,7 @@ import {
 } from '../speech'
 import { computeATBDetailedStats, type ATBDetailedStats } from '../stats/computeATBStats'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // Intermission-Typ für Leg-Zusammenfassung
 type ATBIntermission = {
@@ -118,6 +119,7 @@ type Props = {
 }
 
 export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getATBMatchById(matchId)

@@ -20,6 +20,7 @@ import {
   type ParsedDart,
   type ScoreRange,
 } from '../dartsCheckoutTrainer'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // ===== Difficulty Levels =====
 
@@ -81,6 +82,7 @@ const PLAYER_COLORS = [
 // ===== Component =====
 
 export default function GameCheckoutTrainer({ matchId, onExit, onShowSummary, onMatchCreated }: Props) {
+  useDisableScale()
   const { colors, isArcade } = useGameColors()
 
   // Wenn matchId === 'pending', sind wir in der Spielerauswahl-Phase

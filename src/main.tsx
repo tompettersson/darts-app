@@ -4,6 +4,7 @@ import App from './App'
 import { ThemeProvider } from './ThemeProvider'
 import { AuthProvider } from './auth/AuthContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import ScaleWrapper from './components/ScaleWrapper'
 import ToastContainer from './components/Toast'
 import Skeleton from './components/Skeleton'
 
@@ -22,9 +23,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <React.Suspense fallback={<Skeleton rows={5} />}>
-            <App />
-          </React.Suspense>
+          <ScaleWrapper>
+            <React.Suspense fallback={<Skeleton rows={5} />}>
+              <App />
+            </React.Suspense>
+          </ScaleWrapper>
           <ToastContainer />
         </AuthProvider>
       </ThemeProvider>

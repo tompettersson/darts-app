@@ -43,6 +43,7 @@ import {
   debouncedAnnounce,
 } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // Leg-Zusammenfassung Typ
 type StrIntermission = {
@@ -86,6 +87,7 @@ type Props = {
 }
 
 export default function GameStraeusschen({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
   // Events + State

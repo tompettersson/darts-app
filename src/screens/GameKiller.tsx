@@ -49,6 +49,7 @@ import type { KillerStoredMatch } from '../types/killer'
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import KillerDartboard from '../components/KillerDartboard'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // Hilfsfunktion: Beste Zelle pro Zeile hervorheben
 function getStatWinnerColors(
@@ -100,6 +101,7 @@ type Props = {
 }
 
 export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: Props) {
+  useDisableScale()
   // --- Intermission (Leg-Ende) ---
   const [intermission, setIntermission] = useState<{
     legWinnerId: string

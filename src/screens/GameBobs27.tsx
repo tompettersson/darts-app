@@ -27,6 +27,7 @@ import {
 import GameControls, { PauseOverlay } from '../components/GameControls'
 import { announceBobs27PlayerTurn, announceBobs27MustScore, announceGameStart, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 type MultiplayerProp = {
   enabled: boolean
@@ -47,6 +48,7 @@ type Props = {
 }
 
 export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getBobs27MatchById(matchId)

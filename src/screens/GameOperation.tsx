@@ -47,6 +47,7 @@ import {
 } from '../speech'
 import OperationLegSummary from './OperationLegSummary'
 import { PLAYER_COLORS } from '../playerColors'
+import { useDisableScale } from '../components/ScaleWrapper'
 
 // ===== Flammen-Effekt =====
 // Wächst mit jedem Treffer, bei 30 Treffern explodiert sie ins Feuerwerk.
@@ -327,6 +328,7 @@ type Props = {
 }
 
 export default function GameOperation({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+  useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
   const storedMatch = getOperationMatchById(matchId)
