@@ -1,23 +1,7 @@
 // party/match-room.ts
 // PartyKit server for real-time darts multiplayer.
 // Each room = one match. Events are stored in Durable Storage.
-
-import type {
-  ClientMessage,
-  ServerMessage,
-  RoomPlayer,
-  RoomPhase,
-  GameConfig,
-  PlayerOrder,
-  SyncMsg,
-  EventsBroadcastMsg,
-  UndoBroadcastMsg,
-  PlayersUpdateMsg,
-  PhaseChangeMsg,
-  GameConfigUpdateMsg,
-  PlayerOrderUpdateMsg,
-  ErrorMsg,
-} from '../src/multiplayer/protocol'
+// NOTE: All types defined inline to avoid import issues with PartyKit bundler.
 
 // PartyKit types (runtime provided)
 type Party = {
@@ -40,10 +24,51 @@ type ConnectionContext = {
   request: Request
 }
 
-// Connection state: which device and players are on this connection
+// ---- Inline Protocol Types (mirrored from src/multiplayer/protocol.ts) ----
+
+type PlayerRef = { playerId: string; name?: string; color?: string }
+type GameConfig = { gameType: string; [key: string]: any }
+type PlayerOrder = 'manual' | 'random'
+type RoomPhase = 'lobby' | 'playing' | 'finished'
+
+type RoomPlayer = {
+  playerId: string
+  name: string
+  color?: string
+  isHost: boolean
+  isReady: boolean
+  connected: boolean
+  deviceId: string
+  isLocal: boolean
+}
+
+type ClientMessage =
+  | { type: 'create-room'; hostPlayer: PlayerRef }
+  | { type: 'join-room'; player: PlayerRef }
+  | { type: 'add-local-players'; players: PlayerRef[] }
+  | { type: 'remove-player'; playerId: string }
+  | { type: 'set-game-config'; config: GameConfig }
+  | { type: 'set-player-order'; playerIds: string[]; orderType: PlayerOrder }
+  | { type: 'start-game'; matchId: string; gameType: string; events: any[] }
+  | { type: 'submit-events'; events: any[] }
+  | { type: 'undo'; removeCount: number }
+  | { type: 'player-ready'; playerId: string }
+  | { type: 'sync-request' }
+
+type ServerMessage =
+  | { type: 'sync'; events: any[]; players: RoomPlayer[]; phase: RoomPhase; gameConfig: GameConfig | null; playerOrder: string[]; orderType: PlayerOrder }
+  | { type: 'events'; events: any[]; fromIndex: number }
+  | { type: 'undo'; eventCount: number; events: any[] }
+  | { type: 'players-update'; players: RoomPlayer[] }
+  | { type: 'phase-change'; phase: RoomPhase }
+  | { type: 'game-config-update'; config: GameConfig }
+  | { type: 'player-order-update'; playerIds: string[]; orderType: PlayerOrder }
+  | { type: 'error'; message: string; code?: string }
+
+// Connection state
 type ConnState = {
-  deviceId: string      // = ws.id
-  playerIds: string[]   // All player IDs managed by this connection
+  deviceId: string
+  playerIds: string[]
 }
 
 // Room state (in memory, backed by Durable Storage)
