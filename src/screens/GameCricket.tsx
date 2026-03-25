@@ -2289,6 +2289,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           onAddTarget={addTarget}
           onSetMult={setMult}
           onUndo={undoLastTurn}
+          onUndoDart={() => setTurn(t => t.length > 0 ? t.slice(0, -1) : t)}
           onBack={() => setTurn(t => t.slice(0, -1))}
           onConfirm={() => confirmTurn()}
           onAnnounceStatus={() => {

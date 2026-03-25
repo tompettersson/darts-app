@@ -36,6 +36,7 @@ type Props = {
   onAddTarget?: (t: number | 'BULL' | 'MISS') => void
   onSetMult?: (m: 1 | 2 | 3) => void
   onUndo?: () => void
+  onUndoDart?: () => void  // Remove last dart from current turn only
   onBack?: () => void
   onConfirm?: () => void
   onAnnounceStatus?: () => void
@@ -410,6 +411,7 @@ export default function CricketArcadeView({
   onBack,
   onConfirm,
   onAnnounceStatus,
+  onUndoDart,
   isShort = true,
   crazyPro,
   crazyProTargets,
@@ -472,6 +474,19 @@ export default function CricketArcadeView({
         }
       `}</style>
 
+      {/* Mobile Header: Ansage-Button */}
+      {isMobile && onAnnounceStatus && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
+          <button onClick={onAnnounceStatus} style={{
+            padding: '4px 12px', borderRadius: 4, border: `1px solid ${colors.statusGreen}`,
+            background: colors.statusGreenDim, color: '#fff',
+            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          }}>
+            🔊 Status ansagen
+          </button>
+        </div>
+      )}
+
       {/* Obere Spieler */}
       <div style={{ marginBottom: compact ? 4 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
         {topRows.map((row, rowIndex) => (
@@ -527,15 +542,15 @@ export default function CricketArcadeView({
             <button onClick={(e) => { e.currentTarget.blur(); onUndo?.() }}
               style={{ flex: 1, padding: '8px 0', borderRadius: 4, border: '1px solid #555',
                 background: '#1a1a1a', color: '#aaa', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
-              ↩
+              ↩ Aufn.
             </button>
-            <button onClick={(e) => { e.currentTarget.blur(); onConfirm?.() }}
+            <button onClick={(e) => { e.currentTarget.blur(); onUndoDart?.() }}
               disabled={darts.length === 0}
               style={{ flex: 1, padding: '8px 0', borderRadius: 4,
-                border: `1px solid ${darts.length > 0 ? colors.statusGreen : '#555'}`,
-                background: darts.length > 0 ? colors.statusGreenDim : '#1a1a1a',
-                color: darts.length > 0 ? '#fff' : '#555', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
-              ✓
+                border: `1px solid ${darts.length > 0 ? '#f59e0b' : '#555'}`,
+                background: darts.length > 0 ? '#1a1a0a' : '#1a1a1a',
+                color: darts.length > 0 ? '#f59e0b' : '#555', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+              ↩ Dart
             </button>
           </div>
         </div>
