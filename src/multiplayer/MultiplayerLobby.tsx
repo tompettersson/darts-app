@@ -455,8 +455,17 @@ export default function MultiplayerLobby({
         <div style={s.statusDot} />
         {statusLabels[status]}
         <span style={{ marginLeft: 8, fontSize: 10, color: colors.fgDim }}>
-          P:{players.length} R:{roomCode || '—'} v2
+          P:{players.length} R:{roomCode || '—'} v3
         </span>
+        {status !== 'connected' && roomCode && (
+          <button onClick={() => onCreateRoom(roomCode)} style={{
+            marginLeft: 6, padding: '2px 8px', borderRadius: 6, fontSize: 10,
+            border: `1px solid ${colors.accent}`, background: 'transparent',
+            color: colors.accent, cursor: 'pointer', fontWeight: 700,
+          }}>
+            ↻
+          </button>
+        )}
       </div>
 
       {/* Debug Log */}
