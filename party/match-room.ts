@@ -77,6 +77,8 @@ function sendSync(conn: PartyKitConnection) {
 
 function broadcastPlayers(room: PartyKitRoom) {
   broadcastAll(room, { type: 'players-update', players: state.players })
+  // Also broadcast updated player order
+  broadcastAll(room, { type: 'player-order-update', playerIds: state.playerOrder, orderType: state.orderType })
 }
 
 function broadcastPhase(room: PartyKitRoom) {
