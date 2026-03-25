@@ -170,18 +170,15 @@ export function useMultiplayerRoom(
     }
   }, [roomId])
 
-  // Send helper
+  // Send helper — queues messages even before socket exists
   const sendMsg = useCallback((msg: ClientMessage) => {
     const socket = socketRef.current
-    if (!socket) {
-      console.warn('[Multiplayer] No socket, cannot send')
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      // Queue message — will be flushed when socket opens
+      pendingQueueRef.current.push(msg)
       return
     }
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(msg))
-    } else {
-      pendingQueueRef.current.push(msg)
-    }
+    socket.send(JSON.stringify(msg))
   }, [])
 
   // ---- Lobby Actions ----
