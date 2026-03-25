@@ -1620,11 +1620,75 @@ export default function App() {
         onSetPlayerOrder={(pids, ot) => mpActions.setPlayerOrder(pids, ot)}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
         onStartGame={() => {
-          // TODO: Create match based on gameConfig + playerOrder, then send start-game
-          // For now, transition to game view
           const config = mpState.gameConfig
           if (!config) return
+
+          // Build player list from ordered players
+          const orderedPlayerList = mpState.playerOrder
+            .map(pid => mpState.players.find(p => p.playerId === pid))
+            .filter(Boolean)
+            .map(p => ({ playerId: p!.playerId, name: p!.name, color: p!.color }))
+
+          if (orderedPlayerList.length < 2) return
+
+          const matchId = genId()
+          const legId = genId()
+          const ts = now()
+
+          // Create initial events based on game type
+          let initialEvents: any[] = []
+
+          if (config.gameType === 'x01') {
+            const score = config.startScore || 501
+            const mode = `${score}-${config.outRule || 'double-out'}`
+            const bestOfLegs = config.bestOfLegs || 3
+            const structure = config.structureKind === 'sets'
+              ? { kind: 'sets' as const, bestOfSets: config.bestOfSets || 3, legsPerSet: 3 }
+              : { kind: 'legs' as const, bestOfLegs }
+
+            initialEvents = [
+              {
+                eventId: genId(), type: 'MatchStarted', ts, matchId, mode,
+                structure, startingScorePerLeg: score,
+                players: orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name })),
+                bullThrow: { winnerPlayerId: orderedPlayerList[0].playerId },
+                version: 1, inRule: config.inRule || 'straight-in', outRule: config.outRule || 'double-out',
+              },
+              { eventId: genId(), type: 'LegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: orderedPlayerList[0].playerId },
+            ]
+          } else if (config.gameType === 'cricket') {
+            initialEvents = [
+              {
+                eventId: genId(), type: 'CricketMatchStarted', ts, matchId,
+                range: config.cricketRange || 'short',
+                style: config.cricketStyle || 'standard',
+                targetWins: config.cricketLegs || 2,
+                players: orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name })),
+              },
+              { eventId: genId(), type: 'CricketLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: orderedPlayerList[0].playerId },
+            ]
+          } else {
+            // Fallback for other modes — basic start event
+            initialEvents = [
+              {
+                eventId: genId(), type: 'MatchStarted', ts, matchId,
+                mode: config.gameType,
+                structure: { kind: 'legs' as const, bestOfLegs: config.bestOfLegs || 1 },
+                players: orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name })),
+                bullThrow: { winnerPlayerId: orderedPlayerList[0].playerId },
+                version: 1,
+              },
+            ]
+          }
+
+          // Send start-game to server (broadcasts events to all clients)
+          mpActions.startGame(matchId, config.gameType, initialEvents)
+
+          // Set local state for game view
+          setMultiplayerMatchId(matchId)
           setMultiplayerGameType(config.gameType)
+          setMultiplayerRemoteEvents(initialEvents)
+          setActiveMatchId(matchId)
           setView('multiplayer-game')
         }}
         onBack={() => {
