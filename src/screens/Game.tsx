@@ -291,7 +291,7 @@ function PlayerTurnCard({
     bustTag: { fontSize: 13, fontWeight: 800, color: '#b91c1c' },
     flashWrap: { position: 'absolute', inset: 0, pointerEvents: 'none', display: 'grid', placeItems: 'center' },
     flash: {
-      fontSize: 36,
+      fontSize: 22,
       fontWeight: 900,
       background: isBustFlash ? 'rgba(254,242,242,0.96)' : 'rgba(255,255,255,0.95)',
       border: `2px solid ${isBustFlash ? '#dc2626' : '#e5e7eb'}`,
@@ -1011,10 +1011,21 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
   const prevRemoteEventsRef = useRef<DartsEvent[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.enabled || !multiplayer.remoteEvents) return
-    // Only update if remote events actually changed (by reference)
     if (multiplayer.remoteEvents === prevRemoteEventsRef.current) return
+    const prevLen = prevRemoteEventsRef.current?.length ?? 0
     prevRemoteEventsRef.current = multiplayer.remoteEvents
     setEvents(multiplayer.remoteEvents)
+
+    // Announce next player when remote events change (other player threw)
+    if (speechEnabled && multiplayer.remoteEvents.length > prevLen && match) {
+      const newState = applyEvents(multiplayer.remoteEvents)
+      const currentLeg = newState.legs[newState.legs.length - 1]
+      if (currentLeg) {
+        const nextPid = getCurrentPlayerId(match, currentLeg, multiplayer.remoteEvents)
+        const nextName = match.players.find(p => p.playerId === nextPid)?.name ?? nextPid
+        debouncedAnnounce(() => announceNextPlayer(nextName))
+      }
+    }
   }, [multiplayer?.enabled, multiplayer?.remoteEvents])
 
   // --- Sprachausgabe ---
