@@ -179,12 +179,15 @@ export default class MatchRoom {
       return
     }
 
+    // Echo back that we received the message (debug)
+    send(ws, { type: 'error', message: `DEBUG: received ${msg.type}`, code: 'DEBUG' })
+
     // Wrap all handling in try-catch so errors are visible to client
     try {
-      return await this._handleMessage(ws, msg)
+      await this._handleMessage(ws, msg)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'unknown'
-      send(ws, { type: 'error', message: `Server error: ${msg}`, code: 'SERVER_CRASH' })
+      const errMsg = e instanceof Error ? e.message : String(e)
+      send(ws, { type: 'error', message: `Server crash: ${errMsg}`, code: 'SERVER_CRASH' })
     }
   }
 
