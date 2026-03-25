@@ -664,21 +664,19 @@ export default function App() {
           setView('game-checkout-trainer')
         }}
         onMultiplayerHost={() => {
-          const profiles = getProfiles()
-          if (profiles.length === 0) {
-            showToast('Erstelle zuerst ein Profil unter Einstellungen')
+          if (!auth.user || auth.isGuest) {
+            showToast('Bitte zuerst anmelden')
             return
           }
-          setMultiplayerMyPlayerId(profiles[0].id)
+          setMultiplayerMyPlayerId(auth.user.profileId)
           setView('multiplayer-lobby-host')
         }}
         onMultiplayerJoin={() => {
-          const profiles = getProfiles()
-          if (profiles.length === 0) {
-            alert('Erstelle zuerst ein Profil unter Einstellungen')
+          if (!auth.user || auth.isGuest) {
+            showToast('Bitte zuerst anmelden')
             return
           }
-          setMultiplayerMyPlayerId(profiles[0].id)
+          setMultiplayerMyPlayerId(auth.user.profileId)
           setView('multiplayer-lobby-join')
         }}
       />
