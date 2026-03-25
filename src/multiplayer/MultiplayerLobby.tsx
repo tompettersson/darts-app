@@ -368,22 +368,12 @@ export default function MultiplayerLobby({
   }, [])
 
   const handleDiceDone = useCallback(() => {
-    // Fisher-Yates shuffle that guarantees a different order
-    let shuffled: string[]
-    const maxAttempts = 20
-    let attempts = 0
-    do {
-      shuffled = [...playerOrder]
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-      }
-      attempts++
-    } while (
-      shuffled.every((id, idx) => id === playerOrder[idx]) && // Same order?
-      attempts < maxAttempts &&
-      playerOrder.length > 1 // Only retry if there are alternatives
-    )
+    // Fisher-Yates shuffle — true random (can produce same order)
+    const shuffled = [...playerOrder]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
     onSetPlayerOrder(shuffled, 'random')
     setShowDice(false)
   }, [playerOrder, onSetPlayerOrder])
