@@ -449,10 +449,13 @@ export default function MultiplayerLobby({
         <button style={{ ...styles.backBtn, flexShrink: 0 }} onClick={onBack}>← Zurück</button>
       </div>
 
-      {/* Connection Status */}
+      {/* Connection Status + Debug Info */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: status === 'connected' ? '#16a34a' : colors.fgMuted }}>
         <div style={s.statusDot} />
         {statusLabels[status]}
+        <span style={{ marginLeft: 8, fontSize: 10, color: colors.fgDim }}>
+          P:{players.length} R:{roomCode || '—'} v2
+        </span>
       </div>
 
       {/* Error */}
