@@ -419,7 +419,7 @@ export default function CricketArcadeView({
   const hasControls = !!onAddTarget
   const darts = turn ?? []
 
-  // Mobile detection + compact mode for 3+ players on small screens
+  // Mobile detection + compact mode
   const [screenWidth, setScreenWidth] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth : 600)
   React.useEffect(() => {
     const update = () => setScreenWidth(window.innerWidth)
@@ -429,11 +429,27 @@ export default function CricketArcadeView({
   const isMobile = screenWidth < 500
   const compact = isMobile && players.length >= 2
 
-  // Spieler in Reihen aufteilen (Grid-Layout)
-  // On mobile: always stack vertically (1 player per row)
-  const { topRows, bottomRows } = isMobile && players.length > 2
-    ? { topRows: players.map(p => [p]), bottomRows: [] as PlayerData[][] }
-    : getPlayerRows(players)
+  // On mobile: split players into top/bottom halves with input in middle
+  // 2 players: 1 top, 1 bottom
+  // 3 players: 1 top, 2 bottom
+  // 4 players: 2 top, 2 bottom
+  // 5 players: 2 top, 3 bottom
+  const { topRows, bottomRows } = (() => {
+    if (isMobile && hasControls) {
+      const n = players.length
+      const topCount = Math.ceil(n / 2)
+      const topPlayers = players.slice(0, topCount)
+      const bottomPlayers = players.slice(topCount)
+      // Max 2 per row on mobile
+      const makeRows = (arr: PlayerData[]) => {
+        const rows: PlayerData[][] = []
+        for (let i = 0; i < arr.length; i += 2) rows.push(arr.slice(i, Math.min(i + 2, arr.length)))
+        return rows
+      }
+      return { topRows: makeRows(topPlayers), bottomRows: makeRows(bottomPlayers) }
+    }
+    return getPlayerRows(players)
+  })()
 
   // Bull aktiv prüfen
   const bullActive = players.some(p => (p.marks['BULL'] ?? 0) < 3)
@@ -458,47 +474,89 @@ export default function CricketArcadeView({
         }
       `}</style>
 
-      {/* Obere Spieler (eine oder mehrere Reihen) */}
-      <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* Obere Spieler */}
+      <div style={{ marginBottom: compact ? 4 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
         {topRows.map((row, rowIndex) => (
-          <div key={rowIndex} style={{ display: 'flex', gap: 8 }}>
+          <div key={rowIndex} style={{ display: 'flex', gap: compact ? 4 : 8 }}>
             {row.map(p => (
-              <div key={p.id} style={{ flex: row.length === 1 ? '1' : '0 0 calc(50% - 4px)' }}>
-                <PlayerRow
-                  player={p}
-                  targets={targets}
-                  hideScore={hideScore}
-                  closedTargets={closedTargets}
-                  compact={compact}
-                />
+              <div key={p.id} style={{ flex: row.length === 1 ? '1' : '0 0 calc(50% - 2px)' }}>
+                <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} />
               </div>
             ))}
           </div>
         ))}
       </div>
 
-      {/* Status-Zeile mit Darts */}
-      <StatusRow
-        currentDart={currentDart}
-        currentRound={currentRound}
-        bullActive={bullActive}
-        crazyTargets={crazyTargets}
-        darts={darts}
-      />
+      {/* Mobile: Inline Input between players */}
+      {isMobile && hasControls && (
+        <div style={{ margin: '4px 0' }}>
+          {/* Row 1: Target numbers in one line */}
+          <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
+            {[...inputNumbers, 'B', 'X'].map(item => {
+              const isBull = item === 'B'
+              const isMiss = item === 'X'
+              return (
+                <button key={String(item)} onClick={(e) => {
+                  e.currentTarget.blur()
+                  if (isBull) onAddTarget!('BULL')
+                  else if (isMiss) onAddTarget!('MISS')
+                  else onAddTarget!(item as number)
+                }} style={{
+                  flex: 1, padding: '8px 0', borderRadius: 4,
+                  border: `1px solid ${isMiss ? '#555' : colors.ledOn}`,
+                  background: isMiss ? '#2a2a2a' : '#1a1a1a',
+                  color: isMiss ? colors.textBright : colors.ledOn,
+                  fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                }}>
+                  {isBull ? 'B' : isMiss ? '✕' : item}
+                </button>
+              )
+            })}
+          </div>
+          {/* Row 2: S, D, T, Undo, Confirm */}
+          <div style={{ display: 'flex', gap: 2 }}>
+            {[1, 2, 3].map(m => (
+              <button key={m} onClick={(e) => { e.currentTarget.blur(); onSetMult!(m as 1 | 2 | 3) }}
+                style={{
+                  flex: 1, padding: '8px 0', borderRadius: 4,
+                  border: `1px solid ${mult === m ? colors.statusGreen : '#555'}`,
+                  background: mult === m ? colors.statusGreenDim : '#1a1a1a',
+                  color: mult === m ? '#fff' : '#777', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                }}>
+                {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
+              </button>
+            ))}
+            <button onClick={(e) => { e.currentTarget.blur(); onUndo?.() }}
+              style={{ flex: 1, padding: '8px 0', borderRadius: 4, border: '1px solid #555',
+                background: '#1a1a1a', color: '#aaa', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+              ↩
+            </button>
+            <button onClick={(e) => { e.currentTarget.blur(); onConfirm?.() }}
+              disabled={darts.length === 0}
+              style={{ flex: 1, padding: '8px 0', borderRadius: 4,
+                border: `1px solid ${darts.length > 0 ? colors.statusGreen : '#555'}`,
+                background: darts.length > 0 ? colors.statusGreenDim : '#1a1a1a',
+                color: darts.length > 0 ? '#fff' : '#555', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+              ✓
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* Untere Spieler (eine oder mehrere Reihen) */}
+      {/* Status-Zeile mit Darts */}
+      {!isMobile && (
+        <StatusRow currentDart={currentDart} currentRound={currentRound}
+          bullActive={bullActive} crazyTargets={crazyTargets} darts={darts} />
+      )}
+
+      {/* Untere Spieler */}
       {bottomRows.length > 0 && (
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ marginTop: compact ? 4 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
           {bottomRows.map((row, rowIndex) => (
-            <div key={rowIndex} style={{ display: 'flex', gap: 8 }}>
+            <div key={rowIndex} style={{ display: 'flex', gap: compact ? 4 : 8 }}>
               {row.map(p => (
-                <div key={p.id} style={{ flex: row.length === 1 ? '1' : '0 0 calc(50% - 4px)' }}>
-                  <PlayerRow
-                    player={p}
-                    targets={targets}
-                    hideScore={hideScore}
-                    closedTargets={closedTargets}
-                  />
+                <div key={p.id} style={{ flex: row.length === 1 ? '1' : '0 0 calc(50% - 2px)' }}>
+                  <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} />
                 </div>
               ))}
             </div>
@@ -506,32 +564,15 @@ export default function CricketArcadeView({
         </div>
       )}
 
-      {/* === Controls-Bereich === */}
-      {hasControls && (
-        <div
-          style={{
-            display: isMobile ? 'grid' : 'flex',
-            gap: isMobile ? 6 : 16,
-            marginTop: 6,
-            borderTop: `1px solid #222`,
-            paddingTop: 6,
-            justifyContent: 'center',
-          }}
-        >
-          {/* Leg-Verlauf */}
-          {turnHistory && !isMobile && (
+      {/* === Desktop Controls === */}
+      {hasControls && !isMobile && (
+        <div style={{ display: 'flex', gap: 16, marginTop: 6, borderTop: '1px solid #222', paddingTop: 6, justifyContent: 'center' }}>
+          {turnHistory && (
             <div style={{ width: 300, flexShrink: 0, overflow: 'hidden' }}>
-              <CricketTurnList
-                turns={turnHistory}
-                scrollRef={turnListRef}
-                maxHeight={200}
-                isLight={false}
-              />
+              <CricketTurnList turns={turnHistory} scrollRef={turnListRef} maxHeight={200} isLight={false} />
             </div>
           )}
-
-          {/* Input-Bereich */}
-          <div style={{ width: isMobile ? '100%' : 300, flexShrink: 0 }}>
+          <div style={{ width: 300, flexShrink: 0 }}>
             {/* Crazy Pro: Ziele-Vorschau */}
             {crazyPro && crazyProTargets && crazyProTargets.length === 3 && (
               <div
@@ -578,7 +619,7 @@ export default function CricketArcadeView({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : `repeat(${inputNumbers.length + 2}, 1fr)`,
+                gridTemplateColumns: `repeat(${inputNumbers.length + 2}, 1fr)`,
                 gap: 3,
                 marginBottom: 6,
               }}
@@ -596,17 +637,17 @@ export default function CricketArcadeView({
                       else onAddTarget!(item as number)
                     }}
                     style={{
-                      padding: isMobile ? '10px 4px' : '6px 8px',
+                      padding: '6px 8px',
                       borderRadius: 5,
                       border: `1px solid ${isMiss ? '#555' : colors.ledOn}`,
                       background: isMiss ? '#2a2a2a' : '#1a1a1a',
                       color: isMiss ? colors.textBright : colors.ledOn,
                       fontWeight: 800,
-                      fontSize: isMobile ? 14 : 11,
+                      fontSize: 11,
                       cursor: 'pointer',
                     }}
                   >
-                    {isBull ? 'Bull' : isMiss ? 'Miss' : item}
+                    {isBull ? 'B' : isMiss ? 'X' : item}
                   </button>
                 )
               })}
@@ -629,13 +670,13 @@ export default function CricketArcadeView({
                   }}
                   style={{
                     flex: 1,
-                    padding: isMobile ? '10px 10px' : '6px 10px',
+                    padding: '6px 10px',
                     borderRadius: 6,
                     border: `1px solid ${mult === m ? colors.statusGreen : '#555'}`,
                     background: mult === m ? colors.statusGreenDim : '#1a1a1a',
                     color: mult === m ? '#fff' : '#777',
                     fontWeight: 700,
-                    fontSize: isMobile ? 16 : 13,
+                    fontSize: 13,
                     cursor: 'pointer',
                   }}
                 >
