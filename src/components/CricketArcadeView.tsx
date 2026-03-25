@@ -440,13 +440,11 @@ export default function CricketArcadeView({
       const topCount = Math.ceil(n / 2)
       const topPlayers = players.slice(0, topCount)
       const bottomPlayers = players.slice(topCount)
-      // Max 2 per row on mobile
-      const makeRows = (arr: PlayerData[]) => {
-        const rows: PlayerData[][] = []
-        for (let i = 0; i < arr.length; i += 2) rows.push(arr.slice(i, Math.min(i + 2, arr.length)))
-        return rows
+      // Mobile: always 1 player per row (stacked vertically)
+      return {
+        topRows: topPlayers.map(p => [p]),
+        bottomRows: bottomPlayers.map(p => [p]),
       }
-      return { topRows: makeRows(topPlayers), bottomRows: makeRows(bottomPlayers) }
     }
     return getPlayerRows(players)
   })()
