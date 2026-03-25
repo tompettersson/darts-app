@@ -207,10 +207,13 @@ export function useMultiplayerRoom(
   }, [sendMsg])
 
   const setGameConfigAction = useCallback((config: GameConfig) => {
+    setGameConfig(config) // Set locally immediately (optimistic)
     sendMsg({ type: 'set-game-config', config })
   }, [sendMsg])
 
   const setPlayerOrderAction = useCallback((pids: string[], ot: PlayerOrder) => {
+    setPlayerOrder(pids) // Set locally immediately (optimistic)
+    setOrderType(ot)
     sendMsg({ type: 'set-player-order', playerIds: pids, orderType: ot })
   }, [sendMsg])
 
