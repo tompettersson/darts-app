@@ -28,7 +28,6 @@ export type MultiplayerState = {
 }
 
 export type MultiplayerActions = {
-  // Lobby actions (new)
   createRoom: (hostPlayer: PlayerRef) => void
   joinRoom: (player: PlayerRef) => void
   addLocalPlayers: (players: PlayerRef[]) => void
@@ -36,8 +35,6 @@ export type MultiplayerActions = {
   setGameConfig: (config: GameConfig) => void
   setPlayerOrder: (playerIds: string[], orderType: PlayerOrder) => void
   startGame: (matchId: string, gameType: string, events: any[]) => void
-
-  // Game actions (existing)
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   playerReady: (playerId: string) => void
@@ -64,7 +61,9 @@ export function useMultiplayerRoom(
   const socketRef = useRef<PartySocket | null>(null)
   const onRemoteEventsRef = useRef(onRemoteEvents)
   const onRemoteUndoRef = useRef(onRemoteUndo)
-  const pendingQueueRef = useRef<ClientMessage[]>([])
+
+  // Message that should be sent immediately when socket opens
+  const onConnectMessageRef = useRef<ClientMessage | null>(null)
 
   onRemoteEventsRef.current = onRemoteEvents
   onRemoteUndoRef.current = onRemoteUndo
@@ -78,8 +77,8 @@ export function useMultiplayerRoom(
 
     setStatus('connecting')
     setError(null)
-    // IMPORTANT: Do NOT clear the pending queue here!
-    // Messages may have been queued before the socket was created.
+
+    console.debug('[Multiplayer] Connecting to room:', roomId, 'host:', PARTYKIT_HOST)
 
     const socket = new PartySocket({
       host: PARTYKIT_HOST,
@@ -89,14 +88,16 @@ export function useMultiplayerRoom(
     socketRef.current = socket
 
     socket.addEventListener('open', () => {
+      console.debug('[Multiplayer] Socket opened')
       setStatus('connected')
       setError(null)
-      // Flush queued messages (including create-room / join-room)
-      const queue = pendingQueueRef.current
-      pendingQueueRef.current = []
-      console.debug('[Multiplayer] Flushing', queue.length, 'queued messages')
-      for (const msg of queue) {
-        socket.send(JSON.stringify(msg))
+
+      // Send the initial message (create-room or join-room) that was set before connect
+      const initMsg = onConnectMessageRef.current
+      if (initMsg) {
+        console.debug('[Multiplayer] Sending initial message:', initMsg.type)
+        socket.send(JSON.stringify(initMsg))
+        onConnectMessageRef.current = null
       }
     })
 
@@ -169,16 +170,15 @@ export function useMultiplayerRoom(
     return () => {
       socket.close()
       socketRef.current = null
-      // Don't clear queue on cleanup — new socket may pick them up
     }
   }, [roomId])
 
-  // Send helper — queues messages even before socket exists
+  // Send helper — only works when socket is open
   const sendMsg = useCallback((msg: ClientMessage) => {
     const socket = socketRef.current
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      // Queue message — will be flushed when socket opens
-      pendingQueueRef.current.push(msg)
+      console.warn('[Multiplayer] Socket not ready, storing as onConnect message:', msg.type)
+      onConnectMessageRef.current = msg
       return
     }
     socket.send(JSON.stringify(msg))
@@ -187,12 +187,26 @@ export function useMultiplayerRoom(
   // ---- Lobby Actions ----
 
   const createRoom = useCallback((hostPlayer: PlayerRef) => {
-    sendMsg({ type: 'create-room', hostPlayer })
-  }, [sendMsg])
+    const msg: ClientMessage = { type: 'create-room', hostPlayer }
+    // Store as the message to send when socket opens
+    onConnectMessageRef.current = msg
+    // Also try to send immediately if socket is already open
+    const socket = socketRef.current
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(msg))
+      onConnectMessageRef.current = null
+    }
+  }, [])
 
   const joinRoom = useCallback((player: PlayerRef) => {
-    sendMsg({ type: 'join-room', player })
-  }, [sendMsg])
+    const msg: ClientMessage = { type: 'join-room', player }
+    onConnectMessageRef.current = msg
+    const socket = socketRef.current
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(msg))
+      onConnectMessageRef.current = null
+    }
+  }, [])
 
   const addLocalPlayers = useCallback((localPlayers: PlayerRef[]) => {
     sendMsg({ type: 'add-local-players', players: localPlayers })
@@ -214,8 +228,6 @@ export function useMultiplayerRoom(
     sendMsg({ type: 'start-game', matchId, gameType, events: initialEvents })
   }, [sendMsg])
 
-  // ---- Game Actions ----
-
   const submitEvents = useCallback((evts: any[]) => {
     sendMsg({ type: 'submit-events', events: evts })
   }, [sendMsg])
@@ -235,7 +247,7 @@ export function useMultiplayerRoom(
   const disconnect = useCallback(() => {
     socketRef.current?.close()
     socketRef.current = null
-    pendingQueueRef.current = []
+    onConnectMessageRef.current = null
     setStatus('disconnected')
     setPlayers([])
     setPhase('lobby')
