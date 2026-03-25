@@ -25,6 +25,7 @@ export type MultiplayerState = {
   gameConfig: GameConfig | null
   playerOrder: string[]
   orderType: PlayerOrder
+  debugLog: string[]
 }
 
 export type MultiplayerActions = {
@@ -61,9 +62,14 @@ export function useMultiplayerRoom(
   const socketRef = useRef<PartySocket | null>(null)
   const onRemoteEventsRef = useRef(onRemoteEvents)
   const onRemoteUndoRef = useRef(onRemoteUndo)
+  const [debugLog, setDebugLog] = useState<string[]>([])
 
   // Message that should be sent immediately when socket opens
   const onConnectMessageRef = useRef<ClientMessage | null>(null)
+
+  const addDebug = useCallback((msg: string) => {
+    setDebugLog(prev => [...prev.slice(-4), msg])
+  }, [])
 
   onRemoteEventsRef.current = onRemoteEvents
   onRemoteUndoRef.current = onRemoteUndo
@@ -78,7 +84,7 @@ export function useMultiplayerRoom(
     setStatus('connecting')
     setError(null)
 
-    console.debug('[Multiplayer] Connecting to room:', roomId, 'host:', PARTYKIT_HOST)
+    addDebug(`Connecting to ${roomId}`)
 
     const socket = new PartySocket({
       host: PARTYKIT_HOST,
@@ -88,16 +94,16 @@ export function useMultiplayerRoom(
     socketRef.current = socket
 
     socket.addEventListener('open', () => {
-      console.debug('[Multiplayer] Socket opened')
       setStatus('connected')
       setError(null)
 
-      // Send the initial message (create-room or join-room) that was set before connect
       const initMsg = onConnectMessageRef.current
       if (initMsg) {
-        console.debug('[Multiplayer] Sending initial message:', initMsg.type)
+        addDebug(`Sending: ${initMsg.type}`)
         socket.send(JSON.stringify(initMsg))
         onConnectMessageRef.current = null
+      } else {
+        addDebug('Open but no init msg!')
       }
     })
 
@@ -120,6 +126,7 @@ export function useMultiplayerRoom(
     })
 
     function handleServerMessage(msg: ServerMessage) {
+      addDebug(`Recv: ${msg.type}`)
       switch (msg.type) {
         case 'sync':
           setEvents(msg.events)
@@ -260,7 +267,7 @@ export function useMultiplayerRoom(
 
   const state: MultiplayerState = {
     status, players, phase, events, error,
-    gameConfig, playerOrder, orderType,
+    gameConfig, playerOrder, orderType, debugLog,
   }
 
   const actions: MultiplayerActions = {

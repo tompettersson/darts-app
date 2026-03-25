@@ -34,6 +34,7 @@ type Props = {
   onStartGame: () => void
   onReady: () => void
   onBack: () => void
+  debugLog?: string[]
 }
 
 // ---- Game mode labels ----
@@ -252,7 +253,7 @@ export default function MultiplayerLobby({
   mode, status, players, phase, error, myPlayerId, roomCode,
   gameConfig, playerOrder, orderType, localProfiles,
   onCreateRoom, onJoinRoom, onAddLocalPlayers, onRemovePlayer,
-  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack,
+  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack, debugLog,
 }: Props) {
   const { colors, isArcade } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -457,6 +458,13 @@ export default function MultiplayerLobby({
           P:{players.length} R:{roomCode || '—'} v2
         </span>
       </div>
+
+      {/* Debug Log */}
+      {debugLog && debugLog.length > 0 && (
+        <div style={{ fontSize: 10, color: colors.fgDim, background: colors.bgMuted, padding: '6px 8px', borderRadius: 6, fontFamily: 'monospace' }}>
+          {debugLog.map((line, i) => <div key={i}>{line}</div>)}
+        </div>
+      )}
 
       {/* Error */}
       {error && (

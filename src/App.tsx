@@ -1604,6 +1604,7 @@ export default function App() {
         playerOrder={mpState.playerOrder}
         orderType={mpState.orderType}
         localProfiles={getProfiles()}
+        debugLog={mpState.debugLog}
         onCreateRoom={(code) => {
           setMultiplayerRoomCode(code)
           const profiles = getProfiles()
@@ -1655,6 +1656,7 @@ export default function App() {
         playerOrder={mpState.playerOrder}
         orderType={mpState.orderType}
         localProfiles={getProfiles()}
+        debugLog={mpState.debugLog}
         onCreateRoom={() => {}}
         onJoinRoom={(code) => {
           setMultiplayerRoomCode(code)
