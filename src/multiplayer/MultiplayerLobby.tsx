@@ -152,9 +152,9 @@ function X01Config({ config, onChange }: { config: GameConfig; onChange: (c: Gam
       </div>
       <label style={{ fontWeight: 600, fontSize: 13 }}>Legs</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {[1, 3, 5, 7, 9].map(n => (
+        {[1, 2, 3, 5, 7].map(n => (
           <button key={n} onClick={() => onChange({ ...config, bestOfLegs: n, structureKind: 'legs' })}
-            style={pillStyle(config.bestOfLegs === n && config.structureKind === 'legs')}>Best of {n}</button>
+            style={pillStyle(config.bestOfLegs === n && config.structureKind === 'legs')}>First to {n}</button>
         ))}
       </div>
     </div>
@@ -210,7 +210,7 @@ function SimpleLegsConfig({ config, onChange, label }: { config: GameConfig; onC
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {[1, 2, 3, 5, 7].map(n => (
           <button key={n} onClick={() => onChange({ ...config, bestOfLegs: n })}
-            style={pillStyle(config.bestOfLegs === n)}>Best of {n}</button>
+            style={pillStyle(config.bestOfLegs === n)}>First to {Math.ceil(n / 2)}</button>
         ))}
       </div>
     </div>

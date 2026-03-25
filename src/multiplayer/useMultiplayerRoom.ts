@@ -110,6 +110,7 @@ export function useMultiplayerRoom(
         addDebug(`Recv: ${msg.type}`)
         switch (msg.type) {
           case 'sync':
+            addDebug(`Sync: ${msg.players.length}p`)
             setEvents(msg.events)
             setPlayers(msg.players)
             setPhase(msg.phase)
@@ -136,6 +137,7 @@ export function useMultiplayerRoom(
             onRemoteUndoRef.current?.(msg.events)
             break
           case 'players-update':
+            addDebug(`Players: ${msg.players.length}`)
             setPlayers(msg.players)
             break
           case 'phase-change':
