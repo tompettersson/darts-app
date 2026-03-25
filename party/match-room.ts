@@ -154,6 +154,15 @@ export default class MatchRoom {
       return
     }
 
+    // Wrap all handling in try-catch so errors are visible to client
+    try {
+      return await this._handleMessage(ws, msg)
+    } catch (e: any) {
+      send(ws, { type: 'error', message: `Server error: ${e?.message || 'unknown'}`, code: 'SERVER_CRASH' })
+    }
+  }
+
+  private async _handleMessage(ws: Connection, msg: ClientMessage) {
     switch (msg.type) {
       case 'create-room':
         this.handleCreateRoom(ws, msg)
