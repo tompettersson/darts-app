@@ -583,21 +583,44 @@ html, body, #root {
   margin-bottom: 16px;
 }
 
-/* Info/hint banner base style */
+/* Info/hint banner — overlay on mobile, inline on desktop */
 .game-hint-banner {
   border-radius: 12px;
   padding: 10px 16px;
-  margin-bottom: 12px;
   text-align: center;
+  z-index: 50;
+  pointer-events: none;
+}
+
+@media (max-width: 599px) {
+  .game-hint-banner {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    animation: bannerSlideUp 0.3s ease-out;
+  }
+}
+
+@media (min-width: 600px) {
+  .game-hint-banner {
+    margin-bottom: 12px;
+  }
+}
+
+@keyframes bannerSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .game-hint-banner.warning {
-  background: #fef3c7;
+  background: #fef3c7ee;
   border: 2px solid #f59e0b;
 }
 
 .game-hint-banner.info {
-  background: #dbeafe;
+  background: #dbeafeee;
   border: 2px solid #3b82f6;
 }
 

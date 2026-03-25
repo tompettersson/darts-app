@@ -54,11 +54,61 @@ const GAME_MODES: Array<{ id: GameConfig['gameType']; label: string; sub: string
 
 // ---- Dice Animation Component ----
 
+/** Synthesized dice rolling sound using Web Audio API */
+function playDiceSound() {
+  try {
+    const ctx = new AudioContext()
+    const duration = 1.5
+    const time = ctx.currentTime
+
+    // Rattling dice: rapid noise bursts that slow down
+    for (let i = 0; i < 20; i++) {
+      const progress = i / 20
+      const t = time + progress * progress * duration // Slowing down
+      const bufLen = Math.floor(ctx.sampleRate * 0.03)
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let j = 0; j < bufLen; j++) {
+        data[j] = (Math.random() * 2 - 1) * 0.6
+      }
+      const source = ctx.createBufferSource()
+      source.buffer = buf
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'highpass'
+      filter.frequency.setValueAtTime(800 + progress * 2000, t)
+      const gain = ctx.createGain()
+      gain.gain.setValueAtTime(0.15 + (1 - progress) * 0.15, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05)
+      source.connect(filter)
+      filter.connect(gain)
+      gain.connect(ctx.destination)
+      source.start(t)
+      source.stop(t + 0.06)
+    }
+
+    // Final thud (dice landing)
+    const thudTime = time + duration
+    const thud = ctx.createOscillator()
+    const thudGain = ctx.createGain()
+    thud.type = 'sine'
+    thud.frequency.setValueAtTime(120, thudTime)
+    thud.frequency.exponentialRampToValueAtTime(50, thudTime + 0.12)
+    thudGain.gain.setValueAtTime(0.3, thudTime)
+    thudGain.gain.exponentialRampToValueAtTime(0.001, thudTime + 0.15)
+    thud.connect(thudGain)
+    thudGain.connect(ctx.destination)
+    thud.start(thudTime)
+    thud.stop(thudTime + 0.2)
+  } catch { /* ignore audio errors */ }
+}
+
 function DiceAnimation({ onDone }: { onDone: () => void }) {
   const [rolling, setRolling] = useState(true)
   const [face, setFace] = useState(1)
 
   useEffect(() => {
+    playDiceSound()
+
     const interval = setInterval(() => {
       setFace(Math.floor(Math.random() * 6) + 1)
     }, 80)
