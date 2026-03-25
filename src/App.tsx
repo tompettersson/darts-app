@@ -1736,19 +1736,24 @@ export default function App() {
         onSetPlayerOrder={() => {}}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
         onStartGame={() => {
-          // Detect game type from events or config
+          // Get matchId from received events
+          const firstEvent = mpState.events[0] as any
+          const matchId = firstEvent?.matchId
+          if (!matchId) return
+
+          // Detect game type from config or events
           const config = mpState.gameConfig
-          if (config) {
-            setMultiplayerGameType(config.gameType)
-          } else {
-            const firstEvent = mpState.events[0] as any
-            if (firstEvent) {
-              const eventType: string = firstEvent.type ?? ''
-              if (eventType.startsWith('Cricket')) setMultiplayerGameType('cricket')
-              else if (eventType.startsWith('ATB')) setMultiplayerGameType('atb')
-              else setMultiplayerGameType('x01')
-            }
-          }
+          const gameType = config?.gameType || (() => {
+            const eventType: string = firstEvent?.type ?? ''
+            if (eventType.startsWith('Cricket')) return 'cricket'
+            if (eventType.startsWith('ATB')) return 'atb'
+            return 'x01'
+          })()
+
+          setMultiplayerMatchId(matchId)
+          setMultiplayerGameType(gameType)
+          setMultiplayerRemoteEvents(mpState.events)
+          setActiveMatchId(matchId)
           setView('multiplayer-game')
         }}
         onBack={() => {

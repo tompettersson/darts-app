@@ -54,51 +54,63 @@ const GAME_MODES: Array<{ id: GameConfig['gameType']; label: string; sub: string
 
 // ---- Dice Animation Component ----
 
-/** Synthesized dice rolling sound using Web Audio API */
+/** Synthesized dice rolling sound — short clacking impacts that slow down */
 function playDiceSound() {
   try {
     const ctx = new AudioContext()
-    const duration = 1.5
     const time = ctx.currentTime
 
-    // Rattling dice: rapid noise bursts that slow down
-    for (let i = 0; i < 20; i++) {
-      const progress = i / 20
-      const t = time + progress * progress * duration // Slowing down
-      const bufLen = Math.floor(ctx.sampleRate * 0.03)
+    // Series of short "clack" sounds (dice hitting surface), slowing down
+    const hits = 14
+    for (let i = 0; i < hits; i++) {
+      const progress = i / hits
+      // Exponential slowdown: hits get further apart
+      const t = time + progress * progress * 1.4
+
+      // Each "clack" = very short noise burst with bandpass filter
+      const bufLen = Math.floor(ctx.sampleRate * 0.012) // 12ms
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate)
       const data = buf.getChannelData(0)
       for (let j = 0; j < bufLen; j++) {
-        data[j] = (Math.random() * 2 - 1) * 0.6
+        data[j] = (Math.random() * 2 - 1)
       }
+
       const source = ctx.createBufferSource()
       source.buffer = buf
-      const filter = ctx.createBiquadFilter()
-      filter.type = 'highpass'
-      filter.frequency.setValueAtTime(800 + progress * 2000, t)
+
+      // Bandpass filter for "clacky" wooden/plastic sound
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'bandpass'
+      bp.frequency.setValueAtTime(2000 + Math.random() * 2000, t)
+      bp.Q.setValueAtTime(2, t)
+
       const gain = ctx.createGain()
-      gain.gain.setValueAtTime(0.15 + (1 - progress) * 0.15, t)
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05)
-      source.connect(filter)
-      filter.connect(gain)
+      const vol = 0.2 + (1 - progress) * 0.15 // Quieter as it slows
+      gain.gain.setValueAtTime(vol, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.02)
+
+      source.connect(bp)
+      bp.connect(gain)
       gain.connect(ctx.destination)
       source.start(t)
-      source.stop(t + 0.06)
+      source.stop(t + 0.03)
     }
 
-    // Final thud (dice landing)
-    const thudTime = time + duration
-    const thud = ctx.createOscillator()
-    const thudGain = ctx.createGain()
-    thud.type = 'sine'
-    thud.frequency.setValueAtTime(120, thudTime)
-    thud.frequency.exponentialRampToValueAtTime(50, thudTime + 0.12)
-    thudGain.gain.setValueAtTime(0.3, thudTime)
-    thudGain.gain.exponentialRampToValueAtTime(0.001, thudTime + 0.15)
-    thud.connect(thudGain)
-    thudGain.connect(ctx.destination)
-    thud.start(thudTime)
-    thud.stop(thudTime + 0.2)
+    // Two final "landing" thuds
+    for (let k = 0; k < 2; k++) {
+      const thudT = time + 1.45 + k * 0.12
+      const osc = ctx.createOscillator()
+      const g = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(180 - k * 40, thudT)
+      osc.frequency.exponentialRampToValueAtTime(60, thudT + 0.08)
+      g.gain.setValueAtTime(0.2, thudT)
+      g.gain.exponentialRampToValueAtTime(0.001, thudT + 0.1)
+      osc.connect(g)
+      g.connect(ctx.destination)
+      osc.start(thudT)
+      osc.stop(thudT + 0.12)
+    }
   } catch { /* ignore audio errors */ }
 }
 
