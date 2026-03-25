@@ -447,7 +447,7 @@ export default function CricketArcadeView({
     <div
       style={{
         background: colors.background,
-        padding: '8px 8px 12px',
+        padding: isMobile ? '4px 2px 8px' : '8px 8px 12px',
       }}
     >
       {/* CSS für Animationen */}
@@ -506,20 +506,20 @@ export default function CricketArcadeView({
         </div>
       )}
 
-      {/* === Controls-Bereich mit Leg-Verlauf links, Input rechts === */}
+      {/* === Controls-Bereich === */}
       {hasControls && (
         <div
           style={{
-            display: 'flex',
-            gap: 16,
-            marginTop: 8,
+            display: isMobile ? 'grid' : 'flex',
+            gap: isMobile ? 6 : 16,
+            marginTop: 6,
             borderTop: `1px solid #222`,
-            paddingTop: 8,
+            paddingTop: 6,
             justifyContent: 'center',
           }}
         >
-          {/* Leg-Verlauf (links, feste Breite) */}
-          {turnHistory && (
+          {/* Leg-Verlauf */}
+          {turnHistory && !isMobile && (
             <div style={{ width: 300, flexShrink: 0, overflow: 'hidden' }}>
               <CricketTurnList
                 turns={turnHistory}
@@ -530,8 +530,8 @@ export default function CricketArcadeView({
             </div>
           )}
 
-          {/* Input-Bereich (rechts, feste Breite) */}
-          <div style={{ width: 300, flexShrink: 0 }}>
+          {/* Input-Bereich */}
+          <div style={{ width: isMobile ? '100%' : 300, flexShrink: 0 }}>
             {/* Crazy Pro: Ziele-Vorschau */}
             {crazyPro && crazyProTargets && crazyProTargets.length === 3 && (
               <div
@@ -574,11 +574,11 @@ export default function CricketArcadeView({
               </div>
             )}
 
-            {/* Target-Buttons — alle in einer Reihe */}
+            {/* Target-Buttons */}
             <div
               style={{
-                display: 'flex',
-                flexWrap: 'wrap',
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : `repeat(${inputNumbers.length + 2}, 1fr)`,
                 gap: 3,
                 marginBottom: 6,
               }}
@@ -596,18 +596,17 @@ export default function CricketArcadeView({
                       else onAddTarget!(item as number)
                     }}
                     style={{
-                      padding: '6px 8px',
+                      padding: isMobile ? '10px 4px' : '6px 8px',
                       borderRadius: 5,
                       border: `1px solid ${isMiss ? '#555' : colors.ledOn}`,
                       background: isMiss ? '#2a2a2a' : '#1a1a1a',
                       color: isMiss ? colors.textBright : colors.ledOn,
                       fontWeight: 800,
-                      fontSize: 11,
+                      fontSize: isMobile ? 14 : 11,
                       cursor: 'pointer',
-                      minWidth: 28,
                     }}
                   >
-                    {isBull ? 'B' : isMiss ? 'X' : item}
+                    {isBull ? 'Bull' : isMiss ? 'Miss' : item}
                   </button>
                 )
               })}
@@ -630,13 +629,13 @@ export default function CricketArcadeView({
                   }}
                   style={{
                     flex: 1,
-                    padding: '6px 10px',
+                    padding: isMobile ? '10px 10px' : '6px 10px',
                     borderRadius: 6,
                     border: `1px solid ${mult === m ? colors.statusGreen : '#555'}`,
                     background: mult === m ? colors.statusGreenDim : '#1a1a1a',
                     color: mult === m ? '#fff' : '#777',
                     fontWeight: 700,
-                    fontSize: 13,
+                    fontSize: isMobile ? 16 : 13,
                     cursor: 'pointer',
                   }}
                 >
