@@ -65,9 +65,9 @@ const colors = {
 }
 
 // 7-Segment Style Zahl (15% größer)
-function SegmentNumber({ value, digits = 4, size = 'normal' }: { value: number; digits?: number; size?: 'normal' | 'large' }) {
+function SegmentNumber({ value, digits = 4, size = 'normal' }: { value: number; digits?: number; size?: 'small' | 'normal' | 'large' }) {
   const padded = String(value).padStart(digits, '0')
-  const fontSize = size === 'large' ? 32 : 23
+  const fontSize = size === 'large' ? 32 : size === 'small' ? 16 : 23
   return (
     <div
       style={{
@@ -118,28 +118,37 @@ function MarkLEDs({ marks, baseMarks = 0, closed, size = 10 }: { marks: number; 
   )
 }
 
-// Spieler-Zeile (15% größer)
+// Spieler-Zeile — compact mode for mobile with 3+ players
 function PlayerRow({
   player,
   targets,
   hideScore,
+  compact,
   closedTargets = [],
 }: {
   player: PlayerData
   targets: string[]
   hideScore?: boolean
   closedTargets?: string[]
+  compact?: boolean
 }) {
   const isActive = player.isActive
   const playerColor = player.color || colors.ledOn
-  const playerGlow = `${playerColor}50`  // 30% Opacity für Glow
+  const playerGlow = `${playerColor}50`
+
+  const pad = compact ? '6px 8px' : '12px 14px'
+  const nameSize = compact ? 13 : 18
+  const markGap = compact ? 6 : 14
+  const markMin = compact ? 20 : 30
+  const markFontSize = compact ? 11 : 14
+  const ledSize = compact ? 10 : 14
 
   return (
     <div
       style={{
         background: isActive ? `${playerColor}20` : 'transparent',
-        borderRadius: 10,
-        padding: '12px 14px',
+        borderRadius: compact ? 8 : 10,
+        padding: pad,
         border: isActive ? `2px solid ${playerColor}` : '2px solid transparent',
         boxShadow: isActive ? `0 0 15px ${playerGlow}, 0 0 30px ${playerColor}20` : 'none',
         transition: 'all 0.3s ease',
@@ -149,61 +158,46 @@ function PlayerRow({
       <div
         style={{
           textAlign: 'center',
-          marginBottom: 12,
-          fontSize: 18,
+          marginBottom: compact ? 4 : 12,
+          fontSize: nameSize,
           fontWeight: 700,
           color: isActive ? playerColor : colors.textDim,
           textTransform: 'uppercase',
-          letterSpacing: 3,
+          letterSpacing: compact ? 1 : 3,
           textShadow: isActive ? `0 0 12px ${playerGlow}` : 'none',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}
       >
         {player.name}
         {isActive && (
-          <span
-            style={{
-              marginLeft: 8,
-              fontSize: 11,
-              color: colors.statusGreen,
-              animation: 'pulse 1.5s infinite',
-            }}
-          >
-            THROWING
+          <span style={{ marginLeft: 6, fontSize: compact ? 9 : 11, color: colors.statusGreen, animation: 'pulse 1.5s infinite' }}>
+            {compact ? '●' : 'THROWING'}
           </span>
         )}
       </div>
 
       {/* Marks + Score */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: compact ? 4 : 10 }}>
         {/* Mark LEDs */}
-        <div style={{ display: 'flex', gap: 14, flex: 1, justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: markGap, flex: 1, justifyContent: 'center' }}>
           {targets.map(t => {
             const key = t === 'BULL' ? 'BULL' : t
             const marks = player.marks[key] ?? 0
             const baseMarks = player.baseMarks[key] ?? 0
             const isClosed = closedTargets.includes(t)
             return (
-              <div key={t} style={{ textAlign: 'center', minWidth: 30, opacity: isClosed ? 0.5 : 1 }}>
-                <div
-                  style={{
-                    fontSize: 14,
-                    color: isClosed ? colors.statusGreen : (marks >= 3 ? colors.ledOn : colors.textDim),
-                    marginBottom: 5,
-                    fontWeight: marks >= 3 ? 700 : 500,
-                    textDecoration: isClosed ? 'line-through' : 'none',
-                    letterSpacing: 1,
-                  }}
-                >
+              <div key={t} style={{ textAlign: 'center', minWidth: markMin, opacity: isClosed ? 0.5 : 1 }}>
+                <div style={{
+                  fontSize: markFontSize,
+                  color: isClosed ? colors.statusGreen : (marks >= 3 ? colors.ledOn : colors.textDim),
+                  marginBottom: compact ? 2 : 5,
+                  fontWeight: marks >= 3 ? 700 : 500,
+                  textDecoration: isClosed ? 'line-through' : 'none',
+                  letterSpacing: 1,
+                }}>
                   {t === 'BULL' ? 'B' : t}
                 </div>
-                <MarkLEDs marks={marks} baseMarks={baseMarks} closed={isClosed} size={14} />
+                <MarkLEDs marks={marks} baseMarks={baseMarks} closed={isClosed} size={ledSize} />
               </div>
             )
           })}
@@ -211,16 +205,12 @@ function PlayerRow({
 
         {/* Score */}
         {!hideScore && (
-          <div
-            style={{
-              padding: '10px 14px',
-              background: '#111',
-              borderRadius: 10,
-              border: `1px solid #222`,
-              flexShrink: 0,
-            }}
-          >
-            <SegmentNumber value={player.score} digits={4} size="large" />
+          <div style={{
+            padding: compact ? '4px 6px' : '10px 14px',
+            background: '#111', borderRadius: compact ? 6 : 10,
+            border: '1px solid #222', flexShrink: 0,
+          }}>
+            <SegmentNumber value={player.score} digits={compact ? 3 : 4} size={compact ? 'small' : 'large'} />
           </div>
         )}
       </div>
@@ -429,8 +419,21 @@ export default function CricketArcadeView({
   const hasControls = !!onAddTarget
   const darts = turn ?? []
 
+  // Mobile detection + compact mode for 3+ players on small screens
+  const [screenWidth, setScreenWidth] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth : 600)
+  React.useEffect(() => {
+    const update = () => setScreenWidth(window.innerWidth)
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const isMobile = screenWidth < 500
+  const compact = isMobile && players.length >= 2
+
   // Spieler in Reihen aufteilen (Grid-Layout)
-  const { topRows, bottomRows } = getPlayerRows(players)
+  // On mobile: always stack vertically (1 player per row)
+  const { topRows, bottomRows } = isMobile && players.length > 2
+    ? { topRows: players.map(p => [p]), bottomRows: [] as PlayerData[][] }
+    : getPlayerRows(players)
 
   // Bull aktiv prüfen
   const bullActive = players.some(p => (p.marks['BULL'] ?? 0) < 3)
@@ -466,6 +469,7 @@ export default function CricketArcadeView({
                   targets={targets}
                   hideScore={hideScore}
                   closedTargets={closedTargets}
+                  compact={compact}
                 />
               </div>
             ))}
