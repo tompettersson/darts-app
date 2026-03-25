@@ -157,8 +157,9 @@ export default class MatchRoom {
     // Wrap all handling in try-catch so errors are visible to client
     try {
       return await this._handleMessage(ws, msg)
-    } catch (e: any) {
-      send(ws, { type: 'error', message: `Server error: ${e?.message || 'unknown'}`, code: 'SERVER_CRASH' })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'unknown'
+      send(ws, { type: 'error', message: `Server error: ${msg}`, code: 'SERVER_CRASH' })
     }
   }
 
@@ -234,7 +235,7 @@ export default class MatchRoom {
       createdAt: Date.now(),
     }
 
-    ws.setState({ deviceId: ws.id, playerIds: [hostPlayer.playerId] } satisfies ConnState)
+    ws.setState({ deviceId: ws.id, playerIds: [hostPlayer.playerId] } as ConnState)
     this.sendSync(ws)
     this.save()
   }
@@ -282,7 +283,7 @@ export default class MatchRoom {
       this.state.players.push(newPlayer)
       this.state.playerOrder.push(newPlayer.playerId)
 
-      ws.setState({ deviceId: ws.id, playerIds: [newPlayer.playerId] } satisfies ConnState)
+      ws.setState({ deviceId: ws.id, playerIds: [newPlayer.playerId] } as ConnState)
     }
 
     this.sendSync(ws)
