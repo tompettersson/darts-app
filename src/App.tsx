@@ -1638,47 +1638,110 @@ export default function App() {
           // Create initial events based on game type
           let initialEvents: any[] = []
 
-          if (config.gameType === 'x01') {
-            const score = config.startScore || 501
-            const mode = `${score}-${config.outRule || 'double-out'}`
-            const bestOfLegs = config.bestOfLegs || 3
-            const structure = config.structureKind === 'sets'
-              ? { kind: 'sets' as const, bestOfSets: config.bestOfSets || 3, legsPerSet: 3 }
-              : { kind: 'legs' as const, bestOfLegs }
+          const players = orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name }))
+          const starter = orderedPlayerList[0].playerId
+          const legs = config.bestOfLegs || 1
 
-            initialEvents = [
-              {
-                eventId: genId(), type: 'MatchStarted', ts, matchId, mode,
-                structure, startingScorePerLeg: score,
-                players: orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name })),
-                bullThrow: { winnerPlayerId: orderedPlayerList[0].playerId },
-                version: 1, inRule: config.inRule || 'straight-in', outRule: config.outRule || 'double-out',
-              },
-              { eventId: genId(), type: 'LegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: orderedPlayerList[0].playerId },
-            ]
-          } else if (config.gameType === 'cricket') {
-            initialEvents = [
-              {
-                eventId: genId(), type: 'CricketMatchStarted', ts, matchId,
-                range: config.cricketRange || 'short',
-                style: config.cricketStyle || 'standard',
-                targetWins: config.cricketLegs || 2,
-                players: orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name })),
-              },
-              { eventId: genId(), type: 'CricketLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: orderedPlayerList[0].playerId },
-            ]
-          } else {
-            // Fallback for other modes — basic start event
-            initialEvents = [
-              {
-                eventId: genId(), type: 'MatchStarted', ts, matchId,
-                mode: config.gameType,
-                structure: { kind: 'legs' as const, bestOfLegs: config.bestOfLegs || 1 },
-                players: orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name })),
-                bullThrow: { winnerPlayerId: orderedPlayerList[0].playerId },
-                version: 1,
-              },
-            ]
+          switch (config.gameType) {
+            case 'x01': {
+              const score = config.startScore || 501
+              const mode = `${score}-${config.outRule || 'double-out'}`
+              const structure = config.structureKind === 'sets'
+                ? { kind: 'sets' as const, bestOfSets: config.bestOfSets || 3, legsPerSet: 3 }
+                : { kind: 'legs' as const, bestOfLegs: legs }
+              initialEvents = [
+                { eventId: genId(), type: 'MatchStarted', ts, matchId, mode, structure, startingScorePerLeg: score,
+                  players, bullThrow: { winnerPlayerId: starter }, version: 1,
+                  inRule: config.inRule || 'straight-in', outRule: config.outRule || 'double-out' },
+                { eventId: genId(), type: 'LegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'cricket': {
+              initialEvents = [
+                { eventId: genId(), type: 'CricketMatchStarted', ts, matchId,
+                  range: config.cricketRange || 'short', style: config.cricketStyle || 'standard',
+                  targetWins: config.cricketLegs || 2, players },
+                { eventId: genId(), type: 'CricketLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'atb': {
+              initialEvents = [
+                { eventId: genId(), type: 'ATBMatchStarted', ts, matchId, players,
+                  mode: config.atbMode || 'standard', direction: config.atbDirection || 'forward',
+                  structure: { kind: 'legs' as const, bestOfLegs: legs },
+                  config: {} },
+                { eventId: genId(), type: 'ATBLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'ctf': {
+              initialEvents = [
+                { eventId: genId(), type: 'CTFMatchStarted', ts, matchId, players,
+                  structure: { kind: 'legs' as const, bestOfLegs: legs },
+                  config: { rounds: config.ctfRounds || 20 },
+                  generatedSequence: Array.from({ length: 20 }, (_, i) => i + 1) },
+                { eventId: genId(), type: 'CTFLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'str': {
+              initialEvents = [
+                { eventId: genId(), type: 'StrMatchStarted', ts, matchId, players,
+                  mode: 'all', ringMode: config.strRingMode || 'triple',
+                  structure: { kind: 'legs' as const, bestOfLegs: legs } },
+                { eventId: genId(), type: 'StrLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'highscore': {
+              initialEvents = [
+                { eventId: genId(), type: 'HighscoreMatchStarted', matchId, timestamp: Date.now(),
+                  players, targetScore: 500,
+                  structure: { kind: 'legs' as const, bestOfLegs: legs } },
+                { eventId: genId(), type: 'HighscoreLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'shanghai': {
+              initialEvents = [
+                { eventId: genId(), type: 'ShanghaiMatchStarted', ts, matchId, players,
+                  structure: { kind: 'legs' as const, bestOfLegs: legs }, config: {} },
+                { eventId: genId(), type: 'ShanghaiLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+              ]
+              break
+            }
+            case 'killer': {
+              initialEvents = [
+                { eventId: genId(), type: 'KillerMatchStarted', ts, matchId, players,
+                  config: { lives: config.killerLives || 3 },
+                  structure: { kind: 'legs' as const, bestOfLegs: legs } },
+              ]
+              break
+            }
+            case 'bobs27': {
+              const targets = Array.from({ length: 20 }, (_, i) => ({ number: i + 1, isDouble: true }))
+              initialEvents = [
+                { eventId: genId(), type: 'Bobs27MatchStarted', ts, matchId, players,
+                  config: { includeBull: false, allowNegative: false }, targets },
+              ]
+              break
+            }
+            case 'operation': {
+              initialEvents = [
+                { eventId: genId(), type: 'OperationMatchStarted', ts, matchId, players,
+                  config: { targetMode: 'RANDOM_NUMBER', targetNumber: null, rounds: config.operationRounds || 10 } },
+              ]
+              break
+            }
+            default: {
+              initialEvents = [
+                { eventId: genId(), type: 'MatchStarted', ts, matchId, mode: config.gameType,
+                  structure: { kind: 'legs' as const, bestOfLegs: legs },
+                  players, bullThrow: { winnerPlayerId: starter }, version: 1 },
+              ]
+            }
           }
 
           // Send start-game to server (broadcasts events to all clients)
