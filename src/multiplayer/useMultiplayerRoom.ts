@@ -1,7 +1,4 @@
 // src/multiplayer/useMultiplayerRoom.ts
-// React hook for PartyKit multiplayer connection.
-// Manages WebSocket lifecycle, event sync, and connection state.
-
 import { useState, useEffect, useRef, useCallback } from 'react'
 import PartySocket from 'partysocket'
 import type { PlayerRef } from '../darts501'
@@ -58,33 +55,40 @@ export function useMultiplayerRoom(
   const [gameConfig, setGameConfig] = useState<GameConfig | null>(null)
   const [playerOrder, setPlayerOrder] = useState<string[]>([])
   const [orderType, setOrderType] = useState<PlayerOrder>('manual')
+  const [debugLog, setDebugLog] = useState<string[]>([])
+
+  // The initial message to send when connecting (create-room or join-room)
+  // Stored as STATE so it survives React re-renders and is available in useEffect
+  const [initMessage, setInitMessage] = useState<ClientMessage | null>(null)
 
   const socketRef = useRef<PartySocket | null>(null)
   const onRemoteEventsRef = useRef(onRemoteEvents)
   const onRemoteUndoRef = useRef(onRemoteUndo)
-  const [debugLog, setDebugLog] = useState<string[]>([])
 
-  // Message that should be sent immediately when socket opens
-  const onConnectMessageRef = useRef<ClientMessage | null>(null)
+  onRemoteEventsRef.current = onRemoteEvents
+  onRemoteUndoRef.current = onRemoteUndo
 
   const addDebug = useCallback((msg: string) => {
     setDebugLog(prev => [...prev.slice(-4), msg])
   }, [])
 
-  onRemoteEventsRef.current = onRemoteEvents
-  onRemoteUndoRef.current = onRemoteUndo
-
-  // Connect to PartyKit room
+  // Connect to PartyKit room AND send init message
   useEffect(() => {
     if (!roomId) {
       setStatus('disconnected')
       return
     }
 
+    // Don't connect yet if we don't have an init message
+    // (wait for createRoom/joinRoom to be called)
+    if (!initMessage) {
+      addDebug(`Room ${roomId} waiting for init...`)
+      return
+    }
+
+    addDebug(`Connecting ${roomId}`)
     setStatus('connecting')
     setError(null)
-
-    addDebug(`Connecting to ${roomId}`)
 
     const socket = new PartySocket({
       host: PARTYKIT_HOST,
@@ -96,21 +100,59 @@ export function useMultiplayerRoom(
     socket.addEventListener('open', () => {
       setStatus('connected')
       setError(null)
-
-      const initMsg = onConnectMessageRef.current
-      if (initMsg) {
-        addDebug(`Sending: ${initMsg.type}`)
-        socket.send(JSON.stringify(initMsg))
-        onConnectMessageRef.current = null
-      } else {
-        addDebug('Open but no init msg!')
-      }
+      addDebug(`Sending: ${initMessage.type}`)
+      socket.send(JSON.stringify(initMessage))
     })
 
     socket.addEventListener('message', (evt) => {
       try {
         const msg: ServerMessage = JSON.parse(evt.data)
-        handleServerMessage(msg)
+        addDebug(`Recv: ${msg.type}`)
+        switch (msg.type) {
+          case 'sync':
+            setEvents(msg.events)
+            setPlayers(msg.players)
+            setPhase(msg.phase)
+            setGameConfig(msg.gameConfig)
+            setPlayerOrder(msg.playerOrder)
+            setOrderType(msg.orderType)
+            if (msg.events.length > 0) {
+              onRemoteEventsRef.current?.(msg.events, 0)
+            }
+            break
+          case 'events':
+            setEvents(prev => {
+              if (msg.fromIndex === prev.length) {
+                const updated = [...prev, ...msg.events]
+                onRemoteEventsRef.current?.(msg.events, msg.fromIndex)
+                return updated
+              }
+              socket.send(JSON.stringify({ type: 'sync-request' }))
+              return prev
+            })
+            break
+          case 'undo':
+            setEvents(msg.events)
+            onRemoteUndoRef.current?.(msg.events)
+            break
+          case 'players-update':
+            setPlayers(msg.players)
+            break
+          case 'phase-change':
+            setPhase(msg.phase)
+            break
+          case 'game-config-update':
+            setGameConfig(msg.config)
+            break
+          case 'player-order-update':
+            setPlayerOrder(msg.playerIds)
+            setOrderType(msg.orderType)
+            break
+          case 'error':
+            setError(msg.message)
+            addDebug(`Error: ${msg.message}`)
+            break
+        }
       } catch (e) {
         console.error('[Multiplayer] Failed to parse message:', e)
       }
@@ -123,97 +165,36 @@ export function useMultiplayerRoom(
     socket.addEventListener('error', () => {
       setStatus('error')
       setError('Verbindungsfehler — läuft der PartyKit-Server?')
+      addDebug('Socket error!')
     })
-
-    function handleServerMessage(msg: ServerMessage) {
-      addDebug(`Recv: ${msg.type}`)
-      switch (msg.type) {
-        case 'sync':
-          setEvents(msg.events)
-          setPlayers(msg.players)
-          setPhase(msg.phase)
-          setGameConfig(msg.gameConfig)
-          setPlayerOrder(msg.playerOrder)
-          setOrderType(msg.orderType)
-          if (msg.events.length > 0) {
-            onRemoteEventsRef.current?.(msg.events, 0)
-          }
-          break
-        case 'events':
-          setEvents(prev => {
-            if (msg.fromIndex === prev.length) {
-              const updated = [...prev, ...msg.events]
-              onRemoteEventsRef.current?.(msg.events, msg.fromIndex)
-              return updated
-            }
-            socket.send(JSON.stringify({ type: 'sync-request' }))
-            return prev
-          })
-          break
-        case 'undo':
-          setEvents(msg.events)
-          onRemoteUndoRef.current?.(msg.events)
-          break
-        case 'players-update':
-          setPlayers(msg.players)
-          break
-        case 'phase-change':
-          setPhase(msg.phase)
-          break
-        case 'game-config-update':
-          setGameConfig(msg.config)
-          break
-        case 'player-order-update':
-          setPlayerOrder(msg.playerIds)
-          setOrderType(msg.orderType)
-          break
-        case 'error':
-          setError(msg.message)
-          console.error('[Multiplayer] Server error:', msg.message, msg.code)
-          break
-      }
-    }
 
     return () => {
       socket.close()
       socketRef.current = null
     }
-  }, [roomId])
+  }, [roomId, initMessage]) // Re-run when roomId OR initMessage changes
 
-  // Send helper — only works when socket is open
+  // Send helper
   const sendMsg = useCallback((msg: ClientMessage) => {
     const socket = socketRef.current
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      console.warn('[Multiplayer] Socket not ready, storing as onConnect message:', msg.type)
-      onConnectMessageRef.current = msg
+      addDebug(`Can't send ${msg.type} (not connected)`)
       return
     }
     socket.send(JSON.stringify(msg))
-  }, [])
+  }, [addDebug])
 
   // ---- Lobby Actions ----
 
   const createRoom = useCallback((hostPlayer: PlayerRef) => {
-    const msg: ClientMessage = { type: 'create-room', hostPlayer }
-    // Store as the message to send when socket opens
-    onConnectMessageRef.current = msg
-    // Also try to send immediately if socket is already open
-    const socket = socketRef.current
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(msg))
-      onConnectMessageRef.current = null
-    }
-  }, [])
+    addDebug('createRoom called')
+    setInitMessage({ type: 'create-room', hostPlayer })
+  }, [addDebug])
 
   const joinRoom = useCallback((player: PlayerRef) => {
-    const msg: ClientMessage = { type: 'join-room', player }
-    onConnectMessageRef.current = msg
-    const socket = socketRef.current
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(msg))
-      onConnectMessageRef.current = null
-    }
-  }, [])
+    addDebug('joinRoom called')
+    setInitMessage({ type: 'join-room', player })
+  }, [addDebug])
 
   const addLocalPlayers = useCallback((localPlayers: PlayerRef[]) => {
     sendMsg({ type: 'add-local-players', players: localPlayers })
@@ -254,7 +235,7 @@ export function useMultiplayerRoom(
   const disconnect = useCallback(() => {
     socketRef.current?.close()
     socketRef.current = null
-    onConnectMessageRef.current = null
+    setInitMessage(null)
     setStatus('disconnected')
     setPlayers([])
     setPhase('lobby')
@@ -263,6 +244,7 @@ export function useMultiplayerRoom(
     setGameConfig(null)
     setPlayerOrder([])
     setOrderType('manual')
+    setDebugLog([])
   }, [])
 
   const state: MultiplayerState = {
