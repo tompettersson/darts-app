@@ -78,7 +78,8 @@ export function useMultiplayerRoom(
 
     setStatus('connecting')
     setError(null)
-    pendingQueueRef.current = []
+    // IMPORTANT: Do NOT clear the pending queue here!
+    // Messages may have been queued before the socket was created.
 
     const socket = new PartySocket({
       host: PARTYKIT_HOST,
@@ -90,8 +91,10 @@ export function useMultiplayerRoom(
     socket.addEventListener('open', () => {
       setStatus('connected')
       setError(null)
+      // Flush queued messages (including create-room / join-room)
       const queue = pendingQueueRef.current
       pendingQueueRef.current = []
+      console.debug('[Multiplayer] Flushing', queue.length, 'queued messages')
       for (const msg of queue) {
         socket.send(JSON.stringify(msg))
       }
@@ -166,7 +169,7 @@ export function useMultiplayerRoom(
     return () => {
       socket.close()
       socketRef.current = null
-      pendingQueueRef.current = []
+      // Don't clear queue on cleanup — new socket may pick them up
     }
   }, [roomId])
 
