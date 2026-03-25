@@ -45,7 +45,7 @@ export type MultiplayerActions = {
   disconnect: () => void
 }
 
-const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999'
+const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || 'darts-multiplayer.david711-ass.partykit.dev'
 
 export function useMultiplayerRoom(
   roomId: string | null,
