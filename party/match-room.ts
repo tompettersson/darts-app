@@ -1,30 +1,10 @@
 // party/match-room.ts
 // PartyKit server for real-time darts multiplayer.
-// Each room = one match. Events are stored in Durable Storage.
-// NOTE: All types defined inline to avoid import issues with PartyKit bundler.
+// Uses object-based PartyKitServer format (not class-based).
 
-// PartyKit types (runtime provided)
-type Party = {
-  id: string
-  storage: {
-    get<T>(key: string): Promise<T | undefined>
-    put<T>(key: string, value: T): Promise<void>
-    delete(key: string): Promise<boolean>
-  }
-}
+import type { PartyKitServer, PartyKitConnection, PartyKitRoom } from 'partykit/server'
 
-type Connection = {
-  id: string
-  send(data: string): void
-  setState(state: unknown): void
-  state: unknown
-}
-
-type ConnectionContext = {
-  request: Request
-}
-
-// ---- Inline Protocol Types (mirrored from src/multiplayer/protocol.ts) ----
+// ---- Inline Types ----
 
 type PlayerRef = { playerId: string; name?: string; color?: string }
 type GameConfig = { gameType: string; [key: string]: any }
@@ -42,20 +22,21 @@ type RoomPlayer = {
   isLocal: boolean
 }
 
-type ClientMessage =
-  | { type: 'create-room'; hostPlayer: PlayerRef }
-  | { type: 'join-room'; player: PlayerRef }
-  | { type: 'add-local-players'; players: PlayerRef[] }
-  | { type: 'remove-player'; playerId: string }
-  | { type: 'set-game-config'; config: GameConfig }
-  | { type: 'set-player-order'; playerIds: string[]; orderType: PlayerOrder }
-  | { type: 'start-game'; matchId: string; gameType: string; events: any[] }
-  | { type: 'submit-events'; events: any[] }
-  | { type: 'undo'; removeCount: number }
-  | { type: 'player-ready'; playerId: string }
-  | { type: 'sync-request' }
+type ConnState = { deviceId: string; playerIds: string[] }
 
-type ServerMessage =
+type RoomState = {
+  events: unknown[]
+  players: RoomPlayer[]
+  phase: RoomPhase
+  matchId: string
+  gameType: string
+  gameConfig: GameConfig | null
+  playerOrder: string[]
+  orderType: PlayerOrder
+  createdAt: number
+}
+
+type ServerMsg =
   | { type: 'sync'; events: any[]; players: RoomPlayer[]; phase: RoomPhase; gameConfig: GameConfig | null; playerOrder: string[]; orderType: PlayerOrder }
   | { type: 'events'; events: any[]; fromIndex: number }
   | { type: 'undo'; eventCount: number; events: any[] }
@@ -65,490 +46,276 @@ type ServerMessage =
   | { type: 'player-order-update'; playerIds: string[]; orderType: PlayerOrder }
   | { type: 'error'; message: string; code?: string }
 
-// Connection state
-type ConnState = {
-  deviceId: string
-  playerIds: string[]
+// ---- Room State (module-level, persisted via Durable Storage) ----
+
+let state: RoomState = {
+  events: [], players: [], phase: 'lobby',
+  matchId: '', gameType: '', gameConfig: null,
+  playerOrder: [], orderType: 'manual', createdAt: Date.now(),
 }
 
-// Room state (in memory, backed by Durable Storage)
-type RoomState = {
-  events: unknown[]
-  players: RoomPlayer[]
-  phase: RoomPhase
-  matchId: string
-  gameType: string
-  gameConfig: GameConfig | null
-  playerOrder: string[]     // Ordered list of player IDs
-  orderType: PlayerOrder
-  createdAt: number
+function send(conn: PartyKitConnection, msg: ServerMsg) {
+  conn.send(JSON.stringify(msg))
 }
 
-function send(ws: Connection, msg: ServerMessage) {
-  ws.send(JSON.stringify(msg))
-}
-
-function broadcast(connections: Connection[], msg: ServerMessage, exclude?: string) {
+function broadcastAll(room: PartyKitRoom, msg: ServerMsg, exclude?: string) {
   const data = JSON.stringify(msg)
-  for (const ws of connections) {
-    if (exclude && ws.id === exclude) continue
-    ws.send(data)
+  for (const conn of room.getConnections()) {
+    if (exclude && conn.id === exclude) continue
+    conn.send(data)
   }
 }
 
-export default class MatchRoom {
-  state: RoomState = {
-    events: [],
-    players: [],
-    phase: 'lobby',
-    matchId: '',
-    gameType: '',
-    gameConfig: null,
-    playerOrder: [],
-    orderType: 'manual',
-    createdAt: Date.now(),
-  }
+function sendSync(conn: PartyKitConnection) {
+  send(conn, {
+    type: 'sync', events: state.events as any[],
+    players: state.players, phase: state.phase,
+    gameConfig: state.gameConfig, playerOrder: state.playerOrder,
+    orderType: state.orderType,
+  })
+}
 
-  party: Party
-  connections: Map<string, Connection> = new Map()
+function broadcastPlayers(room: PartyKitRoom) {
+  broadcastAll(room, { type: 'players-update', players: state.players })
+}
 
-  constructor(party: Party) {
-    this.party = party
-  }
+function broadcastPhase(room: PartyKitRoom) {
+  broadcastAll(room, { type: 'phase-change', phase: state.phase })
+}
 
-  async onStart() {
-    const saved = await this.party.storage.get<RoomState>('room')
+async function save(room: PartyKitRoom) {
+  await room.storage.put('room', state)
+}
+
+// ---- Server ----
+
+export default {
+  async onStart(room: PartyKitRoom) {
+    const saved = await room.storage.get<RoomState>('room')
     if (saved) {
-      this.state = saved
-      // Mark all players as disconnected on startup
-      for (const p of this.state.players) {
-        p.connected = false
-      }
+      state = saved
+      for (const p of state.players) p.connected = false
     }
-  }
+  },
 
-  async onConnect(ws: Connection, ctx: ConnectionContext) {
-    this.connections.set(ws.id, ws)
-
-    // If room is initialized, send sync to reconnecting client
-    if (this.state.players.length > 0) {
-      // Try to reconnect: check if this device had players before
-      const connState = ws.state as ConnState | null
-      if (connState?.playerIds) {
-        for (const pid of connState.playerIds) {
-          const player = this.state.players.find(p => p.playerId === pid)
-          if (player) {
-            player.connected = true
-            player.deviceId = ws.id
-          }
-        }
-        this.broadcastPlayers()
-        this.save()
-      }
-
-      this.sendSync(ws)
+  onConnect(conn: PartyKitConnection, room: PartyKitRoom) {
+    if (state.players.length > 0) {
+      sendSync(conn)
     }
-  }
+  },
 
-  onClose(ws: Connection) {
-    this.connections.delete(ws.id)
-    // Mark ALL players from this device as disconnected
+  onClose(conn: PartyKitConnection, room: PartyKitRoom) {
     let changed = false
-    for (const p of this.state.players) {
-      if (p.deviceId === ws.id) {
+    for (const p of state.players) {
+      if (p.deviceId === conn.id) {
         p.connected = false
         changed = true
       }
     }
     if (changed) {
-      this.broadcastPlayers()
-      this.save()
+      broadcastPlayers(room)
+      save(room)
     }
-  }
+  },
 
-  onError(ws: Connection) {
-    this.onClose(ws)
-  }
+  onError(conn: PartyKitConnection, room: PartyKitRoom) {
+    // Treat as close
+    let changed = false
+    for (const p of state.players) {
+      if (p.deviceId === conn.id) { p.connected = false; changed = true }
+    }
+    if (changed) { broadcastPlayers(room); save(room) }
+  },
 
-  async onMessage(ws: Connection, rawMessage: string) {
-    let msg: ClientMessage
+  async onMessage(message: string, conn: PartyKitConnection, room: PartyKitRoom) {
+    let msg: any
     try {
-      msg = JSON.parse(rawMessage)
+      msg = JSON.parse(message)
     } catch {
-      send(ws, { type: 'error', message: 'Invalid JSON' })
+      send(conn, { type: 'error', message: 'Invalid JSON' })
       return
     }
 
-    // Echo back that we received the message (debug)
-    send(ws, { type: 'error', message: `DEBUG: received ${msg.type}`, code: 'DEBUG' })
-
-    // Wrap all handling in try-catch so errors are visible to client
     try {
-      await this._handleMessage(ws, msg)
+      switch (msg.type) {
+        case 'create-room': {
+          if (state.players.length > 0) {
+            send(conn, { type: 'error', message: 'Room already created', code: 'ROOM_EXISTS' })
+            return
+          }
+          const hp = msg.hostPlayer as PlayerRef
+          const hostPlayer: RoomPlayer = {
+            playerId: hp.playerId, name: hp.name ?? hp.playerId,
+            color: hp.color, isHost: true, isReady: false,
+            connected: true, deviceId: conn.id, isLocal: false,
+          }
+          state = {
+            events: [], players: [hostPlayer], phase: 'lobby',
+            matchId: '', gameType: '', gameConfig: null,
+            playerOrder: [hostPlayer.playerId], orderType: 'manual',
+            createdAt: Date.now(),
+          }
+          conn.setState({ deviceId: conn.id, playerIds: [hostPlayer.playerId] } as ConnState)
+          sendSync(conn)
+          await save(room)
+          break
+        }
+
+        case 'join-room': {
+          if (state.players.length === 0) {
+            send(conn, { type: 'error', message: 'Room not found', code: 'NO_ROOM' })
+            return
+          }
+          const jp = msg.player as PlayerRef
+          const existing = state.players.find(p => p.playerId === jp.playerId)
+          if (existing) {
+            existing.connected = true
+            existing.deviceId = conn.id
+            conn.setState({ deviceId: conn.id, playerIds: [existing.playerId] } as ConnState)
+          } else {
+            if (state.phase !== 'lobby') {
+              send(conn, { type: 'error', message: 'Game already started', code: 'GAME_STARTED' })
+              return
+            }
+            if (state.players.some(p => p.playerId === jp.playerId)) {
+              send(conn, { type: 'error', message: 'Spieler bereits im Raum', code: 'DUPLICATE_PLAYER' })
+              return
+            }
+            const newPlayer: RoomPlayer = {
+              playerId: jp.playerId, name: jp.name ?? jp.playerId,
+              color: jp.color, isHost: false, isReady: false,
+              connected: true, deviceId: conn.id, isLocal: false,
+            }
+            state.players.push(newPlayer)
+            state.playerOrder.push(newPlayer.playerId)
+            conn.setState({ deviceId: conn.id, playerIds: [newPlayer.playerId] } as ConnState)
+          }
+          sendSync(conn)
+          broadcastPlayers(room)
+          await save(room)
+          break
+        }
+
+        case 'add-local-players': {
+          if (state.phase !== 'lobby') return
+          const connState = conn.state as ConnState | null
+          const added: string[] = []
+          for (const p of msg.players as PlayerRef[]) {
+            if (state.players.some(e => e.playerId === p.playerId)) {
+              send(conn, { type: 'error', message: `"${p.name}" ist bereits im Raum`, code: 'DUPLICATE_PLAYER' })
+              continue
+            }
+            const np: RoomPlayer = {
+              playerId: p.playerId, name: p.name ?? p.playerId,
+              color: p.color, isHost: false, isReady: false,
+              connected: true, deviceId: conn.id, isLocal: true,
+            }
+            state.players.push(np)
+            state.playerOrder.push(np.playerId)
+            added.push(np.playerId)
+          }
+          if (added.length > 0) {
+            const pids = connState?.playerIds ?? []
+            conn.setState({ deviceId: conn.id, playerIds: [...pids, ...added] } as ConnState)
+            broadcastPlayers(room)
+            await save(room)
+          }
+          break
+        }
+
+        case 'remove-player': {
+          if (state.phase !== 'lobby') return
+          const target = state.players.find(p => p.playerId === msg.playerId)
+          if (!target || target.isHost) return
+          const isOwnPlayer = target.deviceId === conn.id
+          const isHost = state.players.some(p => p.isHost && p.deviceId === conn.id)
+          if (!isOwnPlayer && !isHost) return
+          state.players = state.players.filter(p => p.playerId !== msg.playerId)
+          state.playerOrder = state.playerOrder.filter(id => id !== msg.playerId)
+          broadcastPlayers(room)
+          await save(room)
+          break
+        }
+
+        case 'set-game-config': {
+          const isHost = state.players.some(p => p.isHost && p.deviceId === conn.id)
+          if (!isHost) return
+          state.gameConfig = msg.config
+          state.gameType = msg.config.gameType
+          for (const p of state.players) { if (!p.isHost) p.isReady = false }
+          broadcastAll(room, { type: 'game-config-update', config: msg.config })
+          broadcastPlayers(room)
+          await save(room)
+          break
+        }
+
+        case 'set-player-order': {
+          const isHost = state.players.some(p => p.isHost && p.deviceId === conn.id)
+          if (!isHost) return
+          state.playerOrder = msg.playerIds
+          state.orderType = msg.orderType
+          broadcastAll(room, { type: 'player-order-update', playerIds: msg.playerIds, orderType: msg.orderType })
+          await save(room)
+          break
+        }
+
+        case 'start-game': {
+          const isHost = state.players.some(p => p.isHost && p.deviceId === conn.id)
+          if (!isHost) return
+          if (state.players.length < 2 || !state.gameConfig) return
+          state.matchId = msg.matchId
+          state.gameType = msg.gameType
+          state.events = msg.events
+          state.phase = 'playing'
+          broadcastAll(room, { type: 'events', events: msg.events, fromIndex: 0 })
+          broadcastPhase(room)
+          await save(room)
+          break
+        }
+
+        case 'submit-events': {
+          if (state.phase === 'lobby') { state.phase = 'playing'; broadcastPhase(room) }
+          const fromIndex = state.events.length
+          state.events.push(...msg.events)
+          const lastEvent = msg.events[msg.events.length - 1]
+          if (lastEvent?.type === 'MatchFinished' || lastEvent?.type === 'CricketMatchFinished') {
+            state.phase = 'finished'
+            broadcastPhase(room)
+          }
+          broadcastAll(room, { type: 'events', events: msg.events, fromIndex })
+          await save(room)
+          break
+        }
+
+        case 'undo': {
+          if (msg.removeCount <= 0 || msg.removeCount > state.events.length) return
+          state.events = state.events.slice(0, -msg.removeCount)
+          broadcastAll(room, { type: 'undo', eventCount: state.events.length, events: state.events as any[] })
+          await save(room)
+          break
+        }
+
+        case 'player-ready': {
+          const player = state.players.find(p => p.playerId === msg.playerId)
+          if (player) {
+            player.isReady = !player.isReady
+            broadcastPlayers(room)
+            await save(room)
+          }
+          break
+        }
+
+        case 'sync-request': {
+          sendSync(conn)
+          break
+        }
+
+        default:
+          send(conn, { type: 'error', message: `Unknown: ${msg.type}` })
+      }
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e)
-      send(ws, { type: 'error', message: `Server crash: ${errMsg}`, code: 'SERVER_CRASH' })
+      send(conn, { type: 'error', message: `Server error: ${errMsg}`, code: 'SERVER_CRASH' })
     }
-  }
-
-  private async _handleMessage(ws: Connection, msg: ClientMessage) {
-    switch (msg.type) {
-      case 'create-room':
-        this.handleCreateRoom(ws, msg)
-        break
-      case 'join-room':
-        this.handleJoinRoom(ws, msg)
-        break
-      case 'add-local-players':
-        this.handleAddLocalPlayers(ws, msg)
-        break
-      case 'remove-player':
-        this.handleRemovePlayer(ws, msg)
-        break
-      case 'set-game-config':
-        this.handleSetGameConfig(ws, msg)
-        break
-      case 'set-player-order':
-        this.handleSetPlayerOrder(ws, msg)
-        break
-      case 'start-game':
-        this.handleStartGame(ws, msg)
-        break
-      case 'submit-events':
-        this.handleSubmitEvents(ws, msg)
-        break
-      case 'undo':
-        this.handleUndo(ws, msg)
-        break
-      case 'player-ready':
-        this.handlePlayerReady(ws, msg)
-        break
-      case 'sync-request':
-        this.sendSync(ws)
-        break
-      default:
-        send(ws, { type: 'error', message: 'Unknown message type' })
-    }
-  }
-
-  // ---- Handlers ----
-
-  private handleCreateRoom(ws: Connection, msg: ClientMessage & { type: 'create-room' }) {
-    // Room can only be created once
-    if (this.state.players.length > 0) {
-      send(ws, { type: 'error', message: 'Room already created', code: 'ROOM_EXISTS' })
-      return
-    }
-
-    const hostPlayer: RoomPlayer = {
-      playerId: msg.hostPlayer.playerId,
-      name: msg.hostPlayer.name ?? msg.hostPlayer.playerId,
-      color: msg.hostPlayer.color,
-      isHost: true,
-      isReady: false,
-      connected: true,
-      deviceId: ws.id,
-      isLocal: false,
-    }
-
-    this.state = {
-      events: [],
-      players: [hostPlayer],
-      phase: 'lobby',
-      matchId: '',
-      gameType: '',
-      gameConfig: null,
-      playerOrder: [hostPlayer.playerId],
-      orderType: 'manual',
-      createdAt: Date.now(),
-    }
-
-    ws.setState({ deviceId: ws.id, playerIds: [hostPlayer.playerId] } as ConnState)
-    this.sendSync(ws)
-    this.save()
-  }
-
-  private handleJoinRoom(ws: Connection, msg: ClientMessage & { type: 'join-room' }) {
-    if (this.state.players.length === 0) {
-      send(ws, { type: 'error', message: 'Room not found', code: 'NO_ROOM' })
-      return
-    }
-
-    const existing = this.state.players.find(p => p.playerId === msg.player.playerId)
-    if (existing) {
-      // Reconnect
-      existing.connected = true
-      existing.deviceId = ws.id
-      const connState = (ws.state as ConnState) || { deviceId: ws.id, playerIds: [] }
-      if (!connState.playerIds.includes(existing.playerId)) {
-        connState.playerIds.push(existing.playerId)
-      }
-      connState.deviceId = ws.id
-      ws.setState(connState)
-    } else {
-      // New player joining
-      if (this.state.phase !== 'lobby') {
-        send(ws, { type: 'error', message: 'Game already started', code: 'GAME_STARTED' })
-        return
-      }
-
-      // Duplicate check
-      if (this.state.players.some(p => p.playerId === msg.player.playerId)) {
-        send(ws, { type: 'error', message: 'Spieler bereits im Raum', code: 'DUPLICATE_PLAYER' })
-        return
-      }
-
-      const newPlayer: RoomPlayer = {
-        playerId: msg.player.playerId,
-        name: msg.player.name ?? msg.player.playerId,
-        color: msg.player.color,
-        isHost: false,
-        isReady: false,
-        connected: true,
-        deviceId: ws.id,
-        isLocal: false,
-      }
-      this.state.players.push(newPlayer)
-      this.state.playerOrder.push(newPlayer.playerId)
-
-      ws.setState({ deviceId: ws.id, playerIds: [newPlayer.playerId] } as ConnState)
-    }
-
-    this.sendSync(ws)
-    this.broadcastPlayers()
-    this.save()
-  }
-
-  private handleAddLocalPlayers(ws: Connection, msg: ClientMessage & { type: 'add-local-players' }) {
-    if (this.state.phase !== 'lobby') {
-      send(ws, { type: 'error', message: 'Can only add players in lobby', code: 'WRONG_PHASE' })
-      return
-    }
-
-    const connState = (ws.state as ConnState) || { deviceId: ws.id, playerIds: [] }
-    const added: string[] = []
-
-    for (const p of msg.players) {
-      // Duplicate check
-      if (this.state.players.some(existing => existing.playerId === p.playerId)) {
-        send(ws, { type: 'error', message: `Spieler "${p.name}" ist bereits im Raum`, code: 'DUPLICATE_PLAYER' })
-        continue
-      }
-
-      const newPlayer: RoomPlayer = {
-        playerId: p.playerId,
-        name: p.name ?? p.playerId,
-        color: p.color,
-        isHost: false,
-        isReady: false,
-        connected: true,
-        deviceId: ws.id,
-        isLocal: true,
-      }
-      this.state.players.push(newPlayer)
-      this.state.playerOrder.push(newPlayer.playerId)
-      added.push(newPlayer.playerId)
-    }
-
-    if (added.length > 0) {
-      connState.playerIds = [...(connState.playerIds || []), ...added]
-      ws.setState(connState)
-      this.broadcastPlayers()
-      this.save()
-    }
-  }
-
-  private handleRemovePlayer(ws: Connection, msg: ClientMessage & { type: 'remove-player' }) {
-    if (this.state.phase !== 'lobby') {
-      send(ws, { type: 'error', message: 'Can only remove players in lobby', code: 'WRONG_PHASE' })
-      return
-    }
-
-    const connState = ws.state as ConnState | null
-    const target = this.state.players.find(p => p.playerId === msg.playerId)
-    if (!target) return
-
-    // Only allow: own local players, or host can remove anyone
-    const isOwnPlayer = target.deviceId === ws.id
-    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
-
-    if (!isOwnPlayer && !isHost) {
-      send(ws, { type: 'error', message: 'Nicht berechtigt', code: 'UNAUTHORIZED' })
-      return
-    }
-
-    // Can't remove the host
-    if (target.isHost) {
-      send(ws, { type: 'error', message: 'Host kann nicht entfernt werden', code: 'CANNOT_REMOVE_HOST' })
-      return
-    }
-
-    this.state.players = this.state.players.filter(p => p.playerId !== msg.playerId)
-    this.state.playerOrder = this.state.playerOrder.filter(id => id !== msg.playerId)
-
-    // Update connection state
-    if (connState?.playerIds) {
-      connState.playerIds = connState.playerIds.filter(id => id !== msg.playerId)
-      ws.setState(connState)
-    }
-
-    this.broadcastPlayers()
-    this.save()
-  }
-
-  private handleSetGameConfig(ws: Connection, msg: ClientMessage & { type: 'set-game-config' }) {
-    // Only host can set config
-    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
-    if (!isHost) {
-      send(ws, { type: 'error', message: 'Nur der Host kann die Konfiguration ändern', code: 'NOT_HOST' })
-      return
-    }
-
-    this.state.gameConfig = msg.config
-    this.state.gameType = msg.config.gameType
-
-    // Reset ready status for all non-host players when config changes
-    for (const p of this.state.players) {
-      if (!p.isHost) p.isReady = false
-    }
-
-    const configMsg: GameConfigUpdateMsg = { type: 'game-config-update', config: msg.config }
-    broadcast(Array.from(this.connections.values()), configMsg)
-    this.broadcastPlayers() // Because ready status was reset
-    this.save()
-  }
-
-  private handleSetPlayerOrder(ws: Connection, msg: ClientMessage & { type: 'set-player-order' }) {
-    // Only host can set order
-    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
-    if (!isHost) {
-      send(ws, { type: 'error', message: 'Nur der Host kann die Reihenfolge ändern', code: 'NOT_HOST' })
-      return
-    }
-
-    this.state.playerOrder = msg.playerIds
-    this.state.orderType = msg.orderType
-
-    const orderMsg: PlayerOrderUpdateMsg = {
-      type: 'player-order-update',
-      playerIds: msg.playerIds,
-      orderType: msg.orderType,
-    }
-    broadcast(Array.from(this.connections.values()), orderMsg)
-    this.save()
-  }
-
-  private handleStartGame(ws: Connection, msg: ClientMessage & { type: 'start-game' }) {
-    // Only host can start
-    const isHost = this.state.players.some(p => p.isHost && p.deviceId === ws.id)
-    if (!isHost) {
-      send(ws, { type: 'error', message: 'Nur der Host kann das Spiel starten', code: 'NOT_HOST' })
-      return
-    }
-
-    if (this.state.players.length < 2) {
-      send(ws, { type: 'error', message: 'Mindestens 2 Spieler erforderlich', code: 'NOT_ENOUGH_PLAYERS' })
-      return
-    }
-
-    if (!this.state.gameConfig) {
-      send(ws, { type: 'error', message: 'Bitte zuerst Spielmodus wählen', code: 'NO_CONFIG' })
-      return
-    }
-
-    this.state.matchId = msg.matchId
-    this.state.gameType = msg.gameType
-    this.state.events = msg.events
-    this.state.phase = 'playing'
-
-    // Broadcast events + phase change to all
-    const eventsMsg: EventsBroadcastMsg = {
-      type: 'events',
-      events: msg.events as any,
-      fromIndex: 0,
-    }
-    broadcast(Array.from(this.connections.values()), eventsMsg)
-    this.broadcastPhase()
-    this.save()
-  }
-
-  private handleSubmitEvents(ws: Connection, msg: ClientMessage & { type: 'submit-events' }) {
-    if (this.state.phase === 'lobby') {
-      this.state.phase = 'playing'
-      this.broadcastPhase()
-    }
-
-    const fromIndex = this.state.events.length
-    this.state.events.push(...msg.events)
-
-    // Check if match is finished
-    const lastEvent = msg.events[msg.events.length - 1] as any
-    if (lastEvent?.type === 'MatchFinished' || lastEvent?.type === 'CricketMatchFinished') {
-      this.state.phase = 'finished'
-      this.broadcastPhase()
-    }
-
-    const broadcastMsg: EventsBroadcastMsg = {
-      type: 'events',
-      events: msg.events as any,
-      fromIndex,
-    }
-    broadcast(Array.from(this.connections.values()), broadcastMsg)
-    this.save()
-  }
-
-  private handleUndo(ws: Connection, msg: ClientMessage & { type: 'undo' }) {
-    if (msg.removeCount <= 0 || msg.removeCount > this.state.events.length) {
-      send(ws, { type: 'error', message: 'Invalid undo count' })
-      return
-    }
-
-    this.state.events = this.state.events.slice(0, -msg.removeCount)
-
-    const undoMsg: UndoBroadcastMsg = {
-      type: 'undo',
-      eventCount: this.state.events.length,
-      events: this.state.events as any,
-    }
-    broadcast(Array.from(this.connections.values()), undoMsg)
-    this.save()
-  }
-
-  private handlePlayerReady(ws: Connection, msg: ClientMessage & { type: 'player-ready' }) {
-    const player = this.state.players.find(p => p.playerId === msg.playerId)
-    if (player) {
-      player.isReady = !player.isReady // Toggle
-      this.broadcastPlayers()
-      this.save()
-    }
-  }
-
-  // ---- Helpers ----
-
-  private sendSync(ws: Connection) {
-    const syncMsg: SyncMsg = {
-      type: 'sync',
-      events: this.state.events as any,
-      players: this.state.players,
-      phase: this.state.phase,
-      gameConfig: this.state.gameConfig,
-      playerOrder: this.state.playerOrder,
-      orderType: this.state.orderType,
-    }
-    send(ws, syncMsg)
-  }
-
-  private broadcastPlayers() {
-    const msg: PlayersUpdateMsg = { type: 'players-update', players: this.state.players }
-    broadcast(Array.from(this.connections.values()), msg)
-  }
-
-  private broadcastPhase() {
-    const msg: PhaseChangeMsg = { type: 'phase-change', phase: this.state.phase }
-    broadcast(Array.from(this.connections.values()), msg)
-  }
-
-  private async save() {
-    await this.party.storage.put('room', this.state)
-  }
-}
+  },
+} satisfies PartyKitServer
