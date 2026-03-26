@@ -253,13 +253,15 @@ type Props = {
   onMultiplayerHost?: () => void
   /** Multiplayer Join */
   onMultiplayerJoin?: () => void
+  /** Multiplayer Spectate */
+  onMultiplayerSpectate?: () => void
   /** Zeigt an, dass wir im Multiplayer-Setup sind */
   isMultiplayerSetup?: boolean
 }
 
 type Step = 'type' | 'preset' | 'cricket' | 'feldspiele' | 'funparty' | 'training' | 'online'
 
-export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin, isMultiplayerSetup }: Props) {
+export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin, onMultiplayerSpectate, isMultiplayerSetup }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -848,6 +850,19 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                   </div>
                 </button>
               </div>
+              <button
+                style={{ ...styles.tile, borderLeft: '4px solid #8b5cf6', marginTop: 8 }}
+                onClick={() => onMultiplayerSpectate?.()}
+                aria-label="Zuschauen"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+                  <span style={{ fontSize: 20 }}>👁</span>
+                  <div>
+                    <div style={{ ...styles.title, marginBottom: 2 }}>Zuschauen</div>
+                    <div style={styles.sub}>Live-Spiel verfolgen</div>
+                  </div>
+                </div>
+              </button>
             </div>
           )
         )}

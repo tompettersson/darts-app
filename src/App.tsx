@@ -121,7 +121,7 @@ const NewGameRandom = React.lazy(() => import('./screens/NewGameRandom'))
 import { generateRandomGame, describeRandomGame } from './randomGame'
 
 // Multiplayer
-import { useMultiplayerRoom, MultiplayerLobby } from './multiplayer'
+import { useMultiplayerRoom, MultiplayerLobby, SpectatorView } from './multiplayer'
 import type { DartsEvent as DartsEventType } from './darts501'
 
 // Arcade Scroll Picker
@@ -282,6 +282,7 @@ type View =
   | 'change-password'
   | 'multiplayer-lobby-host'
   | 'multiplayer-lobby-join'
+  | 'multiplayer-spectate'
   | 'checkout-quiz'
   | 'game-checkout-trainer'
   | 'multiplayer-game'
@@ -678,6 +679,9 @@ export default function App() {
           }
           setMultiplayerMyPlayerId(auth.user.profileId)
           setView('multiplayer-lobby-join')
+        }}
+        onMultiplayerSpectate={() => {
+          setView('multiplayer-spectate')
         }}
       />
       </div>
@@ -1603,6 +1607,7 @@ export default function App() {
         orderType={mpState.orderType}
         localProfiles={getProfiles()}
         debugLog={mpState.debugLog}
+        spectatorCount={mpState.spectatorCount}
         onCreateRoom={(code) => {
           setMultiplayerRoomCode(code)
           const profiles = getProfiles()
@@ -1782,6 +1787,7 @@ export default function App() {
         orderType={mpState.orderType}
         localProfiles={getProfiles()}
         debugLog={mpState.debugLog}
+        spectatorCount={mpState.spectatorCount}
         onCreateRoom={() => {}}
         onJoinRoom={(code) => {
           setMultiplayerRoomCode(code)
@@ -1824,6 +1830,31 @@ export default function App() {
           setMultiplayerRoomCode(null)
           setMultiplayerMatchId(null)
           setMultiplayerRemoteEvents(null)
+          setView('menu')
+        }}
+      />
+    )
+  }
+
+  // MULTIPLAYER SPECTATOR
+  if (view === 'multiplayer-spectate') {
+    return (
+      <SpectatorView
+        status={mpState.status}
+        players={mpState.players}
+        phase={mpState.phase}
+        events={mpState.events}
+        error={mpState.error}
+        gameConfig={mpState.gameConfig}
+        spectatorCount={mpState.spectatorCount}
+        roomCode={multiplayerRoomCode ?? ''}
+        onJoinSpectator={(code) => {
+          setMultiplayerRoomCode(code)
+          mpActions.joinAsSpectator()
+        }}
+        onBack={() => {
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
           setView('menu')
         }}
       />

@@ -35,6 +35,7 @@ type Props = {
   onReady: () => void
   onBack: () => void
   debugLog?: string[]
+  spectatorCount?: number
 }
 
 // ---- Game mode labels ----
@@ -315,7 +316,7 @@ export default function MultiplayerLobby({
   mode, status, players, phase, error, myPlayerId, roomCode,
   gameConfig, playerOrder, orderType, localProfiles,
   onCreateRoom, onJoinRoom, onAddLocalPlayers, onRemovePlayer,
-  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack, debugLog,
+  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack, debugLog, spectatorCount = 0,
 }: Props) {
   const { colors, isArcade } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -522,7 +523,7 @@ export default function MultiplayerLobby({
         <div style={s.statusDot} />
         {statusLabels[status]}
         <span style={{ marginLeft: 8, fontSize: 10, color: colors.fgDim }}>
-          P:{players.length} R:{roomCode || '—'} v3
+          P:{players.length}{spectatorCount > 0 ? ` 👁${spectatorCount}` : ''} R:{roomCode || '—'}
         </span>
         {status !== 'connected' && roomCode && (
           <button onClick={() => onCreateRoom(roomCode)} style={{

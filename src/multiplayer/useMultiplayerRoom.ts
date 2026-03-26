@@ -23,11 +23,13 @@ export type MultiplayerState = {
   playerOrder: string[]
   orderType: PlayerOrder
   debugLog: string[]
+  spectatorCount: number
 }
 
 export type MultiplayerActions = {
   createRoom: (hostPlayer: PlayerRef) => void
   joinRoom: (player: PlayerRef) => void
+  joinAsSpectator: () => void
   addLocalPlayers: (players: PlayerRef[]) => void
   removePlayer: (playerId: string) => void
   setGameConfig: (config: GameConfig) => void
@@ -56,6 +58,7 @@ export function useMultiplayerRoom(
   const [playerOrder, setPlayerOrder] = useState<string[]>([])
   const [orderType, setOrderType] = useState<PlayerOrder>('manual')
   const [debugLog, setDebugLog] = useState<string[]>([])
+  const [spectatorCount, setSpectatorCount] = useState(0)
 
   // The initial message to send when connecting (create-room or join-room)
   // Stored as STATE so it survives React re-renders and is available in useEffect
@@ -117,6 +120,7 @@ export function useMultiplayerRoom(
             setGameConfig(msg.gameConfig)
             setPlayerOrder(msg.playerOrder)
             setOrderType(msg.orderType)
+            if ((msg as any).spectatorCount !== undefined) setSpectatorCount((msg as any).spectatorCount)
             if (msg.events.length > 0) {
               onRemoteEventsRef.current?.(msg.events, 0)
             }
@@ -149,6 +153,9 @@ export function useMultiplayerRoom(
           case 'player-order-update':
             setPlayerOrder(msg.playerIds)
             setOrderType(msg.orderType)
+            break
+          case 'spectator-count':
+            setSpectatorCount((msg as any).count ?? 0)
             break
           case 'error':
             setError(msg.message)
@@ -196,6 +203,11 @@ export function useMultiplayerRoom(
   const joinRoom = useCallback((player: PlayerRef) => {
     addDebug('joinRoom called')
     setInitMessage({ type: 'join-room', player })
+  }, [addDebug])
+
+  const joinAsSpectator = useCallback(() => {
+    addDebug('joinAsSpectator called')
+    setInitMessage({ type: 'join-spectator' })
   }, [addDebug])
 
   const addLocalPlayers = useCallback((localPlayers: PlayerRef[]) => {
@@ -250,15 +262,16 @@ export function useMultiplayerRoom(
     setPlayerOrder([])
     setOrderType('manual')
     setDebugLog([])
+    setSpectatorCount(0)
   }, [])
 
   const state: MultiplayerState = {
     status, players, phase, events, error,
-    gameConfig, playerOrder, orderType, debugLog,
+    gameConfig, playerOrder, orderType, debugLog, spectatorCount,
   }
 
   const actions: MultiplayerActions = {
-    createRoom, joinRoom, addLocalPlayers, removePlayer,
+    createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer,
     setGameConfig: setGameConfigAction, setPlayerOrder: setPlayerOrderAction,
     startGame, submitEvents, undo, playerReady, requestSync, disconnect,
   }

@@ -22,7 +22,7 @@ type RoomPlayer = {
   isLocal: boolean
 }
 
-type ConnState = { deviceId: string; playerIds: string[] }
+type ConnState = { deviceId: string; playerIds: string[]; isSpectator?: boolean }
 
 type RoomState = {
   events: unknown[]
@@ -34,6 +34,7 @@ type RoomState = {
   playerOrder: string[]
   orderType: PlayerOrder
   createdAt: number
+  spectatorCount: number
 }
 
 type ServerMsg =
@@ -51,7 +52,7 @@ type ServerMsg =
 let state: RoomState = {
   events: [], players: [], phase: 'lobby',
   matchId: '', gameType: '', gameConfig: null,
-  playerOrder: [], orderType: 'manual', createdAt: Date.now(),
+  playerOrder: [], orderType: 'manual', createdAt: Date.now(), spectatorCount: 0,
 }
 
 function send(conn: PartyKitConnection, msg: ServerMsg) {
@@ -71,7 +72,7 @@ function sendSync(conn: PartyKitConnection) {
     type: 'sync', events: state.events as any[],
     players: state.players, phase: state.phase,
     gameConfig: state.gameConfig, playerOrder: state.playerOrder,
-    orderType: state.orderType,
+    orderType: state.orderType, spectatorCount: state.spectatorCount,
   })
 }
 
@@ -107,6 +108,13 @@ export default {
   },
 
   onClose(conn: PartyKitConnection, room: PartyKitRoom) {
+    const connState = conn.state as ConnState | null
+    if (connState?.isSpectator) {
+      state.spectatorCount = Math.max(0, state.spectatorCount - 1)
+      broadcastAll(room, { type: 'spectator-count', count: state.spectatorCount })
+      save(room)
+      return
+    }
     let changed = false
     for (const p of state.players) {
       if (p.deviceId === conn.id) {
@@ -155,7 +163,7 @@ export default {
             events: [], players: [hostPlayer], phase: 'lobby',
             matchId: '', gameType: '', gameConfig: null,
             playerOrder: [hostPlayer.playerId], orderType: 'manual',
-            createdAt: Date.now(),
+            createdAt: Date.now(), spectatorCount: 0,
           }
           conn.setState({ deviceId: conn.id, playerIds: [hostPlayer.playerId] } as ConnState)
           sendSync(conn)
@@ -317,6 +325,16 @@ export default {
 
         case 'sync-request': {
           sendSync(conn)
+          break
+        }
+
+        case 'join-spectator': {
+          conn.setState({ deviceId: conn.id, playerIds: [], isSpectator: true } as ConnState)
+          state.spectatorCount++
+          sendSync(conn)
+          // Broadcast updated spectator count
+          broadcastAll(room, { type: 'spectator-count', count: state.spectatorCount })
+          await save(room)
           break
         }
 

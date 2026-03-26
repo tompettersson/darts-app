@@ -134,9 +134,15 @@ export type SyncRequestMsg = {
   type: 'sync-request'
 }
 
+/** Join as spectator (read-only, no player added) */
+export type JoinSpectatorMsg = {
+  type: 'join-spectator'
+}
+
 export type ClientMessage =
   | CreateRoomMsg
   | JoinRoomMsg
+  | JoinSpectatorMsg
   | AddLocalPlayersMsg
   | RemovePlayerMsg
   | SetGameConfigMsg
@@ -208,6 +214,12 @@ export type ErrorMsg = {
   code?: string
 }
 
+/** Spectator count update */
+export type SpectatorCountMsg = {
+  type: 'spectator-count'
+  count: number
+}
+
 export type ServerMessage =
   | SyncMsg
   | EventsBroadcastMsg
@@ -216,6 +228,7 @@ export type ServerMessage =
   | PhaseChangeMsg
   | GameConfigUpdateMsg
   | PlayerOrderUpdateMsg
+  | SpectatorCountMsg
   | ErrorMsg
 
 // ---- Shared Types ----
