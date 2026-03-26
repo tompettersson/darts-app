@@ -1028,8 +1028,9 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
   useEffect(() => {
     if (!multiplayer?.enabled || !multiplayer.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteEventsRef.current) return
-    const prevLen = prevRemoteEventsRef.current?.length ?? 0
-    prevRemoteEventsRef.current = multiplayer.remoteEvents
+    const prevEvents = prevRemoteEventsRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
+    prevRemoteEventsRef.current = multiplayer.remoteEvents // Update ref AFTER reading prev
     setEvents(multiplayer.remoteEvents)
 
     // Ensure match exists + keep events updated in local cache/SQLite
@@ -1065,8 +1066,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       const matchFinishedEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchFinished') as any
       const legFinishedEvts = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegFinished')
       const lastLegFinished = legFinishedEvts[legFinishedEvts.length - 1] as any
-      const prevLegCount = prevRemoteEventsRef.current
-        ? (prevRemoteEventsRef.current as any[]).filter((e: any) => e.type === 'LegFinished').length
+      const prevLegCount = prevEvents
+        ? prevEvents.filter((e: any) => e.type === 'LegFinished').length
         : 0
 
       // Leg finished — only trigger when a NEW LegFinished appears (not on every event update)
