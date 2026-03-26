@@ -121,6 +121,7 @@ const NewGameRandom = React.lazy(() => import('./screens/NewGameRandom'))
 import { generateRandomGame, describeRandomGame } from './randomGame'
 
 // Multiplayer
+import PartySocket from 'partysocket'
 import { useMultiplayerRoom, MultiplayerLobby, SpectatorView } from './multiplayer'
 import type { DartsEvent as DartsEventType } from './darts501'
 
@@ -1753,6 +1754,22 @@ export default function App() {
           // Send start-game to server (broadcasts events to all clients)
           mpActions.startGame(matchId, config.gameType, initialEvents)
 
+          // Register game in live registry for spectators
+          try {
+            const regSocket = new PartySocket({ host: import.meta.env.VITE_PARTYKIT_HOST || 'darts-multiplayer.david711-ass.partykit.dev', room: '__live__' })
+            regSocket.addEventListener('open', () => {
+              regSocket.send(JSON.stringify({
+                type: 'register-game',
+                roomCode: multiplayerRoomCode,
+                gameType: config.gameType,
+                playerNames: orderedPlayerList.map(p => p.name),
+                playerCount: orderedPlayerList.length,
+                phase: 'playing',
+              }))
+              setTimeout(() => regSocket.close(), 1000)
+            })
+          } catch {}
+
           // Set local state for game view
           setMultiplayerMatchId(matchId)
           setMultiplayerGameType(config.gameType)
@@ -1878,6 +1895,16 @@ export default function App() {
       playerCount: mpState.players.filter(p => p.connected).length,
     }
     const mpOnExit = () => {
+      // Unregister from live registry
+      if (multiplayerRoomCode) {
+        try {
+          const regSocket = new PartySocket({ host: import.meta.env.VITE_PARTYKIT_HOST || 'darts-multiplayer.david711-ass.partykit.dev', room: '__live__' })
+          regSocket.addEventListener('open', () => {
+            regSocket.send(JSON.stringify({ type: 'unregister-game', roomCode: multiplayerRoomCode }))
+            setTimeout(() => regSocket.close(), 500)
+          })
+        } catch {}
+      }
       mpActions.disconnect()
       setMultiplayerRoomCode(null)
       setMultiplayerMatchId(null)

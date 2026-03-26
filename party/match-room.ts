@@ -90,10 +90,74 @@ async function save(room: PartyKitRoom) {
   await room.storage.put('room', state)
 }
 
+// ---- Live Registry (Room ID: __live__) ----
+// Tracks all active games so spectators can browse without a code.
+
+type LiveGame = {
+  roomCode: string
+  gameType: string
+  playerNames: string[]
+  playerCount: number
+  phase: string
+  startedAt: number
+}
+
+let liveGames: Map<string, LiveGame> = new Map()
+
+function handleRegistryMessage(message: string, conn: PartyKitConnection, room: PartyKitRoom) {
+  const msg = JSON.parse(message)
+  switch (msg.type) {
+    case 'register-game': {
+      liveGames.set(msg.roomCode, {
+        roomCode: msg.roomCode,
+        gameType: msg.gameType || 'x01',
+        playerNames: msg.playerNames || [],
+        playerCount: msg.playerCount || 0,
+        phase: msg.phase || 'playing',
+        startedAt: Date.now(),
+      })
+      broadcastLiveList(room)
+      break
+    }
+    case 'unregister-game': {
+      liveGames.delete(msg.roomCode)
+      broadcastLiveList(room)
+      break
+    }
+    case 'update-game': {
+      const existing = liveGames.get(msg.roomCode)
+      if (existing) {
+        if (msg.phase) existing.phase = msg.phase
+        if (msg.playerCount) existing.playerCount = msg.playerCount
+        broadcastLiveList(room)
+      }
+      break
+    }
+    case 'get-live-games': {
+      conn.send(JSON.stringify({ type: 'live-games', games: Array.from(liveGames.values()) }))
+      break
+    }
+  }
+}
+
+function broadcastLiveList(room: PartyKitRoom) {
+  const data = JSON.stringify({ type: 'live-games', games: Array.from(liveGames.values()) })
+  for (const conn of room.getConnections()) conn.send(data)
+}
+
+// Clean up stale games (older than 4 hours)
+function cleanupStaleGames() {
+  const cutoff = Date.now() - 4 * 60 * 60 * 1000
+  for (const [code, game] of liveGames) {
+    if (game.startedAt < cutoff) liveGames.delete(code)
+  }
+}
+
 // ---- Server ----
 
 export default {
   async onStart(room: PartyKitRoom) {
+    if (room.id === '__live__') return // Registry has no persistent state
     const saved = await room.storage.get<RoomState>('room')
     if (saved) {
       state = saved
@@ -102,6 +166,11 @@ export default {
   },
 
   onConnect(conn: PartyKitConnection, room: PartyKitRoom) {
+    if (room.id === '__live__') {
+      cleanupStaleGames()
+      conn.send(JSON.stringify({ type: 'live-games', games: Array.from(liveGames.values()) }))
+      return
+    }
     if (state.players.length > 0) {
       sendSync(conn)
     }
@@ -138,6 +207,12 @@ export default {
   },
 
   async onMessage(message: string, conn: PartyKitConnection, room: PartyKitRoom) {
+    // Registry room handles its own messages
+    if (room.id === '__live__') {
+      try { handleRegistryMessage(message, conn, room) } catch {}
+      return
+    }
+
     let msg: any
     try {
       msg = JSON.parse(message)
