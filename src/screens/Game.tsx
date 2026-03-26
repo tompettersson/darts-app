@@ -1054,7 +1054,13 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         // Only announce if it's now MY turn
         if (nextPid === multiplayer.myPlayerId) {
           const nextName = match.players.find(p => p.playerId === nextPid)?.name ?? nextPid
-          debouncedAnnounce(() => announceNextPlayer(nextName))
+          const nextRemaining = currentLeg.remainingByPlayer[nextPid] ?? 999
+          if (nextRemaining <= 170 && nextRemaining >= 2) {
+            // Checkable finish — announce remaining
+            debouncedAnnounce(() => announcePlayerFinishArea(nextName, nextRemaining))
+          } else {
+            debouncedAnnounce(() => announceNextPlayer(nextName))
+          }
         }
       }
       // Check for leg/match finish — announce winner and show screens on ALL phones
@@ -1077,12 +1083,17 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
 
-        // Guest: Save stats locally (host does this in finalizeIfFinished)
+        // Guest: Save stats + show end screen
         try { finishMatch(matchId) } catch {}
         try {
           updateLeaderboardsWithMatch({ id: matchId, events: multiplayer.remoteEvents, finishedAt: now() })
         } catch {}
         try { updateGlobalX01PlayerStatsFromMatch(matchId, multiplayer.remoteEvents) } catch {}
+
+        // Trigger end screen for guest
+        const winnerId = lastEvt.winnerPlayerId
+        const winnerName = match?.players.find(p => p.playerId === winnerId)?.name ?? '—'
+        setEnded({ winnerName })
       }
     }
   }, [multiplayer?.enabled, multiplayer?.remoteEvents])
@@ -1791,15 +1802,17 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
   // Endscreen anzeigen wenn Match beendet (nach allen Hooks!)
   if ((finishedEvt || ended) && match && matchStored) {
-    const winnerId = finishedEvt?.winnerPlayerId
+    const winnerId = finishedEvt?.winnerPlayerId ?? (ended as any)?.winnerId
     const winnerName =
       ended?.winnerName ??
       (winnerId ? match.players.find((p) => p.playerId === winnerId)?.name ?? '\u2014' : '\u2014')
+    // Use current events (not stale matchStored.events) for correct stats
+    const endScreenStored = { ...matchStored, events, finished: true }
     return (
       <X01EndScreen
         matchId={matchId}
         match={match}
-        matchStored={matchStored}
+        matchStored={endScreenStored}
         events={events}
         state={state}
         winnerName={winnerName}
