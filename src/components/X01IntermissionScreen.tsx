@@ -292,6 +292,10 @@ export type X01IntermissionScreenProps = {
   playerColors: Record<string, string>
   isArcade: boolean
   onContinue: () => void
+  /** In multiplayer: is this device the host (the one who controls "Weiter")? */
+  isMultiplayerHost?: boolean
+  /** In multiplayer: is this a multiplayer game? */
+  isMultiplayer?: boolean
 }
 
 // ---- Component ----
@@ -303,11 +307,15 @@ export default function X01IntermissionScreen({
   playerColors,
   isArcade,
   onContinue,
+  isMultiplayerHost,
+  isMultiplayer,
 }: X01IntermissionScreenProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [legChartMode, setLegChartMode] = useState<'progression' | 'staircase'>('staircase')
   const [viewMode, setViewMode] = useState<'stats' | 'bericht'>('stats')
-  const [waitingForOthers, setWaitingForOthers] = useState(false)
+
+  // In multiplayer: Guest cannot click "Weiter" — they wait for Host to send LegStarted
+  const isGuestInMultiplayer = isMultiplayer && !isMultiplayerHost
 
   return (
     <div className="g-overlay" role="dialog" aria-modal="true">
@@ -333,14 +341,23 @@ export default function X01IntermissionScreen({
             <button className="g-btn" onClick={() => setShowDetails((v) => !v)} style={{ fontSize: 13 }}>
               {showDetails ? 'Details verbergen' : 'Details anzeigen'}
             </button>
-            <button
-              className="g-btn"
-              onClick={() => { setWaitingForOthers(true); onContinue() }}
-              disabled={waitingForOthers}
-              style={{ fontSize: 13, opacity: waitingForOthers ? 0.6 : 1 }}
-            >
-              {waitingForOthers ? 'Warte auf Mitspieler...' : 'Weiter →'}
-            </button>
+            {isGuestInMultiplayer ? (
+              <button
+                className="g-btn"
+                disabled
+                style={{ fontSize: 13, opacity: 0.6 }}
+              >
+                Warte auf Host...
+              </button>
+            ) : (
+              <button
+                className="g-btn"
+                onClick={onContinue}
+                style={{ fontSize: 13 }}
+              >
+                Weiter →
+              </button>
+            )}
           </div>
         </div>
 

@@ -1094,9 +1094,12 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         })
       }
 
-      // Match finished — check if MatchFinished is NEW (not in prev events)
+      // Match finished — check if MatchFinished exists (may arrive in same or later batch)
       const prevHadMatchFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'MatchFinished') : false
       if (matchFinishedEvt && !prevHadMatchFinished) {
+        // Close any open Leg Summary — Match End takes priority
+        setIntermission(null)
+
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
 
@@ -1110,7 +1113,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           )
         }
 
-        // Guest: Save stats + show end screen
+        // Save stats + show end screen on ALL devices
         try { finishMatch(matchId) } catch {}
         try {
           updateLeaderboardsWithMatch({ id: matchId, events: multiplayer.remoteEvents, finishedAt: now() })
@@ -1900,6 +1903,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           playerColors={playerColors}
           isArcade={isArcade}
           onContinue={continueFromIntermission}
+          isMultiplayer={!!multiplayer?.enabled}
+          isMultiplayerHost={(intermission.pendingNextEvents?.length ?? 0) > 0}
         />
       )}
 
