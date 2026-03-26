@@ -1196,19 +1196,19 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       if (!leg) return list
       const { remaining, bust } = simulateLiveRemaining(leg.remainingByPlayer[activePlayerId], draft)
 
-      // Send live preview to other devices
-      if (multiplayer?.sendLivePreview && !bust && remaining > 0) {
-        const previewDarts = draft.map(d => ({
-          bed: d.bed, mult: d.mult,
-          score: d.bed === 'MISS' ? 0 : d.bed === 'DBULL' ? 50 : d.bed === 'BULL' ? 25 : (d.bed as number) * d.mult,
-        }))
-        multiplayer.sendLivePreview(activePlayerId, previewDarts, remaining)
-      }
-
       // Auto-Confirm bei Bust, Checkout oder 3 Darts
       if (bust || remaining === 0 || draft.length === 3) {
         confirmVisit(draft)
         return []
+      }
+
+      // Send live preview OUTSIDE state updater (via setTimeout)
+      if (multiplayer?.sendLivePreview) {
+        const previewDarts = draft.map(d => ({
+          bed: d.bed, mult: d.mult,
+          score: d.bed === 'MISS' ? 0 : d.bed === 'DBULL' ? 50 : d.bed === 'BULL' ? 25 : (d.bed as number) * d.mult,
+        }))
+        setTimeout(() => multiplayer.sendLivePreview!(activePlayerId, previewDarts, remaining), 0)
       }
 
       // 🔥 Double-Ansage wenn auf direktem Double-Finish (1-Dart Checkout)

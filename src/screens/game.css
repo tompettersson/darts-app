@@ -780,29 +780,49 @@ html, body, #root {
   outline-color: #f97316;
 }
 
-/* ===== TABLET (600-1024px) — Touch-optimiert, mehr Platz als Handy ===== */
+/* ===== TABLET (600-1200px) — Touch-optimiert, mehr Platz als Handy ===== */
 @media (min-width: 600px) and (max-width: 1200px) {
   .g-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 8px;
   }
   .g-card {
-    padding: 12px;
-    gap: 8px;
+    padding: 10px;
+    gap: 6px;
   }
   .g-bigNum {
-    font-size: 34px;
+    font-size: 30px;
   }
   .g-nameRow {
-    font-size: 16px;
+    font-size: 14px;
   }
   .g-page {
-    gap: 10px;
-    padding: 10px;
+    gap: 8px;
+    padding: 8px;
   }
   .g-modal {
     padding: 12px;
     width: min(760px, 96vw);
+  }
+  /* Hide dart detail column on tablet to save width */
+  .g-player-darts-col {
+    display: none !important;
+  }
+  /* Simplified player grid */
+  .g-player-grid {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+  /* Smaller chart on tablet, hidden in landscape */
+  .g-chart-mobile-hide {
+    max-height: 100px;
+  }
+}
+
+/* Tablet landscape: hide chart completely to show keyboard */
+@media (min-width: 600px) and (max-width: 1200px) and (orientation: landscape) {
+  .g-chart-mobile-hide {
+    display: none !important;
   }
 }
 
