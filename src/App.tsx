@@ -1887,6 +1887,7 @@ export default function App() {
       enabled: true as const,
       roomCode: multiplayerRoomCode ?? '',
       myPlayerId: multiplayerMyPlayerId,
+      isHost: mpState.isHost,
       submitEvents: mpActions.submitEvents,
       undo: mpActions.undo,
       sendLivePreview: mpActions.sendLivePreview,

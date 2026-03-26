@@ -26,6 +26,7 @@ export type MultiplayerState = {
   spectatorCount: number
   diceRollTrigger: number
   livePreview: { playerId: string; darts: any[]; remaining: number } | null
+  isHost: boolean
 }
 
 export type MultiplayerActions = {
@@ -65,6 +66,7 @@ export function useMultiplayerRoom(
   const [spectatorCount, setSpectatorCount] = useState(0)
   const [diceRollTrigger, setDiceRollTrigger] = useState(0)
   const [livePreview, setLivePreview] = useState<{ playerId: string; darts: any[]; remaining: number } | null>(null)
+  const [isHost, setIsHost] = useState(false)
 
   // The initial message to send when connecting (create-room or join-room)
   // Stored as STATE so it survives React re-renders and is available in useEffect
@@ -211,6 +213,7 @@ export function useMultiplayerRoom(
 
   const createRoom = useCallback((hostPlayer: PlayerRef) => {
     addDebug('createRoom called')
+    setIsHost(true)
     setInitMessage({ type: 'create-room', hostPlayer })
   }, [addDebug])
 
@@ -290,7 +293,7 @@ export function useMultiplayerRoom(
 
   const state: MultiplayerState = {
     status, players, phase, events, error,
-    gameConfig, playerOrder, orderType, debugLog, spectatorCount, diceRollTrigger, livePreview,
+    gameConfig, playerOrder, orderType, debugLog, spectatorCount, diceRollTrigger, livePreview, isHost,
   }
 
   const actions: MultiplayerActions = {

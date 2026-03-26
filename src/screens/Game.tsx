@@ -694,6 +694,7 @@ type MultiplayerProps = {
   enabled: true
   roomCode: string
   myPlayerId: string
+  isHost: boolean
   submitEvents: (events: DartsEvent[]) => void
   undo: (removeCount: number) => void
   sendLivePreview?: (playerId: string, darts: any[], remaining: number) => void
@@ -1856,7 +1857,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         onRematch={onNewGame}
         isArcade={isArcade}
         c={colors}
-        isMultiplayerGuest={!!multiplayer?.enabled && !!ended}
+        isMultiplayerGuest={!!multiplayer?.enabled && !multiplayer?.isHost}
       />
     )
   }
