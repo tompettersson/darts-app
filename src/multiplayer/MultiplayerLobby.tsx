@@ -31,6 +31,7 @@ type Props = {
   onRemovePlayer: (playerId: string) => void
   onSetGameConfig: (config: GameConfig) => void
   onSetPlayerOrder: (playerIds: string[], orderType: PlayerOrder) => void
+  onTriggerDiceRoll?: () => void
   onStartGame: () => void
   onReady: () => void
   onBack: () => void
@@ -317,7 +318,7 @@ export default function MultiplayerLobby({
   mode, status, players, phase, error, myPlayerId, roomCode,
   gameConfig, playerOrder, orderType, localProfiles,
   onCreateRoom, onJoinRoom, onAddLocalPlayers, onRemovePlayer,
-  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack, debugLog, spectatorCount = 0, diceRollTrigger = 0,
+  onSetGameConfig, onSetPlayerOrder, onTriggerDiceRoll, onStartGame, onReady, onBack, debugLog, spectatorCount = 0, diceRollTrigger = 0,
 }: Props) {
   const { colors, isArcade } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -364,19 +365,25 @@ export default function MultiplayerLobby({
     setShowAddPlayer(false)
   }
 
-  // Shuffle: Host sends order to server, all clients see dice via diceRollTrigger
+  // Shuffle: Send dice-roll (animation) + new order separately
   const handleRandomOrder = useCallback(() => {
-    // Shuffle and send to server — server broadcasts, all clients get diceRollTrigger
     const shuffled = [...playerOrder]
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
     }
+    // 1. Trigger dice animation on all devices (dedicated message)
+    if (onTriggerDiceRoll) {
+      onTriggerDiceRoll()
+    } else {
+      // Local-only fallback (no multiplayer)
+      setShowDice(true)
+    }
+    // 2. Send the new order (this does NOT trigger dice)
     onSetPlayerOrder(shuffled, 'random')
-    // Local dice will be triggered by diceRollTrigger from server echo
-  }, [playerOrder, onSetPlayerOrder])
+  }, [playerOrder, onSetPlayerOrder, onTriggerDiceRoll])
 
-  // Show dice animation when any device receives random order from server
+  // Show dice when dedicated dice-roll message arrives from server
   const lastDiceTriggerRef = useRef(diceRollTrigger)
   useEffect(() => {
     if (diceRollTrigger > 0 && diceRollTrigger !== lastDiceTriggerRef.current) {

@@ -1625,6 +1625,7 @@ export default function App() {
         onRemovePlayer={(pid) => mpActions.removePlayer(pid)}
         onSetGameConfig={(config) => mpActions.setGameConfig(config)}
         onSetPlayerOrder={(pids, ot) => mpActions.setPlayerOrder(pids, ot)}
+        onTriggerDiceRoll={() => mpActions.triggerDiceRoll()}
         onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
         onStartGame={() => {
           const config = mpState.gameConfig

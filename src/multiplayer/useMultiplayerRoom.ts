@@ -37,6 +37,7 @@ export type MultiplayerActions = {
   setGameConfig: (config: GameConfig) => void
   setPlayerOrder: (playerIds: string[], orderType: PlayerOrder) => void
   startGame: (matchId: string, gameType: string, events: any[]) => void
+  triggerDiceRoll: () => void
   sendLivePreview: (playerId: string, darts: any[], remaining: number) => void
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
@@ -157,13 +158,12 @@ export function useMultiplayerRoom(
             setGameConfig(msg.config)
             break
           case 'player-order-update':
-            // Only trigger dice if order actually changed AND is random
-            setPlayerOrder(prev => {
-              const changed = msg.orderType === 'random' && JSON.stringify(prev) !== JSON.stringify(msg.playerIds)
-              if (changed) setDiceRollTrigger(n => n + 1)
-              return msg.playerIds
-            })
+            setPlayerOrder(msg.playerIds)
             setOrderType(msg.orderType)
+            break
+          case 'dice-roll':
+            // Dedicated dice trigger — only from explicit random button
+            setDiceRollTrigger(n => n + 1)
             break
           case 'live-preview':
             setLivePreview({ playerId: (msg as any).playerId, darts: (msg as any).darts, remaining: (msg as any).remaining })
@@ -247,6 +247,10 @@ export function useMultiplayerRoom(
     sendMsg({ type: 'start-game', matchId, gameType, events: initialEvents })
   }, [sendMsg])
 
+  const triggerDiceRoll = useCallback(() => {
+    sendMsg({ type: 'dice-roll' } as any)
+  }, [sendMsg])
+
   const sendLivePreview = useCallback((playerId: string, darts: any[], remaining: number) => {
     sendMsg({ type: 'live-preview', playerId, darts, remaining } as any)
   }, [sendMsg])
@@ -290,7 +294,7 @@ export function useMultiplayerRoom(
   }
 
   const actions: MultiplayerActions = {
-    createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer, sendLivePreview,
+    createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer, triggerDiceRoll, sendLivePreview,
     setGameConfig: setGameConfigAction, setPlayerOrder: setPlayerOrderAction,
     startGame, submitEvents, undo, playerReady, requestSync, disconnect,
   }

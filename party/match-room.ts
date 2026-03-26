@@ -404,8 +404,13 @@ export default {
         }
 
         case 'live-preview': {
-          // Broadcast to all other clients (not persisted, not saved)
           broadcastAll(room, { type: 'live-preview', playerId: msg.playerId, darts: msg.darts, remaining: msg.remaining } as any, conn.id)
+          break
+        }
+
+        case 'dice-roll': {
+          // Broadcast to ALL clients including sender (everyone sees the dice)
+          broadcastAll(room, { type: 'dice-roll' } as any)
           break
         }
 

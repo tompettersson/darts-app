@@ -247,6 +247,7 @@ export type ServerMessage =
   | PlayerOrderUpdateMsg
   | LivePreviewBroadcastMsg
   | SpectatorCountMsg
+  | { type: 'dice-roll' }
   | ErrorMsg
 
 // ---- Shared Types ----
