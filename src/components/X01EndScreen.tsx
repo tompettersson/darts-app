@@ -1,7 +1,7 @@
 // src/components/X01EndScreen.tsx
 // Extracted end screen component for X01 matches
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   applyEvents,
   computeStats,
@@ -150,6 +150,14 @@ export default function X01EndScreen({
   const [metadataSaved, setMetadataSaved] = useState(
     matchStored?.matchName !== undefined || matchStored?.notes !== undefined
   )
+
+  // Auto-dismiss after 2 minutes → go back to menu
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onExit()
+    }, 2 * 60 * 1000)
+    return () => clearTimeout(timer)
+  }, [onExit])
 
   const { legsWonCurrent, setsWon } = computeLegsAndSetsScore(match, state)
   const statsByPlayer = computeStats(events)

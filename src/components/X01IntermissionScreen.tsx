@@ -1,7 +1,7 @@
 // src/components/X01IntermissionScreen.tsx
 // Extracted from Game.tsx — Intermission/Leg Summary overlay
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   type DartsEvent,
   type MatchStarted,
@@ -316,6 +316,15 @@ export default function X01IntermissionScreen({
 
   // In multiplayer: Guest cannot click "Weiter" — they wait for Host to send LegStarted
   const isGuestInMultiplayer = isMultiplayer && !isMultiplayerHost
+
+  // Auto-dismiss after 2 minutes if nobody clicks "Weiter"
+  useEffect(() => {
+    if (isGuestInMultiplayer) return // Guest auto-closes via remoteEvents, not timer
+    const timer = setTimeout(() => {
+      onContinue()
+    }, 2 * 60 * 1000)
+    return () => clearTimeout(timer)
+  }, [onContinue, isGuestInMultiplayer])
 
   return (
     <div className="g-overlay" role="dialog" aria-modal="true">
