@@ -35,13 +35,18 @@ module.exports = async (req, res) => {
     const body = req.body
     const db = getSQL()
 
+    // Auto-migrate: add settings column if missing
+    try {
+      await db`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'`
+    } catch (_) { /* column already exists */ }
+
     switch (body.type) {
       // ---- Verify single player password (creates session) ----
       case 'verify': {
         const { profileId, password } = body
         if (!profileId || !password) return res.json({ valid: false })
 
-        const rows = await db`SELECT password_hash FROM profiles WHERE id = ${profileId}`
+        const rows = await db`SELECT password_hash, settings FROM profiles WHERE id = ${profileId}`
         const hash = rows[0]?.password_hash
         if (!hash) return res.json({ valid: false })
 
@@ -57,7 +62,7 @@ module.exports = async (req, res) => {
         await db`INSERT INTO sessions (session_token, profile_id, created_at, expires_at, last_used_at)
                   VALUES (${sessionToken}, ${profileId}, ${now}, ${expiresAt}, ${now})`
 
-        return res.json({ valid: true, sessionToken })
+        return res.json({ valid: true, sessionToken, settings: rows[0]?.settings || {} })
       }
 
       // ---- Validate session token ----
@@ -75,7 +80,19 @@ module.exports = async (req, res) => {
 
         // Update last used
         await db`UPDATE sessions SET last_used_at = ${new Date().toISOString()} WHERE session_token = ${sessionToken}`
-        return res.json({ valid: true, profileId: rows[0].profile_id })
+        // Fetch settings
+        const profileRows = await db`SELECT settings FROM profiles WHERE id = ${rows[0].profile_id}`
+        return res.json({ valid: true, profileId: rows[0].profile_id, settings: profileRows[0]?.settings || {} })
+      }
+
+      // ---- Update profile settings ----
+      case 'update-settings': {
+        const { sessionToken, settings } = body
+        if (!sessionToken || !settings) return res.status(400).json({ error: 'Missing fields' })
+        const session = await db`SELECT profile_id FROM sessions WHERE session_token = ${sessionToken} AND expires_at > ${new Date().toISOString()}`
+        if (!session[0]) return res.status(401).json({ error: 'Invalid session' })
+        await db`UPDATE profiles SET settings = ${JSON.stringify(settings)}, updated_at = ${new Date().toISOString()} WHERE id = ${session[0].profile_id}`
+        return res.json({ success: true })
       }
 
       // ---- Logout (delete session) ----

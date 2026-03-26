@@ -1,6 +1,6 @@
 // src/auth/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { verifyPassword, logoutSession, validateSession } from './api'
+import { verifyPassword, logoutSession, validateSession, updateProfileSettings, type ProfileSettings } from './api'
 
 export type AuthUser = {
   profileId: string
@@ -24,6 +24,8 @@ type AuthContextType = {
   /** Dev-only: Login ohne Auth-Server (nur auf localhost) */
   devLogin: (profileId: string, name: string, isAdmin: boolean) => void
   logout: () => void
+  /** Update a profile setting (syncs to server + localStorage) */
+  updateSetting: <K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) => void
   isLoggedIn: boolean
   isAdmin: boolean
   isGuest: boolean
@@ -80,17 +82,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [verifiedPlayers])
 
+  // Apply profile settings to localStorage (so existing readers still work)
+  const applySettings = useCallback((settings: ProfileSettings) => {
+    if (settings.theme) localStorage.setItem('darts-theme', settings.theme)
+    if (settings.voiceLang) localStorage.setItem('darts-voice-lang', settings.voiceLang)
+    if (settings.playerColorBg !== undefined) localStorage.setItem('darts-player-color-bg', JSON.stringify(settings.playerColorBg))
+  }, [])
+
   // Validate stored session on app start (skip on localhost dev bypass)
   useEffect(() => {
     if (!user?.sessionToken || user.isGuest) return
     if (IS_DEV_BYPASS && user.sessionToken === 'dev-bypass') return
-    validateSession(user.sessionToken).then(valid => {
-      if (!valid) {
+    validateSession(user.sessionToken).then(result => {
+      if (!result.valid) {
         console.warn('[Auth] Session ungültig — bitte erneut anmelden')
         setUser(null)
         setVerifiedPlayers([])
         localStorage.removeItem(LS_KEY)
         localStorage.removeItem(LS_VERIFIED)
+      } else if (result.settings) {
+        applySettings(result.settings)
       }
     }).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,8 +111,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await verifyPassword(profileId, password)
       if (result.valid && result.sessionToken) {
         setUser({ profileId, name, isAdmin, isGuest: false, sessionToken: result.sessionToken })
-        // Main user is always in verified list
         setVerifiedPlayers([{ profileId, name }])
+        // Apply server settings to localStorage
+        if (result.settings && Object.keys(result.settings).length > 0) {
+          applySettings(result.settings)
+        } else {
+          // First login: migrate local settings to server
+          const localSettings: ProfileSettings = {
+            theme: (localStorage.getItem('darts-theme') as any) || undefined,
+            voiceLang: localStorage.getItem('darts-voice-lang') || undefined,
+            playerColorBg: localStorage.getItem('darts-player-color-bg') ? JSON.parse(localStorage.getItem('darts-player-color-bg')!) : undefined,
+          }
+          if (Object.values(localSettings).some(v => v !== undefined)) {
+            updateProfileSettings(result.sessionToken, localSettings).catch(() => {})
+          }
+        }
         return true
       }
       return false
@@ -132,6 +156,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(LS_VERIFIED)
   }, [user])
 
+  const updateSetting = useCallback(<K extends keyof ProfileSettings>(key: K, value: ProfileSettings[K]) => {
+    // Apply locally immediately
+    const settings: ProfileSettings = { [key]: value }
+    applySettings(settings)
+    // Sync to server (fire-and-forget)
+    if (user?.sessionToken && !user.isGuest && user.sessionToken !== 'dev-bypass') {
+      // Read all current settings from localStorage, merge, send
+      const current: ProfileSettings = {
+        theme: (localStorage.getItem('darts-theme') as any) || undefined,
+        voiceLang: localStorage.getItem('darts-voice-lang') || undefined,
+        playerColorBg: localStorage.getItem('darts-player-color-bg') ? JSON.parse(localStorage.getItem('darts-player-color-bg')!) : undefined,
+      }
+      updateProfileSettings(user.sessionToken, { ...current, ...settings }).catch(() => {})
+    }
+  }, [user, applySettings])
+
   const addVerifiedPlayer = useCallback((player: VerifiedPlayer) => {
     setVerifiedPlayers(prev => {
       if (prev.some(p => p.profileId === player.profileId)) return prev
@@ -153,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loginAsGuest,
     devLogin,
     logout,
+    updateSetting,
     isLoggedIn: !!user && !user.isGuest,
     isAdmin: !!user?.isAdmin,
     isGuest: !!user?.isGuest,

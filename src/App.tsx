@@ -2176,7 +2176,7 @@ export default function App() {
                 {themeOptions.map((opt) => (
                   <button
                     key={opt.value}
-                    onClick={() => setTheme(opt.value)}
+                    onClick={() => { setTheme(opt.value); auth.updateSetting('theme', opt.value) }}
                     style={{
                       ...styles.tile,
                       ...(theme === opt.value ? styles.pillActive : {}),
@@ -2204,6 +2204,7 @@ export default function App() {
                     key={opt.value}
                     onClick={() => {
                       setVoiceLang(opt.value)
+                      auth.updateSetting('voiceLang', opt.value)
                       setSettingsKey((k) => k + 1)
                     }}
                     style={{
@@ -2288,6 +2289,7 @@ export default function App() {
                   const newValue = !playerColorBgEnabled
                   setPlayerColorBackgroundEnabled(newValue)
                   setPlayerColorBgEnabled(newValue)
+                  auth.updateSetting('playerColorBg', newValue)
                 }}
                 style={{
                   ...styles.tile,
