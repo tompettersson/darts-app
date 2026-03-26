@@ -823,8 +823,9 @@ html, body, #root {
     padding: 8px;
   }
   .g-modal {
-    padding: 8px;
-    width: min(760px, 100vw - 16px);
+    padding: 6px;
+    width: min(760px, 100vw - 8px);
+    gap: 6px;
   }
   .g-modalHeader {
     gap: 6px;

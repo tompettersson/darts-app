@@ -415,10 +415,11 @@ export default function X01IntermissionScreen({
             }
 
             // Table Styles (compact for mobile)
-            const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#475569', padding: '6px 8px', borderBottom: '2px solid #e5e7eb' }
-            const thRight: React.CSSProperties = { textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#0f172a', padding: '6px 8px', borderBottom: '2px solid #e5e7eb' }
-            const tdLeft: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151', fontSize: 13 }
-            const tdRight: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: 13 }
+            const isMobileSummary = typeof window !== 'undefined' && window.innerWidth < 500
+            const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: isMobileSummary ? 11 : 12, fontWeight: 600, color: '#475569', padding: isMobileSummary ? '4px 4px' : '6px 8px', borderBottom: '2px solid #e5e7eb' }
+            const thRight: React.CSSProperties = { textAlign: 'right', fontSize: isMobileSummary ? 11 : 12, fontWeight: 700, color: '#0f172a', padding: isMobileSummary ? '4px 4px' : '6px 8px', borderBottom: '2px solid #e5e7eb' }
+            const tdLeft: React.CSSProperties = { padding: isMobileSummary ? '4px 4px' : '6px 8px', borderBottom: '1px solid #f1f5f9', fontWeight: 500, color: '#374151', fontSize: isMobileSummary ? 11 : 13, whiteSpace: 'nowrap' }
+            const tdRight: React.CSSProperties = { padding: isMobileSummary ? '4px 4px' : '6px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: isMobileSummary ? 12 : 13 }
             const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
 
             // Winner-Farben für Leg-Statistik
@@ -437,9 +438,9 @@ export default function X01IntermissionScreen({
             return (
               <>
                 {/* Zwischenstand groß oben */}
-                <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 8 }}>
-                  <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>Zwischenstand nach Leg {intermission.legIndex ?? '?'}</div>
-                  <div style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: 2 }}>
+                <div style={{ textAlign: 'center', padding: isMobileSummary ? '6px 0' : '12px 0', marginBottom: isMobileSummary ? 4 : 8 }}>
+                  <div style={{ fontSize: isMobileSummary ? 11 : 13, color: '#6b7280', marginBottom: 2 }}>Zwischenstand nach Leg {intermission.legIndex ?? '?'}</div>
+                  <div style={{ fontSize: isMobileSummary ? 24 : 32, fontWeight: 900, color: '#0f172a', letterSpacing: 2 }}>
                     {scoreAfterLeg}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 4 }}>
