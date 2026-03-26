@@ -23,6 +23,7 @@ import {
   deleteCricketMatch,
   getProfiles,
   getPlayerColorBackgroundEnabled,
+  ensureCricketMatchExists,
 } from '../storage'
 import { ui } from '../ui'
 import CricketArcadeView from '../components/CricketArcadeView'
@@ -640,10 +641,19 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteCricketRef.current) return
+    const prevLen = prevRemoteCricketRef.current?.length ?? 0
     prevRemoteCricketRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as CricketEvent[]
     setEvents(remote)
     persistCricketEvents(matchId, remote)
+
+    // Ensure match exists locally for guest
+    if (prevLen === 0 && remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'CricketMatchStarted') as any
+      if (startEvt) {
+        ensureCricketMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+    }
 
     // Detect match finish from remote events (for guest stats + end screen)
     const lastEvt = remote[remote.length - 1]

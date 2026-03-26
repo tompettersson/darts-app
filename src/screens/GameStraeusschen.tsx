@@ -12,6 +12,7 @@ import {
   setMatchElapsedTime,
   deleteStrMatch,
   getProfiles,
+  ensureStrMatchExists,
 } from '../storage'
 import {
   applyStrEvents,
@@ -104,6 +105,13 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'StrMatchFinished') {
       finishStrMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'StrMatchStarted') as any
+      if (startEvt) {
+        ensureStrMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

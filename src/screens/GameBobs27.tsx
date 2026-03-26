@@ -12,6 +12,7 @@ import {
   setMatchPaused,
   setMatchElapsedTime,
   deleteBobs27Match,
+  ensureBobs27MatchExists,
 } from '../storage'
 import {
   applyBobs27Events,
@@ -143,6 +144,13 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'Bobs27MatchFinished') {
       finishBobs27Match(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs, lastEvt.finalScores)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'Bobs27MatchStarted') as any
+      if (startEvt) {
+        ensureBobs27MatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

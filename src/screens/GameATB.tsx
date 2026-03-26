@@ -13,6 +13,7 @@ import {
   deleteATBMatch,
   getPlayerColorBackgroundEnabled,
   getProfiles,
+  ensureATBMatchExists,
 } from '../storage'
 import {
   applyATBEvents,
@@ -135,6 +136,13 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'ATBMatchFinished') {
       finishATBMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'ATBMatchStarted') as any
+      if (startEvt) {
+        ensureATBMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

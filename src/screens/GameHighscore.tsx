@@ -11,6 +11,7 @@ import {
   setMatchElapsedTime,
   deleteHighscoreMatch,
   getProfiles,
+  ensureHighscoreMatchExists,
 } from '../storage'
 import {
   applyHighscoreEvents,
@@ -86,6 +87,13 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'HighscoreMatchFinished') {
       finishHighscoreMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'HighscoreMatchStarted') as any
+      if (startEvt) {
+        ensureHighscoreMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

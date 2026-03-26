@@ -15,6 +15,7 @@ import {
   deleteShanghaiMatch,
   getPlayerColorBackgroundEnabled,
   getProfiles,
+  ensureShanghaiMatchExists,
 } from '../storage'
 import {
   applyShanghaiEvents,
@@ -119,6 +120,13 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'ShanghaiMatchFinished') {
       finishShanghaiMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'ShanghaiMatchStarted') as any
+      if (startEvt) {
+        ensureShanghaiMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

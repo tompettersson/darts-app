@@ -14,6 +14,7 @@ import {
   setMatchPaused,
   setMatchElapsedTime,
   getProfiles,
+  ensureKillerMatchExists,
 } from '../storage'
 import {
   applyKillerEvents,
@@ -145,6 +146,13 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     if (lastEvt?.type === 'KillerMatchFinished') {
       const finalState = applyKillerEvents(remote)
       finishKillerMatch(matchId, lastEvt.winnerId, lastEvt.finalStandings, lastEvt.totalDarts, lastEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'KillerMatchStarted') as any
+      if (startEvt) {
+        ensureKillerMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

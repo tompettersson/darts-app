@@ -17,6 +17,7 @@ import {
   deleteOperationMatch,
   getPlayerColorBackgroundEnabled,
   getProfiles,
+  ensureOperationMatchExists,
 } from '../storage'
 import {
   applyOperationEvents,
@@ -388,6 +389,13 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'OperationMatchFinished') {
       finishOperationMatch(matchId, lastEvt.winnerId, lastEvt.durationMs, lastEvt.finalScores, lastEvt.legWins)
+    }
+    // Ensure match exists locally for guest
+    if (remote.length > 0) {
+      const startEvt = remote.find((e: any) => e.type === 'OperationMatchStarted') as any
+      if (startEvt) {
+        ensureOperationMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

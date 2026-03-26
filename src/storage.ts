@@ -530,6 +530,124 @@ export function saveMatches(all: StoredMatch[]) {
   x01MatchesCache = all
 }
 
+/**
+ * Ensures a match exists in the local cache (for multiplayer guests).
+ * Creates it if it doesn't exist. Idempotent — safe to call multiple times.
+ * Works for any game mode by accepting the getter/setter functions.
+ */
+export function ensureMultiplayerMatchExists<T extends { id: string }>(
+  matchId: string,
+  createStub: () => T,
+  getList: () => T[],
+  saveList: (list: T[]) => void,
+) {
+  const list = getList()
+  if (list.some(m => m.id === matchId)) return
+  const stub = createStub()
+  list.unshift(stub)
+  saveList(list)
+}
+
+/** Ensure X01 match exists for multiplayer guest */
+export function ensureX01MatchExists(matchId: string, events: any[], playerIds: string[], title: string) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, title, finished: false } as StoredMatch),
+    getMatches,
+    saveMatches,
+  )
+}
+
+/** Ensure Cricket match exists for multiplayer guest */
+export function ensureCricketMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as CricketStoredMatch),
+    getCricketMatches,
+    saveCricketMatches,
+  )
+}
+
+/** Ensure ATB match exists for multiplayer guest */
+export function ensureATBMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getATBMatches,
+    saveATBMatches,
+  )
+}
+
+/** Ensure Sträußchen match exists for multiplayer guest */
+export function ensureStrMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getStrMatches,
+    saveStrMatches,
+  )
+}
+
+/** Ensure Highscore match exists for multiplayer guest */
+export function ensureHighscoreMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getHighscoreMatches,
+    saveHighscoreMatches,
+  )
+}
+
+/** Ensure CTF match exists for multiplayer guest */
+export function ensureCTFMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getCTFMatches,
+    saveCTFMatches,
+  )
+}
+
+/** Ensure Shanghai match exists for multiplayer guest */
+export function ensureShanghaiMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getShanghaiMatches,
+    saveShanghaiMatches,
+  )
+}
+
+/** Ensure Killer match exists for multiplayer guest */
+export function ensureKillerMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getKillerMatches,
+    saveKillerMatches,
+  )
+}
+
+/** Ensure Bobs27 match exists for multiplayer guest */
+export function ensureBobs27MatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getBobs27Matches,
+    saveBobs27Matches,
+  )
+}
+
+/** Ensure Operation match exists for multiplayer guest */
+export function ensureOperationMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  ensureMultiplayerMatchExists(
+    matchId,
+    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
+    getOperationMatches,
+    saveOperationMatches,
+  )
+}
+
 // SQLite-aware Matches laden
 export async function getMatchesAsync(): Promise<StoredMatch[]> {
   try {
@@ -2600,6 +2718,10 @@ export function getATBMatches(): ATBStoredMatch[] {
   return atbMatchesCache ?? []
 }
 
+export function saveATBMatches(all: ATBStoredMatch[]) {
+  atbMatchesCache = all
+}
+
 // SQLite-aware ATB Matches laden
 export async function getATBMatchesAsync(): Promise<ATBStoredMatch[]> {
   try {
@@ -3219,6 +3341,10 @@ export function getStrMatches(): StrStoredMatch[] {
   return strMatchesCache ?? []
 }
 
+export function saveStrMatches(all: StrStoredMatch[]) {
+  strMatchesCache = all
+}
+
 export function getStrMatchById(matchId: string): StrStoredMatch | null {
   const matches = getStrMatches()
   return matches.find(m => m.id === matchId) ?? null
@@ -3409,6 +3535,10 @@ let ctfMatchesCache: CTFStoredMatch[] | null = null
 
 export function getCTFMatches(): CTFStoredMatch[] {
   return ctfMatchesCache ?? []
+}
+
+export function saveCTFMatches(all: CTFStoredMatch[]) {
+  ctfMatchesCache = all
 }
 
 export function getCTFMatchById(matchId: string): CTFStoredMatch | null {
@@ -3618,6 +3748,10 @@ export function getShanghaiMatches(): ShanghaiStoredMatch[] {
   return shanghaiMatchesCache ?? []
 }
 
+export function saveShanghaiMatches(all: ShanghaiStoredMatch[]) {
+  shanghaiMatchesCache = all
+}
+
 export function getShanghaiMatchById(matchId: string): ShanghaiStoredMatch | null {
   const matches = getShanghaiMatches()
   return matches.find(m => m.id === matchId) ?? null
@@ -3800,6 +3934,10 @@ export function getKillerMatches(): KillerStoredMatch[] {
   return killerMatchesCache ?? []
 }
 
+export function saveKillerMatches(all: KillerStoredMatch[]) {
+  killerMatchesCache = all
+}
+
 export function getKillerMatchById(matchId: string): KillerStoredMatch | undefined {
   const matches = getKillerMatches()
   return matches.find(m => m.id === matchId)
@@ -3960,6 +4098,10 @@ let bobs27MatchesCache: Bobs27StoredMatch[] | null = null
 
 export function getBobs27Matches(): Bobs27StoredMatch[] {
   return bobs27MatchesCache ?? []
+}
+
+export function saveBobs27Matches(all: Bobs27StoredMatch[]) {
+  bobs27MatchesCache = all
 }
 
 export function getBobs27MatchById(matchId: string): Bobs27StoredMatch | null {
@@ -4221,6 +4363,10 @@ let operationMatchesCache: OperationStoredMatch[] | null = null
 
 export function getOperationMatches(): OperationStoredMatch[] {
   return operationMatchesCache ?? []
+}
+
+export function saveOperationMatches(all: OperationStoredMatch[]) {
+  operationMatchesCache = all
 }
 
 export function getOperationMatchById(matchId: string): OperationStoredMatch | null {
@@ -4835,6 +4981,10 @@ let highscoreMatchesCache: HighscoreStoredMatch[] | null = null
 
 export function getHighscoreMatches(): HighscoreStoredMatch[] {
   return highscoreMatchesCache ?? []
+}
+
+export function saveHighscoreMatches(all: HighscoreStoredMatch[]) {
+  highscoreMatchesCache = all
 }
 
 export function getHighscoreMatchById(matchId: string): HighscoreStoredMatch | null {
