@@ -1033,6 +1033,15 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     prevRemoteEventsRef.current = multiplayer.remoteEvents // Update ref AFTER reading prev
     setEvents(multiplayer.remoteEvents)
 
+    // Auto-close intermission when new LegStarted arrives from host
+    const prevLegStartedCount = prevEvents ? prevEvents.filter((e: any) => e.type === 'LegStarted').length : 0
+    const newLegStartedCount = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegStarted').length
+    if (newLegStartedCount > prevLegStartedCount) {
+      setIntermission(null)
+      setCurrent([])
+      legWonAnnouncedRef.current = false
+    }
+
     // Ensure match exists + keep events updated in local cache/SQLite
     const startEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchStarted') as any
     if (startEvt) {
@@ -1080,8 +1089,9 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         })
       }
 
-      // Match finished
-      if (matchFinishedEvt && !matchWonAnnouncedRef.current) {
+      // Match finished — check if MatchFinished is NEW (not in prev events)
+      const prevHadMatchFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'MatchFinished') : false
+      if (matchFinishedEvt && !prevHadMatchFinished) {
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
 
