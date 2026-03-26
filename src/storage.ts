@@ -575,6 +575,27 @@ export function ensureX01MatchExists(matchId: string, events: any[], playerIds: 
   )
 }
 
+/** Async version that awaits DB write — use when match needs to be saved reliably (e.g., match end) */
+export async function ensureX01MatchExistsAsync(matchId: string, events: any[], playerIds: string[], title: string) {
+  const list = getMatches()
+  const exists = list.some(m => m.id === matchId)
+  if (!exists) {
+    const stub: StoredMatch = { id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, title, finished: false }
+    list.unshift(stub)
+    saveMatches(list)
+  } else {
+    // Update events in memory cache
+    const idx = list.findIndex(m => m.id === matchId)
+    if (idx >= 0) { list[idx] = { ...list[idx], events }; saveMatches(list) }
+  }
+  // Await DB write
+  await dbSaveX01Match({
+    id: matchId, title, matchName: null, notes: null,
+    createdAt: events[0]?.ts ?? now(), finished: false, finishedAt: null,
+    events, playerIds,
+  })
+}
+
 /** Ensure Cricket match exists for multiplayer guest */
 export function ensureCricketMatchExists(matchId: string, events: any[], playerIds: string[]) {
   ensureMultiplayerMatchExists(

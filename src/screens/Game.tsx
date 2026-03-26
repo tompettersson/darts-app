@@ -22,6 +22,7 @@ import {
   getProfiles,
   getPlayerColorBackgroundEnabled,
   ensureX01MatchExists,
+  ensureX01MatchExistsAsync,
 } from '../storage'
 import {
   applyEvents,
@@ -1104,22 +1105,24 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
 
-        // Persist events to cache/SQLite before finishing
-        const startEvt2 = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchStarted') as any
-        if (startEvt2) {
-          ensureX01MatchExists(
-            matchId, multiplayer.remoteEvents,
-            startEvt2.players?.map((p: any) => p.playerId) ?? [],
-            `${startEvt2.mode ?? 'X01'} – Multiplayer`,
-          )
-        }
-
-        // Save stats + show end screen on ALL devices
-        try { finishMatch(matchId) } catch {}
-        try {
-          updateLeaderboardsWithMatch({ id: matchId, events: multiplayer.remoteEvents, finishedAt: now() })
-        } catch {}
-        try { updateGlobalX01PlayerStatsFromMatch(matchId, multiplayer.remoteEvents) } catch {}
+        // Persist match + events to DB, then mark as finished (async, non-blocking for UI)
+        const evtsToSave = [...multiplayer.remoteEvents]
+        const startEvt2 = evtsToSave.find((e: any) => e.type === 'MatchStarted') as any
+        ;(async () => {
+          if (startEvt2) {
+            try {
+              await ensureX01MatchExistsAsync(
+                matchId, evtsToSave,
+                startEvt2.players?.map((p: any) => p.playerId) ?? [],
+                `${startEvt2.mode ?? 'X01'} – Multiplayer`,
+              )
+            } catch (e) { console.warn('[MP] ensureX01MatchExists failed:', e) }
+          }
+          try { await persistEvents(matchId, evtsToSave) } catch {}
+          try { await finishMatch(matchId) } catch {}
+          try { updateLeaderboardsWithMatch({ id: matchId, events: evtsToSave, finishedAt: now() }) } catch {}
+          try { updateGlobalX01PlayerStatsFromMatch(matchId, evtsToSave) } catch {}
+        })()
 
         // Trigger end screen
         const winnerId = matchFinishedEvt.winnerPlayerId
