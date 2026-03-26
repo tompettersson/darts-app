@@ -893,11 +893,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     }
 
     if (multiplayer?.enabled) {
-      // Send MatchFinished event to all other devices
-      const newFinishEvts = finalEvents.filter(e => e.type === 'MatchFinished' && !allEvents.some(ae => ae.eventId === e.eventId))
-      if (newFinishEvts.length > 0) {
-        multiplayer.submitEvents(newFinishEvts)
-      }
+      // Events (including MatchFinished) were already sent via doPersist in confirmVisit
       setEvents(finalEvents)
     } else {
       // React-State zuerst setzen, dann persist AWAIT-en (verhindert Datenverlust bei "noch mal spielen")
@@ -1409,28 +1405,28 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
         const winnerId = Object.entries(wins).find(([_, w]) => w >= need)?.[0]
         if (winnerId) {
-          const mergedEvts = [...newEvents]
-          if (!mergedEvts.some((e) => e.type === 'MatchFinished')) {
-            const matchFinishedEvt: DartsEvent = {
+          // Add MatchFinished to events BEFORE doPersist so it's sent in the same batch
+          if (!newEvents.some((e) => e.type === 'MatchFinished')) {
+            newEvents.push({
               eventId: id(),
               type: 'MatchFinished',
               ts: now(),
               matchId: match.matchId,
               winnerPlayerId: winnerId,
-            }
-            mergedEvts.push(matchFinishedEvt)
+            } as DartsEvent)
           }
+          doPersist(newEvents)
 
           // Sprachausgabe: Match gewonnen
           if (speechEnabled && !matchWonAnnouncedRef.current) {
             matchWonAnnouncedRef.current = true
-            const lastVisit = mergedEvts.slice().reverse().find(isVisitAdded)
+            const lastVisit = newEvents.slice().reverse().find(isVisitAdded)
             announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
             setTimeout(() => announceMatchDart(), 800)
           }
 
           finalizeIfFinished(
-            mergedEvts,
+            newEvents,
             match,
             {
               id: matchStored.id,
@@ -1535,28 +1531,28 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
             const matchWinner = Object.entries(setsWonCount).find(([_, w]) => w >= needSets)?.[0]
             if (matchWinner) {
-              const mergedEvts = [...newEvents]
-              if (!mergedEvts.some((e) => e.type === 'MatchFinished')) {
-                const matchFinishedEvt: DartsEvent = {
+              // Add MatchFinished BEFORE doPersist so it's sent in the same batch
+              if (!newEvents.some((e) => e.type === 'MatchFinished')) {
+                newEvents.push({
                   eventId: id(),
                   type: 'MatchFinished',
                   ts: now(),
                   matchId: match.matchId,
                   winnerPlayerId: matchWinner,
-                }
-                mergedEvts.push(matchFinishedEvt)
+                } as DartsEvent)
               }
+              doPersist(newEvents)
 
               // Sprachausgabe: Match gewonnen (Sets Mode)
               if (speechEnabled && !matchWonAnnouncedRef.current) {
                 matchWonAnnouncedRef.current = true
-                const lastVisit = mergedEvts.slice().reverse().find(isVisitAdded)
+                const lastVisit = newEvents.slice().reverse().find(isVisitAdded)
                 announceScore(lastVisit?.visitScore ?? 0, !!lastVisit?.bust)
                 setTimeout(() => announceMatchDart(), 800)
               }
 
               finalizeIfFinished(
-                mergedEvts,
+                newEvents,
                 match,
                 {
                   id: matchStored.id,
