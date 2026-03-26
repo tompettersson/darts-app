@@ -1032,17 +1032,15 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     prevRemoteEventsRef.current = multiplayer.remoteEvents
     setEvents(multiplayer.remoteEvents)
 
-    // Ensure match exists locally for guest devices (needed for stats/finish)
-    if (prevLen === 0 && multiplayer.remoteEvents.length > 0) {
-      const startEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchStarted') as any
-      if (startEvt) {
-        ensureX01MatchExists(
-          matchId,
-          multiplayer.remoteEvents,
-          startEvt.players?.map((p: any) => p.playerId) ?? [],
-          `${startEvt.mode ?? 'X01'} – Multiplayer`,
-        )
-      }
+    // Ensure match exists + keep events updated in local cache/SQLite
+    const startEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchStarted') as any
+    if (startEvt) {
+      ensureX01MatchExists(
+        matchId,
+        multiplayer.remoteEvents,
+        startEvt.players?.map((p: any) => p.playerId) ?? [],
+        `${startEvt.mode ?? 'X01'} – Multiplayer`,
+      )
     }
 
     // Announce only when it's MY turn (not on other player's phone)

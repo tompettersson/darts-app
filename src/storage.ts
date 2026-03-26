@@ -535,26 +535,43 @@ export function saveMatches(all: StoredMatch[]) {
  * Creates it if it doesn't exist. Idempotent — safe to call multiple times.
  * Works for any game mode by accepting the getter/setter functions.
  */
-export function ensureMultiplayerMatchExists<T extends { id: string }>(
+export function ensureMultiplayerMatchExists<T extends { id: string; events?: any[] }>(
   matchId: string,
+  events: any[],
   createStub: () => T,
   getList: () => T[],
   saveList: (list: T[]) => void,
+  dbWrite?: (stub: T) => void,
 ) {
   const list = getList()
-  if (list.some(m => m.id === matchId)) return
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx >= 0) {
+    // Update events in cache (they grow during the game)
+    list[idx] = { ...list[idx], events }
+    saveList(list)
+    return
+  }
   const stub = createStub()
   list.unshift(stub)
   saveList(list)
+  if (dbWrite) dbWrite(stub)
 }
 
-/** Ensure X01 match exists for multiplayer guest */
+/** Ensure X01 match exists for multiplayer guest (cache + SQLite) */
 export function ensureX01MatchExists(matchId: string, events: any[], playerIds: string[], title: string) {
   ensureMultiplayerMatchExists(
     matchId,
+    events,
     () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, title, finished: false } as StoredMatch),
     getMatches,
     saveMatches,
+    (stub) => {
+      dbSaveX01Match({
+        id: stub.id, title: (stub as any).title ?? 'Multiplayer', matchName: null, notes: null,
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        events, playerIds,
+      }).catch(err => trackDBError('x01-mp-ensure', matchId, err))
+    },
   )
 }
 
@@ -562,90 +579,43 @@ export function ensureX01MatchExists(matchId: string, events: any[], playerIds: 
 export function ensureCricketMatchExists(matchId: string, events: any[], playerIds: string[]) {
   ensureMultiplayerMatchExists(
     matchId,
+    events,
     () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as CricketStoredMatch),
     getCricketMatches,
     saveCricketMatches,
+    (stub) => {
+      dbSaveCricketMatch({
+        id: stub.id, title: 'Cricket – Multiplayer', matchName: null, notes: null,
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        events, playerIds,
+      }).catch(err => trackDBError('cricket-mp-ensure', matchId, err))
+    },
   )
 }
 
-/** Ensure ATB match exists for multiplayer guest */
-export function ensureATBMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getATBMatches,
-    saveATBMatches,
-  )
+export function ensureATBMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getATBMatches, saveATBMatches)
 }
-
-/** Ensure Sträußchen match exists for multiplayer guest */
-export function ensureStrMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getStrMatches,
-    saveStrMatches,
-  )
+export function ensureStrMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getStrMatches, saveStrMatches)
 }
-
-/** Ensure Highscore match exists for multiplayer guest */
-export function ensureHighscoreMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getHighscoreMatches,
-    saveHighscoreMatches,
-  )
+export function ensureHighscoreMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getHighscoreMatches, saveHighscoreMatches)
 }
-
-/** Ensure CTF match exists for multiplayer guest */
-export function ensureCTFMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getCTFMatches,
-    saveCTFMatches,
-  )
+export function ensureCTFMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getCTFMatches, saveCTFMatches)
 }
-
-/** Ensure Shanghai match exists for multiplayer guest */
-export function ensureShanghaiMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getShanghaiMatches,
-    saveShanghaiMatches,
-  )
+export function ensureShanghaiMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getShanghaiMatches, saveShanghaiMatches)
 }
-
-/** Ensure Killer match exists for multiplayer guest */
-export function ensureKillerMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getKillerMatches,
-    saveKillerMatches,
-  )
+export function ensureKillerMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getKillerMatches, saveKillerMatches)
 }
-
-/** Ensure Bobs27 match exists for multiplayer guest */
-export function ensureBobs27MatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getBobs27Matches,
-    saveBobs27Matches,
-  )
+export function ensureBobs27MatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getBobs27Matches, saveBobs27Matches)
 }
-
-/** Ensure Operation match exists for multiplayer guest */
-export function ensureOperationMatchExists(matchId: string, events: any[], playerIds: string[]) {
-  ensureMultiplayerMatchExists(
-    matchId,
-    () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as any),
-    getOperationMatches,
-    saveOperationMatches,
-  )
+export function ensureOperationMatchExists(m: string, e: any[], p: string[]) {
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getOperationMatches, saveOperationMatches)
 }
 
 // SQLite-aware Matches laden
