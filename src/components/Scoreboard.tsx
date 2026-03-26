@@ -115,14 +115,21 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 599px)').matches
   )
+  const [isTablet, setIsTablet] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 600px) and (max-width: 1024px)').matches
+  )
 
   // Listen for screen size changes
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 599px)')
-    setIsMobile(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+    const mqMobile = window.matchMedia('(max-width: 599px)')
+    const mqTablet = window.matchMedia('(min-width: 600px) and (max-width: 1024px)')
+    setIsMobile(mqMobile.matches)
+    setIsTablet(mqTablet.matches)
+    const h1 = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    const h2 = (e: MediaQueryListEvent) => setIsTablet(e.matches)
+    mqMobile.addEventListener('change', h1)
+    mqTablet.addEventListener('change', h2)
+    return () => { mqMobile.removeEventListener('change', h1); mqTablet.removeEventListener('change', h2) }
   }, [])
 
   // IMPORTANT: These hooks must be called unconditionally (before any early return)
@@ -134,8 +141,8 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
 
   const dark = theme === 'arcade'
 
-  // Mobile: render compact 4x4 grid
-  if (isMobile) {
+  // Mobile + Tablet: render touch-friendly 4x4 grid
+  if (isMobile || isTablet) {
     return (
       <MobileScoreInput
         onThrow={onThrow}
@@ -143,6 +150,7 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
         thrownDarts={thrownDarts}
         onUndoLastDart={onUndoLastDart}
         onUndoLastVisit={onUndoLastVisit}
+        large={isTablet}
       />
     )
   }

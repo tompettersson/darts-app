@@ -1156,14 +1156,15 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   // Responsive widths based on screen size and player count
   const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 800
   const isMobileScreen = screenWidth < 600
+  const isTabletScreen = screenWidth >= 600 && screenWidth <= 1024
   const playerCount = order.length
 
-  const ROW_H = isMobileScreen ? 26 : 32
-  const headerBarHeight = isMobileScreen ? 22 : 28
+  const ROW_H = isMobileScreen ? 26 : isTabletScreen ? 30 : 32
+  const headerBarHeight = isMobileScreen ? 22 : isTabletScreen ? 26 : 28
 
-  // On mobile: fit all columns within screen width (accounting for gaps + borders)
-  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 70 : 220
-  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 80 : 260
+  // Responsive column widths
+  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 70 : isTabletScreen ? 140 : 220
+  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 80 : isTabletScreen ? 180 : 260
   const mobilePlayersOnScreen = Math.min(playerCount, 4)
   const mobileGaps = (mobilePlayersOnScreen + 1) * 4 // gaps between columns
   const PLAYER_CARD_WIDTH = isMobileScreen

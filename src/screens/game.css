@@ -780,7 +780,33 @@ html, body, #root {
   outline-color: #f97316;
 }
 
-/* ===== Responsive: Player Grid auf Mobile ===== */
+/* ===== TABLET (600-1024px) — Touch-optimiert, mehr Platz als Handy ===== */
+@media (min-width: 600px) and (max-width: 1024px) {
+  .g-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .g-card {
+    padding: 12px;
+    gap: 8px;
+  }
+  .g-bigNum {
+    font-size: 34px;
+  }
+  .g-nameRow {
+    font-size: 16px;
+  }
+  .g-page {
+    gap: 10px;
+    padding: 10px;
+  }
+  .g-modal {
+    padding: 12px;
+    width: min(760px, 96vw);
+  }
+}
+
+/* ===== MOBILE (<600px) ===== */
 @media (max-width: 599px) {
   .g-grid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

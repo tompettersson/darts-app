@@ -15,6 +15,7 @@ type Props = {
   thrownDarts?: ThrownDart[]
   onUndoLastDart?: () => void
   onUndoLastVisit?: () => void
+  large?: boolean  // Tablet: bigger buttons
 }
 
 function dartLabel(d: ThrownDart): string {
@@ -32,7 +33,7 @@ function dartScore(d: ThrownDart): number {
   return (d.bed as number) * d.mult
 }
 
-export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts = [], onUndoLastDart, onUndoLastVisit }: Props) {
+export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts = [], onUndoLastDart, onUndoLastVisit, large }: Props) {
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const [teenMode, setTeenMode] = useState(false)
   const teenModeRef = useRef(false) // Sync ref for rapid tapping
@@ -103,12 +104,12 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
   }
 
   const btnBase: React.CSSProperties = {
-    height: 52,
-    borderRadius: 8,
+    height: large ? 64 : 52,
+    borderRadius: large ? 10 : 8,
     border: `1.5px solid ${btnBorder}`,
     background: btnBg,
     color: btnText,
-    fontSize: 16,
+    fontSize: large ? 20 : 16,
     fontWeight: 700,
     cursor: 'pointer',
     display: 'flex',
@@ -143,15 +144,15 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
   const visitScore = thrownDarts?.reduce((sum, d) => sum + dartScore(d), 0) ?? 0
 
   return (
-    <div style={{ background: bg, borderRadius: 12, padding: 6, width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ background: bg, borderRadius: large ? 14 : 12, padding: large ? 10 : 6, width: '100%', boxSizing: 'border-box' }}>
       {/* Dart slots + score */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px 6px', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: large ? '6px 12px 8px' : '4px 8px 6px', gap: 8 }}>
+        <div style={{ display: 'flex', gap: large ? 6 : 4, flex: 1 }}>
           {slots.map((d, i) => (
             <div key={i} style={{
               flex: 1,
-              height: 32,
-              borderRadius: 6,
+              height: large ? 40 : 32,
+              borderRadius: large ? 8 : 6,
               border: `1.5px solid ${d ? (dartScore(d) === 0 ? '#ef4444' : dartScore(d) >= 40 ? '#22c55e' : '#60a5fa') : (isArcade ? '#3a3a5e' : '#e5e7eb')}`,
               background: d ? (isArcade ? '#2a2a3e' : '#f0f9ff') : (isArcade ? '#1a1a2e' : '#f9fafb'),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
