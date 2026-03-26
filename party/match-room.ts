@@ -168,6 +168,10 @@ export default {
             send(conn, { type: 'error', message: 'Room not found', code: 'NO_ROOM' })
             return
           }
+          if (state.players.length >= 8) {
+            send(conn, { type: 'error', message: 'Raum ist voll (max. 8 Spieler)', code: 'ROOM_FULL' })
+            return
+          }
           const jp = msg.player as PlayerRef
           const existing = state.players.find(p => p.playerId === jp.playerId)
           if (existing) {
@@ -200,6 +204,10 @@ export default {
 
         case 'add-local-players': {
           if (state.phase !== 'lobby') return
+          if (state.players.length >= 8) {
+            send(conn, { type: 'error', message: 'Raum ist voll (max. 8 Spieler)', code: 'ROOM_FULL' })
+            return
+          }
           const connState = conn.state as ConnState | null
           const added: string[] = []
           for (const p of msg.players as PlayerRef[]) {
