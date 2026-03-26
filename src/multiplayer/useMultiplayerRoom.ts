@@ -24,6 +24,7 @@ export type MultiplayerState = {
   orderType: PlayerOrder
   debugLog: string[]
   spectatorCount: number
+  diceRollTrigger: number  // Increments when random order is received
 }
 
 export type MultiplayerActions = {
@@ -59,6 +60,7 @@ export function useMultiplayerRoom(
   const [orderType, setOrderType] = useState<PlayerOrder>('manual')
   const [debugLog, setDebugLog] = useState<string[]>([])
   const [spectatorCount, setSpectatorCount] = useState(0)
+  const [diceRollTrigger, setDiceRollTrigger] = useState(0) // Increment to trigger dice animation
 
   // The initial message to send when connecting (create-room or join-room)
   // Stored as STATE so it survives React re-renders and is available in useEffect
@@ -153,6 +155,10 @@ export function useMultiplayerRoom(
           case 'player-order-update':
             setPlayerOrder(msg.playerIds)
             setOrderType(msg.orderType)
+            // Trigger dice animation on all devices when random order received
+            if (msg.orderType === 'random') {
+              setDiceRollTrigger(prev => prev + 1)
+            }
             break
           case 'spectator-count':
             setSpectatorCount((msg as any).count ?? 0)
@@ -267,7 +273,7 @@ export function useMultiplayerRoom(
 
   const state: MultiplayerState = {
     status, players, phase, events, error,
-    gameConfig, playerOrder, orderType, debugLog, spectatorCount,
+    gameConfig, playerOrder, orderType, debugLog, spectatorCount, diceRollTrigger,
   }
 
   const actions: MultiplayerActions = {

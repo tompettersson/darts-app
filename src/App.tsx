@@ -1608,6 +1608,7 @@ export default function App() {
         localProfiles={getProfiles()}
         debugLog={mpState.debugLog}
         spectatorCount={mpState.spectatorCount}
+        diceRollTrigger={mpState.diceRollTrigger}
         onCreateRoom={(code) => {
           setMultiplayerRoomCode(code)
           const profiles = getProfiles()
@@ -1788,6 +1789,7 @@ export default function App() {
         localProfiles={getProfiles()}
         debugLog={mpState.debugLog}
         spectatorCount={mpState.spectatorCount}
+        diceRollTrigger={mpState.diceRollTrigger}
         onCreateRoom={() => {}}
         onJoinRoom={(code) => {
           setMultiplayerRoomCode(code)
@@ -1847,6 +1849,7 @@ export default function App() {
         error={mpState.error}
         gameConfig={mpState.gameConfig}
         spectatorCount={mpState.spectatorCount}
+        diceRollTrigger={mpState.diceRollTrigger}
         roomCode={multiplayerRoomCode ?? ''}
         onJoinSpectator={(code) => {
           setMultiplayerRoomCode(code)

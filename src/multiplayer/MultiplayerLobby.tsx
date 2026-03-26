@@ -36,6 +36,7 @@ type Props = {
   onBack: () => void
   debugLog?: string[]
   spectatorCount?: number
+  diceRollTrigger?: number
 }
 
 // ---- Game mode labels ----
@@ -316,7 +317,7 @@ export default function MultiplayerLobby({
   mode, status, players, phase, error, myPlayerId, roomCode,
   gameConfig, playerOrder, orderType, localProfiles,
   onCreateRoom, onJoinRoom, onAddLocalPlayers, onRemovePlayer,
-  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack, debugLog, spectatorCount = 0,
+  onSetGameConfig, onSetPlayerOrder, onStartGame, onReady, onBack, debugLog, spectatorCount = 0, diceRollTrigger = 0,
 }: Props) {
   const { colors, isArcade } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -363,21 +364,30 @@ export default function MultiplayerLobby({
     setShowAddPlayer(false)
   }
 
-  // Shuffle player order randomly (with dice animation)
+  // Shuffle: Host sends order to server, all clients see dice via diceRollTrigger
   const handleRandomOrder = useCallback(() => {
-    setShowDice(true)
-  }, [])
-
-  const handleDiceDone = useCallback(() => {
-    // Fisher-Yates shuffle — true random (can produce same order)
+    // Shuffle and send to server — server broadcasts, all clients get diceRollTrigger
     const shuffled = [...playerOrder]
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
     }
     onSetPlayerOrder(shuffled, 'random')
-    setShowDice(false)
+    // Local dice will be triggered by diceRollTrigger from server echo
   }, [playerOrder, onSetPlayerOrder])
+
+  // Show dice animation when any device receives random order from server
+  const lastDiceTriggerRef = useRef(diceRollTrigger)
+  useEffect(() => {
+    if (diceRollTrigger > 0 && diceRollTrigger !== lastDiceTriggerRef.current) {
+      lastDiceTriggerRef.current = diceRollTrigger
+      setShowDice(true)
+    }
+  }, [diceRollTrigger])
+
+  const handleDiceDone = useCallback(() => {
+    setShowDice(false)
+  }, [])
 
   // Move player in order (for simple up/down buttons on mobile)
   const movePlayer = useCallback((fromIdx: number, toIdx: number) => {
