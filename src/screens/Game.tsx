@@ -213,6 +213,7 @@ function PlayerTurnCard({
   lastVisit,
   flashLabel,
   isActive,
+  isMyPlayer,
   legs,
   sets,
   showSets,
@@ -227,6 +228,7 @@ function PlayerTurnCard({
   lastVisit?: Visit | null
   flashLabel?: string | null
   isActive: boolean
+  isMyPlayer: boolean
   legs: number
   sets: number
   showSets: boolean
@@ -241,7 +243,7 @@ function PlayerTurnCard({
   const s: Record<string, React.CSSProperties> = {
     card: {
       position: 'relative',
-      border: isBustFlash ? '2px solid #dc2626' : isActive ? `2px solid ${activeColor}` : '1px solid #e5e7eb',
+      border: isBustFlash ? '2px solid #dc2626' : isActive ? `2px solid ${activeColor}` : '2px solid #e5e7eb',
       background: isActive ? `linear-gradient(135deg, ${activeColor}15 0%, transparent 60%)` : '#fff',
       borderRadius: 14,
       padding: 14,
@@ -363,35 +365,46 @@ function PlayerTurnCard({
         <div style={s.remainingWrap}>
           <div style={s.remainingLabel}>Verbleibend</div>
           <div style={s.remainingValue}>{remaining}</div>
-          {(() => {
-            // Checkout-Weg nur anzeigen wenn mit verbleibenden Darts machbar
-            const route = getCheckoutRoute(remaining, dartsRemaining)
-            if (route) {
-              return (
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', marginTop: 4 }}>
-                  {route}
-                </div>
-              )
-            }
-            // Setup-Shot in Gelb anzeigen wenn kein Checkout möglich
-            const setup = getSetupShot(remaining, dartsRemaining)
-            if (setup) {
-              return (
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#eab308', marginTop: 4 }}>
-                  {setup}
-                </div>
-              )
-            }
-            // "Kein Finish" anzeigen wenn im Finish-Bereich aber nicht genug Darts
-            if (remaining >= 2 && remaining <= 170 && dartsRemaining < 3) {
-              return (
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', marginTop: 4 }}>
-                  Kein Finish
-                </div>
-              )
-            }
-            return null
-          })()}
+          {isMyPlayer ? (
+            // Eigener Spieler: Checkout-Route anzeigen
+            (() => {
+              const route = getCheckoutRoute(remaining, dartsRemaining)
+              if (route) {
+                return (
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', marginTop: 4 }}>
+                    {route}
+                  </div>
+                )
+              }
+              const setup = getSetupShot(remaining, dartsRemaining)
+              if (setup) {
+                return (
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#eab308', marginTop: 4 }}>
+                    {setup}
+                  </div>
+                )
+              }
+              if (remaining >= 2 && remaining <= 170 && dartsRemaining < 3) {
+                return (
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', marginTop: 4 }}>
+                    Kein Finish
+                  </div>
+                )
+              }
+              return null
+            })()
+          ) : (
+            // Gegner: Letzte Aufnahme Score anzeigen
+            lastVisit && !lastVisit.bust ? (
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#6b7280', marginTop: 4 }}>
+                Letzte: {lastVisit.score}
+              </div>
+            ) : lastVisit?.bust ? (
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', marginTop: 4 }}>
+                BUST
+              </div>
+            ) : null
+          )}
         </div>
 
         <div style={s.col} className="g-player-darts-col">
@@ -1016,14 +1029,38 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     prevRemoteEventsRef.current = multiplayer.remoteEvents
     setEvents(multiplayer.remoteEvents)
 
-    // Announce next player when remote events change (other player threw)
+    // Announce only when it's MY turn (not on other player's phone)
     if (speechEnabled && multiplayer.remoteEvents.length > prevLen && match) {
       const newState = applyEvents(multiplayer.remoteEvents)
       const currentLeg = newState.legs[newState.legs.length - 1]
       if (currentLeg) {
         const nextPid = getCurrentPlayerId(match, currentLeg, multiplayer.remoteEvents)
-        const nextName = match.players.find(p => p.playerId === nextPid)?.name ?? nextPid
-        debouncedAnnounce(() => announceNextPlayer(nextName))
+        // Only announce if it's now MY turn
+        if (nextPid === multiplayer.myPlayerId) {
+          const nextName = match.players.find(p => p.playerId === nextPid)?.name ?? nextPid
+          debouncedAnnounce(() => announceNextPlayer(nextName))
+        }
+      }
+      // Check for leg/match finish — announce winner and show screens on ALL phones
+      const lastEvt = multiplayer.remoteEvents[multiplayer.remoteEvents.length - 1] as any
+      if (lastEvt?.type === 'LegFinished' && !legWonAnnouncedRef.current) {
+        legWonAnnouncedRef.current = true
+        setTimeout(() => announceLegDart(), 500)
+        // Show intermission on guest too
+        const newState2 = applyEvents(multiplayer.remoteEvents)
+        const hasMatchFinished = multiplayer.remoteEvents.some((e: any) => e.type === 'MatchFinished')
+        if (!hasMatchFinished) {
+          setIntermission({
+            kind: 'leg',
+            legId: lastEvt.legId ?? '',
+            pendingNextEvents: [], // Guest doesn't submit next-leg events
+          })
+        }
+      }
+      if (lastEvt?.type === 'MatchFinished' && !matchWonAnnouncedRef.current) {
+        matchWonAnnouncedRef.current = true
+        setTimeout(() => announceMatchDart(), 500)
+        // End screen will show automatically because finishedEvt is detected from state.events
       }
     }
   }, [multiplayer?.enabled, multiplayer?.remoteEvents])
@@ -1572,13 +1609,13 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           const nextPlayerName = match.players.find((p) => p.playerId === nextPlayerId)?.name ?? nextPlayerId
           const nextRemaining = tmpLeg.remainingByPlayer[nextPlayerId]
 
-          // Nächsten Spieler ansagen (nur bei mehreren Spielern)
-          if (match.players.length > 1) {
-            // Im Finish-Bereich (≤170): Name + Rest-Score ansagen
+          // Nächsten Spieler ansagen — nur wenn ICH der nächste bin (Multiplayer)
+          // oder im lokalen Spiel (kein Multiplayer)
+          const isNextMe = !multiplayer?.enabled || nextPlayerId === multiplayer.myPlayerId
+          if (match.players.length > 1 && isNextMe) {
             if (nextRemaining <= 170) {
               debouncedAnnounce(() => announcePlayerFinishArea(nextPlayerName, nextRemaining))
             } else {
-              // Sonst nur Name ansagen
               debouncedAnnounce(() => announceNextPlayer(nextPlayerName))
             }
           }
@@ -1893,6 +1930,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
                   lastVisit={lastVisit}
                   flashLabel={flashLabel}
                   isActive={isActive}
+                  isMyPlayer={!multiplayer?.enabled || p.playerId === multiplayer.myPlayerId}
                   legs={playerLegs}
                   sets={playerSets}
                   showSets={isSets}
