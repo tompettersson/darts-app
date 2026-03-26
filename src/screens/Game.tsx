@@ -695,6 +695,8 @@ type MultiplayerProps = {
   myPlayerId: string
   submitEvents: (events: DartsEvent[]) => void
   undo: (removeCount: number) => void
+  sendLivePreview?: (playerId: string, darts: any[], remaining: number) => void
+  livePreview?: { playerId: string; darts: any[]; remaining: number } | null
   remoteEvents: DartsEvent[] | null
   connectionStatus: import('../multiplayer/useMultiplayerRoom').ConnectionStatus
   playerCount: number
@@ -1171,6 +1173,16 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
       if (!leg) return list
       const { remaining, bust } = simulateLiveRemaining(leg.remainingByPlayer[activePlayerId], draft)
+
+      // Send live preview to other devices
+      if (multiplayer?.sendLivePreview && !bust && remaining > 0) {
+        const previewDarts = draft.map(d => ({
+          bed: d.bed, mult: d.mult,
+          score: d.bed === 'MISS' ? 0 : d.bed === 'DBULL' ? 50 : d.bed === 'BULL' ? 25 : (d.bed as number) * d.mult,
+        }))
+        multiplayer.sendLivePreview(activePlayerId, previewDarts, remaining)
+      }
+
       // Auto-Confirm bei Bust, Checkout oder 3 Darts
       if (bust || remaining === 0 || draft.length === 3) {
         confirmVisit(draft)
@@ -1944,7 +1956,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
                   key={`${p.playerId}-${isActive ? 'active' : 'idle'}`}
                   name={p.name ?? p.playerId}
                   color={p.color}
-                  remaining={isActive ? live.remaining : remaining}
+                  remaining={isActive ? live.remaining
+                    : (multiplayer?.livePreview?.playerId === p.playerId ? multiplayer.livePreview.remaining : remaining)}
                   currentDarts={currentDarts}
                   dartsRemaining={dartsRemaining}
                   lastVisit={lastVisit}

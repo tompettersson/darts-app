@@ -328,6 +328,12 @@ export default {
           break
         }
 
+        case 'live-preview': {
+          // Broadcast to all other clients (not persisted, not saved)
+          broadcastAll(room, { type: 'live-preview', playerId: msg.playerId, darts: msg.darts, remaining: msg.remaining } as any, conn.id)
+          break
+        }
+
         case 'join-spectator': {
           conn.setState({ deviceId: conn.id, playerIds: [], isSpectator: true } as ConnState)
           state.spectatorCount++

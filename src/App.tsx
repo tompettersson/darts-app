@@ -1871,6 +1871,8 @@ export default function App() {
       myPlayerId: multiplayerMyPlayerId,
       submitEvents: mpActions.submitEvents,
       undo: mpActions.undo,
+      sendLivePreview: mpActions.sendLivePreview,
+      livePreview: mpState.livePreview,
       remoteEvents: multiplayerRemoteEvents,
       connectionStatus: mpState.status,
       playerCount: mpState.players.filter(p => p.connected).length,

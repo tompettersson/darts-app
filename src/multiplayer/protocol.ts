@@ -134,6 +134,14 @@ export type SyncRequestMsg = {
   type: 'sync-request'
 }
 
+/** Live dart preview (sent on each dart, not persisted) */
+export type LivePreviewMsg = {
+  type: 'live-preview'
+  playerId: string
+  darts: Array<{ bed: string | number; mult: number; score: number }>
+  remaining: number
+}
+
 /** Join as spectator (read-only, no player added) */
 export type JoinSpectatorMsg = {
   type: 'join-spectator'
@@ -142,6 +150,7 @@ export type JoinSpectatorMsg = {
 export type ClientMessage =
   | CreateRoomMsg
   | JoinRoomMsg
+  | LivePreviewMsg
   | JoinSpectatorMsg
   | AddLocalPlayersMsg
   | RemovePlayerMsg
@@ -214,6 +223,14 @@ export type ErrorMsg = {
   code?: string
 }
 
+/** Live dart preview broadcast (not persisted) */
+export type LivePreviewBroadcastMsg = {
+  type: 'live-preview'
+  playerId: string
+  darts: Array<{ bed: string | number; mult: number; score: number }>
+  remaining: number
+}
+
 /** Spectator count update */
 export type SpectatorCountMsg = {
   type: 'spectator-count'
@@ -228,6 +245,7 @@ export type ServerMessage =
   | PhaseChangeMsg
   | GameConfigUpdateMsg
   | PlayerOrderUpdateMsg
+  | LivePreviewBroadcastMsg
   | SpectatorCountMsg
   | ErrorMsg
 

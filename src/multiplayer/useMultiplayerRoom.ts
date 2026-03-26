@@ -24,7 +24,8 @@ export type MultiplayerState = {
   orderType: PlayerOrder
   debugLog: string[]
   spectatorCount: number
-  diceRollTrigger: number  // Increments when random order is received
+  diceRollTrigger: number
+  livePreview: { playerId: string; darts: any[]; remaining: number } | null
 }
 
 export type MultiplayerActions = {
@@ -36,6 +37,7 @@ export type MultiplayerActions = {
   setGameConfig: (config: GameConfig) => void
   setPlayerOrder: (playerIds: string[], orderType: PlayerOrder) => void
   startGame: (matchId: string, gameType: string, events: any[]) => void
+  sendLivePreview: (playerId: string, darts: any[], remaining: number) => void
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   playerReady: (playerId: string) => void
@@ -60,7 +62,8 @@ export function useMultiplayerRoom(
   const [orderType, setOrderType] = useState<PlayerOrder>('manual')
   const [debugLog, setDebugLog] = useState<string[]>([])
   const [spectatorCount, setSpectatorCount] = useState(0)
-  const [diceRollTrigger, setDiceRollTrigger] = useState(0) // Increment to trigger dice animation
+  const [diceRollTrigger, setDiceRollTrigger] = useState(0)
+  const [livePreview, setLivePreview] = useState<{ playerId: string; darts: any[]; remaining: number } | null>(null)
 
   // The initial message to send when connecting (create-room or join-room)
   // Stored as STATE so it survives React re-renders and is available in useEffect
@@ -128,6 +131,7 @@ export function useMultiplayerRoom(
             }
             break
           case 'events':
+            setLivePreview(null) // Clear preview when real events arrive
             setEvents(prev => {
               if (msg.fromIndex === prev.length) {
                 const updated = [...prev, ...msg.events]
@@ -159,6 +163,9 @@ export function useMultiplayerRoom(
             if (msg.orderType === 'random') {
               setDiceRollTrigger(prev => prev + 1)
             }
+            break
+          case 'live-preview':
+            setLivePreview({ playerId: (msg as any).playerId, darts: (msg as any).darts, remaining: (msg as any).remaining })
             break
           case 'spectator-count':
             setSpectatorCount((msg as any).count ?? 0)
@@ -239,6 +246,10 @@ export function useMultiplayerRoom(
     sendMsg({ type: 'start-game', matchId, gameType, events: initialEvents })
   }, [sendMsg])
 
+  const sendLivePreview = useCallback((playerId: string, darts: any[], remaining: number) => {
+    sendMsg({ type: 'live-preview', playerId, darts, remaining } as any)
+  }, [sendMsg])
+
   const submitEvents = useCallback((evts: any[]) => {
     sendMsg({ type: 'submit-events', events: evts })
   }, [sendMsg])
@@ -269,15 +280,16 @@ export function useMultiplayerRoom(
     setOrderType('manual')
     setDebugLog([])
     setSpectatorCount(0)
+    setLivePreview(null)
   }, [])
 
   const state: MultiplayerState = {
     status, players, phase, events, error,
-    gameConfig, playerOrder, orderType, debugLog, spectatorCount, diceRollTrigger,
+    gameConfig, playerOrder, orderType, debugLog, spectatorCount, diceRollTrigger, livePreview,
   }
 
   const actions: MultiplayerActions = {
-    createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer,
+    createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer, sendLivePreview,
     setGameConfig: setGameConfigAction, setPlayerOrder: setPlayerOrderAction,
     startGame, submitEvents, undo, playerReady, requestSync, disconnect,
   }
