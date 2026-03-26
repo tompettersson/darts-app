@@ -1856,6 +1856,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         onRematch={onNewGame}
         isArcade={isArcade}
         c={colors}
+        isMultiplayerGuest={!!multiplayer?.enabled && !!ended}
       />
     )
   }

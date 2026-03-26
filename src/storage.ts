@@ -68,6 +68,8 @@ import {
   dbSetMeta,
 } from './db/storage'
 
+import { exec } from './db/index'
+
 import {
   id,
   now,
@@ -4972,6 +4974,9 @@ export function countOpenMatches(): number {
  */
 export function deleteAllOpenMatches(): number {
   let deleted = 0
+  const tables = ['x01', 'cricket', 'atb', 'str', 'highscore', 'ctf', 'shanghai', 'killer', 'bobs27', 'operation']
+
+  // Memory cache cleanup
   const x01 = getMatches(); const x01f = x01.filter(m => m.finished); deleted += x01.length - x01f.length; saveMatches(x01f)
   const cr = getCricketMatches(); const crf = cr.filter(m => m.finished); deleted += cr.length - crf.length; saveCricketMatches(crf)
   const atb = getATBMatches(); const atbf = atb.filter(m => (m as any).finished); deleted += atb.length - atbf.length; saveATBMatches(atbf)
@@ -4982,6 +4987,14 @@ export function deleteAllOpenMatches(): number {
   const ki = getKillerMatches(); const kif = ki.filter(m => (m as any).finished); deleted += ki.length - kif.length; saveKillerMatches(kif)
   const b27 = getBobs27Matches(); const b27f = b27.filter(m => (m as any).finished); deleted += b27.length - b27f.length; saveBobs27Matches(b27f)
   const op = getOperationMatches(); const opf = op.filter(m => (m as any).finished); deleted += op.length - opf.length; saveOperationMatches(opf)
+
+  // Also delete from Postgres DB (fire-and-forget, non-blocking)
+  for (const table of tables) {
+    exec(`DELETE FROM ${table}_events WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`).catch(() => {})
+    exec(`DELETE FROM ${table}_match_players WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`).catch(() => {})
+    exec(`DELETE FROM ${table}_matches WHERE finished = 0 OR finished IS NULL`).catch(() => {})
+  }
+
   return deleted
 }
 

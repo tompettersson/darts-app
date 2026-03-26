@@ -125,6 +125,8 @@ type X01EndScreenProps = {
   playerColors: Record<string, string>
   onExit: () => void
   onRematch?: () => void
+  /** Hide name/notes input on guest devices in multiplayer */
+  isMultiplayerGuest?: boolean
   isArcade: boolean
   c: Record<string, string>
 }
@@ -140,6 +142,7 @@ export default function X01EndScreen({
   playerColors,
   onExit,
   onRematch,
+  isMultiplayerGuest,
 }: X01EndScreenProps) {
   // Spielname + Bemerkungen Eingabe im Endscreen
   const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
@@ -504,8 +507,13 @@ export default function X01EndScreen({
               <div style={{ color: '#6b7280' }}>Keine Spielinfo gespeichert</div>
             )}
           </div>
+        ) : isMultiplayerGuest ? (
+          // Guest in multiplayer: no editing, host handles metadata
+          <div style={{ color: '#6b7280', textAlign: 'center', padding: 12 }}>
+            Spielname & Bemerkungen werden vom Host eingegeben.
+          </div>
         ) : (
-          // Vor dem Speichern: Eingabefelder
+          // Host / local: Eingabefelder
           <div style={{ background: '#f8fafc', borderRadius: 8, padding: 12 }}>
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: 4 }}>
