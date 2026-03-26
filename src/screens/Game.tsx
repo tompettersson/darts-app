@@ -1081,13 +1081,18 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
       // Leg finished — only trigger when a NEW LegFinished appears AND no new LegStarted
       // (If LegStarted arrived in the same update, the leg transition is already handled by auto-close above)
+      // Also: don't overwrite an existing intermission that has pendingNextEvents (host set it from confirmVisit)
       if (lastLegFinished && !matchFinishedEvt && legFinishedEvts.length > prevLegCount && !newLegStartedArrived) {
-        setTimeout(() => announceLegDart(), 500)
-        setIntermission({
-          kind: 'leg',
-          legId: lastLegFinished.legId ?? '',
-          pendingNextEvents: [],
+        // Only set intermission if we don't already have one with pending events (host case)
+        setIntermission(prev => {
+          if (prev && (prev.pendingNextEvents?.length ?? 0) > 0) return prev // Don't overwrite host's intermission
+          return {
+            kind: 'leg',
+            legId: lastLegFinished.legId ?? '',
+            pendingNextEvents: [],
+          }
         })
+        setTimeout(() => announceLegDart(), 500)
       }
 
       // Match finished — check if MatchFinished exists (may arrive in same or later batch)
