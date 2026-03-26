@@ -1039,7 +1039,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     // Auto-close intermission when new LegStarted arrives from host
     const prevLegStartedCount = prevEvents ? prevEvents.filter((e: any) => e.type === 'LegStarted').length : 0
     const newLegStartedCount = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegStarted').length
-    if (newLegStartedCount > prevLegStartedCount) {
+    const newLegStartedArrived = newLegStartedCount > prevLegStartedCount
+    if (newLegStartedArrived) {
       setIntermission(null)
       setCurrent([])
       legWonAnnouncedRef.current = false
@@ -1082,8 +1083,9 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         ? prevEvents.filter((e: any) => e.type === 'LegFinished').length
         : 0
 
-      // Leg finished — only trigger when a NEW LegFinished appears (not on every event update)
-      if (lastLegFinished && !matchFinishedEvt && legFinishedEvts.length > prevLegCount) {
+      // Leg finished — only trigger when a NEW LegFinished appears AND no new LegStarted
+      // (If LegStarted arrived in the same update, the leg transition is already handled by auto-close above)
+      if (lastLegFinished && !matchFinishedEvt && legFinishedEvts.length > prevLegCount && !newLegStartedArrived) {
         setTimeout(() => announceLegDart(), 500)
         setIntermission({
           kind: 'leg',
