@@ -385,6 +385,10 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     const remote = multiplayer.remoteEvents as OperationEvent[]
     setEvents(remote)
     persistOperationEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'OperationMatchFinished') {
+      finishOperationMatch(matchId, lastEvt.winnerId, lastEvt.durationMs, lastEvt.finalScores, lastEvt.legWins)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-Start: Ersten Leg starten falls noch keiner existiert

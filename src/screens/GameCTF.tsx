@@ -115,6 +115,10 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     const remote = multiplayer.remoteEvents as CTFEvent[]
     setEvents(remote)
     persistCTFEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'CTFMatchFinished') {
+      finishCTFMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State aus Events ableiten (muss vor useGameState stehen, da finished davon abhaengt)

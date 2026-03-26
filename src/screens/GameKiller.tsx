@@ -141,6 +141,11 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     const remote = multiplayer.remoteEvents as KillerEvent[]
     setEvents(remote)
     persistKillerEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'KillerMatchFinished') {
+      const finalState = applyKillerEvents(remote)
+      finishKillerMatch(matchId, lastEvt.winnerId, lastEvt.finalStandings, lastEvt.totalDarts, lastEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State aus Events ableiten

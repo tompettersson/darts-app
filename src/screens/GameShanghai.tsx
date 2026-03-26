@@ -116,6 +116,10 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     const remote = multiplayer.remoteEvents as ShanghaiEvent[]
     setEvents(remote)
     persistShanghaiEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'ShanghaiMatchFinished') {
+      finishShanghaiMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State aus Events ableiten

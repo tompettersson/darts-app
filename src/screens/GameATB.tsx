@@ -132,6 +132,10 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     const remote = multiplayer.remoteEvents as ATBEvent[]
     setEvents(remote)
     persistATBEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'ATBMatchFinished') {
+      finishATBMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({

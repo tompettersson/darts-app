@@ -636,11 +636,20 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const baseState = useMemo(() => applyCricketEvents(events), [events])
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteCricketRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteCricketRef.current) return
+    prevRemoteCricketRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as CricketEvent[]
     setEvents(remote)
     persistCricketEvents(matchId, remote)
+
+    // Detect match finish from remote events (for guest stats + end screen)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'CricketMatchFinished') {
+      finishCricketMatch(matchId)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!matchStored || !baseState.match) {

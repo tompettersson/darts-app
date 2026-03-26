@@ -140,6 +140,10 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     const remote = multiplayer.remoteEvents as Bobs27Event[]
     setEvents(remote)
     persistBobs27Events(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'Bobs27MatchFinished') {
+      finishBobs27Match(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs, lastEvt.finalScores)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sprachausgabe: Spieler + Score + Ziel ansagen bei Spielerwechsel/Target-Wechsel

@@ -83,6 +83,10 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     const remote = multiplayer.remoteEvents as HighscoreEvent[]
     setEvents(remote)
     persistHighscoreEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'HighscoreMatchFinished') {
+      finishHighscoreMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State ableiten (vor useGameState, da finished benötigt wird)

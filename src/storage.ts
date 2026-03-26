@@ -3135,6 +3135,23 @@ export function getMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket'
 }
 
 /**
+ * Berechnet die Match-Dauer aus Event-Timestamps.
+ * Funktioniert in Multiplayer (identisch auf allen Geräten).
+ */
+export function computeMatchDurationFromEvents(events: Array<{ ts?: string; timestamp?: number }>): number {
+  if (events.length < 2) return 0
+  const getTime = (e: { ts?: string; timestamp?: number }): number => {
+    if (e.timestamp) return e.timestamp
+    if (e.ts) return new Date(e.ts).getTime()
+    return 0
+  }
+  const first = getTime(events[0])
+  const last = getTime(events[events.length - 1])
+  if (!first || !last) return 0
+  return Math.max(0, last - first)
+}
+
+/**
  * Löscht die gespeicherte Zeit für ein Match.
  */
 export function clearMatchElapsedTime(matchId: string, gameType: 'x01' | 'cricket' | 'atb' | 'str' | 'highscore' | 'ctf' | 'shanghai' | 'killer' | 'bobs27' | 'operation') {

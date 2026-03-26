@@ -101,6 +101,10 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
     const remote = multiplayer.remoteEvents as StrEvent[]
     setEvents(remote)
     persistStrEvents(matchId, remote)
+    const lastEvt = remote[remote.length - 1]
+    if (lastEvt?.type === 'StrMatchFinished') {
+      finishStrMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // State ableiten (before useGameState, because we need `state.finished`)
