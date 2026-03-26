@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { getAuthProfiles, adminResetPassword, createProfileWithPassword, type AuthProfile } from '../auth/api'
-import { deleteProfile, getProfiles } from '../storage'
+import { deleteProfile, getProfiles, countOpenMatches, deleteAllOpenMatches } from '../storage'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import { showToast } from '../components/Toast'
@@ -229,6 +229,34 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
             </div>
           ))
         )}
+      </div>
+
+      {/* Offene Spiele aufräumen */}
+      <div style={s.card}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: colors.fg, marginBottom: 8 }}>Wartung</div>
+        <button
+          style={{
+            ...s.btnPrimary,
+            background: colors.error,
+            border: `1px solid ${colors.error}`,
+            width: '100%',
+          }}
+          onClick={() => {
+            const openCount = countOpenMatches()
+            if (openCount === 0) {
+              showToast('Keine offenen Spiele vorhanden')
+              return
+            }
+            if (!confirm(`${openCount} offene(s) Spiel(e) löschen? Diese wurden nicht beendet und gehen nicht in die Statistik ein.`)) return
+            const deleted = deleteAllOpenMatches()
+            showToast(`${deleted} offene(s) Spiel(e) gelöscht`)
+          }}
+        >
+          Offene Spiele aufräumen ({countOpenMatches()})
+        </button>
+        <div style={{ fontSize: 11, color: colors.fgMuted, marginTop: 4 }}>
+          Löscht alle nicht-beendeten Matches aus allen Spielmodi.
+        </div>
       </div>
     </div>
   )

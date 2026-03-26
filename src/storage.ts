@@ -4927,6 +4927,43 @@ export function cleanupStaleUnfinishedMatches(): void {
   }
 }
 
+/**
+ * Zählt alle offenen (nicht-beendeten) Matches über alle Spielmodi.
+ */
+export function countOpenMatches(): number {
+  let count = 0
+  count += getMatches().filter(m => !m.finished).length
+  count += getCricketMatches().filter(m => !m.finished).length
+  count += getATBMatches().filter(m => !(m as any).finished).length
+  count += getStrMatches().filter(m => !(m as any).finished).length
+  count += getHighscoreMatches().filter(m => !(m as any).finished).length
+  count += getCTFMatches().filter(m => !(m as any).finished).length
+  count += getShanghaiMatches().filter(m => !(m as any).finished).length
+  count += getKillerMatches().filter(m => !(m as any).finished).length
+  count += getBobs27Matches().filter(m => !(m as any).finished).length
+  count += getOperationMatches().filter(m => !(m as any).finished).length
+  return count
+}
+
+/**
+ * Löscht ALLE offenen (nicht-beendeten) Matches über alle Spielmodi.
+ * Gibt die Anzahl gelöschter Matches zurück.
+ */
+export function deleteAllOpenMatches(): number {
+  let deleted = 0
+  const x01 = getMatches(); const x01f = x01.filter(m => m.finished); deleted += x01.length - x01f.length; saveMatches(x01f)
+  const cr = getCricketMatches(); const crf = cr.filter(m => m.finished); deleted += cr.length - crf.length; saveCricketMatches(crf)
+  const atb = getATBMatches(); const atbf = atb.filter(m => (m as any).finished); deleted += atb.length - atbf.length; saveATBMatches(atbf)
+  const str = getStrMatches(); const strf = str.filter(m => (m as any).finished); deleted += str.length - strf.length; saveStrMatches(strf)
+  const hs = getHighscoreMatches(); const hsf = hs.filter(m => (m as any).finished); deleted += hs.length - hsf.length; saveHighscoreMatches(hsf)
+  const ctf = getCTFMatches(); const ctff = ctf.filter(m => (m as any).finished); deleted += ctf.length - ctff.length; saveCTFMatches(ctff)
+  const sh = getShanghaiMatches(); const shf = sh.filter(m => (m as any).finished); deleted += sh.length - shf.length; saveShanghaiMatches(shf)
+  const ki = getKillerMatches(); const kif = ki.filter(m => (m as any).finished); deleted += ki.length - kif.length; saveKillerMatches(kif)
+  const b27 = getBobs27Matches(); const b27f = b27.filter(m => (m as any).finished); deleted += b27.length - b27f.length; saveBobs27Matches(b27f)
+  const op = getOperationMatches(); const opf = op.filter(m => (m as any).finished); deleted += op.length - opf.length; saveOperationMatches(opf)
+  return deleted
+}
+
 /* -------------------------------------------------
    Highscore (HS) Storage
 ------------------------------------------------- */
