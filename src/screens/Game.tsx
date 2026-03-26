@@ -1065,18 +1065,18 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       const matchFinishedEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchFinished') as any
       const legFinishedEvts = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegFinished')
       const lastLegFinished = legFinishedEvts[legFinishedEvts.length - 1] as any
+      const prevLegCount = prevRemoteEventsRef.current
+        ? (prevRemoteEventsRef.current as any[]).filter((e: any) => e.type === 'LegFinished').length
+        : 0
 
-      // Leg finished (only if match NOT finished — otherwise show end screen directly)
-      if (lastLegFinished && !matchFinishedEvt && legFinishedEvts.length > (legWonAnnouncedRef.current ? prevLen : 0)) {
-        if (!legWonAnnouncedRef.current || legFinishedEvts.length > 1) {
-          legWonAnnouncedRef.current = true
-          setTimeout(() => announceLegDart(), 500)
-          setIntermission({
-            kind: 'leg',
-            legId: lastLegFinished.legId ?? '',
-            pendingNextEvents: [],
-          })
-        }
+      // Leg finished — only trigger when a NEW LegFinished appears (not on every event update)
+      if (lastLegFinished && !matchFinishedEvt && legFinishedEvts.length > prevLegCount) {
+        setTimeout(() => announceLegDart(), 500)
+        setIntermission({
+          kind: 'leg',
+          legId: lastLegFinished.legId ?? '',
+          pendingNextEvents: [],
+        })
       }
 
       // Match finished

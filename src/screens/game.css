@@ -819,10 +819,24 @@ html, body, #root {
   }
 }
 
-/* Tablet landscape: hide chart completely to show keyboard */
+/* Tablet landscape: compact everything to fit keyboard */
 @media (min-width: 600px) and (max-width: 1200px) and (orientation: landscape) {
   .g-chart-mobile-hide {
     display: none !important;
+  }
+  .g-page {
+    gap: 4px;
+    padding: 4px;
+  }
+  .g-card {
+    padding: 6px;
+    gap: 4px;
+  }
+  .g-grid {
+    gap: 4px;
+  }
+  .g-bigNum {
+    font-size: 24px;
   }
 }
 
@@ -868,10 +882,15 @@ html, body, #root {
     gap: 8px;
     padding: 8px;
   }
+  .g-overlay {
+    padding: 4px;
+  }
   .g-modal {
     padding: 6px;
-    width: min(760px, 100vw - 8px);
+    width: 100%;
+    max-width: calc(100vw - 8px);
     gap: 6px;
+    box-sizing: border-box;
   }
   .g-modalHeader {
     gap: 6px;

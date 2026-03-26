@@ -157,12 +157,13 @@ export function useMultiplayerRoom(
             setGameConfig(msg.config)
             break
           case 'player-order-update':
-            setPlayerOrder(msg.playerIds)
+            // Only trigger dice if order actually changed AND is random
+            setPlayerOrder(prev => {
+              const changed = msg.orderType === 'random' && JSON.stringify(prev) !== JSON.stringify(msg.playerIds)
+              if (changed) setDiceRollTrigger(n => n + 1)
+              return msg.playerIds
+            })
             setOrderType(msg.orderType)
-            // Trigger dice animation on all devices when random order received
-            if (msg.orderType === 'random') {
-              setDiceRollTrigger(prev => prev + 1)
-            }
             break
           case 'live-preview':
             setLivePreview({ playerId: (msg as any).playerId, darts: (msg as any).darts, remaining: (msg as any).remaining })
