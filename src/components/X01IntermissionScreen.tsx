@@ -307,6 +307,7 @@ export default function X01IntermissionScreen({
   const [showDetails, setShowDetails] = useState(false)
   const [legChartMode, setLegChartMode] = useState<'progression' | 'staircase'>('staircase')
   const [viewMode, setViewMode] = useState<'stats' | 'bericht'>('stats')
+  const [waitingForOthers, setWaitingForOthers] = useState(false)
 
   return (
     <div className="g-overlay" role="dialog" aria-modal="true">
@@ -334,10 +335,11 @@ export default function X01IntermissionScreen({
             </button>
             <button
               className="g-btn"
-              onClick={onContinue}
-              style={{ fontSize: 13 }}
+              onClick={() => { setWaitingForOthers(true); onContinue() }}
+              disabled={waitingForOthers}
+              style={{ fontSize: 13, opacity: waitingForOthers ? 0.6 : 1 }}
             >
-              Weiter →
+              {waitingForOthers ? 'Warte auf Mitspieler...' : 'Weiter →'}
             </button>
           </div>
         </div>
@@ -485,121 +487,83 @@ export default function X01IntermissionScreen({
                   </div>
                 ) : (
                 <>
-                {/* Statistik-Tabelle wie in MatchDetails */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th style={thLeft}></th>
-                        {match.players.map((p) => (
-                          <th key={p.playerId} style={thRight}>{p.name}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style={tdLeft}>Average</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(avgWin[i])}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>First Nine</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(f9Win[i])}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>180s</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(w180[i])}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>140+</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(w140[i])}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>100+</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(w100[i])}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>61+</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(w61[i])}>{bins61plus[p.playerId] ?? 0}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Höchste Aufnahme</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Darts geworfen</td>
-                        {match.players.map((p, i) => {
-                          const bp = sum.byPlayer.find(b => b.playerId === p.playerId)
-                          return (
-                            <td key={p.playerId} style={tdWin(dartsWin[i])}>{bp?.darts ?? 0}</td>
-                          )
-                        })}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Meistes Feld</td>
-                        {match.players.map((p) => (
-                          <td key={p.playerId} style={tdRight}>{computeMostHitField(events, intermission.legId, p.playerId)}</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Häufigste Punktzahl</td>
-                        {match.players.map((p) => (
-                          <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, intermission.legId, p.playerId)}</td>
-                        ))}
-                      </tr>
-
-                      <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
-
-                      <tr>
-                        <td style={tdLeft}>Checkout Höhe</td>
-                        {match.players.map((p) => {
-                          const info = checkoutInfo[p.playerId]
-                          return <td key={p.playerId} style={tdRight}>{info ? `${info.height} (${info.lastDart})` : '–'}</td>
-                        })}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Checkout Versuche</td>
-                        {match.players.map((p) => {
-                          const attempts = legStats[p.playerId]?.doubleAttemptsDart ?? 0
-                          const hits = legStats[p.playerId]?.doublesHitDart ?? 0
-                          return <td key={p.playerId} style={tdRight}>{attempts} / {hits}</td>
-                        })}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Checkout Quote</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(coWin[i])}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLeft}>Rest</td>
-                        {match.players.map((p, i) => (
-                          <td key={p.playerId} style={tdWin(restWin[i])}>{restByPlayer[p.playerId]}</td>
-                        ))}
-                      </tr>
-
-                      <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
-
-                      <tr>
-                        <td style={tdLeft}>Spielzeit</td>
-                        <td colSpan={match.players.length} style={{ ...tdRight, textAlign: 'center' }}>{legDuration || '–'}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                {/* Statistik: Mobile = Cards, Desktop = Tabelle */}
+                {isMobileSummary ? (
+                  // MOBILE: Vertical stat cards per player
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {match.players.map((p, i) => {
+                      const ls = legStats[p.playerId]
+                      const bp = sum.byPlayer.find(b => b.playerId === p.playerId)
+                      const co = checkoutInfo[p.playerId]
+                      const isWinner = p.playerId === sum.winnerPlayerId
+                      return (
+                        <div key={p.playerId} style={{
+                          padding: '8px 10px', borderRadius: 8,
+                          border: isWinner ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                          background: isWinner ? '#f0fdf4' : '#fafafa',
+                        }}>
+                          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6, color: isWinner ? '#16a34a' : '#0f172a' }}>
+                            {p.name} {isWinner && '✓'}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', fontSize: 12 }}>
+                            <span style={{ color: '#6b7280' }}>Average</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{(ls?.threeDartAvg ?? 0).toFixed(1)}</span>
+                            <span style={{ color: '#6b7280' }}>First 9</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{(ls?.first9OverallAvg ?? 0).toFixed(1)}</span>
+                            <span style={{ color: '#6b7280' }}>Darts</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{bp?.darts ?? 0}</span>
+                            <span style={{ color: '#6b7280' }}>180s / 140+ / 100+</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{ls?.bins?._180 ?? 0} / {ls?.bins?._140plus ?? 0} / {ls?.bins?._100plus ?? 0}</span>
+                            <span style={{ color: '#6b7280' }}>Höchste</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{highestVisit[p.playerId] ?? 0}</span>
+                            {co && <>
+                              <span style={{ color: '#6b7280' }}>Checkout</span>
+                              <span style={{ fontWeight: 700, textAlign: 'right' }}>{co.height} ({co.lastDart})</span>
+                            </>}
+                            <span style={{ color: '#6b7280' }}>CO-Quote</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{(ls?.doublePctDart ?? 0).toFixed(0)}%</span>
+                            <span style={{ color: '#6b7280' }}>Rest</span>
+                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{restByPlayer[p.playerId]}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {legDuration && <div style={{ textAlign: 'center', fontSize: 11, color: '#6b7280' }}>Spielzeit: {legDuration}</div>}
+                  </div>
+                ) : (
+                  // DESKTOP: Table layout
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={thLeft}></th>
+                          {match.players.map((p) => (
+                            <th key={p.playerId} style={thRight}>{p.name}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr><td style={tdLeft}>Average</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(avgWin[i])}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>)}</tr>
+                        <tr><td style={tdLeft}>First Nine</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(f9Win[i])}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>)}</tr>
+                        <tr><td style={tdLeft}>180s</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w180[i])}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>)}</tr>
+                        <tr><td style={tdLeft}>140+</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w140[i])}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>)}</tr>
+                        <tr><td style={tdLeft}>100+</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w100[i])}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>)}</tr>
+                        <tr><td style={tdLeft}>61+</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w61[i])}>{bins61plus[p.playerId] ?? 0}</td>)}</tr>
+                        <tr><td style={tdLeft}>Höchste Aufnahme</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>)}</tr>
+                        <tr><td style={tdLeft}>Darts geworfen</td>{match.players.map((p, i) => { const bp = sum.byPlayer.find(b => b.playerId === p.playerId); return <td key={p.playerId} style={tdWin(dartsWin[i])}>{bp?.darts ?? 0}</td> })}</tr>
+                        <tr><td style={tdLeft}>Meistes Feld</td>{match.players.map((p) => <td key={p.playerId} style={tdRight}>{computeMostHitField(events, intermission.legId, p.playerId)}</td>)}</tr>
+                        <tr><td style={tdLeft}>Häufigste Punktzahl</td>{match.players.map((p) => <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, intermission.legId, p.playerId)}</td>)}</tr>
+                        <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
+                        <tr><td style={tdLeft}>Checkout Höhe</td>{match.players.map((p) => { const info = checkoutInfo[p.playerId]; return <td key={p.playerId} style={tdRight}>{info ? `${info.height} (${info.lastDart})` : '–'}</td> })}</tr>
+                        <tr><td style={tdLeft}>Checkout Versuche</td>{match.players.map((p) => { const a = legStats[p.playerId]?.doubleAttemptsDart ?? 0, h = legStats[p.playerId]?.doublesHitDart ?? 0; return <td key={p.playerId} style={tdRight}>{a} / {h}</td> })}</tr>
+                        <tr><td style={tdLeft}>Checkout Quote</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(coWin[i])}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>)}</tr>
+                        <tr><td style={tdLeft}>Rest</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(restWin[i])}>{restByPlayer[p.playerId]}</td>)}</tr>
+                        <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
+                        <tr><td style={tdLeft}>Spielzeit</td><td colSpan={match.players.length} style={{ ...tdRight, textAlign: 'center' }}>{legDuration || '–'}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {/* Chart Toggle */}
                 <div style={{

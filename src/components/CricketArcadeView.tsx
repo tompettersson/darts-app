@@ -429,7 +429,7 @@ export default function CricketArcadeView({
     return () => window.removeEventListener('resize', update)
   }, [])
   const isMobile = screenWidth < 500
-  const isTablet = screenWidth >= 500 && screenWidth <= 1024
+  const isTablet = screenWidth >= 500 && screenWidth <= 1200
   const compact = isMobile && players.length >= 2
 
   // On mobile: split players into top/bottom halves with input in middle

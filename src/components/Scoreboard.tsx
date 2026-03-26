@@ -112,25 +112,29 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
   const stopListeningRef = useRef<(() => void) | null>(null)
   const [inputMode, setInputMode] = useState<InputMode>('keyboard')
   const [numBufDisplay, setNumBufDisplay] = useState('')
+  // Touch detection: tablets and touch-PCs
+  const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
+
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 599px)').matches
   )
+  // Tablet = touch device between 600-1200px (covers portrait + landscape)
   const [isTablet, setIsTablet] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 600px) and (max-width: 1024px)').matches
+    typeof window !== 'undefined' && isTouch && window.matchMedia('(min-width: 600px) and (max-width: 1200px)').matches
   )
 
   // Listen for screen size changes
   useEffect(() => {
     const mqMobile = window.matchMedia('(max-width: 599px)')
-    const mqTablet = window.matchMedia('(min-width: 600px) and (max-width: 1024px)')
+    const mqTablet = window.matchMedia('(min-width: 600px) and (max-width: 1200px)')
     setIsMobile(mqMobile.matches)
-    setIsTablet(mqTablet.matches)
+    setIsTablet(isTouch && mqTablet.matches)
     const h1 = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    const h2 = (e: MediaQueryListEvent) => setIsTablet(e.matches)
+    const h2 = (e: MediaQueryListEvent) => setIsTablet(isTouch && e.matches)
     mqMobile.addEventListener('change', h1)
     mqTablet.addEventListener('change', h2)
     return () => { mqMobile.removeEventListener('change', h1); mqTablet.removeEventListener('change', h2) }
-  }, [])
+  }, [isTouch])
 
   // IMPORTANT: These hooks must be called unconditionally (before any early return)
   // to prevent React Error 310 when isMobile changes on rotation

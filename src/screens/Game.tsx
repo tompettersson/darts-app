@@ -1062,24 +1062,37 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         }
       }
       // Check for leg/match finish — announce winner and show screens on ALL phones
-      const lastEvt = multiplayer.remoteEvents[multiplayer.remoteEvents.length - 1] as any
-      if (lastEvt?.type === 'LegFinished' && !legWonAnnouncedRef.current) {
-        legWonAnnouncedRef.current = true
-        setTimeout(() => announceLegDart(), 500)
-        // Show intermission on guest too
-        const newState2 = applyEvents(multiplayer.remoteEvents)
-        const hasMatchFinished = multiplayer.remoteEvents.some((e: any) => e.type === 'MatchFinished')
-        if (!hasMatchFinished) {
+      const matchFinishedEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchFinished') as any
+      const legFinishedEvts = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegFinished')
+      const lastLegFinished = legFinishedEvts[legFinishedEvts.length - 1] as any
+
+      // Leg finished (only if match NOT finished — otherwise show end screen directly)
+      if (lastLegFinished && !matchFinishedEvt && legFinishedEvts.length > (legWonAnnouncedRef.current ? prevLen : 0)) {
+        if (!legWonAnnouncedRef.current || legFinishedEvts.length > 1) {
+          legWonAnnouncedRef.current = true
+          setTimeout(() => announceLegDart(), 500)
           setIntermission({
             kind: 'leg',
-            legId: lastEvt.legId ?? '',
-            pendingNextEvents: [], // Guest doesn't submit next-leg events
+            legId: lastLegFinished.legId ?? '',
+            pendingNextEvents: [],
           })
         }
       }
-      if (lastEvt?.type === 'MatchFinished' && !matchWonAnnouncedRef.current) {
+
+      // Match finished
+      if (matchFinishedEvt && !matchWonAnnouncedRef.current) {
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
+
+        // Persist events to cache/SQLite before finishing
+        const startEvt2 = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchStarted') as any
+        if (startEvt2) {
+          ensureX01MatchExists(
+            matchId, multiplayer.remoteEvents,
+            startEvt2.players?.map((p: any) => p.playerId) ?? [],
+            `${startEvt2.mode ?? 'X01'} – Multiplayer`,
+          )
+        }
 
         // Guest: Save stats + show end screen
         try { finishMatch(matchId) } catch {}
@@ -1088,8 +1101,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         } catch {}
         try { updateGlobalX01PlayerStatsFromMatch(matchId, multiplayer.remoteEvents) } catch {}
 
-        // Trigger end screen for guest
-        const winnerId = lastEvt.winnerPlayerId
+        // Trigger end screen
+        const winnerId = matchFinishedEvt.winnerPlayerId
         const winnerName = match?.players.find(p => p.playerId === winnerId)?.name ?? '—'
         setEnded({ winnerName })
       }

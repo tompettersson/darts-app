@@ -1156,7 +1156,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   // Responsive widths based on screen size and player count
   const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 800
   const isMobileScreen = screenWidth < 600
-  const isTabletScreen = screenWidth >= 600 && screenWidth <= 1024
+  const isTabletScreen = screenWidth >= 600 && screenWidth <= 1200
   const playerCount = order.length
 
   const ROW_H = isMobileScreen ? 26 : isTabletScreen ? 30 : 32
