@@ -893,8 +893,11 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     }
 
     if (multiplayer?.enabled) {
-      // In multiplayer, the caller already sent the events via doPersist
-      // Just set local state optimistically
+      // Send MatchFinished event to all other devices
+      const newFinishEvts = finalEvents.filter(e => e.type === 'MatchFinished' && !allEvents.some(ae => ae.eventId === e.eventId))
+      if (newFinishEvts.length > 0) {
+        multiplayer.submitEvents(newFinishEvts)
+      }
       setEvents(finalEvents)
     } else {
       // React-State zuerst setzen, dann persist AWAIT-en (verhindert Datenverlust bei "noch mal spielen")
