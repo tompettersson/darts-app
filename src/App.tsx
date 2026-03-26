@@ -1849,7 +1849,6 @@ export default function App() {
         error={mpState.error}
         gameConfig={mpState.gameConfig}
         spectatorCount={mpState.spectatorCount}
-        diceRollTrigger={mpState.diceRollTrigger}
         roomCode={multiplayerRoomCode ?? ''}
         onJoinSpectator={(code) => {
           setMultiplayerRoomCode(code)
