@@ -227,9 +227,19 @@ const MenuIconSettings = () => (
 const menuAccentColors = {
   continue: '#1d3557',
   newGame: '#2d6a4f',
+  online: '#3b82f6',
   stats: '#e76f51',
   settings: '#6c757d',
 }
+
+// Online spielen Icon
+const MenuIconOnline = () => (
+  <svg viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </svg>
+)
 
 // Speech (Einstellungen)
 import { getVoiceLang, setVoiceLang, getAvailableVoices, getPreferredVoice, setPreferredVoice, type SpeechLang } from './speech'
@@ -281,6 +291,7 @@ type View =
   | 'settings'
   | 'admin'
   | 'change-password'
+  | 'online-menu'
   | 'multiplayer-lobby-host'
   | 'multiplayer-lobby-join'
   | 'multiplayer-spectate'
@@ -394,6 +405,7 @@ export default function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       const backMap: Partial<Record<View, View>> = {
+        'online-menu': 'menu',
         'profiles-menu': 'menu',
         'settings': 'profiles-menu',
         'profiles': 'profiles-menu',
@@ -1614,6 +1626,51 @@ export default function App() {
     )
   }
 
+  // ONLINE SPIELEN Menü
+  if (view === 'online-menu') {
+    return (
+      <div className="screen-enter" key="online-menu" style={styles.page}>
+        <div style={styles.headerRow}>
+          <h2 style={{ margin: 0, color: colors.fg }}>Online spielen</h2>
+          <button style={styles.backBtn} onClick={() => setView('menu')}>← Zurück</button>
+        </div>
+        <div style={styles.centerPage}>
+          <div style={styles.centerInner}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button
+                style={{ ...styles.tile, borderLeft: '4px solid #3b82f6', textAlign: 'center', padding: '20px 12px' }}
+                onClick={() => {
+                  setIsMultiplayerSetup(true)
+                  setView('new-start')
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <MenuIconOnline />
+                  <div style={styles.title}>Match hosten</div>
+                  <div style={styles.sub}>Spiel erstellen & Freunde einladen</div>
+                </div>
+              </button>
+              <button
+                style={{ ...styles.tile, borderLeft: '4px solid #22c55e', textAlign: 'center', padding: '20px 12px' }}
+                onClick={() => setView('multiplayer-lobby-join')}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <svg viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="#22c55e" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <polyline points="10 17 15 12 10 7" />
+                    <line x1="15" y1="12" x2="3" y2="12" />
+                  </svg>
+                  <div style={styles.title}>Match beitreten</div>
+                  <div style={styles.sub}>Mit Code einem Spiel beitreten</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // MULTIPLAYER LOBBY (Host)
   if (view === 'multiplayer-lobby-host') {
     return (
@@ -2539,6 +2596,7 @@ export default function App() {
   const menuItems: PickerItem[] = [
     { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : 'Kein laufendes Spiel', icon: <MenuIconContinue /> },
     { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket', icon: <MenuIconNewGame /> },
+    { id: 'online-menu', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <MenuIconOnline /> },
     { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores', icon: <MenuIconStats /> },
     { id: 'profiles-menu', label: 'Einstellungen', sub: 'Profile, Theme', icon: <MenuIconSettings /> },
   ]
@@ -2629,8 +2687,17 @@ export default function App() {
                   </div>
                 </button>
 
+                {/* ONLINE SPIELEN */}
+                <button ref={el => { menuBtnRefs.current[2] = el }} onClick={() => setView('online-menu')} style={menuTileStyle(menuAccentColors.online)}>
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconOnline /></div>
+                  <div>
+                    <div style={styles.title}>Online spielen</div>
+                    <div style={styles.sub}>Match hosten oder beitreten</div>
+                  </div>
+                </button>
+
                 {/* STATISTIKEN (ausgelagert) */}
-                <button ref={el => { menuBtnRefs.current[2] = el }} onClick={() => setView('stats-area')} style={menuTileStyle(menuAccentColors.stats)}>
+                <button ref={el => { menuBtnRefs.current[3] = el }} onClick={() => setView('stats-area')} style={menuTileStyle(menuAccentColors.stats)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconStats /></div>
                   <div>
                     <div style={styles.title}>Statistiken</div>
@@ -2639,7 +2706,7 @@ export default function App() {
                 </button>
 
                 {/* EINSTELLUNGEN */}
-                <button ref={el => { menuBtnRefs.current[3] = el }} onClick={() => setView('profiles-menu')} style={menuTileStyle(menuAccentColors.settings)}>
+                <button ref={el => { menuBtnRefs.current[4] = el }} onClick={() => setView('profiles-menu')} style={menuTileStyle(menuAccentColors.settings)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconSettings /></div>
                   <div>
                     <div style={styles.title}>Einstellungen</div>
