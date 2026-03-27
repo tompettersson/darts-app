@@ -44,6 +44,7 @@ export type MultiplayerActions = {
   undo: (removeCount: number) => void
   playerReady: (playerId: string) => void
   requestSync: () => void
+  reconnect: () => void
   disconnect: () => void
 }
 
@@ -66,11 +67,19 @@ export function useMultiplayerRoom(
   const [spectatorCount, setSpectatorCount] = useState(0)
   const [diceRollTrigger, setDiceRollTrigger] = useState(0)
   const [livePreview, setLivePreview] = useState<{ playerId: string; darts: any[]; remaining: number } | null>(null)
-  const [isHost, setIsHost] = useState(false)
+  const [isHost, setIsHost] = useState(() => {
+    try { return sessionStorage.getItem('mp-is-host') === 'true' } catch {} return false
+  })
 
   // The initial message to send when connecting (create-room or join-room)
-  // Stored as STATE so it survives React re-renders and is available in useEffect
-  const [initMessage, setInitMessage] = useState<ClientMessage | null>(null)
+  // Persisted to sessionStorage so it survives page reloads (e.g. screen rotation)
+  const [initMessage, setInitMessage] = useState<ClientMessage | null>(() => {
+    try {
+      const stored = sessionStorage.getItem('mp-init-msg')
+      if (stored) return JSON.parse(stored)
+    } catch {}
+    return null
+  })
 
   const socketRef = useRef<PartySocket | null>(null)
   const onRemoteEventsRef = useRef(onRemoteEvents)
@@ -211,6 +220,16 @@ export function useMultiplayerRoom(
 
   // ---- Lobby Actions ----
 
+  // Persist multiplayer state to sessionStorage for reconnection after rotation/reload
+  useEffect(() => {
+    if (initMessage) {
+      try { sessionStorage.setItem('mp-init-msg', JSON.stringify(initMessage)) } catch {}
+    } else {
+      sessionStorage.removeItem('mp-init-msg')
+    }
+    try { sessionStorage.setItem('mp-is-host', isHost ? 'true' : 'false') } catch {}
+  }, [initMessage, isHost])
+
   const createRoom = useCallback((hostPlayer: PlayerRef) => {
     addDebug('createRoom called')
     setIsHost(true)
@@ -274,10 +293,24 @@ export function useMultiplayerRoom(
     sendMsg({ type: 'sync-request' })
   }, [sendMsg])
 
+  /** Force reconnect: close socket and re-open with the same initMessage */
+  const reconnect = useCallback(() => {
+    addDebug('Reconnect requested')
+    if (socketRef.current) {
+      socketRef.current.close()
+      socketRef.current = null
+    }
+    // Trigger the useEffect by briefly clearing and re-setting initMessage
+    const saved = initMessage
+    setInitMessage(null)
+    setTimeout(() => setInitMessage(saved), 100)
+  }, [initMessage, addDebug])
+
   const disconnect = useCallback(() => {
     socketRef.current?.close()
     socketRef.current = null
     setInitMessage(null)
+    setIsHost(false)
     setStatus('disconnected')
     setPlayers([])
     setPhase('lobby')
@@ -289,6 +322,16 @@ export function useMultiplayerRoom(
     setDebugLog([])
     setSpectatorCount(0)
     setLivePreview(null)
+    // Clear sessionStorage
+    try {
+      sessionStorage.removeItem('mp-init-msg')
+      sessionStorage.removeItem('mp-is-host')
+      sessionStorage.removeItem('mp-room')
+      sessionStorage.removeItem('mp-match')
+      sessionStorage.removeItem('mp-player')
+      sessionStorage.removeItem('mp-gametype')
+      sessionStorage.removeItem('mp-view')
+    } catch {}
   }, [])
 
   const state: MultiplayerState = {
@@ -299,7 +342,7 @@ export function useMultiplayerRoom(
   const actions: MultiplayerActions = {
     createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer, triggerDiceRoll, sendLivePreview,
     setGameConfig: setGameConfigAction, setPlayerOrder: setPlayerOrderAction,
-    startGame, submitEvents, undo, playerReady, requestSync, disconnect,
+    startGame, submitEvents, undo, playerReady, requestSync, reconnect, disconnect,
   }
 
   return [state, actions]

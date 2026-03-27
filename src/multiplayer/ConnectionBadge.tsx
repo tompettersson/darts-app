@@ -7,9 +7,10 @@ import type { ConnectionStatus } from './useMultiplayerRoom'
 type Props = {
   status: ConnectionStatus
   playerCount: number
+  onReconnect?: () => void
 }
 
-export default function ConnectionBadge({ status, playerCount }: Props) {
+export default function ConnectionBadge({ status, playerCount, onReconnect }: Props) {
   const colors: Record<ConnectionStatus, string> = {
     connected: '#16a34a',
     connecting: '#eab308',
@@ -51,6 +52,18 @@ export default function ConnectionBadge({ status, playerCount }: Props) {
         <span style={{ color: '#64748b', marginLeft: 2 }}>
           {playerCount} Spieler
         </span>
+      )}
+      {(status === 'disconnected' || status === 'error') && onReconnect && (
+        <button
+          onClick={onReconnect}
+          style={{
+            marginLeft: 4, padding: '2px 8px', borderRadius: 6,
+            border: `1px solid ${color}`, background: `${color}20`, color,
+            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Reconnect
+        </button>
       )}
     </div>
   )

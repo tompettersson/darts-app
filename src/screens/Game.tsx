@@ -702,6 +702,7 @@ type MultiplayerProps = {
   remoteEvents: DartsEvent[] | null
   connectionStatus: import('../multiplayer/useMultiplayerRoom').ConnectionStatus
   playerCount: number
+  reconnect?: () => void
 }
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
@@ -1971,7 +1972,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       {/* Multiplayer Connection Badge */}
       {multiplayer?.enabled && (
         <div className="game-flex-center" style={{ padding: '4px 0' }}>
-          <ConnectionBadge status={multiplayer.connectionStatus} playerCount={multiplayer.playerCount} />
+          <ConnectionBadge status={multiplayer.connectionStatus} playerCount={multiplayer.playerCount} onReconnect={multiplayer.reconnect} />
         </div>
       )}
 

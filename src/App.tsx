@@ -1917,6 +1917,7 @@ export default function App() {
       remoteEvents: multiplayerRemoteEvents,
       connectionStatus: mpState.status,
       playerCount: mpState.players.filter(p => p.connected).length,
+      reconnect: mpActions.reconnect,
     }
     const mpOnExit = () => {
       // Unregister from live registry
