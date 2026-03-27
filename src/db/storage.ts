@@ -616,11 +616,14 @@ export type DBX01Match = {
 export async function dbGetX01Matches(): Promise<DBX01Match[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  // Events are the biggest data transfer cost (~500 bytes each × thousands)
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM x01_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM x01_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id FROM x01_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM x01_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM x01_events e INNER JOIN (SELECT id FROM x01_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id FROM x01_match_players mp INNER JOIN (SELECT id FROM x01_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -824,11 +827,13 @@ export type DBCricketMatch = {
 export async function dbGetCricketMatches(): Promise<DBCricketMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM cricket_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM cricket_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id FROM cricket_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM cricket_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM cricket_events e INNER JOIN (SELECT id FROM cricket_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id FROM cricket_match_players mp INNER JOIN (SELECT id FROM cricket_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -1005,11 +1010,13 @@ export type DBATBMatch = {
 export async function dbGetATBMatches(): Promise<DBATBMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM atb_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM atb_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM atb_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM atb_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM atb_events e INNER JOIN (SELECT id FROM atb_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM atb_match_players mp INNER JOIN (SELECT id FROM atb_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -1226,11 +1233,13 @@ export type DBCTFMatch = {
 export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM ctf_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM ctf_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM ctf_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM ctf_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM ctf_events e INNER JOIN (SELECT id FROM ctf_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM ctf_match_players mp INNER JOIN (SELECT id FROM ctf_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -1413,11 +1422,13 @@ export type DBStrMatch = {
 export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM str_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM str_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM str_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM str_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM str_events e INNER JOIN (SELECT id FROM str_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM str_match_players mp INNER JOIN (SELECT id FROM str_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -1618,11 +1629,13 @@ export type DBHighscoreMatch = {
 export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM highscore_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM highscore_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM highscore_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM highscore_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM highscore_events e INNER JOIN (SELECT id FROM highscore_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM highscore_match_players mp INNER JOIN (SELECT id FROM highscore_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -1819,11 +1832,13 @@ export type DBShanghaiMatch = {
 export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM shanghai_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM shanghai_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM shanghai_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM shanghai_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM shanghai_events e INNER JOIN (SELECT id FROM shanghai_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM shanghai_match_players mp INNER JOIN (SELECT id FROM shanghai_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -2072,11 +2087,13 @@ export type DBKillerMatch = {
 export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM killer_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM killer_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM killer_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM killer_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM killer_events e INNER JOIN (SELECT id FROM killer_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM killer_match_players mp INNER JOIN (SELECT id FROM killer_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -2349,11 +2366,13 @@ export type DBBobs27Match = {
 export async function dbGetBobs27Matches(): Promise<DBBobs27Match[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM bobs27_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM bobs27_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM bobs27_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM bobs27_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM bobs27_events e INNER JOIN (SELECT id FROM bobs27_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM bobs27_match_players mp INNER JOIN (SELECT id FROM bobs27_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
@@ -2595,11 +2614,13 @@ export type DBOperationMatch = {
 export async function dbGetOperationMatches(): Promise<DBOperationMatch[]> {
   await ensureDB()
 
-  // Single HTTP request with 3 queries via batch API
+  // Optimized: Load only recent matches (last 50) + their events
+  const MATCH_LIMIT = 50
+
   const results = await batchQuery([
-    { sql: 'SELECT * FROM operation_matches ORDER BY created_at DESC' },
-    { sql: 'SELECT match_id, data FROM operation_events ORDER BY match_id, seq' },
-    { sql: 'SELECT match_id, player_id, is_guest FROM operation_match_players ORDER BY match_id, position' },
+    { sql: `SELECT * FROM operation_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}` },
+    { sql: `SELECT e.match_id, e.data FROM operation_events e INNER JOIN (SELECT id FROM operation_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON e.match_id = m.id ORDER BY e.match_id, e.seq` },
+    { sql: `SELECT mp.match_id, mp.player_id, mp.is_guest FROM operation_match_players mp INNER JOIN (SELECT id FROM operation_matches ORDER BY created_at DESC LIMIT ${MATCH_LIMIT}) m ON mp.match_id = m.id ORDER BY mp.match_id, mp.position` },
   ])
   const matches = (results[0]?.data ?? []) as any[]
   const allEvents = (results[1]?.data ?? []) as any[]
