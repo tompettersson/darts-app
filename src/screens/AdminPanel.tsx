@@ -96,41 +96,45 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
     headerRow: { ...styles.headerRow },
     backBtn: { ...styles.backBtn },
     card: { ...styles.card, marginBottom: 12 },
-    cardTitle: { fontSize: 15, fontWeight: 700, color: colors.fg, marginBottom: 12 },
+    cardTitle: { fontSize: 14, fontWeight: 700, color: colors.fg, marginBottom: 10 },
     row: {
-      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
+      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0',
       borderBottom: `1px solid ${colors.border}`,
+      flexWrap: 'wrap' as const,
     },
     dot: (color?: string | null) => ({
       width: 10, height: 10, borderRadius: 9999,
       background: color || colors.fgDim,
       flexShrink: 0,
     }),
-    name: { flex: 1, fontWeight: 600, color: colors.fg },
+    name: {
+      flex: 1, fontWeight: 600, color: colors.fg, fontSize: 14,
+      minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+    },
     btn: {
-      padding: '6px 12px', borderRadius: 8,
+      padding: '5px 10px', borderRadius: 8,
       border: `1px solid ${colors.border}`,
       background: colors.bgMuted, color: colors.fg,
-      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+      cursor: 'pointer', fontSize: 12, fontWeight: 600,
     },
     btnDanger: {
-      padding: '6px 12px', borderRadius: 8,
+      padding: '5px 10px', borderRadius: 8,
       border: `1px solid ${colors.error}`,
       background: colors.error, color: '#fff',
-      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+      cursor: 'pointer', fontSize: 12, fontWeight: 600,
     },
     input: {
-      flex: 1, padding: '8px 10px', borderRadius: 8,
+      width: '100%', padding: '8px 10px', borderRadius: 8,
       border: `1px solid ${colors.border}`,
       background: colors.bgInput, color: colors.fg,
-      fontSize: 14, outline: 'none',
+      fontSize: 14, outline: 'none', boxSizing: 'border-box' as const,
     },
-    inputRow: { display: 'flex', gap: 8, marginTop: 8 },
+    inputRow: { display: 'grid', gap: 8, marginTop: 8 },
     error: { color: colors.error, fontSize: 13, fontWeight: 600, marginTop: 4 },
     btnPrimary: {
-      padding: '8px 14px', borderRadius: 8, border: 'none',
+      padding: '10px 14px', borderRadius: 8, border: 'none',
       background: colors.accent, color: isArcade ? '#0a0a0a' : '#fff',
-      fontWeight: 700, fontSize: 14, cursor: 'pointer',
+      fontWeight: 700, fontSize: 14, cursor: 'pointer', width: '100%',
     },
   }
 
@@ -140,6 +144,7 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
         <h2 style={{ margin: 0, color: colors.fg }}>Admin</h2>
         <button style={s.backBtn} onClick={onBack}>← Zurück</button>
       </div>
+      <div style={{ maxWidth: 500, margin: '0 auto', width: '100%' }}>
 
       {/* Create new profile */}
       <div style={s.card}>
@@ -163,7 +168,7 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
             onClick={handleCreateProfile}
             disabled={createBusy || !createName.trim() || !createPw}
           >
-            {createBusy ? '...' : 'Erstellen'}
+            {createBusy ? '...' : 'Profil erstellen'}
           </button>
         </div>
         {createError && <div style={s.error}>{createError}</div>}
@@ -258,6 +263,7 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
           Löscht alle nicht-beendeten Matches aus allen Spielmodi.
         </div>
       </div>
+      </div>{/* end centering container */}
     </div>
   )
 }
