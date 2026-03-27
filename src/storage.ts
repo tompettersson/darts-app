@@ -69,6 +69,7 @@ import {
 } from './db/storage'
 
 import { exec } from './db/index'
+import { clearCache as clearDataCache } from './db/dataCache'
 
 import {
   id,
@@ -708,6 +709,7 @@ export function persistEvents(
 }
 
 export function finishMatch(matchId: string): Promise<void> {
+  clearDataCache() // Invalidate so next startup fetches fresh data
   const list = getMatches()
   const idx = list.findIndex(m => m.id === matchId)
   if (idx === -1) return Promise.resolve()
@@ -764,7 +766,7 @@ export function getFinishedNon121Matches(): StoredMatch[] {
 }
 
 /** Nur falls du mal ein leeres Shell-Match brauchst. */
-export async function createMatchShell(args: {
+export async function createMatchShell(args: { // Cache wird beim finishMatch invalidiert
   id?: string
   title: string
   playerIds: string[]
