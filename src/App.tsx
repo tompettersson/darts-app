@@ -610,6 +610,34 @@ export default function App() {
     return null
   }, [openMatch, openCricket, openATB, openStr, openHighscore, openCTF, openShanghai, openKiller, openBobs27, openOperation])
 
+  // ---------- Maintenance Mode ----------
+  const MAINTENANCE_MODE = true // ← auf false setzen wenn DB wieder läuft
+  if (MAINTENANCE_MODE) {
+    return (
+      <div style={{
+        minHeight: '100dvh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: 32,
+        background: '#f8fafc', color: '#1f2937', textAlign: 'center', gap: 20,
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        <div style={{ fontSize: 64 }}>🚧</div>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Wartungsarbeiten</h1>
+        <p style={{ margin: 0, maxWidth: 400, lineHeight: 1.6, color: '#6b7280' }}>
+          Diese Seite ist aktuell wegen unvorhergesehenen Schwierigkeiten außer Betrieb.
+          Wir arbeiten daran, das Problem zu beseitigen.
+          Bitte haben Sie Verständnis.
+        </p>
+        <div style={{
+          marginTop: 12, padding: '10px 20px', borderRadius: 8,
+          background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e',
+          fontSize: 13, fontWeight: 600,
+        }}>
+          ⚠️ Datenbankumzug — wir sind bald zurück!
+        </div>
+      </div>
+    )
+  }
+
   // ---------- Loading Screen ----------
   if (dbLoading) {
     return (
