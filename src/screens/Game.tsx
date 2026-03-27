@@ -2007,8 +2007,13 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
                   key={`${p.playerId}-${isActive ? 'active' : 'idle'}`}
                   name={p.name ?? p.playerId}
                   color={p.color}
-                  remaining={isActive ? live.remaining
-                    : (multiplayer?.livePreview?.playerId === p.playerId ? multiplayer.livePreview.remaining : remaining)}
+                  remaining={
+                    isActive && (!multiplayer?.enabled || p.playerId === multiplayer.myPlayerId)
+                      ? live.remaining // My active player: use local live calculation
+                      : multiplayer?.livePreview?.playerId === p.playerId
+                        ? multiplayer.livePreview.remaining // Remote active player: use live preview
+                        : remaining // Inactive player: use last confirmed score
+                  }
                   currentDarts={currentDarts}
                   dartsRemaining={dartsRemaining}
                   lastVisit={lastVisit}
@@ -2049,12 +2054,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
           {/* Eingabeblock */}
           {multiplayer?.enabled && !isMyTurn && (
-            <div style={{
-              textAlign: 'center', padding: '12px 16px',
-              background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12,
-              color: '#92400e', fontWeight: 700, fontSize: 14, marginBottom: 8,
-            }}>
-              {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug — warte...
+            <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
+              {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
             </div>
           )}
           <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />

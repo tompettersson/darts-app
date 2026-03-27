@@ -346,7 +346,12 @@ export default function App() {
     return () => { mounted = false }
   }, [])
 
-  const [view, setView] = useState<View>('menu')
+  const [view, setView] = useState<View>(() => {
+    // Restore multiplayer game view after rotation/reload
+    const savedView = sessionStorage.getItem('mp-view')
+    if (savedView === 'multiplayer-game') return 'multiplayer-game' as View
+    return 'menu'
+  })
 
   // offene Matches (X01 + Cricket)
   const [activeMatchId, setActiveMatchId] = useState<string | undefined>(() => getOpenMatch()?.id)
@@ -452,13 +457,30 @@ export default function App() {
   // Checkout Trainer Match ID
   const [activeCheckoutTrainerId, setActiveCheckoutTrainerId] = useState<string | undefined>()
 
-  // --- Multiplayer State ---
+  // --- Multiplayer State (persisted to sessionStorage to survive rotation/reload) ---
   const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
-  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(null)
-  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(null)
-  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>('')
+  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(() => sessionStorage.getItem('mp-room') || null)
+  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(() => sessionStorage.getItem('mp-match') || null)
+  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>(() => sessionStorage.getItem('mp-player') || '')
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
-  const [multiplayerGameType, setMultiplayerGameType] = useState<string>('x01')
+  const [multiplayerGameType, setMultiplayerGameType] = useState<string>(() => sessionStorage.getItem('mp-gametype') || 'x01')
+
+  // Persist multiplayer state to sessionStorage
+  useEffect(() => {
+    // Track multiplayer game view for rotation recovery
+    if (view === 'multiplayer-game' && multiplayerMatchId) {
+      sessionStorage.setItem('mp-view', 'multiplayer-game')
+    } else {
+      sessionStorage.removeItem('mp-view')
+    }
+    if (multiplayerRoomCode) sessionStorage.setItem('mp-room', multiplayerRoomCode)
+    else sessionStorage.removeItem('mp-room')
+    if (multiplayerMatchId) sessionStorage.setItem('mp-match', multiplayerMatchId)
+    else sessionStorage.removeItem('mp-match')
+    if (multiplayerMyPlayerId) sessionStorage.setItem('mp-player', multiplayerMyPlayerId)
+    else sessionStorage.removeItem('mp-player')
+    if (multiplayerGameType) sessionStorage.setItem('mp-gametype', multiplayerGameType)
+  }, [view, multiplayerRoomCode, multiplayerMatchId, multiplayerMyPlayerId, multiplayerGameType])
 
   const [mpState, mpActions] = useMultiplayerRoom(
     multiplayerRoomCode,
