@@ -1,15 +1,19 @@
-const { neon } = require('@neondatabase/serverless')
+const postgres = require('postgres')
 const bcrypt = require('bcryptjs')
 
 const SALT_ROUNDS = 10
 
-// Neon SQL client — lazy init (same pattern as db.js)
+// PostgreSQL client — lazy init (works with Supabase, Neon, or any Postgres)
 let _sql = null
 function getSQL() {
   if (!_sql) {
     const url = process.env.DATABASE_URL
     if (!url) throw new Error('DATABASE_URL environment variable is not set')
-    _sql = neon(url)
+    _sql = postgres(url, {
+      max: 1,
+      idle_timeout: 20,
+      connect_timeout: 10,
+    })
   }
   return _sql
 }

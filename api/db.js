@@ -1,12 +1,16 @@
-const { neon } = require('@neondatabase/serverless')
+const postgres = require('postgres')
 
-// Neon SQL client — lazy init
+// PostgreSQL client — lazy init (works with Supabase, Neon, or any Postgres)
 let _sql = null
 function getSQL() {
   if (!_sql) {
     const url = process.env.DATABASE_URL
     if (!url) throw new Error('DATABASE_URL environment variable is not set')
-    _sql = neon(url)
+    _sql = postgres(url, {
+      max: 1,              // Single connection for serverless
+      idle_timeout: 20,    // Close idle connections after 20s
+      connect_timeout: 10, // 10s connection timeout
+    })
   }
   return _sql
 }
@@ -353,7 +357,7 @@ module.exports = async (req, res) => {
   if (req.method === 'GET') {
     try {
       const db = getSQL()
-      const rows = await db.query('SELECT count(*) as count FROM profiles')
+      const rows = await db.unsafe('SELECT count(*) as count FROM profiles')
       return res.json({ status: 'ok', profiles: rows[0]?.count })
     } catch (e) {
       return res.status(500).json({ status: 'error', message: e.message })
@@ -369,26 +373,26 @@ module.exports = async (req, res) => {
     switch (body.type) {
       case 'query': {
         const pgSQL = convertSQL(body.sql)
-        const rows = await db.query(pgSQL, body.params)
+        const rows = await db.unsafe(pgSQL, body.params)
         return res.json({ data: coerceNumericValues(rows) })
       }
       case 'queryOne': {
         const pgSQL = convertSQL(body.sql)
-        const rows = await db.query(pgSQL, body.params)
+        const rows = await db.unsafe(pgSQL, body.params)
         const row = rows[0] ?? null
         if (row) coerceNumericValues([row])
         return res.json({ data: row })
       }
       case 'exec': {
         const pgSQL = convertSQL(body.sql)
-        await db.query(pgSQL, body.params)
+        await db.unsafe(pgSQL, body.params)
         return res.json({ data: null })
       }
       case 'execMany':
       case 'transaction': {
         for (const stmt of body.statements) {
           const pgSQL = convertSQL(stmt.sql)
-          await db.query(pgSQL, stmt.params)
+          await db.unsafe(pgSQL, stmt.params)
         }
         return res.json({ data: null })
       }
@@ -398,7 +402,7 @@ module.exports = async (req, res) => {
           body.queries.map(async (q) => {
             try {
               const pgSQL = convertSQL(q.sql)
-              const rows = await db.query(pgSQL, q.params)
+              const rows = await db.unsafe(pgSQL, q.params)
               coerceNumericValues(rows)
               return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
             } catch (e) {
@@ -410,7 +414,7 @@ module.exports = async (req, res) => {
       }
       case 'schema': {
         for (const stmt of body.statements) {
-          await db.query(convertSQL(stmt))
+          await db.unsafe(convertSQL(stmt))
         }
         return res.json({ data: null })
       }

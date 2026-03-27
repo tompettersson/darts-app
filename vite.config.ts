@@ -27,10 +27,10 @@ function localApiProxy(): Plugin {
 
         try {
           // Dynamic import to avoid bundling in client
-          const { neon } = await import('@neondatabase/serverless')
+          const pgLib = await import('postgres')
           const { config } = await import('dotenv')
           config()
-          const sql = neon(process.env.DATABASE_URL!)
+          const sql = pgLib.default(process.env.DATABASE_URL!, { max: 1, idle_timeout: 20 })
 
           const convertPlaceholders = (s: string) => { let i = 0; return s.replace(/\?/g, () => `$${++i}`) }
 
@@ -299,23 +299,23 @@ function localApiProxy(): Plugin {
 
           switch (body.type) {
             case 'query': {
-              data = coerceNumericValues(await sql.query(convertSQL(body.sql), body.params))
+              data = coerceNumericValues(await sql.unsafe(convertSQL(body.sql), body.params))
               break
             }
             case 'queryOne': {
-              const rows = await sql.query(convertSQL(body.sql), body.params)
+              const rows = await sql.unsafe(convertSQL(body.sql), body.params)
               if (rows[0]) coerceNumericValues([rows[0]])
               data = rows[0] ?? null
               break
             }
             case 'exec': {
-              await sql.query(convertSQL(body.sql), body.params)
+              await sql.unsafe(convertSQL(body.sql), body.params)
               break
             }
             case 'execMany':
             case 'transaction': {
               for (const stmt of body.statements) {
-                await sql.query(convertSQL(stmt.sql), stmt.params)
+                await sql.unsafe(convertSQL(stmt.sql), stmt.params)
               }
               break
             }
@@ -323,7 +323,7 @@ function localApiProxy(): Plugin {
               data = await Promise.all(
                 body.queries.map(async (q: any) => {
                   try {
-                    const rows = await sql.query(convertSQL(q.sql), q.params)
+                    const rows = await sql.unsafe(convertSQL(q.sql), q.params)
                     coerceNumericValues(rows)
                     return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
                   } catch (e: any) {
@@ -359,10 +359,10 @@ function localApiProxy(): Plugin {
         try {
           const initSqlJs = (await import('sql.js')).default
           const SQL = await initSqlJs()
-          const { neon } = await import('@neondatabase/serverless')
+          const pgLib2 = await import('postgres')
           const { config } = await import('dotenv')
           config()
-          const pgSql = neon(process.env.DATABASE_URL!)
+          const pgSql = pgLib2.default(process.env.DATABASE_URL!, { max: 1, idle_timeout: 20 })
 
           const db = new SQL.Database(new Uint8Array(sqliteBytes))
           const stats: Record<string, number> = {}
@@ -426,7 +426,7 @@ function localApiProxy(): Plugin {
                 const conflict = pk ? ` ON CONFLICT (${pk.join(', ')}) DO NOTHING` : ''
 
                 try {
-                  await pgSql.query(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
+                  await pgSql.unsafe(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders.join(', ')})${conflict}`, values)
                   ok++
                 } catch (insertErr: any) {
                   fail++
