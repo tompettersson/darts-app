@@ -257,16 +257,18 @@ type Props = {
   onMultiplayerSpectate?: () => void
   /** Zeigt an, dass wir im Multiplayer-Setup sind */
   isMultiplayerSetup?: boolean
+  /** Start directly on the online step (from main menu "Online spielen") */
+  initialStep?: 'online' | 'type'
 }
 
 type Step = 'type' | 'preset' | 'cricket' | 'feldspiele' | 'funparty' | 'training' | 'online'
 
-export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin, onMultiplayerSpectate, isMultiplayerSetup }: Props) {
+export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, onSelectATB, onSelectRandom, onSelect121, onSelectStraeusschen, onSelectHighscore, onSelectCTF, onSelectShanghai, onSelectKiller, onSelectBobs27, onSelectOperation, onSelectCheckoutQuiz, onSelectCheckoutTrainer, onMultiplayerHost, onMultiplayerJoin, onMultiplayerSpectate, isMultiplayerSetup, initialStep }: Props) {
   // Theme System
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
-  const [step, setStep] = useState<Step>('type')
+  const [step, setStep] = useState<Step>(initialStep || 'type')
   const [pickerIndex, setPickerIndex] = useState(0)
   const [presetPickerIndex, setPresetPickerIndex] = useState(0)
   const [trainingPickerIndex, setTrainingPickerIndex] = useState(0)
