@@ -1963,9 +1963,10 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         }}
         title={matchStored.title}
         subtitle={
-          match.structure.kind === 'sets'
+          (multiplayer?.enabled ? `Code: ${multiplayer.roomCode} · ` : '') +
+          (match.structure.kind === 'sets'
             ? `First to ${requiredSets} Sets · Set #${currentSetIndex || 1} · Leg #${currentLegIndex} · ${formatDuration(legDuration)}`
-            : `First to ${requiredLegs} Legs · Leg #${currentLegIndex} · ${formatDuration(legDuration)}`
+            : `First to ${requiredLegs} Legs · Leg #${currentLegIndex} · ${formatDuration(legDuration)}`)
         }
       />
 
