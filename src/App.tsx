@@ -611,7 +611,7 @@ export default function App() {
   }, [openMatch, openCricket, openATB, openStr, openHighscore, openCTF, openShanghai, openKiller, openBobs27, openOperation])
 
   // ---------- Maintenance Mode ----------
-  const MAINTENANCE_MODE = true // ← auf false setzen wenn DB wieder läuft
+  const MAINTENANCE_MODE = false // Neon upgraded — DB läuft wieder
   if (MAINTENANCE_MODE) {
     return (
       <div style={{
