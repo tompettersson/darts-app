@@ -645,7 +645,6 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     prevRemoteCricketRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as CricketEvent[]
     setEvents(remote)
-    persistCricketEvents(matchId, remote)
 
     // Ensure match exists locally for guest
     if (prevLen === 0 && remote.length > 0) {
@@ -655,9 +654,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       }
     }
 
-    // Detect match finish from remote events (for guest stats + end screen)
+    // Persist events and finish match only when match is complete (not on every turn)
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'CricketMatchFinished') {
+      persistCricketEvents(matchId, remote)
       finishCricketMatch(matchId)
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
