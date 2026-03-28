@@ -1107,24 +1107,29 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
 
-        // Persist match + events to DB, then mark as finished (async, non-blocking for UI)
+        // Only host persists to DB to avoid duplicate writes from both browsers
         const evtsToSave = [...multiplayer.remoteEvents]
-        const startEvt2 = evtsToSave.find((e: any) => e.type === 'MatchStarted') as any
-        ;(async () => {
-          if (startEvt2) {
-            try {
-              await ensureX01MatchExistsAsync(
-                matchId, evtsToSave,
-                startEvt2.players?.map((p: any) => p.playerId) ?? [],
-                `${startEvt2.mode ?? 'X01'} – Multiplayer`,
-              )
-            } catch (e) { console.warn('[MP] ensureX01MatchExists failed:', e) }
-          }
-          try { await persistEvents(matchId, evtsToSave) } catch {}
+        if (multiplayer.isHost) {
+          const startEvt2 = evtsToSave.find((e: any) => e.type === 'MatchStarted') as any
+          ;(async () => {
+            if (startEvt2) {
+              try {
+                await ensureX01MatchExistsAsync(
+                  matchId, evtsToSave,
+                  startEvt2.players?.map((p: any) => p.playerId) ?? [],
+                  `${startEvt2.mode ?? 'X01'} – Multiplayer`,
+                )
+              } catch (e) { console.warn('[MP] ensureX01MatchExists failed:', e) }
+            }
+            try { await persistEvents(matchId, evtsToSave) } catch {}
+            try { await finishMatch(matchId) } catch {}
+            try { updateLeaderboardsWithMatch({ id: matchId, events: evtsToSave, finishedAt: now() }) } catch {}
+            try { updateGlobalX01PlayerStatsFromMatch(matchId, evtsToSave) } catch {}
+          })()
+        } else {
+          // Guest: only clear local cache, no DB writes
           try { await finishMatch(matchId) } catch {}
-          try { updateLeaderboardsWithMatch({ id: matchId, events: evtsToSave, finishedAt: now() }) } catch {}
-          try { updateGlobalX01PlayerStatsFromMatch(matchId, evtsToSave) } catch {}
-        })()
+        }
 
         // Trigger end screen
         const winnerId = matchFinishedEvt.winnerPlayerId
