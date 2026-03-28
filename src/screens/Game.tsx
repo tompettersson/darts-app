@@ -1128,7 +1128,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           })()
         } else {
           // Guest: only clear local cache, no DB writes
-          try { await finishMatch(matchId) } catch {}
+          try { finishMatch(matchId) } catch {}
         }
 
         // Trigger end screen
