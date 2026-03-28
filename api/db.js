@@ -390,9 +390,16 @@ module.exports = async (req, res) => {
       }
       case 'execMany':
       case 'transaction': {
-        for (const stmt of body.statements) {
-          const pgSQL = convertSQL(stmt.sql)
-          await db.unsafe(pgSQL, stmt.params)
+        await db`BEGIN`
+        try {
+          for (const stmt of body.statements) {
+            const pgSQL = convertSQL(stmt.sql)
+            await db.unsafe(pgSQL, stmt.params)
+          }
+          await db`COMMIT`
+        } catch (e) {
+          await db`ROLLBACK`
+          throw e
         }
         return res.json({ data: null })
       }
