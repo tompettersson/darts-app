@@ -29,7 +29,8 @@ function localApiProxy(): Plugin {
           // Dynamic import to avoid bundling in client
           const pgLib = await import('postgres')
           const { config } = await import('dotenv')
-          config()
+          config({ path: '.env.local' })
+          if (!process.env.DATABASE_URL) config() // fallback to .env
           const sql = pgLib.default(process.env.DATABASE_URL!, { max: 1, idle_timeout: 20 })
 
           const convertPlaceholders = (s: string) => { let i = 0; return s.replace(/\?/g, () => `$${++i}`) }
