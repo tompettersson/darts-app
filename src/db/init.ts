@@ -109,13 +109,19 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
         )
         hasNew = (result?.c ?? 0) > 0
 
-        // Also check other game modes (quick count)
+        // Also check all other game modes (quick count)
         if (!hasNew) {
           const other = await queryOne<{ c: number }>(
             `SELECT (SELECT COUNT(*) FROM cricket_matches WHERE created_at > ?) +
                     (SELECT COUNT(*) FROM atb_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM str_matches WHERE created_at > ?) as c`,
-            [cacheTs, cacheTs, cacheTs]
+                    (SELECT COUNT(*) FROM str_matches WHERE created_at > ?) +
+                    (SELECT COUNT(*) FROM ctf_matches WHERE created_at > ?) +
+                    (SELECT COUNT(*) FROM highscore_matches WHERE created_at > ?) +
+                    (SELECT COUNT(*) FROM shanghai_matches WHERE created_at > ?) +
+                    (SELECT COUNT(*) FROM killer_matches WHERE created_at > ?) +
+                    (SELECT COUNT(*) FROM bobs27_matches WHERE created_at > ?) +
+                    (SELECT COUNT(*) FROM operation_matches WHERE created_at > ?) as c`,
+            [cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs]
           )
           hasNew = (other?.c ?? 0) > 0
         }
