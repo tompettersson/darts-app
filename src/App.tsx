@@ -1945,6 +1945,31 @@ export default function App() {
   }
 
   // MULTIPLAYER GAME (routes to correct game component based on gameType)
+  // Floating abort button for multiplayer games (always accessible)
+  const MultiplayerAbortButton = () => (
+    <button
+      onClick={() => {
+        if (confirm('Online-Spiel wirklich verlassen?')) {
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
+          setActiveMatchId(undefined)
+          setView('menu')
+        }
+      }}
+      style={{
+        position: 'fixed', bottom: 12, left: 12, zIndex: 9999,
+        padding: '8px 14px', borderRadius: 10,
+        border: `1px solid ${colors.error}`, background: `${colors.error}15`,
+        color: colors.error, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        opacity: 0.7,
+      }}
+    >
+      ✕ Spiel verlassen
+    </button>
+  )
+
   if (view === 'multiplayer-game' && multiplayerMatchId) {
     const mpProps = {
       enabled: true as const,
@@ -1981,7 +2006,7 @@ export default function App() {
 
     if (multiplayerGameType === 'cricket') {
       return (
-        <GameCricket
+        <><MultiplayerAbortButton /><GameCricket
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowCricketSummary={(id) => {
@@ -1990,13 +2015,13 @@ export default function App() {
             setView('summary-cricket')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'atb') {
       return (
-        <GameATB
+        <><MultiplayerAbortButton /><GameATB
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2005,13 +2030,13 @@ export default function App() {
             setView('summary-atb')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'str') {
       return (
-        <GameStraeusschen
+        <><MultiplayerAbortButton /><GameStraeusschen
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2020,13 +2045,13 @@ export default function App() {
             setView('summary-str')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'highscore') {
       return (
-        <GameHighscore
+        <><MultiplayerAbortButton /><GameHighscore
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2035,13 +2060,13 @@ export default function App() {
             setView('summary-highscore')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'ctf') {
       return (
-        <GameCTF
+        <><MultiplayerAbortButton /><GameCTF
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2050,13 +2075,13 @@ export default function App() {
             setView('summary-ctf')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'shanghai') {
       return (
-        <GameShanghai
+        <><MultiplayerAbortButton /><GameShanghai
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2065,13 +2090,13 @@ export default function App() {
             setView('summary-shanghai')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'killer') {
       return (
-        <GameKiller
+        <><MultiplayerAbortButton /><GameKiller
           matchId={multiplayerMatchId}
           onFinish={(id) => {
             mpActions.disconnect()
@@ -2080,13 +2105,13 @@ export default function App() {
           }}
           onAbort={mpOnExit}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'bobs27') {
       return (
-        <GameBobs27
+        <><MultiplayerAbortButton /><GameBobs27
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2095,13 +2120,13 @@ export default function App() {
             setView('summary-bobs27')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     if (multiplayerGameType === 'operation') {
       return (
-        <GameOperation
+        <><MultiplayerAbortButton /><GameOperation
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
@@ -2110,18 +2135,18 @@ export default function App() {
             setView('summary-operation')
           }}
           multiplayer={mpProps}
-        />
+        /></>
       )
     }
 
     // Default: X01
     return (
-      <Game
+      <><MultiplayerAbortButton /><Game
         matchId={multiplayerMatchId}
         onExit={mpOnExit}
         onNewGame={() => setView('new-start')}
         multiplayer={mpProps}
-      />
+      /></>
     )
   }
 
