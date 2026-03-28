@@ -40,6 +40,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  isHost: boolean
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -654,10 +655,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       }
     }
 
-    // Persist events and finish match only when match is complete (not on every turn)
+    // Only host persists to DB on match finish to avoid duplicate writes
     const lastEvt = remote[remote.length - 1]
     if (lastEvt?.type === 'CricketMatchFinished') {
-      persistCricketEvents(matchId, remote)
+      if (multiplayer?.isHost) {
+        persistCricketEvents(matchId, remote)
+      }
       finishCricketMatch(matchId)
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
