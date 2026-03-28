@@ -155,6 +155,7 @@ export function useMultiplayerRoom(
             })
             break
           case 'undo':
+            setLivePreview(null) // Clear stale preview on undo
             setEvents(msg.events)
             onRemoteUndoRef.current?.(msg.events)
             break
