@@ -239,7 +239,13 @@ function convertSQL(sqlStr) {
   // ============================================================
 
   // 12. strftime('%fmt', expr) → to_char((expr)::timestamp, 'pgfmt')
+  // Special case: %w (day of week) uses EXTRACT(DOW) which returns 0-6 like SQLite
+  // (to_char 'D' returns 1-7, causing off-by-one)
   r = r.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_, fmt, expr) => {
+    // Handle pure %w case: use EXTRACT(DOW) for correct 0=Sunday..6=Saturday
+    if (fmt === '%w') {
+      return `EXTRACT(DOW FROM (${expr.trim()})::timestamp)::integer`
+    }
     const pgFmt = fmt
       .replace(/%Y/g, 'YYYY')
       .replace(/%m/g, 'MM')
@@ -247,7 +253,6 @@ function convertSQL(sqlStr) {
       .replace(/%H/g, 'HH24')
       .replace(/%M/g, 'MI')
       .replace(/%S/g, 'SS')
-      .replace(/%w/g, 'D')
       .replace(/%W/g, 'IW')
     return `to_char((${expr.trim()})::timestamp, '${pgFmt}')`
   })
