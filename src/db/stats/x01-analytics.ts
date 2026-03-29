@@ -264,7 +264,7 @@ export async function getX01FormCurve(playerId: string, limit: number = 20): Pro
         ) as avg,
         COALESCE(SUM(CASE WHEN e.data::jsonb->>'remainingAfter' IS NOT NULL
           AND (e.data::jsonb->>'remainingBefore')::integer <= 170
-          AND (e.data::jsonb->>'bust')::integer != 1
+          AND e.data::jsonb->>'bust' != 'true'
           AND jsonb_array_length(e.data::jsonb->'darts') > 0
           THEN 1 ELSE 0 END), 0) as checkout_attempts,
         COALESCE(SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END), 0) as checkouts_made,
@@ -596,7 +596,7 @@ export async function getCheckoutByRemaining(playerId: string): Promise<Checkout
       WHERE e.type = 'VisitAdded'
         AND e.data::jsonb->>'playerId' = ?
         AND (e.data::jsonb->>'remainingBefore')::integer <= 170
-        AND (e.data::jsonb->>'bust')::integer != 1
+        AND e.data::jsonb->>'bust' != 'true'
         AND (e.data::jsonb->>'remainingBefore')::integer % 2 = 0
       GROUP BY remaining
       HAVING COUNT(*) >= 2

@@ -739,7 +739,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     total_visits: number
   }>(`
     SELECT
-      SUM(CASE WHEN (e.data::jsonb->>'bust')::integer != 0 THEN 1 ELSE 0 END) as bust_count,
+      SUM(CASE WHEN e.data::jsonb->>'bust' = 'true' THEN 1 ELSE 0 END) as bust_count,
       COUNT(*) as total_visits
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
@@ -893,7 +893,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
       CASE
         WHEN SUM(CASE WHEN (e.data::jsonb->>'remainingBefore')::integer <= 170 THEN 1 ELSE 0 END) > 0
         THEN ROUND(
-          SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END)::real /
+          SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END)::numeric /
           SUM(CASE WHEN (e.data::jsonb->>'remainingBefore')::integer <= 170 THEN 1 ELSE 0 END) * 100, 1)
         ELSE NULL
       END as co_pct
@@ -934,7 +934,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
       SUM(CASE WHEN leg_darts <= 30 THEN 1 ELSE 0 END) as legs_under_30,
       SUM(CASE WHEN leg_darts <= 35 THEN 1 ELSE 0 END) as legs_under_35,
       MAX(leg_darts) as longest_leg,
-      ROUND(AVG(leg_darts), 1) as avg_darts_won
+      ROUND(AVG(leg_darts)::numeric, 1) as avg_darts_won
     FROM (
       SELECT
         (SELECT SUM(jsonb_array_length(v.data::jsonb->'darts'))
