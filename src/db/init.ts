@@ -241,22 +241,27 @@ export async function startupWithSQLite(): Promise<{
     return { dbInit, dataLoaded: null }
   }
 
-  // Try one-time OPFS → Postgres migration
-  await tryOpfsMigration()
-
   const dataLoaded = await loadAllDataFromSQLite()
 
-  // One-time: migrate passwords for all profiles
+  // Run migrations in background (non-blocking)
+  setTimeout(async () => {
+    try { await tryOpfsMigration() } catch {}
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': 'darts-2024-local' },
+        body: JSON.stringify({ type: 'migrate-passwords' }),
+      })
+      const migResult = await res.json()
+      if (migResult.migrated) {
+        console.debug(`[Auth] Passwörter migriert: ${migResult.count} Profile`)
+      }
+    } catch {}
+  }, 500)
+
+  // Legacy: keep try/catch structure for remaining code
   try {
-    const res = await fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Api-Key': 'darts-2024-local' },
-      body: JSON.stringify({ type: 'migrate-passwords' }),
-    })
-    const migResult = await res.json()
-    if (migResult.migrated) {
-      console.debug(`[Auth] Passwörter migriert: ${migResult.count} Profile`)
-    }
+    void 0 // placeholder
   } catch (e) {
     console.warn('[Auth] Passwort-Migration übersprungen:', e)
   }
