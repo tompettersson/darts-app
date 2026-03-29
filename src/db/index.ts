@@ -247,6 +247,24 @@ export async function closeDB(): Promise<void> {
 }
 
 // ============================================================================
+// Drizzle Repository RPC
+// ============================================================================
+
+/**
+ * Call a Drizzle repository method through the API.
+ * This is the preferred way for new code to interact with the DB.
+ */
+export async function repoCall<T = unknown>(
+  entity: 'games' | 'profiles' | 'system',
+  method: string,
+  params?: unknown[],
+  mode?: string,
+): Promise<T> {
+  await initDB()
+  return apiRequest<T>({ type: 'repo', entity, mode, method, params })
+}
+
+// ============================================================================
 // Helper Functions for Common Operations
 // ============================================================================
 

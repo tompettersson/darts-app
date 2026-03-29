@@ -136,6 +136,44 @@ module.exports = async (req, res) => {
         }
         return res.json({ data: null })
       }
+      case 'repo': {
+        // Drizzle Repository endpoint for type-safe operations.
+        // Format: { type: 'repo', entity: 'games'|'profiles', mode?: string, method: string, params?: any[] }
+        const neonMod = await import('@neondatabase/serverless')
+        const drizzleMod = await import('drizzle-orm/neon-http')
+        const schema = await import('../src/db/drizzle-schema.js')
+        const reposMod = await import('../src/db/repositories/index.js')
+
+        const drizzleDb = drizzleMod.drizzle(neonMod.neon(process.env.DATABASE_URL), { schema })
+        const repos = reposMod.createRepositories(drizzleDb)
+
+        const { entity, mode, method, params: callParams } = body
+
+        // Whitelist allowed methods to prevent arbitrary code paths
+        const ALLOWED_METHODS = ['getMatches', 'getMatchById', 'saveMatch', 'updateEvents',
+          'finishMatch', 'deleteMatch', 'countMatches', 'getAll', 'getById', 'save',
+          'delete', 'updateColor', 'rename', 'get', 'set']
+
+        if (!ALLOWED_METHODS.includes(method)) {
+          return res.status(400).json({ error: 'Method not allowed: ' + method })
+        }
+
+        let repo
+        if (entity === 'games' && mode && repos.games[mode]) {
+          repo = repos.games[mode]
+        } else if (entity === 'profiles') {
+          repo = repos.profiles
+        } else if (entity === 'system') {
+          repo = repos.system
+        }
+
+        if (!repo || typeof repo[method] !== 'function') {
+          return res.status(400).json({ error: 'Unknown: ' + entity + '.' + method })
+        }
+
+        const result = await repo[method](...(callParams || []))
+        return res.json({ data: result ?? null })
+      }
       default:
         return res.status(400).json({ error: 'Unknown request type' })
     }
