@@ -1,5 +1,5 @@
 // src/storage.ts
-// Data Storage Layer — Neon Postgres (primary) + In-Memory Cache + Zustand Store
+// Data Storage Layer — Neon Postgres (primary) + In-Memory Cache
 // - Profile
 // - Matches (X01)
 // - CricketMatches
@@ -189,11 +189,6 @@ export function warmMemCache(data: {
   if (data.cricketLeaderboards) {
     memCache.cricketLeaderboards = data.cricketLeaderboards
   }
-  // Sync to Zustand store
-  try {
-    const { useAppStore } = require('./stores/appStore')
-    useAppStore.getState().warmStats(data)
-  } catch {}
 }
 
 /** Befüllt alle Match-/Profil-Caches beim App-Start (wird von db/init.ts aufgerufen) */
@@ -221,11 +216,6 @@ export function warmAllCaches(data: {
   if (data.bobs27Matches) bobs27MatchesCache = data.bobs27Matches
   if (data.operationMatches) operationMatchesCache = data.operationMatches
   if (data.highscoreMatches) highscoreMatchesCache = data.highscoreMatches
-  // Sync to Zustand store
-  try {
-    const { useAppStore } = require('./stores/appStore')
-    useAppStore.getState().warmAll(data)
-  } catch {}
 }
 
 /* -------------------------------------------------
