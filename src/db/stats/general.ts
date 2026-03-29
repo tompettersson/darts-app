@@ -44,6 +44,11 @@ export type GeneralPlayerStats = {
  * Allgemeine Spieler-Übersicht über alle Spielmodi
  */
 export async function getGeneralPlayerStats(playerId: string): Promise<GeneralPlayerStats> {
+  // TODO: Optimization opportunity — x01_player_stats and cricket_player_stats
+  // already contain pre-computed values that are updated after each match.
+  // Future: Read base stats from these tables instead of scanning all events.
+  // Currently, TanStack Query caching (5min staleTime) mitigates the query load.
+
   // Alle unabhängigen Queries parallel starten
   const [x01, cricket, atb, dates, highlights] = await Promise.all([
     // X01 Stats
