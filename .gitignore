@@ -47,3 +47,5 @@ coverage/
 
 # Vitest
 .vitest/
+.vercel
+.env*.local
