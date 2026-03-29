@@ -35,252 +35,6 @@ function localApiProxy(): Plugin {
 
           const convertPlaceholders = (s: string) => { let i = 0; return s.replace(/\?/g, () => `$${++i}`) }
 
-          const TABLE_PKS: Record<string, string[]> = {
-            profiles: ['id'], system_meta: ['key'],
-            x01_matches: ['id'], x01_match_players: ['match_id', 'player_id'], x01_player_stats: ['player_id'], x01_finishing_doubles: ['player_id', 'double_field'],
-            cricket_matches: ['id'], cricket_match_players: ['match_id', 'player_id'], cricket_player_stats: ['player_id'],
-            atb_matches: ['id'], atb_match_players: ['match_id', 'player_id'], atb_highscores: ['id'],
-            ctf_matches: ['id'], ctf_match_players: ['match_id', 'player_id'],
-            str_matches: ['id'], str_match_players: ['match_id', 'player_id'],
-            highscore_matches: ['id'], highscore_match_players: ['match_id', 'player_id'],
-            shanghai_matches: ['id'], shanghai_match_players: ['match_id', 'player_id'],
-            killer_matches: ['id'], killer_match_players: ['match_id', 'player_id'],
-            bobs27_matches: ['id'], bobs27_match_players: ['match_id', 'player_id'],
-            operation_matches: ['id'], operation_match_players: ['match_id', 'player_id'],
-            stats_121: ['player_id'], stats_121_doubles: ['player_id', 'double_field'],
-            outbox: ['id'],
-          }
-
-          // Column reference pattern: optional table alias + column name
-          const COL = '\\w+(?:\\.\\w+)?'
-
-          const convertSQL = (s: string) => {
-            let r = s.trim()
-
-            // 1. INSERT OR REPLACE → ON CONFLICT DO UPDATE
-            const ior = r.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/is)
-            if (ior) {
-              const [, table, colStr, vals] = ior
-              const cols = colStr.split(',').map(c => c.trim())
-              const pks = TABLE_PKS[table] || ['id']
-              const updates = cols.filter(c => !pks.includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ')
-              r = `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${vals}) ON CONFLICT (${pks.join(', ')}) DO UPDATE SET ${updates}`
-            }
-
-            // 2. INSERT OR IGNORE → ON CONFLICT DO NOTHING
-            if (/INSERT\s+OR\s+IGNORE/i.test(r)) {
-              const m = r.match(/INSERT\s+OR\s+IGNORE\s+INTO\s+(\w+)/is)
-              const pks = m ? (TABLE_PKS[m[1]] || ['id']) : ['id']
-              r = r.replace(/INSERT\s+OR\s+IGNORE/i, 'INSERT') + ` ON CONFLICT (${pks.join(', ')}) DO NOTHING`
-            }
-
-            // 3. INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
-            r = r.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY')
-
-            // 4. e.rowid → e.seq
-            r = r.replace(/\b(\w+)\.rowid\b/g, '$1.seq')
-
-            // ============================================================
-            // JSON functions — order matters! More specific patterns first.
-            // ============================================================
-
-            // 5a. CAST(json_extract(col, '$.' || expr) AS TYPE) → dynamic path with CAST
-            r = r.replace(
-              new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*(\\?|${COL})\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
-              (_, col, dynExpr, type) => {
-                const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
-                return `(${col}::jsonb->>(${dynExpr}))::${pgType}`
-              }
-            )
-
-            // 5b. CAST(json_extract(col, '$.path') AS TYPE) → (col::jsonb->>'path')::type
-            r = r.replace(
-              new RegExp(`CAST\\(json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)\\s+AS\\s+(\\w+)\\)`, 'gi'),
-              (_, col, path, type) => {
-                const pgType = type.toUpperCase() === 'REAL' ? 'real' : type.toUpperCase() === 'INTEGER' ? 'integer' : type.toLowerCase()
-                const parts = path.split('.')
-                if (parts.length === 1) {
-                  return `(${col}::jsonb->>'${path}')::${pgType}`
-                }
-                const intermediate = parts.slice(0, -1).map((p: string) => `->'${p}'`).join('')
-                const last = parts[parts.length - 1]
-                return `(${col}::jsonb${intermediate}->>'${last}')::${pgType}`
-              }
-            )
-
-            // 6. json_each(json_extract(col, '$.path')) → jsonb_array_elements((col::jsonb->'path'))
-            r = r.replace(
-              new RegExp(`json_each\\(json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)\\)`, 'gi'),
-              (_, col, path) => {
-                const parts = path.split('.')
-                const nav = parts.map((p: string) => `->'${p}'`).join('')
-                return `jsonb_array_elements((${col})::jsonb${nav})`
-              }
-            )
-
-            // 7. json_each(col, '$.path') → jsonb_array_elements((col)::jsonb->'path')
-            r = r.replace(
-              new RegExp(`json_each\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
-              (_, col, path) => {
-                const parts = path.split('.')
-                const nav = parts.map((p: string) => `->'${p}'`).join('')
-                return `jsonb_array_elements((${col})::jsonb${nav})`
-              }
-            )
-
-            // 8. json_each(col) → jsonb_array_elements((col)::jsonb)
-            r = r.replace(
-              new RegExp(`json_each\\((${COL})\\)`, 'gi'),
-              (_, col) => `jsonb_array_elements((${col})::jsonb)`
-            )
-
-            // 9. json_array_length(col, '$.path') → jsonb_array_length((col)::jsonb->'path')
-            r = r.replace(
-              new RegExp(`json_array_length\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
-              (_, col, path) => {
-                const parts = path.split('.')
-                const nav = parts.map((p: string) => `->'${p}'`).join('')
-                return `jsonb_array_length((${col})::jsonb${nav})`
-              }
-            )
-
-            // 10. json_array_length(col) → jsonb_array_length((col)::jsonb)
-            r = r.replace(
-              new RegExp(`json_array_length\\((${COL})\\)`, 'gi'),
-              (_, col) => `jsonb_array_length((${col})::jsonb)`
-            )
-
-            // 11a. json_extract(col, '$.' || expr) → dynamic path without CAST
-            r = r.replace(
-              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.'\\s*\\|\\|\\s*(\\?|${COL})\\)`, 'gi'),
-              (_, col, dynExpr) => `(${col}::jsonb->>(${dynExpr}))`
-            )
-
-            // 11b. json_extract(col, '$.path[#-1].key') → array last element access
-            r = r.replace(
-              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.([^']*\\[#-1\\][^']*)'\\)`, 'gi'),
-              (_, col, path) => {
-                const m = path.match(/^(\w+)\[#-1\](?:\.(.+))?$/)
-                if (!m) return `(${col}::jsonb->>'${path}')`
-                const arrayField = m[1]
-                const rest = m[2]
-                if (rest) {
-                  const parts = rest.split('.')
-                  const intermediate = parts.slice(0, -1).map((p: string) => `->'${p}'`).join('')
-                  const last = parts[parts.length - 1]
-                  return `(${col}::jsonb->'${arrayField}'->-1${intermediate}->>'${last}')`
-                }
-                return `(${col}::jsonb->'${arrayField}'->-1)`
-              }
-            )
-
-            // 11c. json_extract(col, '$.key.subkey') → nested path or simple path
-            r = r.replace(
-              new RegExp(`json_extract\\((${COL}),\\s*'\\$\\.([^']+)'\\)`, 'gi'),
-              (_, col, path) => {
-                const parts = path.split('.')
-                if (parts.length === 1) {
-                  return `(${col}::jsonb->>'${path}')`
-                }
-                const intermediate = parts.slice(0, -1).map((p: string) => `->'${p}'`).join('')
-                const last = parts[parts.length - 1]
-                return `(${col}::jsonb${intermediate}->>'${last}')`
-              }
-            )
-
-            // ============================================================
-            // Date/time functions
-            // ============================================================
-
-            // 12. strftime('%fmt', expr) → to_char((expr)::timestamp, 'pgfmt')
-            r = r.replace(/strftime\('([^']+)',\s*([^)]+)\)/g, (_: string, fmt: string, expr: string) => {
-              const pgFmt = fmt
-                .replace(/%Y/g, 'YYYY')
-                .replace(/%m/g, 'MM')
-                .replace(/%d/g, 'DD')
-                .replace(/%H/g, 'HH24')
-                .replace(/%M/g, 'MI')
-                .replace(/%S/g, 'SS')
-                .replace(/%w/g, 'D')
-                .replace(/%W/g, 'IW')
-              return `to_char((${expr.trim()})::timestamp, '${pgFmt}')`
-            })
-
-            // 13. date(expr, 'start of month') → date_trunc('month', (expr)::date)
-            r = r.replace(/\bdate\(([^,)]+),\s*'start of month'\)/g, "date_trunc('month', ($1)::date)")
-
-            // 14. date(expr, 'modifier') → ((expr)::date + interval 'modifier')
-            r = r.replace(/\bdate\(([^,)]+),\s*'([^']+)'\)/g, "(($1)::date + interval '$2')")
-
-            // 15. date(expr) → (expr)::date
-            r = r.replace(/\bdate\(([^)]+)\)/g, '($1)::date')
-
-            // ============================================================
-            // Other function conversions
-            // ============================================================
-
-            // 16. round(expr, n) → round((expr)::numeric, n)
-            //     Use balanced-parentheses matching for nested function calls
-            {
-              const pattern = /\bround\(/gi
-              let result = '', lastIndex = 0, m
-              while ((m = pattern.exec(r)) !== null) {
-                const start = m.index + m[0].length
-                let depth = 1, lastComma = -1, i = start
-                for (; i < r.length && depth > 0; i++) {
-                  if (r[i] === '(') depth++
-                  else if (r[i] === ')') depth--
-                  else if (r[i] === ',' && depth === 1) lastComma = i
-                }
-                if (lastComma === -1) {
-                  result += r.slice(lastIndex, i)
-                } else {
-                  const expr = r.slice(start, lastComma)
-                  const prec = r.slice(lastComma + 1, i - 1).trim()
-                  result += r.slice(lastIndex, m.index) + `round((${expr})::numeric, ${prec})`
-                }
-                lastIndex = i
-              }
-              result += r.slice(lastIndex)
-              r = result
-            }
-
-            // 17. IFNULL → COALESCE
-            r = r.replace(/\bIFNULL\(/gi, 'COALESCE(')
-
-            // 18. GROUP_CONCAT(expr) → string_agg((expr)::text, ',')
-            r = r.replace(/\bGROUP_CONCAT\(([^)]+)\)/gi, "string_agg(($1)::text, ',')")
-
-            // ============================================================
-            // Lateral join fix: ", jsonb_array_elements(...)" → "CROSS JOIN LATERAL ..."
-            // ============================================================
-            r = r.replace(/,\s*jsonb_array_elements\(/g, ' CROSS JOIN LATERAL jsonb_array_elements(')
-
-            // ============================================================
-            // Post-conversion fixes for jsonb type mismatches
-            // ============================================================
-
-            // 20. IS NOT <number> → IS DISTINCT FROM '<number>'
-            r = r.replace(/\bIS\s+NOT\s+(\d+)\b/gi, "IS DISTINCT FROM '$1'")
-
-            // 21. SUM/AVG on jsonb extraction → cast to numeric
-            r = r.replace(/\b(SUM|AVG)\((\([^)]*::jsonb->>(?:'[^']*'|\([^)]*\))\))\)/gi, '$1(($2)::numeric)')
-
-            // 22. jsonb->>'key') = <integer> → compare as text
-            r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(=|!=|<>)\s*(\d+)\b/g, "$1 $2 '$3'")
-            r = r.replace(/(->>(?:'[^']*'|\([^)]*\))\))\s*(>=|<=|>|<)\s*(\d+)\b/g, '$1::numeric $2 $3')
-
-            // 23. (removed — now handled by balanced-paren round conversion in step 16)
-
-            // ============================================================
-            // Placeholder conversion — MUST be last
-            // ============================================================
-
-            // 24. ? → $1, $2, ...
-            r = convertPlaceholders(r)
-
-            return r
-          }
 
           // Neon/pg returns bigint/numeric as strings — coerce to JS numbers
           function coerceNumericValues(rows: any[]) {
@@ -300,23 +54,23 @@ function localApiProxy(): Plugin {
 
           switch (body.type) {
             case 'query': {
-              data = coerceNumericValues(await sql.unsafe(convertSQL(body.sql), body.params))
+              data = coerceNumericValues(await sql.unsafe(convertPlaceholders(body.sql), body.params))
               break
             }
             case 'queryOne': {
-              const rows = await sql.unsafe(convertSQL(body.sql), body.params)
+              const rows = await sql.unsafe(convertPlaceholders(body.sql), body.params)
               if (rows[0]) coerceNumericValues([rows[0]])
               data = rows[0] ?? null
               break
             }
             case 'exec': {
-              await sql.unsafe(convertSQL(body.sql), body.params)
+              await sql.unsafe(convertPlaceholders(body.sql), body.params)
               break
             }
             case 'execMany':
             case 'transaction': {
               for (const stmt of body.statements) {
-                await sql.unsafe(convertSQL(stmt.sql), stmt.params)
+                await sql.unsafe(convertPlaceholders(stmt.sql), stmt.params)
               }
               break
             }
@@ -324,7 +78,7 @@ function localApiProxy(): Plugin {
               data = await Promise.all(
                 body.queries.map(async (q: any) => {
                   try {
-                    const rows = await sql.unsafe(convertSQL(q.sql), q.params)
+                    const rows = await sql.unsafe(convertPlaceholders(q.sql), q.params)
                     coerceNumericValues(rows)
                     return { data: q.mode === 'one' ? (rows[0] ?? null) : rows }
                   } catch (e: any) {
