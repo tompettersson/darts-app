@@ -226,7 +226,7 @@ export async function getBobs27Progression(playerId: string): Promise<Bobs27Prog
         (m.final_scores::jsonb->>?)::integer as final_score,
         COALESCE(
           (SELECT
-            ROUND(CAST(SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) AS REAL) /
+            ROUND(CAST(SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) AS numeric) /
             NULLIF(COUNT(*), 0) * 100, 1)
           FROM bobs27_events e
           WHERE e.match_id = m.id AND e.type = 'Bobs27Throw'

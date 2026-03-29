@@ -271,7 +271,7 @@ export async function get121FullStats(playerId: string): Promise<Stats121Full> {
   `, [playerId, playerId])
 
   const bustStats = await queryOne<{ bust_count: number }>(`
-    SELECT SUM(CASE WHEN (e.data::jsonb->>'bust')::integer = 1 THEN 1 ELSE 0 END) as bust_count
+    SELECT SUM(CASE WHEN e.data::jsonb->>'bust' = 'true' THEN 1 ELSE 0 END) as bust_count
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.starting_score = 121 AND m.finished = 1
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
@@ -725,7 +725,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
           COALESCE(MAX(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL
             AND (e.data::jsonb->>'remainingBefore')::integer = 50
             THEN 1 ELSE 0 END), 0) as has_bull_finish,
-          COALESCE(SUM(CASE WHEN (e.data::jsonb->>'bust')::integer = 1 THEN 1 ELSE 0 END), 0) as bust_count
+          COALESCE(SUM(CASE WHEN e.data::jsonb->>'bust' = 'true' THEN 1 ELSE 0 END), 0) as bust_count
         FROM x01_events e
         JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
         JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
@@ -791,7 +791,7 @@ export async function getFullAchievements(playerId: string): Promise<Achievement
                   SELECT 1 FROM x01_events be
                   WHERE be.match_id = mf.match_id AND be.type = 'VisitAdded'
                   AND be.data::jsonb->>'playerId' = ?
-                  AND (be.data::jsonb->>'bust')::integer = 1
+                  AND be.data::jsonb->>'bust' = 'true'
                 )
               GROUP BY mf.match_id
             ) clean_wins
@@ -1761,7 +1761,7 @@ export async function getTimeInsights(playerId: string): Promise<TimeInsights> {
     const durations = await query<{ duration_min: number; match_id: string }>(`
       SELECT
         m.id as match_id,
-        ROUND(CAST(m.duration_ms AS REAL) / 60000, 1) as duration_min
+        ROUND(CAST(m.duration_ms AS numeric) / 60000, 1) as duration_min
       FROM (
         SELECT id, duration_ms FROM atb_matches WHERE finished = 1 AND duration_ms > 0 AND id IN (SELECT match_id FROM atb_match_players WHERE player_id = ?)
         UNION ALL SELECT id, duration_ms FROM ctf_matches WHERE finished = 1 AND duration_ms > 0 AND id IN (SELECT match_id FROM ctf_match_players WHERE player_id = ?)
@@ -1847,7 +1847,7 @@ export async function getTrainingRecommendations(playerId: string): Promise<Trai
     }>(`
       SELECT
         COALESCE(SUM(CASE WHEN (e.data::jsonb->>'remainingBefore')::integer <= 170
-          AND (e.data::jsonb->>'bust')::integer != 1
+          AND e.data::jsonb->>'bust' != 'true'
           THEN 1 ELSE 0 END), 0) as checkout_attempts,
         COALESCE(SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END), 0) as checkouts_made
       FROM x01_events e
