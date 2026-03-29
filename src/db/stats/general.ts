@@ -376,9 +376,10 @@ export async function getSpecialStats(playerId: string): Promise<SpecialStatsSQL
       AVG(CASE WHEN (d.value->>'seq')::integer = 1 THEN (d.value->>'score')::real END) as dart1Avg,
       AVG(CASE WHEN (d.value->>'seq')::integer = 2 THEN (d.value->>'score')::real END) as dart2Avg,
       AVG(CASE WHEN (d.value->>'seq')::integer = 3 THEN (d.value->>'score')::real END) as dart3Avg
-    FROM x01_events e, jsonb_array_elements(e.data::jsonb->'darts') d(value)
+    FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+    CROSS JOIN LATERAL jsonb_array_elements(e.data::jsonb->'darts') d(value)
     WHERE e.type = 'VisitAdded'
       AND e.data::jsonb->>'playerId' = ?
   `, [playerId, playerId])
