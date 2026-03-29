@@ -93,84 +93,93 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((err) => { console.warn('[DB Init] Query failed:', err.message); return fallback })
 
-    // === Full DB Load — always load fresh from database ===
-    const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
-           shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([
-      safe(dbGetProfiles(), []),
-      safe(dbGetX01Matches(), []),
-      safe(dbGetCricketMatches(), []),
-      safe(dbGetATBMatches(), []),
-      safe(dbGetStrMatches(), []),
-      safe(dbGetHighscoreMatches(), []),
-      safe(dbGetShanghaiMatches(), []),
-      safe(dbGetKillerMatches(), []),
-      safe(dbGetCTFMatches(), []),
-      safe(dbGetBobs27Matches(), []),
-      safe(dbGetOperationMatches(), []),
-    ])
+    // === Phase 1: Critical data for login screen (fast) ===
+    // Only load profiles — everything else is loaded lazily when needed
+    const profiles = await safe(dbGetProfiles(), [])
 
-    // Memory-Caches direkt befüllen
     warmAllCaches({
       profiles: profiles.map((p) => ({
         id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt, color: p.color ?? undefined,
       })),
-      x01Matches: x01Matches.map((m) => ({
-        id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
-        createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
-      })),
-      cricketMatches: cricketMatches.map((m) => ({
-        id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
-        createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
-      })),
-      atbMatches: atbMatches as any[],
-      strMatches: strMatches as any[],
-      ctfMatches: ctfMatches as any[],
-      shanghaiMatches: shanghaiMatches as any[],
-      killerMatches: killerMatches as any[],
-      bobs27Matches: bobs27Matches as any[],
-      operationMatches: operationMatches as any[],
-      highscoreMatches: highscoreMatches as any[],
     })
 
-    // Stats & Leaderboards in Memory-Cache laden
-    try {
-      const [x01Stats, stats121, x01Lb, cricketLb, cricketStats] = await Promise.all([
-        safe(dbLoadAllX01PlayerStats(), {}),
-        safe(dbLoadAll121PlayerStats(), {}),
-        safe(dbLoadX01Leaderboards(), null),
-        safe(dbLoadCricketLeaderboards(), null),
-        safe(dbLoadAllCricketPlayerStats(), {}),
-      ])
+    const phase1Ms = Date.now() - startTime
+    console.debug(`[DB Init] Phase 1 (profiles) in ${phase1Ms}ms: ${profiles.length} profiles`)
 
-      warmMemCache({
-        x01PlayerStats: x01Stats,
-        leaderboards: x01Lb ?? undefined,
-        cricketLeaderboards: cricketLb ?? undefined,
-      })
+    // === Phase 2: Match data loaded in background (non-blocking) ===
+    // This runs after the app is already interactive
+    setTimeout(async () => {
+      try {
+        const bgStart = Date.now()
+        const [x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
+               shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([
+          safe(dbGetX01Matches(), []),
+          safe(dbGetCricketMatches(), []),
+          safe(dbGetATBMatches(), []),
+          safe(dbGetStrMatches(), []),
+          safe(dbGetHighscoreMatches(), []),
+          safe(dbGetShanghaiMatches(), []),
+          safe(dbGetKillerMatches(), []),
+          safe(dbGetCTFMatches(), []),
+          safe(dbGetBobs27Matches(), []),
+          safe(dbGetOperationMatches(), []),
+        ])
 
-      warmStats121Cache(stats121)
-      warmCricketPlayerStatsCache(cricketStats)
-    } catch (e) {
-      console.warn('[DB Init] Stats/Leaderboards Cache-Sync fehlgeschlagen:', e)
-    }
+        warmAllCaches({
+          x01Matches: x01Matches.map((m) => ({
+            id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
+            createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
+          })),
+          cricketMatches: cricketMatches.map((m) => ({
+            id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
+            createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
+          })),
+          atbMatches: atbMatches as any[],
+          strMatches: strMatches as any[],
+          ctfMatches: ctfMatches as any[],
+          shanghaiMatches: shanghaiMatches as any[],
+          killerMatches: killerMatches as any[],
+          bobs27Matches: bobs27Matches as any[],
+          operationMatches: operationMatches as any[],
+          highscoreMatches: highscoreMatches as any[],
+        })
+
+        // Stats & Leaderboards
+        const [x01Stats, stats121, x01Lb, cricketLb, cricketStats] = await Promise.all([
+          safe(dbLoadAllX01PlayerStats(), {}),
+          safe(dbLoadAll121PlayerStats(), {}),
+          safe(dbLoadX01Leaderboards(), null),
+          safe(dbLoadCricketLeaderboards(), null),
+          safe(dbLoadAllCricketPlayerStats(), {}),
+        ])
+
+        warmMemCache({
+          x01PlayerStats: x01Stats,
+          leaderboards: x01Lb ?? undefined,
+          cricketLeaderboards: cricketLb ?? undefined,
+        })
+
+        warmStats121Cache(stats121)
+        warmCricketPlayerStatsCache(cricketStats)
+
+        console.debug(`[DB Init] Phase 2 (matches + stats) in ${Date.now() - bgStart}ms`)
+      } catch (e) {
+        console.warn('[DB Init] Background load failed:', e)
+      }
+    }, 100) // Small delay to let the UI render first
 
     const durationMs = Date.now() - startTime
-    console.debug(`[DB Init] Daten geladen in ${durationMs}ms:`, {
-      profiles: profiles.length, x01: x01Matches.length, cricket: cricketMatches.length,
-      atb: atbMatches.length, str: strMatches.length, highscore: highscoreMatches.length,
-      shanghai: shanghaiMatches.length, killer: killerMatches.length, ctf: ctfMatches.length,
-      bobs27: bobs27Matches.length, operation: operationMatches.length,
-    })
+    console.debug(`[DB Init] Ready in ${durationMs}ms (${profiles.length} profiles, matches loading in background)`)
 
     return {
       profiles: profiles.length,
-      x01Matches: x01Matches.length,
-      cricketMatches: cricketMatches.length,
-      atbMatches: atbMatches.length,
-      strMatches: strMatches.length,
-      highscoreMatches: highscoreMatches.length,
-      bobs27Matches: bobs27Matches.length,
-      operationMatches: operationMatches.length,
+      x01Matches: 0, // loaded in background
+      cricketMatches: 0,
+      atbMatches: 0,
+      strMatches: 0,
+      highscoreMatches: 0,
+      bobs27Matches: 0,
+      operationMatches: 0,
       durationMs,
     }
   } catch (error) {
