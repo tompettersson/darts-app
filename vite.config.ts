@@ -69,8 +69,15 @@ function localApiProxy(): Plugin {
             }
             case 'execMany':
             case 'transaction': {
-              for (const stmt of body.statements) {
-                await sql.unsafe(convertPlaceholders(stmt.sql), stmt.params)
+              await sql`BEGIN`
+              try {
+                for (const stmt of body.statements) {
+                  await sql.unsafe(convertPlaceholders(stmt.sql), stmt.params)
+                }
+                await sql`COMMIT`
+              } catch (e) {
+                await sql`ROLLBACK`
+                throw e
               }
               break
             }
