@@ -34,14 +34,14 @@ export async function getHighscoreMostWins(limit: number = 10): Promise<Highscor
   }>(`
     WITH all_wins AS (
       -- X01: Nur Mehrspieler-Matches (>1 Spieler)
-      SELECT json_extract(e.data, '$.winnerPlayerId') as winner_id
+      SELECT e.data::jsonb->>'winnerPlayerId' as winner_id
       FROM x01_events e
       JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
       WHERE e.type = 'MatchFinished'
         AND (SELECT COUNT(*) FROM x01_match_players WHERE match_id = m.id) > 1
       UNION ALL
       -- Cricket: Nur Mehrspieler-Matches
-      SELECT json_extract(e.data, '$.winnerPlayerId') as winner_id
+      SELECT e.data::jsonb->>'winnerPlayerId' as winner_id
       FROM cricket_events e
       JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
       WHERE e.type = 'CricketMatchFinished'
@@ -90,7 +90,7 @@ export async function getHighscoreBestWinrate(limit: number = 10): Promise<Highs
     WITH player_matches AS (
       -- X01: Nur Mehrspieler-Matches
       SELECT mp.player_id, m.id as match_id,
-        CASE WHEN (SELECT json_extract(e.data, '$.winnerPlayerId') FROM x01_events e
+        CASE WHEN (SELECT e.data::jsonb->>'winnerPlayerId' FROM x01_events e
                    WHERE e.match_id = m.id AND e.type = 'MatchFinished') = mp.player_id THEN 1 ELSE 0 END as won
       FROM x01_match_players mp
       JOIN x01_matches m ON m.id = mp.match_id AND m.finished = 1
@@ -98,7 +98,7 @@ export async function getHighscoreBestWinrate(limit: number = 10): Promise<Highs
       UNION ALL
       -- Cricket: Nur Mehrspieler-Matches
       SELECT mp.player_id, m.id as match_id,
-        CASE WHEN (SELECT json_extract(e.data, '$.winnerPlayerId') FROM cricket_events e
+        CASE WHEN (SELECT e.data::jsonb->>'winnerPlayerId' FROM cricket_events e
                    WHERE e.match_id = m.id AND e.type = 'CricketMatchFinished') = mp.player_id THEN 1 ELSE 0 END as won
       FROM cricket_match_players mp
       JOIN cricket_matches m ON m.id = mp.match_id AND m.finished = 1
@@ -140,18 +140,18 @@ export async function getHighscoreMost180s(limit: number = 10): Promise<Highscor
     count_180: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
       COUNT(*) as count_180
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.visitScore') = 180
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+      AND (e.data::jsonb->>'visitScore')::integer = 180
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
     ORDER BY count_180 DESC
     LIMIT ?
   `, [limit])
@@ -176,19 +176,19 @@ export async function getHighscoreBestCareerAvg(limit: number = 10): Promise<Hig
     avg: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      AVG(CAST(json_extract(e.data, '$.visitScore') AS REAL) /
-          NULLIF(json_array_length(e.data, '$.darts'), 0) * 3) as avg
+      AVG((e.data::jsonb->>'visitScore')::real /
+          NULLIF(jsonb_array_length(e.data::jsonb->'darts'), 0) * 3) as avg
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
-    HAVING SUM(json_array_length(e.data, '$.darts')) >= 100
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    HAVING SUM(jsonb_array_length(e.data::jsonb->'darts')) >= 100
     ORDER BY avg DESC
     LIMIT ?
   `, [limit])
@@ -213,19 +213,19 @@ export async function getHighscoreBestCheckoutPct(limit: number = 10): Promise<H
     checkout_pct: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL THEN 1 ELSE 0 END) AS REAL) /
+      SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END)::real /
       COUNT(*) * 100 as checkout_pct
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'VisitAdded'
-      AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+      AND (e.data::jsonb->>'remainingBefore')::integer <= 170
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
     HAVING COUNT(*) >= 20
     ORDER BY checkout_pct DESC
     LIMIT ?
@@ -251,17 +251,17 @@ export async function getHighscoreHighestVisit(limit: number = 10): Promise<High
     best_visit: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      MAX(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)) as best_visit
+      MAX((e.data::jsonb->>'visitScore')::integer) as best_visit
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
     ORDER BY best_visit DESC
     LIMIT ?
   `, [limit])
@@ -286,18 +286,18 @@ export async function getHighscoreHighestCheckout(limit: number = 10): Promise<H
     best_checkout: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      MAX(CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER)) as best_checkout
+      MAX((e.data::jsonb->>'remainingBefore')::integer) as best_checkout
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+      AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
     ORDER BY best_checkout DESC
     LIMIT ?
   `, [limit])
@@ -323,19 +323,19 @@ export async function getHighscoreBestLeg(variant: number, limit: number = 10): 
   }>(`
     WITH leg_darts AS (
       SELECT
-        json_extract(lf.data, '$.winnerPlayerId') as player_id,
-        (SELECT SUM(json_array_length(va.data, '$.darts'))
+        lf.data::jsonb->>'winnerPlayerId' as player_id,
+        (SELECT SUM(jsonb_array_length(va.data::jsonb->'darts'))
          FROM x01_events va
          WHERE va.match_id = lf.match_id
            AND va.type = 'VisitAdded'
-           AND json_extract(va.data, '$.playerId') = json_extract(lf.data, '$.winnerPlayerId')
-           AND json_extract(va.data, '$.legId') = json_extract(lf.data, '$.legId')
+           AND va.data::jsonb->>'playerId' = lf.data::jsonb->>'winnerPlayerId'
+           AND va.data::jsonb->>'legId' = lf.data::jsonb->>'legId'
         ) as darts_count
       FROM x01_events lf
       JOIN x01_matches m ON m.id = lf.match_id AND m.finished = 1 AND m.starting_score = ?
       WHERE lf.type = 'LegFinished'
-        AND json_extract(lf.data, '$.winnerPlayerId') NOT LIKE 'guest-%'
-        AND json_extract(lf.data, '$.winnerPlayerId') NOT LIKE 'temp-%'
+        AND lf.data::jsonb->>'winnerPlayerId' NOT LIKE 'guest-%'
+        AND lf.data::jsonb->>'winnerPlayerId' NOT LIKE 'temp-%'
     )
     SELECT
       ld.player_id,
@@ -371,15 +371,15 @@ export async function getHighscoreBestMatchAvg(variant: number, limit: number = 
   }>(`
     WITH match_avgs AS (
       SELECT
-        json_extract(e.data, '$.playerId') as player_id,
-        SUM(CAST(json_extract(e.data, '$.visitScore') AS REAL)) /
-          NULLIF(SUM(json_array_length(e.data, '$.darts')), 0) * 3 as avg
+        e.data::jsonb->>'playerId' as player_id,
+        SUM((e.data::jsonb->>'visitScore')::real) /
+          NULLIF(SUM(jsonb_array_length(e.data::jsonb->'darts')), 0) * 3 as avg
       FROM x01_events e
       JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 AND m.starting_score = ?
       WHERE e.type = 'VisitAdded'
-        AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-        AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-      GROUP BY json_extract(e.data, '$.playerId'), m.id
+        AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+        AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+      GROUP BY e.data::jsonb->>'playerId', m.id
       HAVING COUNT(*) >= 3
     )
     SELECT
@@ -418,17 +418,17 @@ export async function getHighscoreBestMPT(limit: number = 10): Promise<Highscore
     mpt: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)) AS REAL) / COUNT(*) as mpt
+      SUM((e.data::jsonb->>'marks')::integer)::real / COUNT(*) as mpt
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
     HAVING COUNT(*) >= 50
     ORDER BY mpt DESC
     LIMIT ?
@@ -454,24 +454,24 @@ export async function getHighscoreBestMPD(limit: number = 10): Promise<Highscore
     mpd: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)) AS REAL) /
+      SUM((e.data::jsonb->>'marks')::integer)::real /
         NULLIF(SUM(COALESCE(
-          CAST(json_extract(e.data, '$.dartCount') AS INTEGER),
-          json_array_length(e.data, '$.darts')
+          (e.data::jsonb->>'dartCount')::integer,
+          jsonb_array_length(e.data::jsonb->'darts')
         )), 0) as mpd
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
     HAVING SUM(COALESCE(
-      CAST(json_extract(e.data, '$.dartCount') AS INTEGER),
-      json_array_length(e.data, '$.darts')
+      (e.data::jsonb->>'dartCount')::integer,
+      jsonb_array_length(e.data::jsonb->'darts')
     )) >= 100
     ORDER BY mpd DESC
     LIMIT ?
@@ -497,18 +497,18 @@ export async function getHighscoreMostTriples(limit: number = 10): Promise<Highs
     total_triples: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      SUM(CAST(json_extract(e.data, '$.tripleCount') AS INTEGER)) as total_triples
+      SUM((e.data::jsonb->>'tripleCount')::integer) as total_triples
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
-    HAVING SUM(CAST(json_extract(e.data, '$.tripleCount') AS INTEGER)) > 0
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    HAVING SUM((e.data::jsonb->>'tripleCount')::integer) > 0
     ORDER BY total_triples DESC
     LIMIT ?
   `, [limit])
@@ -533,18 +533,18 @@ export async function getHighscoreBestTurnMarks(limit: number = 10): Promise<Hig
     best_marks: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)) as best_marks
+      MAX((e.data::jsonb->>'marks')::integer) as best_marks
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-    GROUP BY json_extract(e.data, '$.playerId'), p.name, p.color
-    HAVING MAX(CAST(json_extract(e.data, '$.marks') AS INTEGER)) > 0
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    HAVING MAX((e.data::jsonb->>'marks')::integer) > 0
     ORDER BY best_marks DESC
     LIMIT ?
   `, [limit])
@@ -694,7 +694,7 @@ export async function getHighscoreBobs27BestScore(limit: number = 10): Promise<H
         p.color as player_color,
         m.id as match_id,
         m.created_at as match_date,
-        CAST(json_extract(m.final_scores, '$.' || mp.player_id) AS REAL) as score
+        (m.final_scores::jsonb->>mp.player_id)::real as score
       FROM bobs27_matches m
       JOIN bobs27_match_players mp ON mp.match_id = m.id
       JOIN profiles p ON p.id = mp.player_id
@@ -734,7 +734,7 @@ export async function getHighscoreBobs27BestHitRate(limit: number = 10): Promise
       mp.player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(SUM(CASE WHEN json_extract(e.data, '$.hit') = 1 THEN 1 ELSE 0 END) AS REAL) /
+      SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END)::real /
         NULLIF(COUNT(*), 0) * 100 as hit_rate,
       COUNT(DISTINCT m.id) as match_count
     FROM bobs27_matches m
@@ -743,7 +743,7 @@ export async function getHighscoreBobs27BestHitRate(limit: number = 10): Promise
     JOIN profiles p ON p.id = mp.player_id
     WHERE m.finished = 1
       AND e.type = 'Bobs27Throw'
-      AND json_extract(e.data, '$.playerId') = mp.player_id
+      AND e.data::jsonb->>'playerId' = mp.player_id
     GROUP BY mp.player_id, p.name, p.color
     HAVING COUNT(DISTINCT m.id) >= 5
     ORDER BY hit_rate DESC
@@ -816,7 +816,7 @@ export async function getHighscoreOperationBestScore(limit: number = 10): Promis
         m.id as match_id,
         m.created_at as match_date,
         SUM(
-          CASE json_extract(e.data, '$.hitType')
+          CASE e.data::jsonb->>'hitType'
             WHEN 'SINGLE' THEN 1
             WHEN 'DOUBLE' THEN 2
             WHEN 'TRIPLE' THEN 3
@@ -831,7 +831,7 @@ export async function getHighscoreOperationBestScore(limit: number = 10): Promis
       JOIN profiles p ON p.id = mp.player_id
       WHERE m.finished = 1
         AND e.type = 'OperationDart'
-        AND json_extract(e.data, '$.playerId') = mp.player_id
+        AND e.data::jsonb->>'playerId' = mp.player_id
       GROUP BY mp.player_id, m.id, p.name, p.color, m.created_at
     )
     SELECT player_id, player_name, player_color, match_id, match_date, hits
@@ -866,7 +866,7 @@ export async function getHighscoreOperationBestAvgPPD(limit: number = 10): Promi
       mp.player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(SUM(json_extract(e.data, '$.points')) AS REAL) /
+      SUM((e.data::jsonb->>'points')::numeric)::real /
         NULLIF(COUNT(*), 0) as avg_ppd,
       COUNT(DISTINCT m.id) as match_count
     FROM operation_matches m
@@ -875,7 +875,7 @@ export async function getHighscoreOperationBestAvgPPD(limit: number = 10): Promi
     JOIN profiles p ON p.id = mp.player_id
     WHERE m.finished = 1
       AND e.type = 'OperationDart'
-      AND json_extract(e.data, '$.playerId') = mp.player_id
+      AND e.data::jsonb->>'playerId' = mp.player_id
     GROUP BY mp.player_id, p.name, p.color
     HAVING COUNT(DISTINCT m.id) >= 5
     ORDER BY avg_ppd DESC
@@ -906,7 +906,7 @@ export async function getHighscoreOperationBestHitRate(limit: number = 10): Prom
       mp.player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(SUM(CASE WHEN json_extract(e.data, '$.hitType') != 'NO_SCORE' THEN 1 ELSE 0 END) AS REAL) /
+      SUM(CASE WHEN e.data::jsonb->>'hitType' != 'NO_SCORE' THEN 1 ELSE 0 END)::real /
         NULLIF(COUNT(*), 0) * 100 as hit_rate,
       COUNT(DISTINCT m.id) as match_count
     FROM operation_matches m
@@ -915,7 +915,7 @@ export async function getHighscoreOperationBestHitRate(limit: number = 10): Prom
     JOIN profiles p ON p.id = mp.player_id
     WHERE m.finished = 1
       AND e.type = 'OperationDart'
-      AND json_extract(e.data, '$.playerId') = mp.player_id
+      AND e.data::jsonb->>'playerId' = mp.player_id
     GROUP BY mp.player_id, p.name, p.color
     HAVING COUNT(DISTINCT m.id) >= 5
     ORDER BY hit_rate DESC
@@ -979,12 +979,12 @@ export async function getHighscoreOperationLongestStreak(limit: number = 10): Pr
     WITH darts AS (
       SELECT
         e.match_id,
-        json_extract(e.data, '$.playerId') as player_id,
-        json_extract(e.data, '$.legIndex') as leg_index,
-        CAST(json_extract(e.data, '$.isHit') AS INTEGER) as is_hit,
+        e.data::jsonb->>'playerId' as player_id,
+        e.data::jsonb->>'legIndex' as leg_index,
+        (e.data::jsonb->>'isHit')::integer as is_hit,
         ROW_NUMBER() OVER (
-          PARTITION BY e.match_id, json_extract(e.data, '$.playerId'), json_extract(e.data, '$.legIndex')
-          ORDER BY e.rowid
+          PARTITION BY e.match_id, e.data::jsonb->>'playerId', e.data::jsonb->>'legIndex'
+          ORDER BY e.seq
         ) as rn
       FROM operation_events e
       JOIN operation_matches m ON m.id = e.match_id
@@ -1057,19 +1057,19 @@ export async function getCricketHighscoreBestTurnMarks(limit: number = 5): Promi
     match_date: string
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       p.color as player_color,
-      CAST(json_extract(e.data, '$.marks') AS INTEGER) as marks,
+      (e.data::jsonb->>'marks')::integer as marks,
       m.id as match_id,
       m.created_at as match_date
     FROM cricket_events e
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-      AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
-      AND CAST(json_extract(e.data, '$.marks') AS INTEGER) > 0
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+      AND (e.data::jsonb->>'marks')::integer > 0
     ORDER BY marks DESC
     LIMIT ?
   `, [limit])
@@ -1095,7 +1095,7 @@ export async function getCricketHighscoreBestWinrate(limit: number = 5): Promise
   }>(`
     WITH player_matches AS (
       SELECT mp.player_id, m.id as match_id,
-        CASE WHEN (SELECT json_extract(e.data, '$.winnerPlayerId') FROM cricket_events e
+        CASE WHEN (SELECT e.data::jsonb->>'winnerPlayerId' FROM cricket_events e
                    WHERE e.match_id = m.id AND e.type = 'CricketMatchFinished') = mp.player_id THEN 1 ELSE 0 END as won
       FROM cricket_match_players mp
       JOIN cricket_matches m ON m.id = mp.match_id AND m.finished = 1
@@ -1137,9 +1137,9 @@ export async function getCricketHighscoreHighestLegScore(limit: number = 5): Pro
   }>(`
     WITH turn_data AS (
       SELECT
-        json_extract(e.data, '$.playerId') as player_id,
+        e.data::jsonb->>'playerId' as player_id,
         e.match_id,
-        CAST(json_extract(e.data, '$.marks') AS INTEGER) as marks,
+        (e.data::jsonb->>'marks')::integer as marks,
         (SELECT COUNT(*) FROM cricket_events lf
          WHERE lf.match_id = e.match_id
            AND lf.type = 'CricketLegFinished'
@@ -1147,8 +1147,8 @@ export async function getCricketHighscoreHighestLegScore(limit: number = 5): Pro
       FROM cricket_events e
       JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
       WHERE e.type = 'CricketTurnAdded'
-        AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-        AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
+        AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+        AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
     )
     SELECT
       td.player_id,
@@ -1189,7 +1189,7 @@ export async function getCricketHighscoreFewestDarts(limit: number = 5): Promise
       SELECT
         e.match_id,
         e.id as event_id,
-        json_extract(e.data, '$.winnerPlayerId') as winner_id,
+        e.data::jsonb->>'winnerPlayerId' as winner_id,
         ROW_NUMBER() OVER (PARTITION BY e.match_id ORDER BY e.id) as leg_num
       FROM cricket_events e
       WHERE e.type = 'CricketLegFinished'
@@ -1199,11 +1199,11 @@ export async function getCricketHighscoreFewestDarts(limit: number = 5): Promise
         lb.winner_id as player_id,
         lb.match_id,
         lb.leg_num,
-        (SELECT SUM(CAST(json_extract(t.data, '$.dartCount') AS INTEGER))
+        (SELECT SUM((t.data::jsonb->>'dartCount')::integer)
          FROM cricket_events t
          WHERE t.match_id = lb.match_id
            AND t.type = 'CricketTurnAdded'
-           AND json_extract(t.data, '$.playerId') = lb.winner_id
+           AND t.data::jsonb->>'playerId' = lb.winner_id
            AND t.id < lb.event_id
            AND (lb.leg_num = 1 OR t.id > (
              SELECT e2.id FROM cricket_events e2
@@ -1258,10 +1258,10 @@ export async function getCricketHighscoreMostBullsInLeg(limit: number = 5): Prom
   }>(`
     WITH turn_data AS (
       SELECT
-        json_extract(e.data, '$.playerId') as player_id,
+        e.data::jsonb->>'playerId' as player_id,
         e.match_id,
-        COALESCE(CAST(json_extract(e.data, '$.bullCount') AS INTEGER), 0) +
-        COALESCE(CAST(json_extract(e.data, '$.doubleBullCount') AS INTEGER), 0) as bulls,
+        COALESCE((e.data::jsonb->>'bullCount')::integer, 0) +
+        COALESCE((e.data::jsonb->>'doubleBullCount')::integer, 0) as bulls,
         (SELECT COUNT(*) FROM cricket_events lf
          WHERE lf.match_id = e.match_id
            AND lf.type = 'CricketLegFinished'
@@ -1269,8 +1269,8 @@ export async function getCricketHighscoreMostBullsInLeg(limit: number = 5): Prom
       FROM cricket_events e
       JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
       WHERE e.type = 'CricketTurnAdded'
-        AND json_extract(e.data, '$.playerId') NOT LIKE 'guest-%'
-        AND json_extract(e.data, '$.playerId') NOT LIKE 'temp-%'
+        AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+        AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
     )
     SELECT
       td.player_id,

@@ -41,7 +41,7 @@ export async function getOperationFullStats(playerId: string): Promise<Operation
       match_scores AS (
         SELECT
           id,
-          CAST(json_extract(final_scores, '$.' || ?) AS INTEGER) as score
+          (final_scores::jsonb->>?)::integer as score
         FROM player_matches
         WHERE final_scores IS NOT NULL
       )
@@ -78,13 +78,13 @@ export async function getOperationFullStats(playerId: string): Promise<Operation
     }>(`
       SELECT
         COUNT(*) as total_darts,
-        SUM(CASE WHEN json_extract(e.data, '$.hitType') != 'NO_SCORE' THEN 1 ELSE 0 END) as total_hits
+        SUM(CASE WHEN e.data::jsonb->>'hitType' != 'NO_SCORE' THEN 1 ELSE 0 END) as total_hits
       FROM operation_matches m
       JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN operation_events e ON e.match_id = m.id
       WHERE m.finished = 1
         AND e.type = 'OperationDart'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
     `, [playerId, playerId])
 
     const totalDarts = dartStats?.total_darts ?? 0
@@ -94,13 +94,13 @@ export async function getOperationFullStats(playerId: string): Promise<Operation
     // Points fuer avg points per dart
     const pointStats = await queryOne<{ total_points: number }>(`
       SELECT
-        COALESCE(SUM(json_extract(e.data, '$.points')), 0) as total_points
+        COALESCE(SUM((e.data::jsonb->>'points')::numeric), 0) as total_points
       FROM operation_matches m
       JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN operation_events e ON e.match_id = m.id
       WHERE m.finished = 1
         AND e.type = 'OperationDart'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
     `, [playerId, playerId])
 
     const totalPoints = pointStats?.total_points ?? 0
@@ -110,13 +110,13 @@ export async function getOperationFullStats(playerId: string): Promise<Operation
     let bestStreak = 0
     try {
       const allDarts = await query<{ hit_type: string }>(`
-        SELECT json_extract(e.data, '$.hitType') as hit_type
+        SELECT e.data::jsonb->>'hitType' as hit_type
         FROM operation_matches m
         JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
         JOIN operation_events e ON e.match_id = m.id
         WHERE m.finished = 1
           AND e.type = 'OperationDart'
-          AND json_extract(e.data, '$.playerId') = ?
+          AND e.data::jsonb->>'playerId' = ?
         ORDER BY m.created_at ASC, e.seq ASC
       `, [playerId, playerId])
 
@@ -167,14 +167,14 @@ export async function getOperationMonthlyAvgScore(playerId: string): Promise<Tre
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
-        AVG(CAST(json_extract(m.final_scores, '$.' || ?) AS REAL)) as avg_score,
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+        AVG((m.final_scores::jsonb->>?)::real) as avg_score,
         COUNT(*) as match_count
       FROM operation_matches m
       JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       WHERE m.finished = 1
         AND m.final_scores IS NOT NULL
-      GROUP BY strftime('%Y-%m', m.created_at)
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -202,17 +202,17 @@ export async function getOperationMonthlyHitRate(playerId: string): Promise<Tren
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
         COUNT(*) as total_throws,
-        SUM(CASE WHEN json_extract(e.data, '$.hitType') != 'NO_SCORE' THEN 1 ELSE 0 END) as total_hits,
+        SUM(CASE WHEN e.data::jsonb->>'hitType' != 'NO_SCORE' THEN 1 ELSE 0 END) as total_hits,
         COUNT(DISTINCT m.id) as match_count
       FROM operation_matches m
       JOIN operation_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       JOIN operation_events e ON e.match_id = m.id
       WHERE m.finished = 1
         AND e.type = 'OperationDart'
-        AND json_extract(e.data, '$.playerId') = ?
-      GROUP BY strftime('%Y-%m', m.created_at)
+        AND e.data::jsonb->>'playerId' = ?
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 

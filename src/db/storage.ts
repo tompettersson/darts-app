@@ -392,8 +392,13 @@ export async function dbGetProfileByName(name: string): Promise<DBProfile | null
 export async function dbSaveProfile(profile: DBProfile): Promise<void> {
   await ensureDB()
   await exec(
-    `INSERT OR REPLACE INTO profiles (id, name, color, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO profiles (id, name, color, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       color = EXCLUDED.color,
+       created_at = EXCLUDED.created_at,
+       updated_at = EXCLUDED.updated_at`,
     [profile.id, profile.name, profile.color, profile.createdAt, profile.updatedAt]
   )
 }
@@ -707,11 +712,26 @@ export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
 
   // Match
   statements.push({
-    sql: `INSERT OR REPLACE INTO x01_matches (
+    sql: `INSERT INTO x01_matches (
       id, title, match_name, notes, created_at, finished, finished_at,
       mode, starting_score, structure_kind, best_of_legs, legs_per_set, best_of_sets,
       in_rule, out_rule
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      mode = EXCLUDED.mode,
+      starting_score = EXCLUDED.starting_score,
+      structure_kind = EXCLUDED.structure_kind,
+      best_of_legs = EXCLUDED.best_of_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      best_of_sets = EXCLUDED.best_of_sets,
+      in_rule = EXCLUDED.in_rule,
+      out_rule = EXCLUDED.out_rule`,
     params: [
       match.id,
       match.title,
@@ -911,10 +931,22 @@ export async function dbSaveCricketMatch(match: DBCricketMatch): Promise<void> {
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO cricket_matches (
+    sql: `INSERT INTO cricket_matches (
       id, title, match_name, notes, created_at, finished, finished_at,
       range, style, best_of_games, crazy_mode, crazy_scoring_mode
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      range = EXCLUDED.range,
+      style = EXCLUDED.style,
+      best_of_games = EXCLUDED.best_of_games,
+      crazy_mode = EXCLUDED.crazy_mode,
+      crazy_scoring_mode = EXCLUDED.crazy_scoring_mode`,
     params: [
       match.id,
       match.title,
@@ -1119,11 +1151,30 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO atb_matches (
+    sql: `INSERT INTO atb_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       mode, direction, structure_kind, best_of_legs, legs_per_set, best_of_sets,
       sequence_mode, target_mode, multiplier_mode, special_rule, generated_sequence
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      mode = EXCLUDED.mode,
+      direction = EXCLUDED.direction,
+      structure_kind = EXCLUDED.structure_kind,
+      best_of_legs = EXCLUDED.best_of_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      best_of_sets = EXCLUDED.best_of_sets,
+      sequence_mode = EXCLUDED.sequence_mode,
+      target_mode = EXCLUDED.target_mode,
+      multiplier_mode = EXCLUDED.multiplier_mode,
+      special_rule = EXCLUDED.special_rule,
+      generated_sequence = EXCLUDED.generated_sequence`,
     params: [
       match.id,
       match.title,
@@ -1307,12 +1358,30 @@ export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO ctf_matches (
+    sql: `INSERT INTO ctf_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       multiplier_mode, rotate_order, bull_position,
       structure_kind, best_of_legs, legs_per_set, best_of_sets,
       generated_sequence, capture_field_winners, capture_total_scores
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      multiplier_mode = EXCLUDED.multiplier_mode,
+      rotate_order = EXCLUDED.rotate_order,
+      bull_position = EXCLUDED.bull_position,
+      structure_kind = EXCLUDED.structure_kind,
+      best_of_legs = EXCLUDED.best_of_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      best_of_sets = EXCLUDED.best_of_sets,
+      generated_sequence = EXCLUDED.generated_sequence,
+      capture_field_winners = EXCLUDED.capture_field_winners,
+      capture_total_scores = EXCLUDED.capture_total_scores`,
     params: [
       match.id,
       match.title,
@@ -1497,12 +1566,34 @@ export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO str_matches (
+    sql: `INSERT INTO str_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       mode, target_number, number_order, turn_order, ring_mode, bull_mode, bull_position,
       structure_kind, best_of_legs, legs_per_set, best_of_sets,
       generated_order, leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      mode = EXCLUDED.mode,
+      target_number = EXCLUDED.target_number,
+      number_order = EXCLUDED.number_order,
+      turn_order = EXCLUDED.turn_order,
+      ring_mode = EXCLUDED.ring_mode,
+      bull_mode = EXCLUDED.bull_mode,
+      bull_position = EXCLUDED.bull_position,
+      structure_kind = EXCLUDED.structure_kind,
+      best_of_legs = EXCLUDED.best_of_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      best_of_sets = EXCLUDED.best_of_sets,
+      generated_order = EXCLUDED.generated_order,
+      leg_wins = EXCLUDED.leg_wins,
+      set_wins = EXCLUDED.set_wins`,
     params: [
       match.id,
       match.title,
@@ -1697,11 +1788,26 @@ export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<voi
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO highscore_matches (
+    sql: `INSERT INTO highscore_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       target_score, structure_kind, target_legs, legs_per_set, target_sets,
       leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      target_score = EXCLUDED.target_score,
+      structure_kind = EXCLUDED.structure_kind,
+      target_legs = EXCLUDED.target_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      target_sets = EXCLUDED.target_sets,
+      leg_wins = EXCLUDED.leg_wins,
+      set_wins = EXCLUDED.set_wins`,
     params: [
       match.id,
       match.title,
@@ -1960,11 +2066,26 @@ export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void>
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO shanghai_matches (
+    sql: `INSERT INTO shanghai_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       structure_kind, best_of_legs, legs_per_set, best_of_sets,
       final_scores, leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      structure_kind = EXCLUDED.structure_kind,
+      best_of_legs = EXCLUDED.best_of_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      best_of_sets = EXCLUDED.best_of_sets,
+      final_scores = EXCLUDED.final_scores,
+      leg_wins = EXCLUDED.leg_wins,
+      set_wins = EXCLUDED.set_wins`,
     params: [
       match.id,
       match.title,
@@ -2225,12 +2346,35 @@ export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
   const structure = match.structure ?? startEvt?.structure
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO killer_matches (
+    sql: `INSERT INTO killer_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       hits_to_become_killer, qualifying_ring, starting_lives,
       friendly_fire, self_heal, no_negative_lives, secret_numbers, target_assignment,
       final_standings, structure_kind, best_of_legs, legs_per_set, best_of_sets, leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      hits_to_become_killer = EXCLUDED.hits_to_become_killer,
+      qualifying_ring = EXCLUDED.qualifying_ring,
+      starting_lives = EXCLUDED.starting_lives,
+      friendly_fire = EXCLUDED.friendly_fire,
+      self_heal = EXCLUDED.self_heal,
+      no_negative_lives = EXCLUDED.no_negative_lives,
+      secret_numbers = EXCLUDED.secret_numbers,
+      target_assignment = EXCLUDED.target_assignment,
+      final_standings = EXCLUDED.final_standings,
+      structure_kind = EXCLUDED.structure_kind,
+      best_of_legs = EXCLUDED.best_of_legs,
+      legs_per_set = EXCLUDED.legs_per_set,
+      best_of_sets = EXCLUDED.best_of_sets,
+      leg_wins = EXCLUDED.leg_wins,
+      set_wins = EXCLUDED.set_wins`,
     params: [
       match.id,
       match.title,
@@ -2493,10 +2637,23 @@ export async function dbSaveBobs27Match(match: DBBobs27Match): Promise<void> {
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO bobs27_matches (
+    sql: `INSERT INTO bobs27_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       start_score, darts_per_target, include_bull, allow_negative, final_scores
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      start_score = EXCLUDED.start_score,
+      darts_per_target = EXCLUDED.darts_per_target,
+      include_bull = EXCLUDED.include_bull,
+      allow_negative = EXCLUDED.allow_negative,
+      final_scores = EXCLUDED.final_scores`,
     params: [
       match.id,
       match.title,
@@ -2739,10 +2896,22 @@ export async function dbSaveOperationMatch(match: DBOperationMatch): Promise<voi
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
   statements.push({
-    sql: `INSERT OR REPLACE INTO operation_matches (
+    sql: `INSERT INTO operation_matches (
       id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       legs_count, target_mode, final_scores, leg_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      created_at = EXCLUDED.created_at,
+      finished = EXCLUDED.finished,
+      finished_at = EXCLUDED.finished_at,
+      duration_ms = EXCLUDED.duration_ms,
+      winner_id = EXCLUDED.winner_id,
+      winner_darts = EXCLUDED.winner_darts,
+      legs_count = EXCLUDED.legs_count,
+      target_mode = EXCLUDED.target_mode,
+      final_scores = EXCLUDED.final_scores,
+      leg_wins = EXCLUDED.leg_wins`,
     params: [
       match.id,
       match.title,
@@ -2852,7 +3021,10 @@ export async function dbGetMeta(key: string): Promise<string | null> {
 export async function dbSetMeta(key: string, value: string): Promise<void> {
   await ensureDB()
   await exec(
-    'INSERT OR REPLACE INTO system_meta (key, value, updated_at) VALUES (?, ?, ?)',
+    `INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT (key) DO UPDATE SET
+       value = EXCLUDED.value,
+       updated_at = EXCLUDED.updated_at`,
     [key, value, nowISO()]
   )
 }
@@ -2884,12 +3056,29 @@ export async function dbSaveX01PlayerStats(stats: {
 }): Promise<void> {
   await ensureDB()
   await exec(
-    `INSERT OR REPLACE INTO x01_player_stats
+    `INSERT INTO x01_player_stats
      (player_id, matches_played, matches_won, legs_won, sets_won,
       darts_thrown, points_scored, three_dart_avg, first9_avg,
       highest_checkout, double_attempts, doubles_hit, double_pct,
       tons_100, tons_140, tons_180, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (player_id) DO UPDATE SET
+       matches_played = EXCLUDED.matches_played,
+       matches_won = EXCLUDED.matches_won,
+       legs_won = EXCLUDED.legs_won,
+       sets_won = EXCLUDED.sets_won,
+       darts_thrown = EXCLUDED.darts_thrown,
+       points_scored = EXCLUDED.points_scored,
+       three_dart_avg = EXCLUDED.three_dart_avg,
+       first9_avg = EXCLUDED.first9_avg,
+       highest_checkout = EXCLUDED.highest_checkout,
+       double_attempts = EXCLUDED.double_attempts,
+       doubles_hit = EXCLUDED.doubles_hit,
+       double_pct = EXCLUDED.double_pct,
+       tons_100 = EXCLUDED.tons_100,
+       tons_140 = EXCLUDED.tons_140,
+       tons_180 = EXCLUDED.tons_180,
+       updated_at = EXCLUDED.updated_at`,
     [
       stats.playerId,
       stats.matchesPlayed,
@@ -2972,11 +3161,26 @@ export async function dbLoadAllX01PlayerStats(): Promise<Record<string, any>> {
 export async function dbSave121PlayerStats(playerId: string, stats: any): Promise<void> {
   await ensureDB()
   await exec(
-    `INSERT OR REPLACE INTO stats_121
+    `INSERT INTO stats_121
      (player_id, total_legs, legs_won, checkout_attempts, checkouts_made,
       checkout_pct, avg_darts_to_finish, avg_darts_on_double, total_darts,
       best_double, preferred_double, skill_score, total_busts, bust_rate, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (player_id) DO UPDATE SET
+       total_legs = EXCLUDED.total_legs,
+       legs_won = EXCLUDED.legs_won,
+       checkout_attempts = EXCLUDED.checkout_attempts,
+       checkouts_made = EXCLUDED.checkouts_made,
+       checkout_pct = EXCLUDED.checkout_pct,
+       avg_darts_to_finish = EXCLUDED.avg_darts_to_finish,
+       avg_darts_on_double = EXCLUDED.avg_darts_on_double,
+       total_darts = EXCLUDED.total_darts,
+       best_double = EXCLUDED.best_double,
+       preferred_double = EXCLUDED.preferred_double,
+       skill_score = EXCLUDED.skill_score,
+       total_busts = EXCLUDED.total_busts,
+       bust_rate = EXCLUDED.bust_rate,
+       updated_at = EXCLUDED.updated_at`,
     [
       playerId,
       stats.totalLegs ?? 0,
@@ -3335,13 +3539,33 @@ export async function dbRemoveFromOutbox(id: string): Promise<void> {
 export async function dbSaveCricketPlayerStats(stats: any): Promise<void> {
   await ensureDB()
   await exec(
-    `INSERT OR REPLACE INTO cricket_player_stats
+    `INSERT INTO cricket_player_stats
      (player_id, player_name, matches_played, matches_won, legs_won,
       total_marks, total_turns, total_darts, total_triples, total_doubles,
       total_bull_singles, total_bull_doubles, total_bull_attempts,
       field_marks, no_score_turns, best_turn_marks, best_turn_points,
       total_points_scored, total_points_taken, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (player_id) DO UPDATE SET
+       player_name = EXCLUDED.player_name,
+       matches_played = EXCLUDED.matches_played,
+       matches_won = EXCLUDED.matches_won,
+       legs_won = EXCLUDED.legs_won,
+       total_marks = EXCLUDED.total_marks,
+       total_turns = EXCLUDED.total_turns,
+       total_darts = EXCLUDED.total_darts,
+       total_triples = EXCLUDED.total_triples,
+       total_doubles = EXCLUDED.total_doubles,
+       total_bull_singles = EXCLUDED.total_bull_singles,
+       total_bull_doubles = EXCLUDED.total_bull_doubles,
+       total_bull_attempts = EXCLUDED.total_bull_attempts,
+       field_marks = EXCLUDED.field_marks,
+       no_score_turns = EXCLUDED.no_score_turns,
+       best_turn_marks = EXCLUDED.best_turn_marks,
+       best_turn_points = EXCLUDED.best_turn_points,
+       total_points_scored = EXCLUDED.total_points_scored,
+       total_points_taken = EXCLUDED.total_points_taken,
+       updated_at = EXCLUDED.updated_at`,
     [
       stats.playerId,
       stats.playerName ?? null,

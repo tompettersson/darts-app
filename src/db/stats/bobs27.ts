@@ -39,7 +39,7 @@ export async function getBobs27FullStats(playerId: string): Promise<Bobs27FullSt
     match_scores AS (
       SELECT
         pm.id,
-        CAST(json_extract(pm.final_scores, '$.' || ?) AS REAL) as final_score
+        (pm.final_scores::jsonb->>?)::real as final_score
       FROM player_matches pm
       WHERE pm.final_scores IS NOT NULL
     )
@@ -69,11 +69,11 @@ export async function getBobs27FullStats(playerId: string): Promise<Bobs27FullSt
       SELECT
         e.match_id,
         COUNT(*) as throws,
-        SUM(CASE WHEN json_extract(e.data, '$.hit') = 1 THEN 1 ELSE 0 END) as hits
+        SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) as hits
       FROM bobs27_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'Bobs27Throw'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
       GROUP BY e.match_id
     ),
     target_stats AS (
@@ -83,7 +83,7 @@ export async function getBobs27FullStats(playerId: string): Promise<Bobs27FullSt
       FROM bobs27_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'Bobs27TargetFinished'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
       GROUP BY e.match_id
     )
     SELECT
@@ -138,14 +138,14 @@ export async function getBobs27MonthlyAvgScore(playerId: string): Promise<TrendP
     match_count: number
   }>(`
     SELECT
-      strftime('%Y-%m', m.created_at) as month,
-      AVG(CAST(json_extract(m.final_scores, '$.' || ?) AS REAL)) as avg_score,
+      to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+      AVG((m.final_scores::jsonb->>?)::real) as avg_score,
       COUNT(*) as match_count
     FROM bobs27_matches m
     JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     WHERE m.finished = 1
       AND m.final_scores IS NOT NULL
-    GROUP BY strftime('%Y-%m', m.created_at)
+    GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
     ORDER BY month ASC
   `, [playerId, playerId])
 
@@ -168,17 +168,17 @@ export async function getBobs27MonthlyHitRate(playerId: string): Promise<TrendPo
     match_count: number
   }>(`
     SELECT
-      strftime('%Y-%m', m.created_at) as month,
+      to_char(m.created_at::timestamp, 'YYYY-MM') as month,
       COUNT(*) as total_throws,
-      SUM(CASE WHEN json_extract(e.data, '$.hit') = 1 THEN 1 ELSE 0 END) as total_hits,
+      SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) as total_hits,
       COUNT(DISTINCT m.id) as match_count
     FROM bobs27_matches m
     JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     JOIN bobs27_events e ON e.match_id = m.id
     WHERE m.finished = 1
       AND e.type = 'Bobs27Throw'
-      AND json_extract(e.data, '$.playerId') = ?
-    GROUP BY strftime('%Y-%m', m.created_at)
+      AND e.data::jsonb->>'playerId' = ?
+    GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
     ORDER BY month ASC
   `, [playerId, playerId])
 
@@ -223,14 +223,14 @@ export async function getBobs27Progression(playerId: string): Promise<Bobs27Prog
       SELECT
         m.id as match_id,
         m.created_at,
-        CAST(json_extract(m.final_scores, '$.' || ?) AS INTEGER) as final_score,
+        (m.final_scores::jsonb->>?)::integer as final_score,
         COALESCE(
           (SELECT
-            ROUND(CAST(SUM(CASE WHEN json_extract(e.data, '$.hit') = 1 THEN 1 ELSE 0 END) AS REAL) /
+            ROUND(CAST(SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) AS REAL) /
             NULLIF(COUNT(*), 0) * 100, 1)
           FROM bobs27_events e
           WHERE e.match_id = m.id AND e.type = 'Bobs27Throw'
-            AND json_extract(e.data, '$.playerId') = ?
+            AND e.data::jsonb->>'playerId' = ?
           ), 0) as hit_rate
       FROM bobs27_matches m
       JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
@@ -265,14 +265,14 @@ export async function getBobs27DoubleWeakness(playerId: string): Promise<Bobs27D
       hits: number
     }>(`
       SELECT
-        CAST(json_extract(e.data, '$.targetIndex') AS INTEGER) as target_index,
+        (e.data::jsonb->>'targetIndex')::integer as target_index,
         COUNT(*) as attempts,
-        SUM(CASE WHEN json_extract(e.data, '$.hit') = 1 THEN 1 ELSE 0 END) as hits
+        SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) as hits
       FROM bobs27_events e
       JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
       WHERE e.type = 'Bobs27Throw'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
       GROUP BY target_index
       ORDER BY target_index ASC
     `, [playerId, playerId])

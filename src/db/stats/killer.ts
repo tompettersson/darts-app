@@ -49,13 +49,13 @@ export async function getKillerFullStats(playerId: string): Promise<KillerFullSt
       total_kills: number
     }>(`
       SELECT
-        COALESCE(SUM(json_extract(e.data, '$.totalDarts')), 0) as total_darts,
-        COALESCE(SUM(json_extract(e.data, '$.hits')), 0) as total_hits,
-        COALESCE(SUM(json_extract(e.data, '$.killCount')), 0) as total_kills
+        COALESCE(SUM((e.data::jsonb->>'totalDarts')::numeric), 0) as total_darts,
+        COALESCE(SUM((e.data::jsonb->>'hits')::numeric), 0) as total_hits,
+        COALESCE(SUM((e.data::jsonb->>'killCount')::numeric), 0) as total_kills
       FROM killer_events e
       JOIN killer_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       WHERE e.type = 'KillerTurnAdded'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
         AND e.match_id IN (SELECT id FROM killer_matches WHERE finished = 1)
     `, [playerId, playerId])
 
@@ -66,15 +66,15 @@ export async function getKillerFullStats(playerId: string): Promise<KillerFullSt
       WITH standings AS (
         SELECT
           m.id,
-          json_extract(value, '$.position') as pos
+          value::jsonb->>'position' as pos
         FROM killer_matches m
         JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
-        , json_each(m.final_standings)
+        , jsonb_array_elements(m.final_standings::jsonb) as value
         WHERE m.finished = 1
           AND m.final_standings IS NOT NULL
-          AND json_extract(value, '$.playerId') = ?
+          AND value::jsonb->>'playerId' = ?
       )
-      SELECT AVG(CAST(pos AS REAL)) as avg_placement FROM standings
+      SELECT AVG(pos::real) as avg_placement FROM standings
     `, [playerId, playerId])
 
     // Avg Rounds pro Match (max roundNumber aus KillerTurnAdded)
@@ -84,14 +84,14 @@ export async function getKillerFullStats(playerId: string): Promise<KillerFullSt
       WITH match_rounds AS (
         SELECT
           e.match_id,
-          MAX(json_extract(e.data, '$.roundNumber')) as max_round
+          MAX((e.data::jsonb->>'roundNumber')::integer) as max_round
         FROM killer_events e
         JOIN killer_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
         WHERE e.type = 'KillerTurnAdded'
           AND e.match_id IN (SELECT id FROM killer_matches WHERE finished = 1)
         GROUP BY e.match_id
       )
-      SELECT AVG(CAST(max_round AS REAL)) as avg_rounds FROM match_rounds
+      SELECT AVG(max_round::real) as avg_rounds FROM match_rounds
     `, [playerId])
 
     const totalDarts = eventStats?.total_darts ?? 0

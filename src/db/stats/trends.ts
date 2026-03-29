@@ -20,18 +20,18 @@ export async function getATBMonthlyHitRate(playerId: string): Promise<TrendPoint
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
-        CAST(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)) AS REAL) /
-          NULLIF(SUM(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER)), 0) * 100
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+        SUM((e.data::jsonb->>'hits')::integer)::real /
+          NULLIF(SUM((e.data::jsonb->>'totalDarts')::integer), 0) * 100
           as avg_hit_rate,
         COUNT(DISTINCT m.id) as match_count
       FROM atb_matches m
       JOIN atb_events e ON e.match_id = m.id
       JOIN atb_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       WHERE e.type = 'ATBTurnAdded'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
         AND m.finished = 1
-      GROUP BY strftime('%Y-%m', m.created_at)
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -62,18 +62,18 @@ export async function getCTFMonthlyHitRate(playerId: string): Promise<TrendPoint
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
-        CAST(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)) AS REAL) /
-          NULLIF(SUM(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER)), 0) * 100
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+        SUM((e.data::jsonb->>'hits')::integer)::real /
+          NULLIF(SUM((e.data::jsonb->>'totalDarts')::integer), 0) * 100
           as avg_hit_rate,
         COUNT(DISTINCT m.id) as match_count
       FROM ctf_matches m
       JOIN ctf_events e ON e.match_id = m.id
       JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       WHERE e.type = 'CTFTurnAdded'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
         AND m.finished = 1
-      GROUP BY strftime('%Y-%m', m.created_at)
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -100,23 +100,23 @@ export async function getCTFMonthlyAvgScore(playerId: string): Promise<TrendPoin
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', created_at) as month,
+        to_char(created_at::timestamp, 'YYYY-MM') as month,
         AVG(match_score) as avg_score,
         COUNT(*) as match_count
       FROM (
         SELECT
           m.id,
           m.created_at,
-          SUM(CAST(json_extract(e.data, '$.captureScore') AS REAL)) as match_score
+          SUM((e.data::jsonb->>'captureScore')::real) as match_score
         FROM ctf_matches m
         JOIN ctf_events e ON e.match_id = m.id
         JOIN ctf_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
         WHERE e.type = 'CTFTurnAdded'
-          AND json_extract(e.data, '$.playerId') = ?
+          AND e.data::jsonb->>'playerId' = ?
           AND m.finished = 1
         GROUP BY m.id, m.created_at
       )
-      GROUP BY strftime('%Y-%m', created_at)
+      GROUP BY to_char(created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -147,18 +147,18 @@ export async function getStrMonthlyHitRate(playerId: string): Promise<TrendPoint
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
-        CAST(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)) AS REAL) /
-          NULLIF(SUM(CAST(json_extract(e.data, '$.totalDarts') AS INTEGER)), 0) * 100
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+        SUM((e.data::jsonb->>'hits')::integer)::real /
+          NULLIF(SUM((e.data::jsonb->>'totalDarts')::integer), 0) * 100
           as avg_hit_rate,
         COUNT(DISTINCT m.id) as match_count
       FROM str_matches m
       JOIN str_events e ON e.match_id = m.id
       JOIN str_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       WHERE e.type = 'StrTurnAdded'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
         AND m.finished = 1
-      GROUP BY strftime('%Y-%m', m.created_at)
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -189,23 +189,23 @@ export async function getHighscoreMonthlyAvgScore(playerId: string): Promise<Tre
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', created_at) as month,
+        to_char(created_at::timestamp, 'YYYY-MM') as month,
         AVG(match_score) as avg_score,
         COUNT(*) as match_count
       FROM (
         SELECT
           m.id,
           m.created_at,
-          SUM(CAST(json_extract(e.data, '$.turnScore') AS REAL)) as match_score
+          SUM((e.data::jsonb->>'turnScore')::real) as match_score
         FROM highscore_matches m
         JOIN highscore_events e ON e.match_id = m.id
         JOIN highscore_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
         WHERE e.type = 'HighscoreTurnAdded'
-          AND json_extract(e.data, '$.playerId') = ?
+          AND e.data::jsonb->>'playerId' = ?
           AND m.finished = 1
         GROUP BY m.id, m.created_at
       )
-      GROUP BY strftime('%Y-%m', created_at)
+      GROUP BY to_char(created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -236,14 +236,14 @@ export async function getShanghaiMonthlyAvgScore(playerId: string): Promise<Tren
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
-        AVG(CAST(json_extract(m.final_scores, '$.' || ?) AS REAL)) as avg_score,
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+        AVG((m.final_scores::jsonb->>?)::real) as avg_score,
         COUNT(*) as match_count
       FROM shanghai_matches m
       JOIN shanghai_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       WHERE m.finished = 1
         AND m.final_scores IS NOT NULL
-      GROUP BY strftime('%Y-%m', m.created_at)
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
@@ -274,14 +274,14 @@ export async function getKillerMonthlyWinRate(playerId: string): Promise<TrendPo
       match_count: number
     }>(`
       SELECT
-        strftime('%Y-%m', m.created_at) as month,
-        CAST(SUM(CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END) AS REAL) /
+        to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+        SUM(CASE WHEN m.winner_id = ? THEN 1 ELSE 0 END)::real /
           COUNT(*) * 100 as win_rate,
         COUNT(*) as match_count
       FROM killer_matches m
       JOIN killer_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
       WHERE m.finished = 1
-      GROUP BY strftime('%Y-%m', m.created_at)
+      GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
       ORDER BY month ASC
     `, [playerId, playerId])
 
