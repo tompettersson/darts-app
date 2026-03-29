@@ -69,7 +69,7 @@ import {
 } from './db/storage'
 
 import { exec } from './db/index'
-import { clearCache as clearDataCache } from './db/dataCache'
+// LocalStorage cache removed — data always loaded fresh from DB
 
 import {
   id,
@@ -709,7 +709,6 @@ export function persistEvents(
 }
 
 export function finishMatch(matchId: string): Promise<void> {
-  clearDataCache() // Invalidate so next startup fetches fresh data
   const list = getMatches()
   const idx = list.findIndex(m => m.id === matchId)
   if (idx === -1) return Promise.resolve()

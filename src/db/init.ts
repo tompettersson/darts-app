@@ -22,8 +22,6 @@ import {
 } from './storage'
 import { warmMemCache, warmAllCaches, warmStats121Cache } from '../storage'
 import { warmCricketPlayerStatsCache } from '../stats/computePlayerStats'
-import { loadCache, saveCache, updateCacheStats, getCacheTimestamp } from './dataCache'
-import { queryOne } from './index'
 
 export type DBInitResult = {
   success: boolean
@@ -95,86 +93,7 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
       p.catch((err) => { console.warn('[DB Init] Query failed:', err.message); return fallback })
 
-    // === LocalStorage Cache Check ===
-    const cached = loadCache()
-    const cacheTs = getCacheTimestamp()
-
-    if (cached && cacheTs) {
-      // Check if there are new matches since last cache
-      let hasNew = false
-      try {
-        const result = await queryOne<{ c: number }>(
-          `SELECT COUNT(*) as c FROM x01_matches WHERE created_at > ?`,
-          [cacheTs]
-        )
-        hasNew = (result?.c ?? 0) > 0
-
-        // Also check all other game modes (quick count)
-        if (!hasNew) {
-          const other = await queryOne<{ c: number }>(
-            `SELECT (SELECT COUNT(*) FROM cricket_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM atb_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM str_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM ctf_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM highscore_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM shanghai_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM killer_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM bobs27_matches WHERE created_at > ?) +
-                    (SELECT COUNT(*) FROM operation_matches WHERE created_at > ?) as c`,
-            [cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs, cacheTs]
-          )
-          hasNew = (other?.c ?? 0) > 0
-        }
-      } catch {
-        hasNew = true // On error, do a full reload
-      }
-
-      if (!hasNew) {
-        // No new data — load entirely from cache (0 DB transfer!)
-        console.debug('[Cache] No new matches since', cacheTs, '— using cache')
-        warmAllCaches({
-          profiles: cached.profiles,
-          x01Matches: cached.x01Matches,
-          cricketMatches: cached.cricketMatches,
-          atbMatches: cached.atbMatches,
-          strMatches: cached.strMatches,
-          ctfMatches: cached.ctfMatches,
-          shanghaiMatches: cached.shanghaiMatches,
-          killerMatches: cached.killerMatches,
-          bobs27Matches: cached.bobs27Matches,
-          operationMatches: cached.operationMatches,
-          highscoreMatches: cached.highscoreMatches,
-        })
-
-        // Restore stats from cache too
-        if (cached.x01PlayerStats || cached.x01Leaderboards || cached.cricketLeaderboards) {
-          warmMemCache({
-            x01PlayerStats: cached.x01PlayerStats ?? {},
-            leaderboards: cached.x01Leaderboards ?? undefined,
-            cricketLeaderboards: cached.cricketLeaderboards ?? undefined,
-          })
-        }
-        if (cached.stats121) warmStats121Cache(cached.stats121)
-        if (cached.cricketPlayerStats) warmCricketPlayerStatsCache(cached.cricketPlayerStats)
-
-        const durationMs = Date.now() - startTime
-        console.debug(`[Cache] Loaded from cache in ${durationMs}ms`)
-        return {
-          profiles: cached.profiles.length,
-          x01Matches: cached.x01Matches.length,
-          cricketMatches: cached.cricketMatches.length,
-          atbMatches: cached.atbMatches.length,
-          strMatches: cached.strMatches.length,
-          highscoreMatches: cached.highscoreMatches.length,
-          bobs27Matches: cached.bobs27Matches.length,
-          operationMatches: cached.operationMatches.length,
-          durationMs,
-        }
-      }
-      console.debug('[Cache] New matches found — doing full reload')
-    }
-
-    // === Full DB Load (first visit or new data exists) ===
+    // === Full DB Load — always load fresh from database ===
     const [profiles, x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
            shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([
       safe(dbGetProfiles(), []),
@@ -233,36 +152,6 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
       warmCricketPlayerStatsCache(cricketStats)
     } catch (e) {
       console.warn('[DB Init] Stats/Leaderboards Cache-Sync fehlgeschlagen:', e)
-    }
-
-    // === Save to LocalStorage Cache for next visit ===
-    try {
-      const profilesForCache = profiles.map((p) => ({
-        id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt, color: p.color ?? undefined,
-      }))
-      const x01ForCache = x01Matches.map((m) => ({
-        id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
-        createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
-      }))
-      const cricketForCache = cricketMatches.map((m) => ({
-        id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
-        createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
-      }))
-      saveCache({
-        profiles: profilesForCache,
-        x01Matches: x01ForCache,
-        cricketMatches: cricketForCache,
-        atbMatches: atbMatches as any[],
-        strMatches: strMatches as any[],
-        highscoreMatches: highscoreMatches as any[],
-        shanghaiMatches: shanghaiMatches as any[],
-        killerMatches: killerMatches as any[],
-        ctfMatches: ctfMatches as any[],
-        bobs27Matches: bobs27Matches as any[],
-        operationMatches: operationMatches as any[],
-      })
-    } catch (e) {
-      console.warn('[Cache] Save failed:', e)
     }
 
     const durationMs = Date.now() - startTime
