@@ -95,15 +95,15 @@ export async function getATBFullStats(playerId: string): Promise<ATBFullStats> {
     total_doubles: number
   }>(`
     SELECT
-      COALESCE(SUM(CAST(json_extract(e.data, '$.hits') AS INTEGER)), 0) as total_hits,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.misses') AS INTEGER)), 0) as total_misses,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.triples') AS INTEGER)), 0) as total_triples,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.doubles') AS INTEGER)), 0) as total_doubles
+      COALESCE(SUM((e.data::jsonb->>'hits')::integer), 0) as total_hits,
+      COALESCE(SUM((e.data::jsonb->>'misses')::integer), 0) as total_misses,
+      COALESCE(SUM((e.data::jsonb->>'triples')::integer), 0) as total_triples,
+      COALESCE(SUM((e.data::jsonb->>'doubles')::integer), 0) as total_doubles
     FROM atb_events e
     JOIN atb_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN atb_matches m ON m.id = e.match_id AND m.finished = 1
     WHERE e.type = 'ATBTurnAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
   `, [playerId, playerId])
 
   const matchesWon = stats?.matches_won ?? 0

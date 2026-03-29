@@ -19,20 +19,20 @@ export async function getCricketMonthlyMPR(playerId: string): Promise<TrendPoint
     match_count: number
   }>(`
     SELECT
-      strftime('%Y-%m', m.created_at) as month,
-      AVG(CAST(json_extract(e.data, '$.marks') AS REAL) /
+      to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+      AVG((e.data::jsonb->>'marks')::real /
           NULLIF(COALESCE(
-            CAST(json_extract(e.data, '$.dartCount') AS REAL),
-            json_array_length(e.data, '$.darts')
+            (e.data::jsonb->>'dartCount')::real,
+            jsonb_array_length(e.data::jsonb->'darts')
           ), 0) * 3) as avg_mpr,
       COUNT(DISTINCT m.id) as match_count
     FROM cricket_matches m
     JOIN cricket_events e ON e.match_id = m.id
     JOIN cricket_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
       AND m.finished = 1
-    GROUP BY strftime('%Y-%m', m.created_at)
+    GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
     ORDER BY month ASC
   `, [playerId, playerId])
 
@@ -89,7 +89,7 @@ export async function getCricketFullStats(playerId: string): Promise<CricketFull
     leg_stats AS (
       SELECT
         COUNT(*) as legs_played,
-        SUM(CASE WHEN json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as legs_won
+        SUM(CASE WHEN e.data::jsonb->>'winnerPlayerId' = ? THEN 1 ELSE 0 END) as legs_won
       FROM cricket_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'CricketLegFinished'
@@ -99,7 +99,7 @@ export async function getCricketFullStats(playerId: string): Promise<CricketFull
       FROM cricket_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'CricketMatchFinished'
-        AND json_extract(e.data, '$.winnerPlayerId') = ?
+        AND e.data::jsonb->>'winnerPlayerId' = ?
     )
     SELECT
       (SELECT COUNT(*) FROM player_matches) as matches_played,
@@ -121,18 +121,18 @@ export async function getCricketFullStats(playerId: string): Promise<CricketFull
   }>(`
     SELECT
       COUNT(*) as total_turns,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.marks') AS INTEGER)), 0) as total_marks,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.tripleCount') AS INTEGER)), 0) as total_triples,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.doubleCount') AS INTEGER)), 0) as total_doubles,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.singleCount') AS INTEGER)), 0) as total_singles,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.bullCount') AS INTEGER)), 0) as bull_hits,
-      COALESCE(SUM(CAST(json_extract(e.data, '$.doubleBullCount') AS INTEGER)), 0) as double_bull_hits,
-      SUM(CASE WHEN COALESCE(CAST(json_extract(e.data, '$.marks') AS INTEGER), 0) = 0 THEN 1 ELSE 0 END) as no_score_turns
+      COALESCE(SUM((e.data::jsonb->>'marks')::integer), 0) as total_marks,
+      COALESCE(SUM((e.data::jsonb->>'tripleCount')::integer), 0) as total_triples,
+      COALESCE(SUM((e.data::jsonb->>'doubleCount')::integer), 0) as total_doubles,
+      COALESCE(SUM((e.data::jsonb->>'singleCount')::integer), 0) as total_singles,
+      COALESCE(SUM((e.data::jsonb->>'bullCount')::integer), 0) as bull_hits,
+      COALESCE(SUM((e.data::jsonb->>'doubleBullCount')::integer), 0) as double_bull_hits,
+      SUM(CASE WHEN COALESCE((e.data::jsonb->>'marks')::integer, 0) = 0 THEN 1 ELSE 0 END) as no_score_turns
     FROM cricket_events e
     JOIN cricket_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN cricket_matches m ON m.id = e.match_id AND m.finished = 1
     WHERE e.type = 'CricketTurnAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
   `, [playerId, playerId])
 
   // Best Leg Darts (Minimum Darts in einem gewonnenen Leg)
@@ -144,7 +144,7 @@ export async function getCricketFullStats(playerId: string): Promise<CricketFull
       SELECT
         match_id,
         seq,
-        json_extract(data, '$.winnerPlayerId') as winner_id,
+        data::jsonb->>'winnerPlayerId' as winner_id,
         ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY seq) as leg_num
       FROM cricket_events
       WHERE type = 'CricketLegFinished'
@@ -157,14 +157,14 @@ export async function getCricketFullStats(playerId: string): Promise<CricketFull
     turns_with_leg AS (
       SELECT
         t.match_id,
-        json_array_length(t.data, '$.darts') as dart_count,
+        jsonb_array_length(t.data::jsonb->'darts') as dart_count,
         (SELECT MIN(le.leg_num) FROM leg_ends le
          WHERE le.match_id = t.match_id AND le.seq > t.seq) as leg_num
       FROM cricket_events t
       JOIN cricket_matches m ON m.id = t.match_id AND m.finished = 1
       JOIN cricket_match_players mp ON mp.match_id = t.match_id AND mp.player_id = ?
       WHERE t.type = 'CricketTurnAdded'
-        AND json_extract(t.data, '$.playerId') = ?
+        AND t.data::jsonb->>'playerId' = ?
     )
     SELECT MIN(leg_darts) as best_leg_darts
     FROM (

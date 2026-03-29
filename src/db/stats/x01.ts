@@ -19,19 +19,19 @@ export async function getX01MonthlyAverage(playerId: string): Promise<TrendPoint
     match_count: number
   }>(`
     SELECT
-      strftime('%Y-%m', m.created_at) as month,
+      to_char(m.created_at::timestamp, 'YYYY-MM') as month,
       AVG(
-        CAST(json_extract(e.data, '$.visitScore') AS REAL) /
-        NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+        (e.data::jsonb->>'visitScore')::real /
+        NULLIF(jsonb_array_length(e.data::jsonb->'darts'), 0) * 3
       ) as avg_score,
       COUNT(DISTINCT m.id) as match_count
     FROM x01_matches m
     JOIN x01_events e ON e.match_id = m.id
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
       AND m.finished = 1
-    GROUP BY strftime('%Y-%m', m.created_at)
+    GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
     ORDER BY month ASC
   `, [playerId, playerId])
 
@@ -56,15 +56,15 @@ export async function getX01MonthlyCheckout(playerId: string): Promise<TrendPoin
     match_count: number
   }>(`
     SELECT
-      strftime('%Y-%m', m.created_at) as month,
-      SUM(CASE WHEN e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as legs_won,
+      to_char(m.created_at::timestamp, 'YYYY-MM') as month,
+      SUM(CASE WHEN e.type = 'LegFinished' AND e.data::jsonb->>'winnerPlayerId' = ? THEN 1 ELSE 0 END) as legs_won,
       SUM(CASE WHEN e.type = 'LegFinished' THEN 1 ELSE 0 END) as legs_played,
       COUNT(DISTINCT m.id) as match_count
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     LEFT JOIN x01_events e ON e.match_id = m.id AND e.type = 'LegFinished'
     WHERE m.finished = 1
-    GROUP BY strftime('%Y-%m', m.created_at)
+    GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
     ORDER BY month ASC
   `, [playerId, playerId])
 
@@ -108,11 +108,11 @@ export async function getX01HeadToHead(player1Id: string, player2Id: string): Pr
         (SELECT COUNT(*) FROM x01_events e
          WHERE e.match_id = sm.id
          AND e.type = 'LegFinished'
-         AND json_extract(e.data, '$.winnerPlayerId') = ?) as p1_legs,
+         AND e.data::jsonb->>'winnerPlayerId' = ?) as p1_legs,
         (SELECT COUNT(*) FROM x01_events e
          WHERE e.match_id = sm.id
          AND e.type = 'LegFinished'
-         AND json_extract(e.data, '$.winnerPlayerId') = ?) as p2_legs
+         AND e.data::jsonb->>'winnerPlayerId' = ?) as p2_legs
       FROM shared_matches sm
     )
     SELECT
@@ -185,11 +185,11 @@ export async function getPlayerStreaks(playerId: string): Promise<PlayerStreak |
         WHEN (SELECT COUNT(*) FROM x01_events e
               WHERE e.match_id = m.id
               AND e.type = 'LegFinished'
-              AND json_extract(e.data, '$.winnerPlayerId') = mp.player_id) >
+              AND e.data::jsonb->>'winnerPlayerId' = mp.player_id) >
              (SELECT COUNT(*) FROM x01_events e
               WHERE e.match_id = m.id
               AND e.type = 'LegFinished'
-              AND json_extract(e.data, '$.winnerPlayerId') != mp.player_id)
+              AND e.data::jsonb->>'winnerPlayerId' != mp.player_id)
         THEN 1 ELSE 0
       END as won
     FROM x01_matches m
@@ -264,17 +264,17 @@ export async function getHighestCheckouts(limit: number = 10): Promise<BestPerfo
     checkout: number
   }>(`
     SELECT
-      json_extract(e.data, '$.playerId') as player_id,
+      e.data::jsonb->>'playerId' as player_id,
       p.name as player_name,
       m.id as match_id,
       m.title as match_title,
       m.created_at as date,
-      CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) as checkout
+      (e.data::jsonb->>'remainingBefore')::integer as checkout
     FROM x01_events e
     JOIN x01_matches m ON m.id = e.match_id
-    JOIN profiles p ON p.id = json_extract(e.data, '$.playerId')
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+      AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
       AND m.finished = 1
     ORDER BY checkout DESC
     LIMIT ?
@@ -310,15 +310,15 @@ export async function getBestMatchAverages(limit: number = 10): Promise<BestPerf
       m.title as match_title,
       m.created_at as date,
       AVG(
-        CAST(json_extract(e.data, '$.visitScore') AS REAL) /
-        NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+        (e.data::jsonb->>'visitScore')::real /
+        NULLIF(jsonb_array_length(e.data::jsonb->'darts'), 0) * 3
       ) as avg
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id
     JOIN x01_events e ON e.match_id = m.id
     JOIN profiles p ON p.id = mp.player_id
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = mp.player_id
+      AND e.data::jsonb->>'playerId' = mp.player_id
       AND m.finished = 1
     GROUP BY m.id, mp.player_id, p.name, m.title, m.created_at
     HAVING COUNT(*) >= 3
@@ -355,16 +355,16 @@ export async function getMost180sInMatch(limit: number = 10): Promise<BestPerfor
       m.id as match_id,
       m.title as match_title,
       m.created_at as date,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END) as count_180
+      SUM(CASE WHEN e.data::jsonb->>'visitScore' = '180' THEN 1 ELSE 0 END) as count_180
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id
     JOIN x01_events e ON e.match_id = m.id
     JOIN profiles p ON p.id = mp.player_id
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = mp.player_id
+      AND e.data::jsonb->>'playerId' = mp.player_id
       AND m.finished = 1
     GROUP BY m.id, mp.player_id, p.name, m.title, m.created_at
-    HAVING SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END) > 0
+    HAVING SUM(CASE WHEN e.data::jsonb->>'visitScore' = '180' THEN 1 ELSE 0 END) > 0
     ORDER BY count_180 DESC
     LIMIT ?
   `, [limit])
@@ -396,17 +396,17 @@ export async function getStatsByDayOfWeek(playerId: string): Promise<DayOfWeekSt
     matches_won: number
   }>(`
     SELECT
-      CAST(strftime('%w', m.created_at) AS INTEGER) as day_of_week,
+      EXTRACT(DOW FROM m.created_at::timestamp)::integer as day_of_week,
       COUNT(DISTINCT m.id) as matches_played,
       SUM(CASE
         WHEN (SELECT COUNT(*) FROM x01_events e
               WHERE e.match_id = m.id
               AND e.type = 'LegFinished'
-              AND json_extract(e.data, '$.winnerPlayerId') = mp.player_id) >
+              AND e.data::jsonb->>'winnerPlayerId' = mp.player_id) >
              (SELECT COUNT(*) FROM x01_events e
               WHERE e.match_id = m.id
               AND e.type = 'LegFinished'
-              AND json_extract(e.data, '$.winnerPlayerId') != mp.player_id)
+              AND e.data::jsonb->>'winnerPlayerId' != mp.player_id)
         THEN 1 ELSE 0
       END) as matches_won
     FROM x01_matches m
@@ -435,15 +435,15 @@ export async function getMonthlyStats(playerId: string): Promise<MonthlyStats[]>
     legs_lost: number
   }>(`
     SELECT
-      strftime('%Y-%m', m.created_at) as month,
+      to_char(m.created_at::timestamp, 'YYYY-MM') as month,
       COUNT(DISTINCT m.id) as matches_played,
-      SUM(CASE WHEN e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as legs_won,
-      SUM(CASE WHEN e.type = 'LegFinished' AND json_extract(e.data, '$.winnerPlayerId') != ? THEN 1 ELSE 0 END) as legs_lost
+      SUM(CASE WHEN e.type = 'LegFinished' AND e.data::jsonb->>'winnerPlayerId' = ? THEN 1 ELSE 0 END) as legs_won,
+      SUM(CASE WHEN e.type = 'LegFinished' AND e.data::jsonb->>'winnerPlayerId' != ? THEN 1 ELSE 0 END) as legs_lost
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     LEFT JOIN x01_events e ON e.match_id = m.id AND e.type = 'LegFinished'
     WHERE m.finished = 1
-    GROUP BY strftime('%Y-%m', m.created_at)
+    GROUP BY to_char(m.created_at::timestamp, 'YYYY-MM')
     ORDER BY month DESC
     LIMIT 12
   `, [playerId, playerId, playerId])
@@ -488,7 +488,7 @@ export async function getQuickStats(playerId: string): Promise<QuickStats> {
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       WHERE e.type = 'LegFinished'
-        AND json_extract(e.data, '$.winnerPlayerId') = ?
+        AND e.data::jsonb->>'winnerPlayerId' = ?
     `, [playerId, playerId]),
 
     queryOne<{ count: number }>(`
@@ -496,29 +496,29 @@ export async function getQuickStats(playerId: string): Promise<QuickStats> {
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       WHERE e.type = 'VisitAdded'
-        AND json_extract(e.data, '$.playerId') = ?
-        AND json_extract(e.data, '$.visitScore') = 180
+        AND e.data::jsonb->>'playerId' = ?
+        AND e.data::jsonb->>'visitScore' = '180'
     `, [playerId, playerId]),
 
     queryOne<{ max_checkout: number }>(`
-      SELECT MAX(CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER)) as max_checkout
+      SELECT MAX((e.data::jsonb->>'remainingBefore')::integer) as max_checkout
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       WHERE e.type = 'VisitAdded'
-        AND json_extract(e.data, '$.playerId') = ?
-        AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+        AND e.data::jsonb->>'playerId' = ?
+        AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
     `, [playerId, playerId]),
 
     queryOne<{ avg: number }>(`
       SELECT
         AVG(
-          CAST(json_extract(e.data, '$.visitScore') AS REAL) /
-          NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+          (e.data::jsonb->>'visitScore')::real /
+          NULLIF(jsonb_array_length(e.data::jsonb->'darts'), 0) * 3
         ) as avg
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       WHERE e.type = 'VisitAdded'
-        AND json_extract(e.data, '$.playerId') = ?
+        AND e.data::jsonb->>'playerId' = ?
     `, [playerId, playerId]),
 
     getStatsByDayOfWeek(playerId),
@@ -656,7 +656,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     leg_stats AS (
       SELECT
         COUNT(*) as legs_played,
-        SUM(CASE WHEN json_extract(e.data, '$.winnerPlayerId') = ? THEN 1 ELSE 0 END) as legs_won
+        SUM(CASE WHEN e.data::jsonb->>'winnerPlayerId' = ? THEN 1 ELSE 0 END) as legs_won
       FROM x01_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'LegFinished'
@@ -666,14 +666,14 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
       FROM x01_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'MatchFinished'
-        AND json_extract(e.data, '$.winnerPlayerId') = ?
+        AND e.data::jsonb->>'winnerPlayerId' = ?
     ),
     multi_wins AS (
       SELECT COUNT(*) as wins
       FROM x01_events e
       WHERE e.match_id IN (SELECT id FROM player_matches WHERE player_count > 1)
         AND e.type = 'MatchFinished'
-        AND json_extract(e.data, '$.winnerPlayerId') = ?
+        AND e.data::jsonb->>'winnerPlayerId' = ?
     )
     SELECT
       (SELECT COUNT(*) FROM player_matches) as matches_played,
@@ -697,18 +697,18 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     count_60: number
   }>(`
     SELECT
-      SUM(json_array_length(e.data, '$.darts')) as total_darts,
-      SUM(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)) as total_points,
-      MAX(CAST(json_extract(e.data, '$.visitScore') AS INTEGER)) as highest_visit,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END) as count_180,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') >= 140 AND json_extract(e.data, '$.visitScore') < 180 THEN 1 ELSE 0 END) as count_140,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') >= 100 AND json_extract(e.data, '$.visitScore') < 140 THEN 1 ELSE 0 END) as count_100,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') >= 60 AND json_extract(e.data, '$.visitScore') < 100 THEN 1 ELSE 0 END) as count_60
+      SUM(jsonb_array_length(e.data::jsonb->'darts')) as total_darts,
+      SUM((e.data::jsonb->>'visitScore')::integer) as total_points,
+      MAX((e.data::jsonb->>'visitScore')::integer) as highest_visit,
+      SUM(CASE WHEN e.data::jsonb->>'visitScore' = '180' THEN 1 ELSE 0 END) as count_180,
+      SUM(CASE WHEN (e.data::jsonb->>'visitScore')::integer >= 140 AND (e.data::jsonb->>'visitScore')::integer < 180 THEN 1 ELSE 0 END) as count_140,
+      SUM(CASE WHEN (e.data::jsonb->>'visitScore')::integer >= 100 AND (e.data::jsonb->>'visitScore')::integer < 140 THEN 1 ELSE 0 END) as count_100,
+      SUM(CASE WHEN (e.data::jsonb->>'visitScore')::integer >= 60 AND (e.data::jsonb->>'visitScore')::integer < 100 THEN 1 ELSE 0 END) as count_60
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
   `, [playerId, ...scoreParam, playerId])
 
   // Checkout Stats
@@ -720,17 +720,17 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
   }>(`
     SELECT
       COUNT(*) as checkout_attempts,
-      SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL THEN 1 ELSE 0 END) as checkouts_made,
-      MAX(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-          THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END) as highest_checkout,
-      SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-          THEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) ELSE 0 END) as total_checkout_score
+      SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END) as checkouts_made,
+      MAX(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL
+          THEN (e.data::jsonb->>'remainingBefore')::integer ELSE 0 END) as highest_checkout,
+      SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL
+          THEN (e.data::jsonb->>'remainingBefore')::integer ELSE 0 END) as total_checkout_score
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
-      AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170
+      AND e.data::jsonb->>'playerId' = ?
+      AND (e.data::jsonb->>'remainingBefore')::integer <= 170
   `, [playerId, ...scoreParam, playerId])
 
   // Bust Stats
@@ -739,13 +739,13 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     total_visits: number
   }>(`
     SELECT
-      SUM(CASE WHEN json_extract(e.data, '$.bust') = 1 THEN 1 ELSE 0 END) as bust_count,
+      SUM(CASE WHEN (e.data::jsonb->>'bust')::integer != 0 THEN 1 ELSE 0 END) as bust_count,
       COUNT(*) as total_visits
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
   `, [playerId, ...scoreParam, playerId])
 
   // Best Leg Darts (Minimum Darts in einem gewonnenen Leg)
@@ -755,18 +755,18 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     SELECT MIN(leg_darts) as best_leg_darts
     FROM (
       SELECT
-        (SELECT SUM(json_array_length(v.data, '$.darts'))
+        (SELECT SUM(jsonb_array_length(v.data::jsonb->'darts'))
          FROM x01_events v
          WHERE v.match_id = lf.match_id
            AND v.type = 'VisitAdded'
-           AND json_extract(v.data, '$.playerId') = ?
-           AND json_extract(v.data, '$.legId') = json_extract(lf.data, '$.legId')
+           AND v.data::jsonb->>'playerId' = ?
+           AND v.data::jsonb->>'legId' = lf.data::jsonb->>'legId'
         ) as leg_darts
       FROM x01_events lf
       JOIN x01_match_players mp ON mp.match_id = lf.match_id AND mp.player_id = ?
       JOIN x01_matches m ON m.id = lf.match_id AND m.finished = 1 ${scoreFilter}
       WHERE lf.type = 'LegFinished'
-        AND json_extract(lf.data, '$.winnerPlayerId') = ?
+        AND lf.data::jsonb->>'winnerPlayerId' = ?
     )
   `, [playerId, playerId, ...scoreParam, playerId])
 
@@ -780,14 +780,14 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     SELECT
       m.id as match_id,
       AVG(
-        CAST(json_extract(e.data, '$.visitScore') AS REAL) /
-        NULLIF(json_array_length(e.data, '$.darts'), 0) * 3
+        (e.data::jsonb->>'visitScore')::real /
+        NULLIF(jsonb_array_length(e.data::jsonb->'darts'), 0) * 3
       ) as avg_score
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     JOIN x01_events e ON e.match_id = m.id
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
       AND m.finished = 1 ${scoreFilter}
     GROUP BY m.id
     HAVING COUNT(*) >= 3
@@ -810,20 +810,20 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
-      AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
-      AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) >= 100
+      AND e.data::jsonb->>'playerId' = ?
+      AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
+      AND (e.data::jsonb->>'remainingBefore')::integer >= 100
   `, [playerId, ...scoreParam, playerId])
 
   // Darts pro Checkout (AVG der finishingDartSeq)
   const dartsPerCO = await queryOne<{ avg_darts: number | null }>(`
-    SELECT AVG(CAST(json_extract(e.data, '$.finishingDartSeq') AS REAL)) as avg_darts
+    SELECT AVG((e.data::jsonb->>'finishingDartSeq')::real) as avg_darts
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
-      AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+      AND e.data::jsonb->>'playerId' = ?
+      AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
   `, [playerId, ...scoreParam, playerId])
 
   // Top Finishing Double — aus dem finishing dart das Feld bestimmen
@@ -836,8 +836,8 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
-      AND json_extract(e.data, '$.finishingDartSeq') IS NOT NULL
+      AND e.data::jsonb->>'playerId' = ?
+      AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
     GROUP BY bed
     ORDER BY cnt DESC
     LIMIT 1
@@ -851,23 +851,23 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
   }>(`
     SELECT
       CASE
-        WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 2 AND 40 THEN '2-40'
-        WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 41 AND 60 THEN '41-60'
-        WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 61 AND 80 THEN '61-80'
-        WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 81 AND 100 THEN '81-100'
-        WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 101 AND 130 THEN '101-130'
-        WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 131 AND 170 THEN '131-170'
+        WHEN (e.data::jsonb->>'remainingBefore')::integer BETWEEN 2 AND 40 THEN '2-40'
+        WHEN (e.data::jsonb->>'remainingBefore')::integer BETWEEN 41 AND 60 THEN '41-60'
+        WHEN (e.data::jsonb->>'remainingBefore')::integer BETWEEN 61 AND 80 THEN '61-80'
+        WHEN (e.data::jsonb->>'remainingBefore')::integer BETWEEN 81 AND 100 THEN '81-100'
+        WHEN (e.data::jsonb->>'remainingBefore')::integer BETWEEN 101 AND 130 THEN '101-130'
+        WHEN (e.data::jsonb->>'remainingBefore')::integer BETWEEN 131 AND 170 THEN '131-170'
       END as range_label,
       COUNT(*) as attempts,
-      SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL THEN 1 ELSE 0 END) as made
+      SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END) as made
     FROM x01_events e
     JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1 ${scoreFilter}
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
-      AND CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) BETWEEN 2 AND 170
+      AND e.data::jsonb->>'playerId' = ?
+      AND (e.data::jsonb->>'remainingBefore')::integer BETWEEN 2 AND 170
     GROUP BY range_label
-    ORDER BY MIN(CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER))
+    ORDER BY MIN((e.data::jsonb->>'remainingBefore')::integer)
   `, [playerId, ...scoreParam, playerId])
 
   const checkoutRanges: CheckoutRange[] = checkoutRangeRows
@@ -888,20 +888,20 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
   }>(`
     SELECT
       m.id as match_id,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') = 180 THEN 1 ELSE 0 END) as count_180,
-      SUM(CASE WHEN json_extract(e.data, '$.visitScore') >= 140 THEN 1 ELSE 0 END) as count_140plus,
+      SUM(CASE WHEN e.data::jsonb->>'visitScore' = '180' THEN 1 ELSE 0 END) as count_180,
+      SUM(CASE WHEN (e.data::jsonb->>'visitScore')::integer >= 140 THEN 1 ELSE 0 END) as count_140plus,
       CASE
-        WHEN SUM(CASE WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170 THEN 1 ELSE 0 END) > 0
+        WHEN SUM(CASE WHEN (e.data::jsonb->>'remainingBefore')::integer <= 170 THEN 1 ELSE 0 END) > 0
         THEN ROUND(
-          CAST(SUM(CASE WHEN json_extract(e.data, '$.finishingDartSeq') IS NOT NULL THEN 1 ELSE 0 END) AS REAL) /
-          SUM(CASE WHEN CAST(json_extract(e.data, '$.remainingBefore') AS INTEGER) <= 170 THEN 1 ELSE 0 END) * 100, 1)
+          SUM(CASE WHEN e.data::jsonb->>'finishingDartSeq' IS NOT NULL THEN 1 ELSE 0 END)::real /
+          SUM(CASE WHEN (e.data::jsonb->>'remainingBefore')::integer <= 170 THEN 1 ELSE 0 END) * 100, 1)
         ELSE NULL
       END as co_pct
     FROM x01_matches m
     JOIN x01_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
     JOIN x01_events e ON e.match_id = m.id
     WHERE e.type = 'VisitAdded'
-      AND json_extract(e.data, '$.playerId') = ?
+      AND e.data::jsonb->>'playerId' = ?
       AND m.finished = 1 ${scoreFilter}
     GROUP BY m.id
   `, [playerId, playerId, ...scoreParam])
@@ -937,18 +937,18 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
       ROUND(AVG(leg_darts), 1) as avg_darts_won
     FROM (
       SELECT
-        (SELECT SUM(json_array_length(v.data, '$.darts'))
+        (SELECT SUM(jsonb_array_length(v.data::jsonb->'darts'))
          FROM x01_events v
          WHERE v.match_id = lf.match_id
            AND v.type = 'VisitAdded'
-           AND json_extract(v.data, '$.playerId') = ?
-           AND json_extract(v.data, '$.legId') = json_extract(lf.data, '$.legId')
+           AND v.data::jsonb->>'playerId' = ?
+           AND v.data::jsonb->>'legId' = lf.data::jsonb->>'legId'
         ) as leg_darts
       FROM x01_events lf
       JOIN x01_match_players mp ON mp.match_id = lf.match_id AND mp.player_id = ?
       JOIN x01_matches m ON m.id = lf.match_id AND m.finished = 1 ${scoreFilter}
       WHERE lf.type = 'LegFinished'
-        AND json_extract(lf.data, '$.winnerPlayerId') = ?
+        AND lf.data::jsonb->>'winnerPlayerId' = ?
     )
   `, [playerId, playerId, ...scoreParam, playerId])
 
