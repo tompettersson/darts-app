@@ -1,9 +1,7 @@
 // src/hooks/useSQLStats.ts
 // Hook zum Laden aller SQL-basierten Statistiken für einen Spieler
-// Refactored to use TanStack Query for caching, deduplication, and background refetch.
 
-import { useMemo } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect, useRef } from 'react'
 import {
   getGeneralPlayerStats,
   getX01FullStats,
@@ -198,129 +196,122 @@ const emptyData: SQLStatsData = {
 /** Tab types matching StatsProfile */
 export type StatsTab = 'uebersicht' | 'x01' | 'cricketco' | 'insights' | 'trends' | 'analyse' | 'erfolge'
 
-const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements'] as const
-type StatsGroup = typeof ALL_GROUPS[number]
-
-/** Fetch function for a single stats group */
-async function fetchGroup(playerId: string, group: string): Promise<Partial<SQLStatsData>> {
-  const partial: Partial<SQLStatsData> = {}
-  await loadGroup(playerId, group, partial)
-  return partial
-}
+// Track which tab groups have been loaded per player
+type LoadedGroups = Set<string>
 
 /**
  * Hook zum Laden von SQL-Statistiken für einen Spieler — Lazy per Tab.
- * Uses TanStack Query for caching, deduplication, and background refetch.
- * The external API (SQLStatsState) remains unchanged for compatibility.
+ * Lädt nur die Stats die der aktive Tab braucht. Bereits geladene Daten bleiben gecacht.
  */
 export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 'uebersicht'): SQLStatsState {
-  const queryClient = useQueryClient()
-
-  // Determine which groups the active tab needs
-  const neededGroups = useMemo(() => getGroupsForTab(activeTab), [activeTab])
-
-  // One useQuery per group — TanStack Query handles caching and deduplication
-  const coreQuery = useQuery({
-    queryKey: ['stats', playerId, 'core'],
-    queryFn: () => fetchGroup(playerId!, 'core'),
-    enabled: !!playerId && neededGroups.includes('core'),
-    staleTime: 5 * 60 * 1000,
+  const [state, setState] = useState<SQLStatsState>({
+    loading: true,
+    error: null,
+    data: emptyData,
   })
+  const loadedGroupsRef = useRef<LoadedGroups>(new Set())
+  const [loadTrigger, setLoadTrigger] = useState(0) // used to re-trigger effects
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | undefined>()
 
-  const x01variantsQuery = useQuery({
-    queryKey: ['stats', playerId, 'x01variants'],
-    queryFn: () => fetchGroup(playerId!, 'x01variants'),
-    enabled: !!playerId && neededGroups.includes('x01variants'),
-    staleTime: 5 * 60 * 1000,
-  })
+  useEffect(() => {
+    // Player changed → reset
+    if (playerId !== currentPlayerId) {
+      setCurrentPlayerId(playerId)
+      loadedGroupsRef.current = new Set()
+      prefetchDoneRef.current = false
+      setState({ loading: true, error: null, data: emptyData })
+      setLoadTrigger(t => t + 1)
+    }
+  }, [playerId, currentPlayerId])
 
-  const x01detailQuery = useQuery({
-    queryKey: ['stats', playerId, 'x01detail'],
-    queryFn: () => fetchGroup(playerId!, 'x01detail'),
-    enabled: !!playerId && neededGroups.includes('x01detail'),
-    staleTime: 5 * 60 * 1000,
-  })
+  useEffect(() => {
+    if (!playerId) {
+      setState({ loading: false, error: null, data: emptyData })
+      return
+    }
 
-  const cricketQuery = useQuery({
-    queryKey: ['stats', playerId, 'cricket'],
-    queryFn: () => fetchGroup(playerId!, 'cricket'),
-    enabled: !!playerId && neededGroups.includes('cricket'),
-    staleTime: 5 * 60 * 1000,
-  })
+    // Determine which groups this tab needs
+    const needed = getGroupsForTab(activeTab)
+    const missing = needed.filter(g => !loadedGroupsRef.current.has(g))
 
-  const minigamesQuery = useQuery({
-    queryKey: ['stats', playerId, 'minigames'],
-    queryFn: () => fetchGroup(playerId!, 'minigames'),
-    enabled: !!playerId && neededGroups.includes('minigames'),
-    staleTime: 5 * 60 * 1000,
-  })
+    if (missing.length === 0) {
+      setState(prev => ({ ...prev, loading: false }))
+      return
+    }
 
-  const insightsQuery = useQuery({
-    queryKey: ['stats', playerId, 'insights'],
-    queryFn: () => fetchGroup(playerId!, 'insights'),
-    enabled: !!playerId && neededGroups.includes('insights'),
-    staleTime: 5 * 60 * 1000,
-  })
+    let cancelled = false
+    const pid = playerId
 
-  const playerinsightsQuery = useQuery({
-    queryKey: ['stats', playerId, 'playerinsights'],
-    queryFn: () => fetchGroup(playerId!, 'playerinsights'),
-    enabled: !!playerId && neededGroups.includes('playerinsights'),
-    staleTime: 5 * 60 * 1000,
-  })
+    async function loadTabStats() {
+      setState(prev => ({ ...prev, loading: true }))
 
-  const achievementsQuery = useQuery({
-    queryKey: ['stats', playerId, 'achievements'],
-    queryFn: () => fetchGroup(playerId!, 'achievements'),
-    enabled: !!playerId && neededGroups.includes('achievements'),
-    staleTime: 5 * 60 * 1000,
-  })
+      try {
+        const partial: Partial<SQLStatsData> = {}
+        await Promise.all(missing.map(g => loadGroup(pid, g, partial)))
 
-  // Background prefetch: when active tab loads, prefetch remaining groups
-  const allQueries = [coreQuery, x01variantsQuery, x01detailQuery, cricketQuery, minigamesQuery, insightsQuery, playerinsightsQuery, achievementsQuery]
-  const activeQueriesLoaded = neededGroups.every(g => {
-    const idx = ALL_GROUPS.indexOf(g as StatsGroup)
-    return idx >= 0 && allQueries[idx]?.isSuccess
-  })
-
-  if (activeQueriesLoaded && playerId) {
-    // Prefetch remaining groups in background (non-blocking)
-    for (const group of ALL_GROUPS) {
-      if (!neededGroups.includes(group)) {
-        queryClient.prefetchQuery({
-          queryKey: ['stats', playerId, group],
-          queryFn: () => fetchGroup(playerId, group),
-          staleTime: 5 * 60 * 1000,
-        })
+        if (!cancelled) {
+          for (const g of missing) loadedGroupsRef.current.add(g)
+          setState(prev => ({
+            loading: false,
+            error: null,
+            data: { ...prev.data, ...partial },
+          }))
+          // Trigger background prefetch
+          setLoadTrigger(t => t + 1)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error loading SQL stats:', err)
+          setState(prev => ({
+            ...prev,
+            loading: false,
+            error: err instanceof Error ? err.message : 'Unbekannter Fehler',
+          }))
+        }
       }
     }
-  }
 
-  // Merge all loaded group data into a single SQLStatsData object
-  const data: SQLStatsData = useMemo(() => ({
-    ...emptyData,
-    ...(coreQuery.data ?? {}),
-    ...(x01variantsQuery.data ?? {}),
-    ...(x01detailQuery.data ?? {}),
-    ...(cricketQuery.data ?? {}),
-    ...(minigamesQuery.data ?? {}),
-    ...(insightsQuery.data ?? {}),
-    ...(playerinsightsQuery.data ?? {}),
-    ...(achievementsQuery.data ?? {}),
-  }), [coreQuery.data, x01variantsQuery.data, x01detailQuery.data, cricketQuery.data,
-       minigamesQuery.data, insightsQuery.data, playerinsightsQuery.data, achievementsQuery.data])
+    loadTabStats()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, activeTab, loadTrigger])
 
-  // Determine loading/error state from the needed queries
-  const neededQueryStates = neededGroups.map(g => {
-    const idx = ALL_GROUPS.indexOf(g as StatsGroup)
-    return idx >= 0 ? allQueries[idx] : null
-  }).filter(Boolean)
+  // Background prefetch: after initial tab loads, load ALL remaining groups
+  const prefetchDoneRef = useRef(false)
+  useEffect(() => {
+    if (!playerId || state.loading || loadedGroupsRef.current.size === 0 || prefetchDoneRef.current) return
 
-  const loading = !playerId ? false : neededQueryStates.some(q => q!.isLoading)
-  const error = neededQueryStates.find(q => q!.error)?.error
-  const errorMsg = error instanceof Error ? error.message : error ? String(error) : null
+    const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
+    const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
+    if (remaining.length === 0) { prefetchDoneRef.current = true; return }
 
-  return { loading, error: errorMsg, data }
+    let cancelled = false
+    const pid = playerId
+    prefetchDoneRef.current = true // Only run once per player
+
+    const timer = setTimeout(async () => {
+      try {
+        const partial: Partial<SQLStatsData> = {}
+        await Promise.all(remaining.map(g => loadGroup(pid, g, partial)))
+
+        if (!cancelled) {
+          for (const g of remaining) loadedGroupsRef.current.add(g)
+          setState(prev => ({
+            ...prev,
+            data: { ...prev.data, ...partial },
+          }))
+        }
+      } catch {
+        // Background prefetch errors are non-critical
+        prefetchDoneRef.current = false // Allow retry on error
+      }
+    }, 500) // Longer delay to let tab loads finish first
+
+    return () => { cancelled = true; clearTimeout(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, state.loading, loadTrigger])
+
+  return state
 }
 
 /** Maps tabs to required data groups */
