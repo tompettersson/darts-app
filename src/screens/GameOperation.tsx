@@ -518,7 +518,10 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
             announceOperationLastRound()
           }
           if (nextPlayer) {
-            debouncedAnnounce(() => announceOperationNextPlayer(nextPlayer.name))
+            const isNextLocalOp = !multiplayer?.enabled || opLocalIds.includes(nextPlayerId)
+            if (isNextLocalOp) {
+              debouncedAnnounce(() => announceOperationNextPlayer(nextPlayer.name))
+            }
           }
         }
       }

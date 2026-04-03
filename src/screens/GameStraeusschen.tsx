@@ -838,7 +838,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
             const nextPid = getActivePlayerId(nextState)
             const nextPlayer = getActivePlayer(nextState)
             const nextPs = nextPid ? nextState.playerState[nextPid] : null
-            if (nextPlayer && nextPs) {
+            const isNextLocalStr = !multiplayer?.enabled || (nextPid != null && strLocalIds.includes(nextPid))
+            if (nextPlayer && nextPs && isNextLocalStr) {
               debouncedAnnounce(() => announceStrPlayerTurn(nextPlayer.name, nextPs.currentNumber))
             }
           }}

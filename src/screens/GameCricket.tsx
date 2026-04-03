@@ -2574,7 +2574,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         const nextState = applyCricketEvents(nextEvents)
         const nextActiveId = currentPlayerId(nextState) ?? order[0]
         const nextActivePlayer = match.players.find(p => p.playerId === nextActiveId)
-        setTimeout(() => announceNextPlayer(nextActivePlayer?.name ?? nextActiveId), totalDelay)
+        const isNextLocal = !multiplayer?.enabled || cricketLocalIds.includes(nextActiveId)
+        if (isNextLocal) {
+          setTimeout(() => announceNextPlayer(nextActivePlayer?.name ?? nextActiveId), totalDelay)
+        }
       }
     }
 
@@ -2646,8 +2649,11 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           const targetChanged = newlyClosed.length > 0 // Zahl wurde geschlossen = Ziel könnte sich ändern
 
           if (!sameForAll || isRoundStart || targetChanged) {
-            // Ansage mit Spielername + alle Ziele
-            announceCrazyPlayerTarget(nextActivePlayer?.name ?? nextActiveId, targets)
+            // Ansage mit Spielername + alle Ziele — nur für lokale Spieler
+            const isNextLocalCrazy = !multiplayer?.enabled || cricketLocalIds.includes(nextActiveId)
+            if (isNextLocalCrazy) {
+              announceCrazyPlayerTarget(nextActivePlayer?.name ?? nextActiveId, targets)
+            }
           }
         }
       }, 400 + closedDelay)

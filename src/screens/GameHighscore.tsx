@@ -222,7 +222,9 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     if (!result.legFinished && !result.matchFinished && state.match) {
       const tmpState = applyHighscoreEvents(newEvents)
       const nextPlayer = getActivePlayer(tmpState)
-      if (nextPlayer) {
+      const nextPid = getActivePlayerId(tmpState)
+      const isNextLocalHs = !multiplayer?.enabled || (nextPid != null && hsLocalIds.includes(nextPid))
+      if (nextPlayer && isNextLocalHs) {
         debouncedAnnounce(() => announceNextPlayer(nextPlayer.name))
       }
     }
