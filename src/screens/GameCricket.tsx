@@ -631,10 +631,24 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   // --- Sprachausgabe ---
   const [speechEnabled, setSpeechEnabledState] = useState(true)
 
-  const matchStored = loadCricketById(matchId)
+  const [matchStored, setMatchStored] = useState(() => loadCricketById(matchId))
   const [events, setEvents] = useState<CricketEvent[]>(
     () => (matchStored?.events ?? []) as CricketEvent[]
   )
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (matchStored) return
+    const timer = setInterval(() => {
+      const found = loadCricketById(matchId)
+      if (found) {
+        setMatchStored(found)
+        setEvents(found.events as CricketEvent[])
+        clearInterval(timer)
+      }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, matchStored])
 
   const baseState = useMemo(() => applyCricketEvents(events), [events])
 
