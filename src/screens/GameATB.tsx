@@ -418,7 +418,6 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
       // Match beendet?
       if (result.matchFinished) {
         newEvents.push(result.matchFinished)
-        finishATBMatch(matchId, result.matchFinished.winnerId, result.matchFinished.totalDarts, result.matchFinished.durationMs)
 
         // Match-Gewinner-Ansage
         const winnerPlayer = state.match?.players.find(p => p.playerId === result.matchFinished!.winnerId)
@@ -426,13 +425,16 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           announceATBWinner(winnerPlayer.name, result.matchFinished.totalDarts, formatDuration(result.matchFinished.durationMs))
         }
 
-        // Events speichern und zur Summary
-        persistATBEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-        onShowSummary(matchId)
+        // Persist + finish must complete before navigating to summary
+        ;(async () => {
+          await persistATBEvents(matchId, newEvents)
+          await finishATBMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          onShowSummary(matchId)
+        })()
         return
       }
 

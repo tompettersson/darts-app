@@ -2387,7 +2387,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     numBuf.current = ''
   }
 
-  function confirmTurn(override?: CricketTurnDart[]) {
+  async function confirmTurn(override?: CricketTurnDart[]) {
     // Pause? Keine Eingaben
     if (gamePaused) return
 
@@ -2454,7 +2454,6 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         nextEvents.push(matchFinishedEv)
 
         // Match abschließen + Leaderboards aktualisieren (passiert in finishCricketMatch)
-        finishCricketMatch(storedId)
         matchJustFinished = true
 
         // Ansage: "Game shot, and the match!"
@@ -2483,7 +2482,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     }
 
     // persist Events lokal
-    persistCricketEvents(storedId, nextEvents)
+    if (matchJustFinished) {
+      await persistCricketEvents(storedId, nextEvents)
+      await finishCricketMatch(storedId)
+    } else {
+      persistCricketEvents(storedId, nextEvents)
+    }
     setEvents(nextEvents)
     setTurn([])
     setMult(1) // Multiplier zurücksetzen nach Turn-Bestätigung

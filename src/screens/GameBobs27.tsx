@@ -129,10 +129,13 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
     const updatedEvents = [...events, finishEvent]
     setEvents(updatedEvents)
-    persistBobs27Events(matchId, updatedEvents)
-    finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores)
     setMatchEndDelay(true)
-    setTimeout(() => onShowSummary(matchId), 2000)
+    // Persist + finish must complete before navigating to summary
+    ;(async () => {
+      await persistBobs27Events(matchId, updatedEvents)
+      await finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores)
+      setTimeout(() => onShowSummary(matchId), 2000)
+    })()
   }, [state, events, matchId, matchEndDelay, elapsedMs, onShowSummary])
 
   // Multiplayer: Remote-Events synchronisieren
@@ -233,7 +236,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
     const updatedEvents = [...events, ...newEvents]
     setEvents(updatedEvents)
-    persistBobs27Events(matchId, updatedEvents)
 
     // Multiplayer: Events senden
     if (multiplayer?.enabled) {
@@ -242,16 +244,21 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
     // Match beendet?
     if (result.matchFinished) {
-      const totalDarts = result.matchFinished.totalDarts
-      finishBobs27Match(
-        matchId,
-        result.matchFinished.winnerId,
-        totalDarts,
-        elapsedMs,
-        result.matchFinished.finalScores
-      )
       setMatchEndDelay(true)
-      setTimeout(() => onShowSummary(matchId), 2000)
+      // Persist + finish must complete before navigating to summary
+      ;(async () => {
+        await persistBobs27Events(matchId, updatedEvents)
+        await finishBobs27Match(
+          matchId,
+          result.matchFinished!.winnerId,
+          result.matchFinished!.totalDarts,
+          elapsedMs,
+          result.matchFinished!.finalScores
+        )
+        setTimeout(() => onShowSummary(matchId), 2000)
+      })()
+    } else {
+      persistBobs27Events(matchId, updatedEvents)
     }
   }, [events, state, activePlayerId, gamePaused, matchEndDelay, matchId, elapsedMs, onShowSummary, multiplayer])
 

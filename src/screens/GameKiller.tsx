@@ -368,26 +368,28 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       // Compute final leg/set wins from state applied to all events
       const finalState = applyKillerEvents(newEvents)
 
-      finishKillerMatch(
-        matchId,
-        result.matchFinished.winnerId,
-        result.matchFinished.finalStandings,
-        result.matchFinished.totalDarts,
-        result.matchFinished.durationMs,
-        finalState.legWinsByPlayer,
-        finalState.setWinsByPlayer,
-      )
-
       if (result.matchFinished.winnerId) {
         announceKillerWinner(playerNames[result.matchFinished.winnerId] ?? '')
       }
 
-      persistKillerEvents(matchId, newEvents)
       setEvents(newEvents)
       setCurrent([])
       setMult(1)
       if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-      setTimeout(() => onFinish(matchId), 2500)
+      // Persist + finish must complete before navigating to summary
+      ;(async () => {
+        await persistKillerEvents(matchId, newEvents)
+        await finishKillerMatch(
+          matchId,
+          result.matchFinished!.winnerId,
+          result.matchFinished!.finalStandings,
+          result.matchFinished!.totalDarts,
+          result.matchFinished!.durationMs,
+          finalState.legWinsByPlayer,
+          finalState.setWinsByPlayer,
+        )
+        setTimeout(() => onFinish(matchId), 2500)
+      })()
       return
     }
 

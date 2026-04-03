@@ -358,7 +358,6 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
       // Match beendet?
       if (result.matchFinished) {
         newEvents.push(result.matchFinished)
-        finishCTFMatch(matchId, result.matchFinished.winnerId, result.matchFinished.totalDarts, result.matchFinished.durationMs)
 
         // Endplatzierungen berechnen und ansagen (nach Feldpunkten)
         const finalState = applyCTFEvents(newEvents)
@@ -371,12 +370,16 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
 
         announceCTFMatchEndRankings(rankings)
 
-        persistCTFEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-        setTimeout(() => onShowSummary(matchId), 2500)
+        // Persist + finish must complete before navigating to summary
+        ;(async () => {
+          await persistCTFEvents(matchId, newEvents)
+          await finishCTFMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          setTimeout(() => onShowSummary(matchId), 2500)
+        })()
         return
       }
 

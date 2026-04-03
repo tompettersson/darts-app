@@ -466,7 +466,6 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
 
     const updatedEvents = [...events, ...newEvents]
     setEvents(updatedEvents)
-    persistOperationEvents(matchId, updatedEvents)
 
     // Multiplayer: Events senden
     if (multiplayer?.enabled) {
@@ -519,15 +518,21 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
 
     // Match beendet?
     if (result.matchFinished) {
-      finishOperationMatch(
-        matchId,
-        result.matchFinished.winnerId,
-        elapsedMs,
-        result.matchFinished.finalScores,
-        result.matchFinished.legWins
-      )
       setMatchEndDelay(true)
-      setTimeout(() => onShowSummary(matchId), 2000)
+      // Persist + finish must complete before navigating to summary
+      ;(async () => {
+        await persistOperationEvents(matchId, updatedEvents)
+        await finishOperationMatch(
+          matchId,
+          result.matchFinished!.winnerId,
+          elapsedMs,
+          result.matchFinished!.finalScores,
+          result.matchFinished!.legWins
+        )
+        setTimeout(() => onShowSummary(matchId), 2000)
+      })()
+    } else {
+      persistOperationEvents(matchId, updatedEvents)
     }
   }, [events, state, activePlayerId, activePlayerLegState, dartsThrown, players, gamePaused, matchEndDelay, showLegSummary, matchId, elapsedMs, onShowSummary, multiplayer])
 

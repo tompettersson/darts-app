@@ -227,19 +227,22 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
         newEvents.push(result.matchFinished)
         // "Game shot, and the match!"
         setTimeout(() => announceMatchDart(), 500)
-        finishHighscoreMatch(
-          matchId,
-          result.matchFinished.winnerId,
-          result.matchFinished.totalDarts,
-          result.matchFinished.durationMs,
-          result.matchFinished.legWins,
-          result.matchFinished.setWins
-        )
-        persistHighscoreEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrentDarts([])
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-        onShowSummary(matchId)
+        // Persist + finish must complete before navigating to summary
+        ;(async () => {
+          await persistHighscoreEvents(matchId, newEvents)
+          await finishHighscoreMatch(
+            matchId,
+            result.matchFinished!.winnerId,
+            result.matchFinished!.totalDarts,
+            result.matchFinished!.durationMs,
+            result.matchFinished!.legWins,
+            result.matchFinished!.setWins
+          )
+          onShowSummary(matchId)
+        })()
         return
       }
 

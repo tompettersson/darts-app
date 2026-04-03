@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(sh:*)",
+      "Bash(bash)",
+      "Bash(node ~/.claude/hooks/utils/tts/windows_tts.js \"David, das Update muss außerhalb von Claude Code ausgeführt werden. Beende die Session und führe dann den curl-Befehl aus.\")"
+    ]
+  },
+  "outputStyle": "TTS Summary"
+}

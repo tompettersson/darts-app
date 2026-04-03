@@ -234,14 +234,17 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
       // Match beendet?
       if (result.matchFinished) {
         newEvents.push(result.matchFinished)
-        finishStrMatch(matchId, result.matchFinished.winnerId, result.matchFinished.totalDarts, result.matchFinished.durationMs)
-        persistStrEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         const winnerPlayer = state.match?.players.find(p => p.playerId === result.matchFinished!.winnerId)
         announceStrMatchWinner(winnerPlayer?.name ?? '?')
-        onShowSummary(matchId)
+        // Persist + finish must complete before navigating to summary
+        ;(async () => {
+          await persistStrEvents(matchId, newEvents)
+          await finishStrMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          onShowSummary(matchId)
+        })()
         return
       }
 

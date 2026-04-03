@@ -1929,15 +1929,21 @@ export function createCricketMatchShell(args: {
 export function persistCricketEvents(
   matchId: string,
   events: CricketEvent[]
-) {
+): Promise<void> {
   const list = getCricketMatches()
   const idx = list.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
   list[idx] = { ...list[idx], events }
   saveCricketMatches(list)
 
   // Queued DB write — prevents race condition with concurrent persist calls
-  queueWrite(`cricket-${matchId}`, () => dbUpdateCricketEvents(matchId, events).catch(err => trackDBError('cricket-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`cricket-${matchId}`, async () => {
+      try { await dbUpdateCricketEvents(matchId, events) }
+      catch (err) { trackDBError('cricket-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 /**
@@ -1945,10 +1951,10 @@ export function persistCricketEvents(
  */
 export function finishCricketMatch(
   matchId: string
-) {
+): Promise<void> {
   const list = getCricketMatches()
   const idx = list.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   list[idx] = { ...list[idx], finished: true }
   saveCricketMatches(list)
@@ -1977,17 +1983,24 @@ export function finishCricketMatch(
 
   // Queued DB write — serialized with event persist
   const matchData = list[idx]
-  queueWrite(`cricket-${matchId}`, () => dbSaveCricketMatch({
-    id: matchData.id,
-    title: matchData.title,
-    matchName: matchData.matchName ?? null,
-    notes: matchData.notes ?? null,
-    createdAt: matchData.createdAt,
-    finished: true,
-    finishedAt: now(),
-    events: matchData.events,
-    playerIds: matchData.playerIds,
-  }).catch(err => trackDBError('cricket-finish', matchData.id, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`cricket-${matchId}`, async () => {
+      try {
+        await dbSaveCricketMatch({
+          id: matchData.id,
+          title: matchData.title,
+          matchName: matchData.matchName ?? null,
+          notes: matchData.notes ?? null,
+          createdAt: matchData.createdAt,
+          finished: true,
+          finishedAt: now(),
+          events: matchData.events,
+          playerIds: matchData.playerIds,
+        })
+      } catch (err) { trackDBError('cricket-finish', matchData.id, err) }
+      resolve()
+    })
+  })
 }
 
 /** Setzt Spielname und Bemerkungen für ein Cricket-Match (nur einmal möglich). */
@@ -2885,16 +2898,21 @@ export function createATBMatchShell(args: {
   return stored
 }
 
-export function persistATBEvents(matchId: string, events: ATBEvent[]) {
+export function persistATBEvents(matchId: string, events: ATBEvent[]): Promise<void> {
   const all = getATBMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   atbMatchesCache = all
 
-
-  queueWrite(`atb-${matchId}`, () => dbUpdateATBEvents(matchId, events).catch(err => trackDBError('atb-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`atb-${matchId}`, async () => {
+      try { await dbUpdateATBEvents(matchId, events) }
+      catch (err) { trackDBError('atb-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishATBMatch(
@@ -2902,10 +2920,10 @@ export function finishATBMatch(
   winnerId: string,
   winnerDarts: number,
   durationMs: number
-) {
+): Promise<void> {
   const all = getATBMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = now()
@@ -2913,8 +2931,6 @@ export function finishATBMatch(
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
   atbMatchesCache = all
-
-  queueWrite(`atb-${matchId}`, () => dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('atb-finish', matchId, err)))
 
   // Update Highscores
   const match = all[idx]
@@ -2929,6 +2945,14 @@ export function finishATBMatch(
       darts: winnerDarts,
     })
   }
+
+  return new Promise<void>((resolve) => {
+    queueWrite(`atb-${matchId}`, async () => {
+      try { await dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs) }
+      catch (err) { trackDBError('atb-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 let atbHighscoresCache: ATBHighscore[] | null = null
@@ -3496,16 +3520,21 @@ export function createStrMatchShell(args: {
   return stored
 }
 
-export function persistStrEvents(matchId: string, events: StrEvent[]) {
+export function persistStrEvents(matchId: string, events: StrEvent[]): Promise<void> {
   const all = getStrMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   strMatchesCache = all
 
-
-  queueWrite(`str-${matchId}`, () => dbUpdateStrEvents(matchId, events as any[]).catch(err => trackDBError('str-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`str-${matchId}`, async () => {
+      try { await dbUpdateStrEvents(matchId, events as any[]) }
+      catch (err) { trackDBError('str-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishStrMatch(
@@ -3513,10 +3542,10 @@ export function finishStrMatch(
   winnerId: string,
   winnerDarts: number,
   durationMs: number
-) {
+): Promise<void> {
   const all = getStrMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = strNow()
@@ -3525,7 +3554,13 @@ export function finishStrMatch(
   all[idx].durationMs = durationMs
   strMatchesCache = all
 
-  queueWrite(`str-${matchId}`, () => dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('str-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`str-${matchId}`, async () => {
+      try { await dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs) }
+      catch (err) { trackDBError('str-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteStrMatch(matchId: string) {
@@ -3653,16 +3688,21 @@ export function createCTFMatchShell(args: {
   return stored
 }
 
-export function persistCTFEvents(matchId: string, events: CTFEvent[]) {
+export function persistCTFEvents(matchId: string, events: CTFEvent[]): Promise<void> {
   const all = getCTFMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   ctfMatchesCache = all
 
-
-  queueWrite(`ctf-${matchId}`, () => dbUpdateCTFEvents(matchId, events).catch(err => trackDBError('ctf-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`ctf-${matchId}`, async () => {
+      try { await dbUpdateCTFEvents(matchId, events) }
+      catch (err) { trackDBError('ctf-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishCTFMatch(
@@ -3670,10 +3710,10 @@ export function finishCTFMatch(
   winnerId: string,
   winnerDarts: number,
   durationMs: number
-) {
+): Promise<void> {
   const all = getCTFMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = ctfNow()
@@ -3714,26 +3754,32 @@ export function finishCTFMatch(
 
   ctfMatchesCache = all
 
-
   const match = all[idx]
-  queueWrite(`ctf-${matchId}`, () => dbSaveCTFMatch({
-    id: match.id,
-    title: match.title,
-    createdAt: match.createdAt,
-    finished: true,
-    finishedAt: match.finishedAt ?? null,
-    durationMs,
-    winnerId,
-    winnerDarts,
-    players: match.players,
-    events: match.events,
-    structure: match.structure,
-    config: match.config,
-    generatedSequence: match.generatedSequence,
-    captureFieldWinners: match.captureFieldWinners,
-    captureTotalScores: match.captureTotalScores,
-    captureFieldPoints: match.captureFieldPoints,
-  }).catch(err => trackDBError('ctf-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`ctf-${matchId}`, async () => {
+      try {
+        await dbSaveCTFMatch({
+          id: match.id,
+          title: match.title,
+          createdAt: match.createdAt,
+          finished: true,
+          finishedAt: match.finishedAt ?? null,
+          durationMs,
+          winnerId,
+          winnerDarts,
+          players: match.players,
+          events: match.events,
+          structure: match.structure,
+          config: match.config,
+          generatedSequence: match.generatedSequence,
+          captureFieldWinners: match.captureFieldWinners,
+          captureTotalScores: match.captureTotalScores,
+          captureFieldPoints: match.captureFieldPoints,
+        })
+      } catch (err) { trackDBError('ctf-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteCTFMatch(matchId: string) {
@@ -3857,16 +3903,21 @@ export function createShanghaiMatchShell(args: {
   return stored
 }
 
-export function persistShanghaiEvents(matchId: string, events: ShanghaiEvent[]) {
+export function persistShanghaiEvents(matchId: string, events: ShanghaiEvent[]): Promise<void> {
   const all = getShanghaiMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   shanghaiMatchesCache = all
 
-
-  queueWrite(`shanghai-${matchId}`, () => dbUpdateShanghaiEvents(matchId, events).catch(err => trackDBError('shanghai-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`shanghai-${matchId}`, async () => {
+      try { await dbUpdateShanghaiEvents(matchId, events) }
+      catch (err) { trackDBError('shanghai-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishShanghaiMatch(
@@ -3874,10 +3925,10 @@ export function finishShanghaiMatch(
   winnerId: string | null,
   winnerDarts: number,
   durationMs: number
-) {
+): Promise<void> {
   const all = getShanghaiMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = shanghaiNow()
@@ -3895,23 +3946,30 @@ export function finishShanghaiMatch(
   shanghaiMatchesCache = all
 
   const match = all[idx]
-  queueWrite(`shanghai-${matchId}`, () => dbSaveShanghaiMatch({
-    id: match.id,
-    title: match.title,
-    createdAt: match.createdAt,
-    finished: true,
-    finishedAt: match.finishedAt ?? null,
-    durationMs,
-    winnerId,
-    winnerDarts,
-    players: match.players,
-    events: match.events,
-    structure: match.structure,
-    config: match.config,
-    finalScores: match.finalScores,
-    legWins: match.legWins,
-    setWins: match.setWins,
-  }).catch(err => trackDBError('shanghai-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`shanghai-${matchId}`, async () => {
+      try {
+        await dbSaveShanghaiMatch({
+          id: match.id,
+          title: match.title,
+          createdAt: match.createdAt,
+          finished: true,
+          finishedAt: match.finishedAt ?? null,
+          durationMs,
+          winnerId,
+          winnerDarts,
+          players: match.players,
+          events: match.events,
+          structure: match.structure,
+          config: match.config,
+          finalScores: match.finalScores,
+          legWins: match.legWins,
+          setWins: match.setWins,
+        })
+      } catch (err) { trackDBError('shanghai-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteShanghaiMatch(matchId: string) {
@@ -4034,16 +4092,21 @@ export function createKillerMatchShell(
   return stored
 }
 
-export function persistKillerEvents(matchId: string, events: KillerEvent[]) {
+export function persistKillerEvents(matchId: string, events: KillerEvent[]): Promise<void> {
   const all = getKillerMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   killerMatchesCache = all
 
-
-  queueWrite(`killer-${matchId}`, () => dbUpdateKillerEvents(matchId, events).catch(err => trackDBError('killer-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`killer-${matchId}`, async () => {
+      try { await dbUpdateKillerEvents(matchId, events) }
+      catch (err) { trackDBError('killer-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishKillerMatch(
@@ -4054,10 +4117,10 @@ export function finishKillerMatch(
   durationMs: number,
   legWins?: Record<string, number>,
   setWins?: Record<string, number>
-) {
+): Promise<void> {
   const all = getKillerMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = killerNow()
@@ -4070,8 +4133,13 @@ export function finishKillerMatch(
 
   killerMatchesCache = all
 
-  queueWrite(`killer-${matchId}`, () => dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins)
-    .catch(err => trackDBError('killer-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`killer-${matchId}`, async () => {
+      try { await dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins) }
+      catch (err) { trackDBError('killer-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteKillerMatch(matchId: string) {
@@ -4186,16 +4254,21 @@ export function createBobs27MatchShell(args: {
   return stored
 }
 
-export function persistBobs27Events(matchId: string, events: Bobs27Event[]) {
+export function persistBobs27Events(matchId: string, events: Bobs27Event[]): Promise<void> {
   const all = getBobs27Matches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   bobs27MatchesCache = all
 
-
-  queueWrite(`bobs27-${matchId}`, () => dbUpdateBobs27Events(matchId, events).catch(err => trackDBError('bobs27-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`bobs27-${matchId}`, async () => {
+      try { await dbUpdateBobs27Events(matchId, events) }
+      catch (err) { trackDBError('bobs27-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishBobs27Match(
@@ -4204,10 +4277,10 @@ export function finishBobs27Match(
   winnerDarts: number,
   durationMs: number,
   finalScores?: Record<string, number>
-) {
+): Promise<void> {
   const all = getBobs27Matches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = bobs27Now()
@@ -4219,21 +4292,28 @@ export function finishBobs27Match(
   bobs27MatchesCache = all
 
   const match = all[idx]
-  queueWrite(`bobs27-${matchId}`, () => dbSaveBobs27Match({
-    id: match.id,
-    title: match.title,
-    createdAt: match.createdAt,
-    finished: true,
-    finishedAt: match.finishedAt ?? null,
-    durationMs,
-    winnerId,
-    winnerDarts,
-    players: match.players,
-    events: match.events,
-    config: match.config,
-    targets: match.targets,
-    finalScores: match.finalScores,
-  }).catch(err => trackDBError('bobs27-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`bobs27-${matchId}`, async () => {
+      try {
+        await dbSaveBobs27Match({
+          id: match.id,
+          title: match.title,
+          createdAt: match.createdAt,
+          finished: true,
+          finishedAt: match.finishedAt ?? null,
+          durationMs,
+          winnerId,
+          winnerDarts,
+          players: match.players,
+          events: match.events,
+          config: match.config,
+          targets: match.targets,
+          finalScores: match.finalScores,
+        })
+      } catch (err) { trackDBError('bobs27-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteBobs27Match(matchId: string) {
@@ -4443,16 +4523,21 @@ export function createOperationMatchShell(args: {
   return stored
 }
 
-export function persistOperationEvents(matchId: string, events: OperationEvent[]) {
+export function persistOperationEvents(matchId: string, events: OperationEvent[]): Promise<void> {
   const all = getOperationMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   operationMatchesCache = all
 
-
-  queueWrite(`operation-${matchId}`, () => dbUpdateOperationEvents(matchId, events).catch(err => trackDBError('operation-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`operation-${matchId}`, async () => {
+      try { await dbUpdateOperationEvents(matchId, events) }
+      catch (err) { trackDBError('operation-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishOperationMatch(
@@ -4461,10 +4546,10 @@ export function finishOperationMatch(
   durationMs: number,
   finalScores?: Record<string, number>,
   legWins?: Record<string, number>
-) {
+): Promise<void> {
   const all = getOperationMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = operationNow()
@@ -4476,23 +4561,30 @@ export function finishOperationMatch(
   operationMatchesCache = all
 
   const match = all[idx]
-  queueWrite(`operation-${matchId}`, () => dbSaveOperationMatch({
-    id: match.id,
-    title: match.title,
-    createdAt: match.createdAt,
-    finished: true,
-    finishedAt: match.finishedAt ?? null,
-    durationMs: match.durationMs ?? null,
-    winnerId: match.winnerId ?? null,
-    winnerDarts: null,
-    legsCount: match.config.legsCount,
-    targetMode: match.config.targetMode,
-    players: match.players,
-    events: match.events,
-    config: match.config,
-    finalScores: match.finalScores,
-    legWins: match.legWins,
-  }).catch(err => trackDBError('operation-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`operation-${matchId}`, async () => {
+      try {
+        await dbSaveOperationMatch({
+          id: match.id,
+          title: match.title,
+          createdAt: match.createdAt,
+          finished: true,
+          finishedAt: match.finishedAt ?? null,
+          durationMs: match.durationMs ?? null,
+          winnerId: match.winnerId ?? null,
+          winnerDarts: null,
+          legsCount: match.config.legsCount,
+          targetMode: match.config.targetMode,
+          players: match.players,
+          events: match.events,
+          config: match.config,
+          finalScores: match.finalScores,
+          legWins: match.legWins,
+        })
+      } catch (err) { trackDBError('operation-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteOperationMatch(matchId: string) {
@@ -5113,16 +5205,21 @@ export function createHighscoreMatchShell(args: {
   return stored
 }
 
-export function persistHighscoreEvents(matchId: string, events: HighscoreEvent[]) {
+export function persistHighscoreEvents(matchId: string, events: HighscoreEvent[]): Promise<void> {
   const all = getHighscoreMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].events = events
   highscoreMatchesCache = all
 
-
-  queueWrite(`highscore-${matchId}`, () => dbUpdateHighscoreEvents(matchId, events as any[]).catch(err => trackDBError('highscore-events', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`highscore-${matchId}`, async () => {
+      try { await dbUpdateHighscoreEvents(matchId, events as any[]) }
+      catch (err) { trackDBError('highscore-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishHighscoreMatch(
@@ -5132,10 +5229,10 @@ export function finishHighscoreMatch(
   durationMs: number,
   legWins?: Record<string, number>,
   setWins?: Record<string, number>
-) {
+): Promise<void> {
   const all = getHighscoreMatches()
   const idx = all.findIndex(m => m.id === matchId)
-  if (idx === -1) return
+  if (idx === -1) return Promise.resolve()
 
   all[idx].finished = true
   all[idx].finishedAt = new Date().toISOString()
@@ -5146,8 +5243,13 @@ export function finishHighscoreMatch(
   if (setWins) all[idx].setWins = setWins
   highscoreMatchesCache = all
 
-  queueWrite(`highscore-${matchId}`, () => dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins)
-    .catch(err => trackDBError('highscore-finish', matchId, err)))
+  return new Promise<void>((resolve) => {
+    queueWrite(`highscore-${matchId}`, async () => {
+      try { await dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins) }
+      catch (err) { trackDBError('highscore-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function deleteHighscoreMatch(matchId: string) {

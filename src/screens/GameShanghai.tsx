@@ -320,15 +320,16 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
       if (result.matchFinished) {
         newEvents.push(result.matchFinished)
 
-        const totalDarts = result.matchFinished.totalDarts
-        finishShanghaiMatch(matchId, result.matchFinished.winnerId, totalDarts, result.matchFinished.durationMs)
-
-        persistShanghaiEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])
         setMult(1)
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-        setTimeout(() => onShowSummary(matchId), 2500)
+        // Persist + finish must complete before navigating to summary
+        ;(async () => {
+          await persistShanghaiEvents(matchId, newEvents)
+          await finishShanghaiMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          setTimeout(() => onShowSummary(matchId), 2500)
+        })()
         return
       }
 
