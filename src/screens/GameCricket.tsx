@@ -1368,10 +1368,32 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     const playerIndex = order.indexOf(pid)
     const playerColor = playerChartColors[playerIndex] ?? '#f97316'
 
+    const isSimpleStyle = match.style === 'simple' || (match.style === 'crazy' && ((match as any).crazyScoringMode ?? ((match as any).crazyWithPoints ? 'standard' : 'simple')) === 'simple')
+    const hideScore = isMobileScreen || isSimpleStyle
+
     return (
       <div style={playerCardStyle(isActive, playerColor)}>
-        <PlayerHeader name={p?.name ?? pid} score={score} side={side} hideScore={match.style === 'simple' || (match.style === 'crazy' && ((match as any).crazyScoringMode ?? ((match as any).crazyWithPoints ? 'standard' : 'simple')) === 'simple')} />
-        <PlayerRows pid={pid} side={side} />
+        <PlayerHeader name={p?.name ?? pid} score={score} side={side} hideScore={hideScore} />
+        {isMobileScreen && !isSimpleStyle ? (
+          <div style={{ display: 'flex', flexDirection: side === 'left' ? 'row' : 'row-reverse', alignItems: 'center', gap: 4 }}>
+            <div style={{
+              fontWeight: 800,
+              fontSize: 16,
+              color: playerColor,
+              minWidth: 28,
+              textAlign: 'center',
+              lineHeight: 1,
+              flexShrink: 0,
+            }}>
+              {score}
+            </div>
+            <div style={{ flex: 1 }}>
+              <PlayerRows pid={pid} side={side} />
+            </div>
+          </div>
+        ) : (
+          <PlayerRows pid={pid} side={side} />
+        )}
       </div>
     )
   }
