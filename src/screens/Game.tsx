@@ -1319,7 +1319,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     setLastVisitByPlayer({})
   }
 
-  const confirmVisit = (forcedDarts?: Dart[]) => {
+  const confirmVisit = async (forcedDarts?: Dart[]) => {
     try {
       if (isPaused) return
       if (multiplayer?.enabled && !isMyTurn) return
@@ -1331,7 +1331,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       const originalEventCount = events.length
 
       // Helper: persist + optionally send to multiplayer
-      const doPersist = (allEvents: DartsEvent[]) => {
+      const doPersist = async (allEvents: DartsEvent[]) => {
         if (multiplayer?.enabled) {
           // Send only the new events delta to server
           const delta = allEvents.slice(originalEventCount)
@@ -1344,7 +1344,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           // React-State zuerst setzen, damit das Spiel auch bei LS-Fehler weitergeht
           setEvents(allEvents)
           try {
-            persistEvents(matchStored.id, allEvents)
+            await persistEvents(matchStored.id, allEvents)
           } catch (persistErr) {
             console.warn('persistEvents failed (LS quota?), game continues in-memory:', persistErr)
           }
@@ -1430,7 +1430,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
               winnerPlayerId: winnerId,
             } as DartsEvent)
           }
-          doPersist(newEvents)
+          await doPersist(newEvents)
 
           // Sprachausgabe: Match gewonnen
           if (speechEnabled && !matchWonAnnouncedRef.current) {
@@ -1483,7 +1483,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
             starterPlayerId: starter,
           }
 
-          doPersist(newEvents)
+          await doPersist(newEvents)
           setCurrent([])
 
           // Find legIndex from the corresponding LegStarted event
@@ -1556,7 +1556,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
                   winnerPlayerId: matchWinner,
                 } as DartsEvent)
               }
-              doPersist(newEvents)
+              await doPersist(newEvents)
 
               // Sprachausgabe: Match gewonnen (Sets Mode)
               if (speechEnabled && !matchWonAnnouncedRef.current) {
@@ -1613,7 +1613,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
               setTimeout(() => announceSetDart(), 800)
             }
 
-            doPersist(newEvents)
+            await doPersist(newEvents)
             setCurrent([])
 
             setIntermission({
@@ -1647,7 +1647,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
             starterPlayerId: starter,
           }
 
-          doPersist(newEvents)
+          await doPersist(newEvents)
           setCurrent([])
 
           // Find legIndex from the corresponding LegStarted event
@@ -1741,7 +1741,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         }
       }
 
-      doPersist(newEvents)
+      await doPersist(newEvents)
       setCurrent([])
     } catch (err) {
       console.error('Visit bestätigen fehlgeschlagen:', err)

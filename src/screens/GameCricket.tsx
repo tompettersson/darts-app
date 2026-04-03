@@ -642,7 +642,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteCricketRef.current) return
-    const prevLen = prevRemoteCricketRef.current?.length ?? 0
+
+    // Read previous state BEFORE updating the ref
+    const prevEvents = prevRemoteCricketRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
+
+    // Update ref and local state
     prevRemoteCricketRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as CricketEvent[]
     setEvents(remote)
@@ -655,9 +660,13 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       }
     }
 
-    // Only host persists to DB on match finish to avoid duplicate writes
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'CricketMatchFinished') {
+    // Detect CricketMatchFinished: check if it's NEW (not in previous batch)
+    // Uses diff-check like X01 — searches anywhere in array, not just lastEvt
+    const cricketMatchFinishedEvt = remote.find((e: any) => e.type === 'CricketMatchFinished')
+    const prevHadCricketFinished = prevEvents
+      ? prevEvents.some((e: any) => e.type === 'CricketMatchFinished')
+      : false
+    if (cricketMatchFinishedEvt && !prevHadCricketFinished) {
       if (multiplayer?.isHost) {
         persistCricketEvents(matchId, remote)
       }
