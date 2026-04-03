@@ -667,10 +667,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       ? prevEvents.some((e: any) => e.type === 'CricketMatchFinished')
       : false
     if (cricketMatchFinishedEvt && !prevHadCricketFinished) {
-      if (multiplayer?.isHost) {
-        persistCricketEvents(matchId, remote)
-      }
-      finishCricketMatch(matchId)
+      ;(async () => {
+        if (multiplayer?.isHost) {
+          await persistCricketEvents(matchId, remote)
+        }
+        await finishCricketMatch(matchId)
+      })()
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2350,6 +2352,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   function addTarget(t: number | 'BULL' | 'MISS') {
     // Pause? Keine Eingaben
     if (gamePaused) return
+    if (events.some(e => e.type === 'CricketMatchFinished')) return
 
     // Doppeltrigger verhindern (Debounce 120ms)
     if (inputLockRef.current) return
@@ -2390,6 +2393,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   async function confirmTurn(override?: CricketTurnDart[]) {
     // Pause? Keine Eingaben
     if (gamePaused) return
+    if (events.some(e => e.type === 'CricketMatchFinished')) return
 
     // Lock setzen um doppelte Eingaben zu verhindern
     if (turnLockRef.current) return

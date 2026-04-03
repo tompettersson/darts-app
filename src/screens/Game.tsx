@@ -1128,7 +1128,9 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           })()
         } else {
           // Guest: only clear local cache, no DB writes
-          try { finishMatch(matchId) } catch {}
+          ;(async () => {
+            try { await finishMatch(matchId) } catch {}
+          })()
         }
 
         // Trigger end screen
@@ -1210,6 +1212,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
   const handleThrow = (bed: Bed, mult: 1 | 2 | 3) => {
     if (isPaused) return
+    if (state.finished) return
     // Multiplayer: Nur eigene Würfe eingeben
     if (multiplayer?.enabled && !isMyTurn) return
     if (bed === 20 && mult === 3) playTriple20Sound()
@@ -1322,6 +1325,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
   const confirmVisit = async (forcedDarts?: Dart[]) => {
     try {
       if (isPaused) return
+      if (state.finished) return
       if (multiplayer?.enabled && !isMyTurn) return
       if (!leg || !match || !matchStored) return
       const dartsToSave = forcedDarts && forcedDarts.length ? forcedDarts : current
