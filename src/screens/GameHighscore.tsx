@@ -77,6 +77,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
   const storedMatch = getHighscoreMatchById(matchId)
   const [events, setEvents] = useState<HighscoreEvent[]>(storedMatch?.events ?? [])
   const [currentDarts, setCurrentDarts] = useState<HighscoreDart[]>([])
+  const [saving, setSaving] = useState(false)
 
   // Multiplayer: Remote-Events synchronisieren
   useEffect(() => {
@@ -231,16 +232,23 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
         setCurrentDarts([])
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         // Persist + finish must complete before navigating to summary
+        setSaving(true)
         ;(async () => {
-          await persistHighscoreEvents(matchId, newEvents)
-          await finishHighscoreMatch(
-            matchId,
-            result.matchFinished!.winnerId,
-            result.matchFinished!.totalDarts,
-            result.matchFinished!.durationMs,
-            result.matchFinished!.legWins,
-            result.matchFinished!.setWins
-          )
+          try {
+            await persistHighscoreEvents(matchId, newEvents)
+            await finishHighscoreMatch(
+              matchId,
+              result.matchFinished!.winnerId,
+              result.matchFinished!.totalDarts,
+              result.matchFinished!.durationMs,
+              result.matchFinished!.legWins,
+              result.matchFinished!.setWins
+            )
+          } catch (err) {
+            console.warn('[Highscore] Persist failed:', err)
+          } finally {
+            setSaving(false)
+          }
           onShowSummary(matchId)
         })()
         return
@@ -899,6 +907,14 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           </div>
         </div>
       </div>
+
+      {/* Speichern-Indikator */}
+      {saving && (
+        <div style={{ fontSize: 13, color: c.textDim, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
+        </div>
+      )}
 
       {/* Leg Intermission */}
       {intermission && (() => {

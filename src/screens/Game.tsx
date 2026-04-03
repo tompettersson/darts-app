@@ -995,6 +995,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       finalEvents = [...finalEvents, matchFinishedEvt]
     }
 
+    setSaving(true)
     if (multiplayer?.enabled) {
       // Events (including MatchFinished) were already sent via doPersist in confirmVisit
       setEvents(finalEvents)
@@ -1027,6 +1028,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     } catch (e) { console.warn('updateLeaderboardsWithMatch failed:', e) }
 
     updateGlobalX01PlayerStatsFromMatch(matchStoredNonNull.id, finalEvents)
+    setSaving(false)
 
     const wName = matchNonNull.players.find((p) => p.playerId === winnerId)?.name ?? '—'
     setCelebration({ type: 'match-win', key: Date.now() })
@@ -1304,6 +1306,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     | { type: 'MatchFinished'; winnerPlayerId: string; ts: string }
     | undefined
   const [ended, setEnded] = useState<{ winnerName: string } | null>(null)
+  const [saving, setSaving] = useState(false)
 
   // ---------- ENDSCREEN Ende ----------
 
@@ -1968,6 +1971,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         isArcade={isArcade}
         c={colors}
         isMultiplayerGuest={!!multiplayer?.enabled && !multiplayer?.isHost}
+        saving={saving}
       />
     )
   }

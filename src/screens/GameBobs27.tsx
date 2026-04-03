@@ -69,6 +69,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
 
   // Match-End delay
   const [matchEndDelay, setMatchEndDelay] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const players = state.match?.players ?? []
   const activePlayerId = getActivePlayerId(state)
@@ -131,9 +132,16 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     setEvents(updatedEvents)
     setMatchEndDelay(true)
     // Persist + finish must complete before navigating to summary
+    setSaving(true)
     ;(async () => {
-      await persistBobs27Events(matchId, updatedEvents)
-      await finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores)
+      try {
+        await persistBobs27Events(matchId, updatedEvents)
+        await finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores)
+      } catch (err) {
+        console.warn('[Bobs27] Persist failed:', err)
+      } finally {
+        setSaving(false)
+      }
       setTimeout(() => onShowSummary(matchId), 2000)
     })()
   }, [state, events, matchId, matchEndDelay, elapsedMs, onShowSummary])
@@ -246,15 +254,22 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     if (result.matchFinished) {
       setMatchEndDelay(true)
       // Persist + finish must complete before navigating to summary
+      setSaving(true)
       ;(async () => {
-        await persistBobs27Events(matchId, updatedEvents)
-        await finishBobs27Match(
-          matchId,
-          result.matchFinished!.winnerId,
-          result.matchFinished!.totalDarts,
-          elapsedMs,
-          result.matchFinished!.finalScores
-        )
+        try {
+          await persistBobs27Events(matchId, updatedEvents)
+          await finishBobs27Match(
+            matchId,
+            result.matchFinished!.winnerId,
+            result.matchFinished!.totalDarts,
+            elapsedMs,
+            result.matchFinished!.finalScores
+          )
+        } catch (err) {
+          console.warn('[Bobs27] Persist failed:', err)
+        } finally {
+          setSaving(false)
+        }
         setTimeout(() => onShowSummary(matchId), 2000)
       })()
     } else {
@@ -482,9 +497,16 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
               <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>
                 {activePlayerState?.eliminated ? 'Game Over!' : 'Geschafft!'}
               </div>
-              <div style={{ fontSize: 14, color: c.textDim, marginTop: 4 }}>
-                Ergebnis wird geladen...
-              </div>
+              {saving ? (
+                <div style={{ fontSize: 13, color: c.textDim, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  Speichern...
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, color: c.textDim, marginTop: 4 }}>
+                  Ergebnis wird geladen...
+                </div>
+              )}
             </div>
           )}
 

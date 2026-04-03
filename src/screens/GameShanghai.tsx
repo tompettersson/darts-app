@@ -94,6 +94,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   const [events, setEvents] = useState<ShanghaiEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<ShanghaiDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
+  const [saving, setSaving] = useState(false)
   const multRef = useRef(mult)
 
   // Nummern-Buffer fuer zweistellige Eingabe (10-20)
@@ -325,9 +326,16 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         setMult(1)
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         // Persist + finish must complete before navigating to summary
+        setSaving(true)
         ;(async () => {
-          await persistShanghaiEvents(matchId, newEvents)
-          await finishShanghaiMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          try {
+            await persistShanghaiEvents(matchId, newEvents)
+            await finishShanghaiMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          } catch (err) {
+            console.warn('[Shanghai] Persist failed:', err)
+          } finally {
+            setSaving(false)
+          }
           setTimeout(() => onShowSummary(matchId), 2500)
         })()
         return
@@ -1063,6 +1071,14 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             }))}
             currentRound={currentRound}
           />
+        </div>
+      )}
+
+      {/* Speichern-Indikator */}
+      {saving && (
+        <div style={{ fontSize: 13, color: c.textDim, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
         </div>
       )}
 

@@ -152,6 +152,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
 
   const [current, setCurrent] = useState<ATBDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
+  const [saving, setSaving] = useState(false)
   const multRef = useRef(mult)
 
   // Für Sprachansagen: letztes angesagtes Ziel/Spieler merken
@@ -430,9 +431,16 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         setMult(1)
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         // Persist + finish must complete before navigating to summary
+        setSaving(true)
         ;(async () => {
-          await persistATBEvents(matchId, newEvents)
-          await finishATBMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          try {
+            await persistATBEvents(matchId, newEvents)
+            await finishATBMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          } catch (err) {
+            console.warn('[ATB] Persist failed:', err)
+          } finally {
+            setSaving(false)
+          }
           onShowSummary(matchId)
         })()
         return
@@ -1070,6 +1078,14 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           </div>
         </div>
       </div>
+
+      {/* Speichern-Indikator */}
+      {saving && (
+        <div style={{ fontSize: 13, color: c.textDim, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
+        </div>
+      )}
 
       {/* Leg-Zusammenfassung (Intermission) */}
       {intermission && (

@@ -340,6 +340,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
 
   // Match-End delay
   const [matchEndDelay, setMatchEndDelay] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // Animation: Hit/Miss Flash
   const [hitFlash, setHitFlash] = useState<{ type: 'hit' | 'miss'; key: number } | null>(null)
@@ -520,6 +521,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     if (result.matchFinished) {
       setMatchEndDelay(true)
       // Persist + finish — navigate to summary regardless of DB success
+      setSaving(true)
       ;(async () => {
         try {
           await persistOperationEvents(matchId, updatedEvents)
@@ -532,6 +534,8 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
           )
         } catch (err) {
           console.warn('[Operation] Persist failed, continuing to summary:', err)
+        } finally {
+          setSaving(false)
         }
       })()
     } else {
@@ -936,6 +940,12 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
               <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>
                 Geschafft!
               </div>
+              {saving && (
+                <div style={{ fontSize: 13, color: c.textDim, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  Speichern...
+                </div>
+              )}
               <button
                 onClick={() => onShowSummary(matchId)}
                 style={{

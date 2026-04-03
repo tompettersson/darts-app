@@ -120,6 +120,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   const [events, setEvents] = useState<KillerEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<KillerDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
+  const [saving, setSaving] = useState(false)
   const multRef = useRef(mult)
 
   // Nummern-Buffer fuer zweistellige Eingabe (10-20)
@@ -377,17 +378,24 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       setMult(1)
       if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
       // Persist + finish must complete before navigating to summary
+      setSaving(true)
       ;(async () => {
-        await persistKillerEvents(matchId, newEvents)
-        await finishKillerMatch(
-          matchId,
-          result.matchFinished!.winnerId,
-          result.matchFinished!.finalStandings,
-          result.matchFinished!.totalDarts,
-          result.matchFinished!.durationMs,
-          finalState.legWinsByPlayer,
-          finalState.setWinsByPlayer,
-        )
+        try {
+          await persistKillerEvents(matchId, newEvents)
+          await finishKillerMatch(
+            matchId,
+            result.matchFinished!.winnerId,
+            result.matchFinished!.finalStandings,
+            result.matchFinished!.totalDarts,
+            result.matchFinished!.durationMs,
+            finalState.legWinsByPlayer,
+            finalState.setWinsByPlayer,
+          )
+        } catch (err) {
+          console.warn('[Killer] Persist failed:', err)
+        } finally {
+          setSaving(false)
+        }
         setTimeout(() => onFinish(matchId), 2500)
       })()
       return
@@ -1608,6 +1616,12 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
             }}>
               gewinnt!
             </div>
+            {saving && (
+              <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                Speichern...
+              </div>
+            )}
           </div>
         </div>
       )}

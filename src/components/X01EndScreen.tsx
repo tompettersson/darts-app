@@ -129,6 +129,7 @@ type X01EndScreenProps = {
   isMultiplayerGuest?: boolean
   isArcade: boolean
   c: Record<string, string>
+  saving?: boolean
 }
 
 export default function X01EndScreen({
@@ -143,6 +144,7 @@ export default function X01EndScreen({
   onExit,
   onRematch,
   isMultiplayerGuest,
+  saving,
 }: X01EndScreenProps) {
   // Spielname + Bemerkungen Eingabe im Endscreen
   const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
@@ -315,6 +317,13 @@ export default function X01EndScreen({
           </button>
         </div>
       </div>
+
+      {saving && (
+        <div style={{ fontSize: 13, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
+        </div>
+      )}
 
       <div className="g-tableWrap">
         <table className="g-table">

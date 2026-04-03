@@ -746,6 +746,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const multRef = useRef<1 | 2 | 3>(1)
   const setMult = (m: 1 | 2 | 3) => { multRef.current = m; setMultState(m) }
   const [turn, setTurn] = useState<CricketTurnDart[]>([])
+  const [saving, setSaving] = useState(false)
 
   // Turn-History: Letzte Turns + Live-Turn
   const turnListScrollRef = useRef<HTMLDivElement | null>(null)
@@ -1679,6 +1680,14 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         </div>
       )}
 
+      {/* Speichern-Indikator */}
+      {saving && (
+        <div style={{ fontSize: 13, color: colors.fgMuted, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
+        </div>
+      )}
+
       {/* LEG SUMMARY OVERLAY */}
       {legSummary && (
         <div
@@ -2508,8 +2517,15 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
 
     // persist Events lokal
     if (matchJustFinished) {
-      await persistCricketEvents(storedId, nextEvents)
-      await finishCricketMatch(storedId)
+      setSaving(true)
+      try {
+        await persistCricketEvents(storedId, nextEvents)
+        await finishCricketMatch(storedId)
+      } catch (err) {
+        console.warn('[Cricket] Persist failed:', err)
+      } finally {
+        setSaving(false)
+      }
     } else {
       persistCricketEvents(storedId, nextEvents)
     }

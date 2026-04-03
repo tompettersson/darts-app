@@ -95,6 +95,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   const storedMatch = getStrMatchById(matchId)
   const [events, setEvents] = useState<StrEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<StrDart[]>([])
+  const [saving, setSaving] = useState(false)
 
   // Multiplayer: Remote-Events synchronisieren
   useEffect(() => {
@@ -240,9 +241,16 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
         const winnerPlayer = state.match?.players.find(p => p.playerId === result.matchFinished!.winnerId)
         announceStrMatchWinner(winnerPlayer?.name ?? '?')
         // Persist + finish must complete before navigating to summary
+        setSaving(true)
         ;(async () => {
-          await persistStrEvents(matchId, newEvents)
-          await finishStrMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          try {
+            await persistStrEvents(matchId, newEvents)
+            await finishStrMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          } catch (err) {
+            console.warn('[Straeusschen] Persist failed:', err)
+          } finally {
+            setSaving(false)
+          }
           onShowSummary(matchId)
         })()
         return
@@ -824,6 +832,14 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
             }
           }}
         />
+      )}
+
+      {/* Speichern-Indikator */}
+      {saving && (
+        <div style={{ fontSize: 13, color: c.textDim, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
+        </div>
       )}
 
       {/* Leg-Zusammenfassung (Intermission) */}

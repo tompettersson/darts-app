@@ -478,6 +478,11 @@ html, body, #root {
   text-shadow: 0 0 30px rgba(249,115,22,0.7), 0 0 60px rgba(249,115,22,0.3);
 }
 
+/* Speichern-Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* =========================
    Game-specific utility classes
    (migrated from inline styles)

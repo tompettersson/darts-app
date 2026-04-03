@@ -108,6 +108,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
   const [events, setEvents] = useState<CTFEvent[]>(storedMatch?.events ?? [])
   const [current, setCurrent] = useState<CTFDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
+  const [saving, setSaving] = useState(false)
   const multRef = useRef(mult)
 
   // Multiplayer: Remote-Events synchronisieren
@@ -375,9 +376,16 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
         setMult(1)
         if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
         // Persist + finish must complete before navigating to summary
+        setSaving(true)
         ;(async () => {
-          await persistCTFEvents(matchId, newEvents)
-          await finishCTFMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          try {
+            await persistCTFEvents(matchId, newEvents)
+            await finishCTFMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+          } catch (err) {
+            console.warn('[CTF] Persist failed:', err)
+          } finally {
+            setSaving(false)
+          }
           setTimeout(() => onShowSummary(matchId), 2500)
         })()
         return
@@ -1229,6 +1237,14 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
               height={130}
             />
           </div>
+        </div>
+      )}
+
+      {/* Speichern-Indikator */}
+      {saving && (
+        <div style={{ fontSize: 13, color: c.textDim, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          Speichern...
         </div>
       )}
 
