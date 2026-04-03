@@ -362,9 +362,18 @@ export default function App() {
   }, [])
 
   const [view, setView] = useState<View>(() => {
-    // Restore multiplayer game view after rotation/reload
+    // Restore multiplayer game view after rotation (within 10s window only)
     const savedView = sessionStorage.getItem('mp-view')
-    if (savedView === 'multiplayer-game') return 'multiplayer-game' as View
+    const savedTs = sessionStorage.getItem('mp-ts')
+    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
+    if (savedView === 'multiplayer-game' && isRecent) return 'multiplayer-game' as View
+    // Stale session — clean up
+    sessionStorage.removeItem('mp-view')
+    sessionStorage.removeItem('mp-room')
+    sessionStorage.removeItem('mp-match')
+    sessionStorage.removeItem('mp-player')
+    sessionStorage.removeItem('mp-gametype')
+    sessionStorage.removeItem('mp-ts')
     return 'menu'
   })
   const [startOnlineStep, setStartOnlineStep] = useState(false)
@@ -475,9 +484,21 @@ export default function App() {
 
   // --- Multiplayer State (persisted to sessionStorage to survive rotation/reload) ---
   const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
-  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(() => sessionStorage.getItem('mp-room') || null)
-  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(() => sessionStorage.getItem('mp-match') || null)
-  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>(() => sessionStorage.getItem('mp-player') || '')
+  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(() => {
+    const savedTs = sessionStorage.getItem('mp-ts')
+    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
+    return isRecent ? (sessionStorage.getItem('mp-room') || null) : null
+  })
+  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(() => {
+    const savedTs = sessionStorage.getItem('mp-ts')
+    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
+    return isRecent ? (sessionStorage.getItem('mp-match') || null) : null
+  })
+  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>(() => {
+    const savedTs = sessionStorage.getItem('mp-ts')
+    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
+    return isRecent ? (sessionStorage.getItem('mp-player') || '') : ''
+  })
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
   const [multiplayerGameType, setMultiplayerGameType] = useState<string>(() => sessionStorage.getItem('mp-gametype') || 'x01')
 
@@ -496,6 +517,7 @@ export default function App() {
     if (multiplayerMyPlayerId) sessionStorage.setItem('mp-player', multiplayerMyPlayerId)
     else sessionStorage.removeItem('mp-player')
     if (multiplayerGameType) sessionStorage.setItem('mp-gametype', multiplayerGameType)
+    if (view === 'multiplayer-game') sessionStorage.setItem('mp-ts', String(Date.now()))
   }, [view, multiplayerRoomCode, multiplayerMatchId, multiplayerMyPlayerId, multiplayerGameType])
 
   const [mpState, mpActions] = useMultiplayerRoom(
@@ -745,6 +767,11 @@ export default function App() {
             showToast('Bitte zuerst anmelden')
             return
           }
+          // Clean slate: disconnect old room, clear stale state
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
           setMultiplayerMyPlayerId(auth.user.profileId)
           setView('multiplayer-lobby-host')
         }}
@@ -753,6 +780,11 @@ export default function App() {
             showToast('Bitte zuerst anmelden')
             return
           }
+          // Clean slate
+          mpActions.disconnect()
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
           setMultiplayerMyPlayerId(auth.user.profileId)
           setView('multiplayer-lobby-join')
         }}
