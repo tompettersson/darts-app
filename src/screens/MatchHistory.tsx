@@ -522,20 +522,9 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   // X01 Matches async laden (SQLite-aware)
   const [x01, setX01] = useState<StoredMatch[]>(() => getMatches())
   useEffect(() => {
-    // Zuerst synchron laden (LocalStorage Cache)
     const syncMatches = getMatches()
-    console.log('[MatchHistory] Sync X01 matches:', syncMatches.length)
-    if (syncMatches.length > 0) {
-      setX01(syncMatches)
-    }
-
-    // Dann async aus SQLite laden
-    getMatchesAsync().then((asyncMatches) => {
-      console.log('[MatchHistory] Async X01 matches:', asyncMatches.length)
-      setX01(asyncMatches)
-    }).catch((err) => {
-      console.error('[MatchHistory] Async load failed:', err)
-    })
+    if (syncMatches.length > 0) setX01(syncMatches)
+    getMatchesAsync().then(setX01).catch(() => {})
   }, [refreshKey])
 
   const cricket = useMemo(() => getCricketMatches(), [refreshKey])
