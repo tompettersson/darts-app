@@ -675,6 +675,24 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       }
     }
 
+    // Announce newly closed fields on ALL devices
+    if (prevLen > 0 && remote.length > prevLen) {
+      const prevState = applyCricketEvents(prevEvents as CricketEvent[])
+      const newState = applyCricketEvents(remote)
+      const tKeys = (newState.match?.range === 'short')
+        ? ['15', '16', '17', '18', '19', '20', 'BULL']
+        : ['10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 'BULL']
+      const players = newState.players ?? []
+      const closed: string[] = tKeys.filter(tKey => {
+        const wasClosed = players.every(pid => (prevState.marksByPlayer[pid]?.[tKey] ?? 0) >= 3)
+        const isClosed = players.every(pid => (newState.marksByPlayer[pid]?.[tKey] ?? 0) >= 3)
+        return !wasClosed && isClosed
+      })
+      closed.forEach((target, i) => {
+        setTimeout(() => announceClosed(target), 400 + i * 1200)
+      })
+    }
+
     // Detect CricketMatchFinished: check if it's NEW (not in previous batch)
     // Uses diff-check like X01 — searches anywhere in array, not just lastEvt
     const cricketMatchFinishedEvt = remote.find((e: any) => e.type === 'CricketMatchFinished')
