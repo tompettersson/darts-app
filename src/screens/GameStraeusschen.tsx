@@ -460,7 +460,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
           deleteStrMatch(matchId)
           onExit()
         }}
-        title={modeLabel}
+        title={`${modeLabel}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Info-Leiste */}

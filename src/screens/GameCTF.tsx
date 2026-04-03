@@ -724,7 +724,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           deleteCTFMatch(matchId)
           onExit()
         }}
-        title="Capture the Field"
+        title={`Capture the Field${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Info-Leiste */}

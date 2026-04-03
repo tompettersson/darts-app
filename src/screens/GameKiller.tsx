@@ -753,7 +753,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           deleteKillerMatch(matchId)
           onAbort()
         }}
-        title="Killer"
+        title={`Killer${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Info-Leiste */}

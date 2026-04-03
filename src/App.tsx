@@ -2191,7 +2191,7 @@ export default function App() {
         matchId={activeCricketId}
         onExit={() => {
           setView('menu')
-          setActiveCricketId(undefined)
+          // Don't clear activeCricketId — allows resuming the match from menu
         }}
         onShowCricketSummary={(id) => {
           setSummaryCricketId(id)
@@ -2578,7 +2578,15 @@ export default function App() {
   // ---------- HAUPTMENÜ ----------
 
   const handleContinueGame = () => {
-    if (!continueInfo) return
+    // Direct resume if an active game ID is already set (e.g., returned from menu during MP)
+    if (!continueInfo) {
+      if (activeCricketId) { setView('game-cricket'); return }
+      if (activeMatchId) { setView('game'); return }
+      if (activeATBId) { setView('game-atb'); return }
+      if (activeOperationId) { setView('game-operation'); return }
+      if (activeBobs27Id) { setView('game-bobs27'); return }
+      return
+    }
     if (continueInfo.kind === 'x01') {
       setActiveMatchId(continueInfo.id)
       setLastActivity('x01', continueInfo.id)

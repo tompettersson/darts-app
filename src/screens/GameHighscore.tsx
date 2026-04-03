@@ -663,7 +663,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           deleteHighscoreMatch(matchId)
           onExit()
         }}
-        title={`Highscore ${targetScore}${legStandStr}`}
+        title={`Highscore ${targetScore}${legStandStr}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Timer + Multiplikator Info */}

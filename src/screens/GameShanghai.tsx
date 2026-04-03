@@ -645,7 +645,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
           deleteShanghaiMatch(matchId)
           onExit()
         }}
-        title="Shanghai"
+        title={`Shanghai${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Info-Leiste */}

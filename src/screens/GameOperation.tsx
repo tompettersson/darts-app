@@ -825,7 +825,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
             isMuted={muted}
             onToggleMute={() => setMuted(m => !m)}
             onExit={handleExitMatch}
-            title="Operation: Ein Feld, keine Gnade"
+            title={`Operation: EFKG${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
           />
         </div>
       </div>

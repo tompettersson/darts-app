@@ -732,7 +732,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           deleteATBMatch(matchId)
           onExit()
         }}
-        title={`ATB - ${getModeLabel(state.match.mode)} - ${getDirectionLabel(state.match.direction)}`}
+        title={`ATB - ${getModeLabel(state.match.mode)} - ${getDirectionLabel(state.match.direction)}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Info-Leiste */}

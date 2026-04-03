@@ -420,7 +420,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
             isMuted={muted}
             onToggleMute={() => setMuted(m => !m)}
             onExit={handleExitMatch}
-            title="Bob's 27"
+            title={`Bob's 27${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
           />
         </div>
       </div>

@@ -1595,7 +1595,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         return `Crazy ${match.crazyMode === 'pro' ? 'Pro ' : ''}${scoringLabel}`.trim()
       })()
     : 'Standard'
-  }${legStandStr}`
+  }${legStandStr}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`
 
   // Dynamischer Hintergrund basierend auf aktivem Spieler
   const backgroundStyle = playerColorBgEnabled
