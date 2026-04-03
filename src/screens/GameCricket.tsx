@@ -695,34 +695,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!matchStored || !baseState.match) {
-    return (
-      <div style={ui.page}>
-        <div
-          style={{
-            ...ui.headerRow,
-            position: 'sticky',
-            top: 0,
-            background: '#fff',
-            zIndex: 10,
-          }}
-        >
-          <h2 style={{ margin: 0 }}>Cricket</h2>
-          <button style={ui.backBtn} onClick={onExit}>
-            ← Menü
-          </button>
-        </div>
-        <div style={ui.centerPage}>
-          <div style={ui.centerInner}>Kein Cricket-Match gefunden.</div>
-        </div>
-      </div>
-    )
-  }
+  const matchNotReady = !matchStored || !baseState.match
 
-  const storedId = matchStored.id
-  const match = baseState.match
-  const order = baseState.players
-  const activeId = currentPlayerId(baseState) ?? order[0]
+  const storedId = matchStored?.id ?? matchId
+  const match = baseState.match!
+  const order = baseState.players?.length > 0 ? baseState.players : [] as string[]
+  const activeId = (baseState.match ? currentPlayerId(baseState) : null) ?? order[0] ?? ''
 
   // Multiplayer: Ist der lokale Spieler gerade am Zug?
   const cricketLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
@@ -1647,6 +1625,20 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [legSummary])
+
+  if (matchNotReady) {
+    return (
+      <div style={ui.page}>
+        <div style={{ ...ui.headerRow, position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
+          <h2 style={{ margin: 0 }}>Cricket</h2>
+          <button style={ui.backBtn} onClick={onExit}>← Menü</button>
+        </div>
+        <div style={ui.centerPage}>
+          <div style={ui.centerInner}>Lade Cricket-Match...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={backgroundStyle}>
