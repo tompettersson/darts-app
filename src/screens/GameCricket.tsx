@@ -1369,16 +1369,15 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     const playerColor = playerChartColors[playerIndex] ?? '#f97316'
 
     const isSimpleStyle = match.style === 'simple' || (match.style === 'crazy' && ((match as any).crazyScoringMode ?? ((match as any).crazyWithPoints ? 'standard' : 'simple')) === 'simple')
-    const hideScore = isMobileScreen || isSimpleStyle
 
     return (
       <div style={playerCardStyle(isActive, playerColor)}>
-        <PlayerHeader name={p?.name ?? pid} score={score} side={side} hideScore={hideScore} />
+        <PlayerHeader name={p?.name ?? pid} score={score} side={side} hideScore={!isSimpleStyle} />
         <PlayerRows pid={pid} side={side} />
-        {isMobileScreen && (
+        {!isSimpleStyle && (
           <div style={{
             fontWeight: 800,
-            fontSize: 16,
+            fontSize: isMobileScreen ? 16 : 20,
             color: playerColor,
             textAlign: 'center',
             lineHeight: `${ROW_H}px`,
