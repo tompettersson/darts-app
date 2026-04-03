@@ -105,22 +105,41 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
   // Theme-aware Farben
   const { c, isArcade, colors } = useGameColors()
 
-  const storedMatch = getCTFMatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getCTFMatchById(matchId))
   const [events, setEvents] = useState<CTFEvent[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getCTFMatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as CTFEvent[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
   const [current, setCurrent] = useState<CTFDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const [saving, setSaving] = useState(false)
   const multRef = useRef(mult)
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteCTFRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteCTFRef.current) return
+    const prevEvents = prevRemoteCTFRef.current as any[] | null
+    prevRemoteCTFRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as CTFEvent[]
     setEvents(remote)
     persistCTFEvents(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'CTFMatchFinished') {
-      finishCTFMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'CTFMatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'CTFMatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
+      ;(async () => {
+        await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+        if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

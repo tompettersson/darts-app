@@ -333,8 +333,18 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
   useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
-  const storedMatch = getOperationMatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getOperationMatchById(matchId))
   const [events, setEvents] = useState<OperationEvent[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getOperationMatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as OperationEvent[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
 
   // Leg-Summary Modal
   const [showLegSummary, setShowLegSummary] = useState(false)
@@ -387,14 +397,24 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
   const targetLabel = isBullTarget ? 'Bull' : `${targetNumber ?? '?'}`
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteOpRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteOpRef.current) return
+    const prevEvents = prevRemoteOpRef.current as any[] | null
+    prevRemoteOpRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as OperationEvent[]
     setEvents(remote)
     persistOperationEvents(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'OperationMatchFinished') {
-      finishOperationMatch(matchId, lastEvt.winnerId, lastEvt.durationMs, lastEvt.finalScores, lastEvt.legWins)
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'OperationMatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'OperationMatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
+      setMatchEndDelay(true)
+      ;(async () => {
+        await finishOperationMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores, matchFinishedEvt.legWins)
+        if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

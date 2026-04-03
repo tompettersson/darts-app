@@ -1272,6 +1272,20 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
     }, 500)
   }, [match])
 
+  // Announce when a local player's turn starts (multiplayer)
+  const prevActiveX01Ref = useRef<string | null>(null)
+  useEffect(() => {
+    if (!multiplayer?.enabled) return
+    if (!activePlayerId || activePlayerId === prevActiveX01Ref.current) return
+    prevActiveX01Ref.current = activePlayerId
+    const localIds = multiplayer.localPlayerIds ?? (multiplayer.myPlayerId ? [multiplayer.myPlayerId] : [])
+    if (localIds.includes(activePlayerId) && match) {
+      const player = match.players.find(p => p.playerId === activePlayerId)
+      const pName = player?.name
+      if (pName) debouncedAnnounce(() => announceNextPlayer(pName))
+    }
+  }, [activePlayerId, multiplayer?.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keyboard Handler: P für Pause, Backspace für Undo
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

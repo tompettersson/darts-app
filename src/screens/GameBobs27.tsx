@@ -53,8 +53,18 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
-  const storedMatch = getBobs27MatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getBobs27MatchById(matchId))
   const [events, setEvents] = useState<Bobs27Event[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getBobs27MatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as Bobs27Event[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
 
   // State aus Events ableiten (vor useGameState, da finished benoetigt wird)
   const state = useMemo(() => applyBobs27Events(events), [events])
@@ -152,14 +162,24 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   }, [state, events, matchId, matchEndDelay, elapsedMs, onShowSummary])
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteBobs27Ref = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteBobs27Ref.current) return
+    const prevEvents = prevRemoteBobs27Ref.current as any[] | null
+    prevRemoteBobs27Ref.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as Bobs27Event[]
     setEvents(remote)
     persistBobs27Events(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'Bobs27MatchFinished') {
-      finishBobs27Match(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs, lastEvt.finalScores)
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'Bobs27MatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'Bobs27MatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
+      setMatchEndDelay(true)
+      ;(async () => {
+        await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
+        if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

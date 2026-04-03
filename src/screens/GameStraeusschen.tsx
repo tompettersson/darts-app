@@ -93,20 +93,39 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   const { c, isArcade, colors } = useGameColors()
 
   // Events + State
-  const storedMatch = getStrMatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getStrMatchById(matchId))
   const [events, setEvents] = useState<StrEvent[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getStrMatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as StrEvent[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
   const [current, setCurrent] = useState<StrDart[]>([])
   const [saving, setSaving] = useState(false)
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteStrRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteStrRef.current) return
+    const prevEvents = prevRemoteStrRef.current as any[] | null
+    prevRemoteStrRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as StrEvent[]
     setEvents(remote)
     persistStrEvents(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'StrMatchFinished') {
-      finishStrMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'StrMatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'StrMatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
+      ;(async () => {
+        await finishStrMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+        if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

@@ -687,6 +687,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           await persistCricketEvents(matchId, remote)
         }
         await finishCricketMatch(matchId)
+        // Navigate to summary on ALL devices (host + guest)
+        if (onShowCricketSummary) {
+          setTimeout(() => onShowCricketSummary(matchId), 2000)
+        }
       })()
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1098,6 +1102,20 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       }, 1200)
     }
   }, [crazyTargets, activeId, match.players])
+
+  // Announce when a local player's turn starts (multiplayer)
+  const prevActiveCricketRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!multiplayer?.enabled) return
+    if (!activeId || activeId === prevActiveCricketRef.current) return
+    prevActiveCricketRef.current = activeId
+    const localIds = multiplayer.localPlayerIds ?? (multiplayer.myPlayerId ? [multiplayer.myPlayerId] : [])
+    if (localIds.includes(activeId)) {
+      const player = match.players.find(p => p.playerId === activeId)
+      const pName = player?.name
+      if (pName) debouncedAnnounce(() => announceNextPlayer(pName))
+    }
+  }, [activeId, multiplayer?.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== Keyboard Shortcuts =====
   const currentActiveTargetRef = useRef(currentActiveTarget)

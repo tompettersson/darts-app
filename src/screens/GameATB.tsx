@@ -124,19 +124,39 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
-  const storedMatch = getATBMatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getATBMatchById(matchId))
   const [events, setEvents] = useState<ATBEvent[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getATBMatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as ATBEvent[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
+
   const state = applyATBEvents(events)
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteATBRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteATBRef.current) return
+    const prevEvents = prevRemoteATBRef.current as any[] | null
+    prevRemoteATBRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as ATBEvent[]
     setEvents(remote)
     persistATBEvents(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'ATBMatchFinished') {
-      finishATBMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'ATBMatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'ATBMatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
+      ;(async () => {
+        await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+        if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

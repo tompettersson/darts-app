@@ -91,8 +91,18 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   // Shared theme colors
   const { c, isArcade, colors } = useGameColors()
 
-  const storedMatch = getShanghaiMatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getShanghaiMatchById(matchId))
   const [events, setEvents] = useState<ShanghaiEvent[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getShanghaiMatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as ShanghaiEvent[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
   const [current, setCurrent] = useState<ShanghaiDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const [saving, setSaving] = useState(false)
@@ -114,14 +124,23 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   const [showShanghaiFlash, setShowShanghaiFlash] = useState(false)
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteShanghaiRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteShanghaiRef.current) return
+    const prevEvents = prevRemoteShanghaiRef.current as any[] | null
+    prevRemoteShanghaiRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as ShanghaiEvent[]
     setEvents(remote)
     persistShanghaiEvents(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'ShanghaiMatchFinished') {
-      finishShanghaiMatch(matchId, lastEvt.winnerId, lastEvt.totalDarts, lastEvt.durationMs)
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'ShanghaiMatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'ShanghaiMatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
+      ;(async () => {
+        await finishShanghaiMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+        if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

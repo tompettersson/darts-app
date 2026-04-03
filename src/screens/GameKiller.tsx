@@ -117,8 +117,18 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   // Manual Target-Picker State (fuer Intermission bei manual-Modus)
   const [legManualTargets, setLegManualTargets] = useState<Record<string, number>>({})
 
-  const storedMatch = getKillerMatchById(matchId)
+  const [storedMatch, setStoredMatch] = useState(() => getKillerMatchById(matchId))
   const [events, setEvents] = useState<KillerEvent[]>(storedMatch?.events ?? [])
+
+  // Retry loading match if not found yet (multiplayer: match created by host, may not be in cache yet)
+  useEffect(() => {
+    if (storedMatch) return
+    const timer = setInterval(() => {
+      const found = getKillerMatchById(matchId)
+      if (found) { setStoredMatch(found); setEvents(found.events as KillerEvent[]); clearInterval(timer) }
+    }, 500)
+    return () => clearInterval(timer)
+  }, [matchId, storedMatch])
   const [current, setCurrent] = useState<KillerDart[]>([])
   const [mult, setMult] = useState<1 | 2 | 3>(1)
   const [saving, setSaving] = useState(false)
@@ -139,15 +149,24 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   const prevLivesRef = useRef<Record<string, number>>({})
 
   // Multiplayer: Remote-Events synchronisieren
+  const prevRemoteKillerRef = useRef<any[] | null>(null)
   useEffect(() => {
     if (!multiplayer?.remoteEvents) return
+    if (multiplayer.remoteEvents === prevRemoteKillerRef.current) return
+    const prevEvents = prevRemoteKillerRef.current as any[] | null
+    prevRemoteKillerRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as KillerEvent[]
     setEvents(remote)
     persistKillerEvents(matchId, remote)
-    const lastEvt = remote[remote.length - 1]
-    if (lastEvt?.type === 'KillerMatchFinished') {
+    // Detect MatchFinished: only trigger when NEW
+    const matchFinishedEvt = remote.find((e: any) => e.type === 'KillerMatchFinished') as any
+    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'KillerMatchFinished') : false
+    if (matchFinishedEvt && !prevHadFinished) {
       const finalState = applyKillerEvents(remote)
-      finishKillerMatch(matchId, lastEvt.winnerId, lastEvt.finalStandings, lastEvt.totalDarts, lastEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+      ;(async () => {
+        await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+        if (onFinish) setTimeout(() => onFinish(matchId), 2000)
+      })()
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {
