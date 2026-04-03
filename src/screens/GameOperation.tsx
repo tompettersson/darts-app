@@ -519,17 +519,20 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     // Match beendet?
     if (result.matchFinished) {
       setMatchEndDelay(true)
-      // Persist + finish must complete before navigating to summary
+      // Persist + finish — navigate to summary regardless of DB success
       ;(async () => {
-        await persistOperationEvents(matchId, updatedEvents)
-        await finishOperationMatch(
-          matchId,
-          result.matchFinished!.winnerId,
-          elapsedMs,
-          result.matchFinished!.finalScores,
-          result.matchFinished!.legWins
-        )
-        setTimeout(() => onShowSummary(matchId), 2000)
+        try {
+          await persistOperationEvents(matchId, updatedEvents)
+          await finishOperationMatch(
+            matchId,
+            result.matchFinished!.winnerId,
+            elapsedMs,
+            result.matchFinished!.finalScores,
+            result.matchFinished!.legWins
+          )
+        } catch (err) {
+          console.warn('[Operation] Persist failed, continuing to summary:', err)
+        }
       })()
     } else {
       persistOperationEvents(matchId, updatedEvents)
@@ -798,7 +801,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
             </span>
             {state.match!.config.legsCount > 1 && (
               <span style={{ fontSize: 11, color: c.textDim }}>
-                Leg {(state.currentLegIndex + 1)}/{state.match!.config.legsCount}
+                First to {Math.ceil(state.match!.config.legsCount / 2)} · Leg {(state.currentLegIndex + 1)}
               </span>
             )}
           </div>
@@ -933,9 +936,16 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
               <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>
                 Geschafft!
               </div>
-              <div style={{ fontSize: 14, color: c.textDim, marginTop: 4 }}>
-                Ergebnis wird geladen...
-              </div>
+              <button
+                onClick={() => onShowSummary(matchId)}
+                style={{
+                  marginTop: 12, padding: '10px 24px', borderRadius: 8,
+                  background: c.green, color: '#fff', border: 'none',
+                  fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                }}
+              >
+                Ergebnis anzeigen
+              </button>
             </div>
           )}
 
