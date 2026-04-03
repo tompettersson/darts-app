@@ -2031,6 +2031,7 @@ export default function App() {
           onExit={mpOnExit}
           onShowCricketSummary={(id) => {
             mpActions.disconnect()
+            setSummaryCricketId(id)
             setActiveCricketId(id)
             setView('summary-cricket')
           }}
@@ -2136,6 +2137,7 @@ export default function App() {
           onExit={mpOnExit}
           onShowSummary={(id) => {
             mpActions.disconnect()
+            setSummaryBobs27Id(id)
             setActiveBobs27Id(id)
             setView('summary-bobs27')
           }}
@@ -2151,6 +2153,7 @@ export default function App() {
           onExit={mpOnExit}
           onShowSummary={(id) => {
             mpActions.disconnect()
+            setSummaryOperationId(id)
             setActiveOperationId(id)
             setView('summary-operation')
           }}
