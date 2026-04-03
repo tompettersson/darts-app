@@ -39,6 +39,13 @@ module.exports = async (req, res) => {
     const body = req.body
     const db = getSQL()
 
+    // Recover from stale transaction state
+    try { await db`SELECT 1` } catch (e) {
+      if (e.message && e.message.includes('current transaction is aborted')) {
+        try { await db`ROLLBACK` } catch {}
+      }
+    }
+
     // Auto-migrate: add settings column if missing
     try {
       await db`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'`

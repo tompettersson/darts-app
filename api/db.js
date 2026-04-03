@@ -15,6 +15,21 @@ function getSQL() {
   return _sql
 }
 
+// Reset connection if stuck in aborted transaction state
+async function ensureCleanConnection(db) {
+  try {
+    await db`SELECT 1`
+  } catch (e) {
+    if (e.message && e.message.includes('current transaction is aborted')) {
+      try { await db`ROLLBACK` } catch {}
+    } else {
+      // Force reconnect by destroying and recreating
+      try { await _sql.end({ timeout: 2 }) } catch {}
+      _sql = null
+    }
+  }
+}
+
 // Placeholder conversion: ? → $1, $2, ...
 // All SQL queries are now native Postgres — no SQLite conversion needed.
 function convertPlaceholders(sqlStr) {
@@ -81,6 +96,9 @@ module.exports = async (req, res) => {
     const body = req.body
     const db = getSQL()
 
+    // Recover from stale transaction state (e.g., after previous 500 error)
+    await ensureCleanConnection(db)
+
     switch (body.type) {
       case 'query': {
         const pgSQL = convertPlaceholders(body.sql)
@@ -101,17 +119,13 @@ module.exports = async (req, res) => {
       }
       case 'execMany':
       case 'transaction': {
-        await db`BEGIN`
-        try {
+        // Use postgres library's native transaction handling for proper cleanup
+        await db.begin(async (tx) => {
           for (const stmt of body.statements) {
             const pgSQL = convertPlaceholders(stmt.sql)
-            await db.unsafe(pgSQL, stmt.params)
+            await tx.unsafe(pgSQL, stmt.params)
           }
-          await db`COMMIT`
-        } catch (e) {
-          await db`ROLLBACK`
-          throw e
-        }
+        })
         return res.json({ data: null })
       }
       case 'batch': {
