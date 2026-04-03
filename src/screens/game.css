@@ -905,4 +905,24 @@ html, body, #root {
   .g-modalSub {
     display: none;
   }
+
+  /* ===== Mobile Multiplayer Split Layout ===== */
+  .mp-mobile-split {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: start;
+  }
+
+  .mp-mobile-featured {
+    min-width: 0; /* prevent overflow */
+  }
+
+  .mp-mobile-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 120px;
+    max-width: 140px;
+  }
 }

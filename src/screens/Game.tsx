@@ -440,6 +440,97 @@ function PlayerTurnCard({
   )
 }
 
+/* =========================
+   CompactPlayerRow — minimal row for mobile multiplayer sidebar
+   Shows: color dot, name, score, legs/sets, active indicator
+   ========================= */
+function CompactPlayerRow({
+  name,
+  color,
+  remaining,
+  isActive,
+  legs,
+  sets,
+  showSets,
+  threeDartAvg,
+}: {
+  name: string
+  color?: string
+  remaining: number
+  isActive: boolean
+  legs: number
+  sets: number
+  showSets: boolean
+  threeDartAvg: number
+}) {
+  const activeColor = color || '#0ea5e9'
+  return (
+    <div
+      className="mp-compact-row"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 10px',
+        borderRadius: 10,
+        border: isActive ? `2px solid ${activeColor}` : '1px solid var(--border, #e5e7eb)',
+        background: isActive ? `linear-gradient(135deg, ${activeColor}15 0%, transparent 60%)` : 'var(--bg, #fff)',
+        boxShadow: isActive ? `0 0 12px ${activeColor}40` : 'none',
+        transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+      }}
+    >
+      {/* Color dot */}
+      <span style={{
+        width: 10,
+        height: 10,
+        borderRadius: 999,
+        background: color || '#777',
+        flexShrink: 0,
+        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15)',
+      }} />
+
+      {/* Name + meta */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {name}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--fg-dim, #6b7280)' }}>
+          L: {legs}{showSets ? ` · S: ${sets}` : ''} · Avg: {threeDartAvg.toFixed(1)}
+        </div>
+      </div>
+
+      {/* Score (big) */}
+      <div style={{
+        fontWeight: 900,
+        fontSize: 20,
+        fontVariantNumeric: 'tabular-nums',
+        minWidth: 48,
+        textAlign: 'right',
+        lineHeight: 1,
+      }}>
+        {remaining}
+      </div>
+
+      {/* Active indicator */}
+      {isActive && (
+        <span style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: activeColor,
+          border: `1px solid ${activeColor}`,
+          background: `${activeColor}15`,
+          borderRadius: 999,
+          padding: '2px 6px',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+        }}>
+          am Zug
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ------------------------------------------------------------
 // Intermission (Leg/Set Summary zwischen den Runden)
 type Intermission =
@@ -694,6 +785,7 @@ type MultiplayerProps = {
   enabled: true
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]  // All player IDs on this device (primary + added local players)
   isHost: boolean
   submitEvents: (events: DartsEvent[]) => void
   undo: (removeCount: number) => void
@@ -731,6 +823,14 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
   // Globales Theme System
   const { isArcade, colors } = useTheme()
+
+  // Mobile detection for multiplayer layout
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 600)
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 600)
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
 
   // Profile für Spielerfarben laden
   const profiles = useMemo(() => getProfiles(), [])
@@ -1989,17 +2089,17 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       {/* Spieler-Karten / Arcade View */}
       {!isArcade ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <div className="g-grid">
-            {match.players.map((p) => {
+          {/* Player cards — mobile multiplayer uses split layout, otherwise default grid */}
+          {(() => {
+            // Helper: compute data for a player
+            const getPlayerData = (p: typeof match.players[0]) => {
               const isActive = p.playerId === activePlayerId
               const avg = statsByPlayer[p.playerId]?.threeDartAvg ?? 0
               const playerLegs = legsWonCurrent[p.playerId] ?? 0
               const playerSets = setsWon[p.playerId] ?? 0
-
               const remaining = leg.remainingByPlayer[p.playerId]
               const currentDarts = isActive ? current.map(dartScore) : []
               const dartsRemaining = isActive ? 3 - current.length : 3
-
               const derivedLast = getLastVisitForPlayer(leg, p.playerId)
               const derivedVisit: Visit | null = derivedLast
                 ? {
@@ -2009,37 +2109,103 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
                   }
                 : null
               const lastVisit = lastVisitByPlayer[p.playerId] ?? derivedVisit
-
               const flashLabel = flashByPlayer[p.playerId] ?? null
               const recentScores = leg.visits.filter(v => v.playerId === p.playerId).slice(-10).map(v => v.visitScore)
+              const resolvedRemaining =
+                isActive && (!multiplayer?.enabled || p.playerId === multiplayer.myPlayerId)
+                  ? live.remaining
+                  : multiplayer?.livePreview?.playerId === p.playerId
+                    ? multiplayer.livePreview.remaining
+                    : remaining
+              const isMyPlayer = !multiplayer?.enabled || p.playerId === multiplayer.myPlayerId
+              return { isActive, avg, playerLegs, playerSets, remaining, currentDarts, dartsRemaining, derivedVisit, lastVisit, flashLabel, recentScores, resolvedRemaining, isMyPlayer }
+            }
+
+            // Mobile multiplayer split layout
+            const localIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+            const useMobileMultiplayerLayout = isMobile && multiplayer?.enabled && match.players.length >= 2
+
+            if (useMobileMultiplayerLayout) {
+              // Featured player: the local player who is active, or the first local player if none is active
+              const activeLocalPlayer = match.players.find(p => localIds.includes(p.playerId) && p.playerId === activePlayerId)
+              const featuredPlayer = activeLocalPlayer ?? match.players.find(p => localIds.includes(p.playerId)) ?? match.players[0]
+              const otherPlayers = match.players.filter(p => p.playerId !== featuredPlayer.playerId)
+              const fd = getPlayerData(featuredPlayer)
 
               return (
-                <PlayerTurnCard
-                  key={`${p.playerId}-${isActive ? 'active' : 'idle'}`}
-                  name={p.name ?? p.playerId}
-                  color={p.color}
-                  remaining={
-                    isActive && (!multiplayer?.enabled || p.playerId === multiplayer.myPlayerId)
-                      ? live.remaining // My active player: use local live calculation
-                      : multiplayer?.livePreview?.playerId === p.playerId
-                        ? multiplayer.livePreview.remaining // Remote active player: use live preview
-                        : remaining // Inactive player: use last confirmed score
-                  }
-                  currentDarts={currentDarts}
-                  dartsRemaining={dartsRemaining}
-                  lastVisit={lastVisit}
-                  flashLabel={flashLabel}
-                  isActive={isActive}
-                  isMyPlayer={!multiplayer?.enabled || p.playerId === multiplayer.myPlayerId}
-                  legs={playerLegs}
-                  sets={playerSets}
-                  showSets={isSets}
-                  threeDartAvg={avg}
-                  recentScores={recentScores}
-                />
+                <div className="mp-mobile-split">
+                  {/* LEFT: Featured player (full card) */}
+                  <div className="mp-mobile-featured">
+                    <PlayerTurnCard
+                      key={`${featuredPlayer.playerId}-${fd.isActive ? 'active' : 'idle'}`}
+                      name={featuredPlayer.name ?? featuredPlayer.playerId}
+                      color={featuredPlayer.color}
+                      remaining={fd.resolvedRemaining}
+                      currentDarts={fd.currentDarts}
+                      dartsRemaining={fd.dartsRemaining}
+                      lastVisit={fd.lastVisit}
+                      flashLabel={fd.flashLabel}
+                      isActive={fd.isActive}
+                      isMyPlayer={fd.isMyPlayer}
+                      legs={fd.playerLegs}
+                      sets={fd.playerSets}
+                      showSets={isSets}
+                      threeDartAvg={fd.avg}
+                      recentScores={fd.recentScores}
+                    />
+                  </div>
+
+                  {/* RIGHT: Other players (compact rows) */}
+                  <div className="mp-mobile-sidebar">
+                    {otherPlayers.map((p) => {
+                      const d = getPlayerData(p)
+                      return (
+                        <CompactPlayerRow
+                          key={p.playerId}
+                          name={p.name ?? p.playerId}
+                          color={p.color}
+                          remaining={d.resolvedRemaining}
+                          isActive={d.isActive}
+                          legs={d.playerLegs}
+                          sets={d.playerSets}
+                          showSets={isSets}
+                          threeDartAvg={d.avg}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
               )
-            })}
-          </div>
+            }
+
+            // Default layout: all players in a grid
+            return (
+              <div className="g-grid">
+                {match.players.map((p) => {
+                  const d = getPlayerData(p)
+                  return (
+                    <PlayerTurnCard
+                      key={`${p.playerId}-${d.isActive ? 'active' : 'idle'}`}
+                      name={p.name ?? p.playerId}
+                      color={p.color}
+                      remaining={d.resolvedRemaining}
+                      currentDarts={d.currentDarts}
+                      dartsRemaining={d.dartsRemaining}
+                      lastVisit={d.lastVisit}
+                      flashLabel={d.flashLabel}
+                      isActive={d.isActive}
+                      isMyPlayer={d.isMyPlayer}
+                      legs={d.playerLegs}
+                      sets={d.playerSets}
+                      showSets={isSets}
+                      threeDartAvg={d.avg}
+                      recentScores={d.recentScores}
+                    />
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           {/* Chart + Scoreboard: side-by-side on desktop, stacked on mobile */}
           <div className="g-classic-bottom-row" style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>

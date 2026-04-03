@@ -1702,7 +1702,7 @@ export default function App() {
         onSetGameConfig={(config) => mpActions.setGameConfig(config)}
         onSetPlayerOrder={(pids, ot) => mpActions.setPlayerOrder(pids, ot)}
         onTriggerDiceRoll={() => mpActions.triggerDiceRoll()}
-        onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
+        onReady={(pid) => mpActions.playerReady(pid)}
         onStartGame={() => {
           const config = mpState.gameConfig
           if (!config) return
@@ -1899,7 +1899,7 @@ export default function App() {
         onRemovePlayer={(pid) => mpActions.removePlayer(pid)}
         onSetGameConfig={() => {}}
         onSetPlayerOrder={() => {}}
-        onReady={() => mpActions.playerReady(multiplayerMyPlayerId)}
+        onReady={(pid) => mpActions.playerReady(pid)}
         onStartGame={() => {
           // Get matchId from received events
           const firstEvent = mpState.events[0] as any
@@ -1984,10 +1984,17 @@ export default function App() {
   )
 
   if (view === 'multiplayer-game' && multiplayerMatchId) {
+    // Determine all player IDs on this device (primary player + local players sharing device)
+    const myDeviceId = mpState.players.find(p => p.playerId === multiplayerMyPlayerId)?.deviceId
+    const localPlayerIds = myDeviceId
+      ? mpState.players.filter(p => p.deviceId === myDeviceId).map(p => p.playerId)
+      : [multiplayerMyPlayerId]
+
     const mpProps = {
       enabled: true as const,
       roomCode: multiplayerRoomCode ?? '',
       myPlayerId: multiplayerMyPlayerId,
+      localPlayerIds,
       isHost: mpState.isHost,
       submitEvents: mpActions.submitEvents,
       undo: mpActions.undo,

@@ -34,7 +34,7 @@ type Props = {
   onSetPlayerOrder: (playerIds: string[], orderType: PlayerOrder) => void
   onTriggerDiceRoll?: () => void
   onStartGame: () => void
-  onReady: () => void
+  onReady: (playerId: string) => void
   onBack: () => void
   debugLog?: string[]
   spectatorCount?: number
@@ -532,11 +532,24 @@ export default function MultiplayerLobby({
                   </div>
                 </div>
 
-                {/* Ready badge */}
+                {/* Ready badge / toggle */}
                 {!p.isHost && (
-                  <div style={s.badge(p.isReady)}>
-                    {p.isReady ? 'Bereit' : 'Wartet'}
-                  </div>
+                  p.deviceId === me?.deviceId ? (
+                    <button
+                      onClick={() => onReady(p.playerId)}
+                      style={{
+                        ...s.badge(p.isReady),
+                        border: 'none', cursor: 'pointer',
+                        padding: '4px 10px',
+                      }}
+                    >
+                      {p.isReady ? 'Bereit ✓' : 'Bereit?'}
+                    </button>
+                  ) : (
+                    <div style={s.badge(p.isReady)}>
+                      {p.isReady ? 'Bereit' : 'Wartet'}
+                    </div>
+                  )
                 )}
 
                 {/* Reorder buttons (host only) */}
@@ -636,9 +649,9 @@ export default function MultiplayerLobby({
       {/* Action Buttons */}
       {status === 'connected' && phase === 'lobby' && (
         <div style={{ display: 'grid', gap: 8 }}>
-          {/* Guest: Ready toggle */}
+          {/* Guest: Ready toggle (for the primary local player) */}
           {!isHost && players.length >= 2 && (
-            <button onClick={onReady}
+            <button onClick={() => onReady(myPlayerId)}
               style={{ ...s.btn, ...(amReady ? s.btnSecondary : s.btnPrimary), width: '100%' }}>
               {amReady ? 'Bereit ✓ (tippen zum Widerrufen)' : 'Bereit!'}
             </button>
