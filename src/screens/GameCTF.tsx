@@ -86,6 +86,7 @@ type MultiplayerProp = {
   roomCode: string
   myPlayerId: string
   localPlayerIds?: string[]
+  isHost: boolean
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -136,10 +137,23 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     const matchFinishedEvt = remote.find((e: any) => e.type === 'CTFMatchFinished') as any
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'CTFMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
-      ;(async () => {
-        await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+      if (multiplayer?.isHost) {
+        // Host persists immediately
+        ;(async () => {
+          try { await persistCTFEvents(matchId, remote) } catch {}
+          await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+          if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+        })()
+      } else {
+        // Guest: persist as backup after 5s (in case host disconnected before saving)
+        setTimeout(async () => {
+          try {
+            await persistCTFEvents(matchId, remote)
+            await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+          } catch {}
+        }, 5000)
         if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
-      })()
+      }
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

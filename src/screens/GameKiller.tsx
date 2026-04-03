@@ -88,6 +88,7 @@ type MultiplayerProp = {
   roomCode: string
   myPlayerId: string
   localPlayerIds?: string[]
+  isHost: boolean
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -163,10 +164,23 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'KillerMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
       const finalState = applyKillerEvents(remote)
-      ;(async () => {
-        await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+      if (multiplayer?.isHost) {
+        // Host persists immediately
+        ;(async () => {
+          try { await persistKillerEvents(matchId, remote) } catch {}
+          await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+          if (onFinish) setTimeout(() => onFinish(matchId), 2000)
+        })()
+      } else {
+        // Guest: persist as backup after 5s (in case host disconnected before saving)
+        setTimeout(async () => {
+          try {
+            await persistKillerEvents(matchId, remote)
+            await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
+          } catch {}
+        }, 5000)
         if (onFinish) setTimeout(() => onFinish(matchId), 2000)
-      })()
+      }
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

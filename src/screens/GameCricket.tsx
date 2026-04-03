@@ -682,16 +682,23 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       ? prevEvents.some((e: any) => e.type === 'CricketMatchFinished')
       : false
     if (cricketMatchFinishedEvt && !prevHadCricketFinished) {
-      ;(async () => {
-        if (multiplayer?.isHost) {
-          await persistCricketEvents(matchId, remote)
-        }
-        await finishCricketMatch(matchId)
-        // Navigate to summary on ALL devices (host + guest)
-        if (onShowCricketSummary) {
-          setTimeout(() => onShowCricketSummary(matchId), 2000)
-        }
-      })()
+      if (multiplayer?.isHost) {
+        // Host persists immediately
+        ;(async () => {
+          try { await persistCricketEvents(matchId, remote) } catch {}
+          await finishCricketMatch(matchId)
+          if (onShowCricketSummary) setTimeout(() => onShowCricketSummary(matchId), 2000)
+        })()
+      } else {
+        // Guest: persist as backup after 5s (in case host disconnected before saving)
+        setTimeout(async () => {
+          try {
+            await persistCricketEvents(matchId, remote)
+            await finishCricketMatch(matchId)
+          } catch {}
+        }, 5000)
+        if (onShowCricketSummary) setTimeout(() => onShowCricketSummary(matchId), 2000)
+      }
     }
   }, [multiplayer?.remoteEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

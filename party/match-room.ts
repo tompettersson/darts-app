@@ -368,14 +368,21 @@ export default {
 
         case 'submit-events': {
           if (state.phase === 'lobby') { state.phase = 'playing'; broadcastPhase(room) }
+
+          // Deduplicate: filter out events with IDs that already exist
+          const existingIds = new Set(state.events.map((e: any) => e.eventId).filter(Boolean))
+          const newEvents = msg.events.filter((e: any) => !e.eventId || !existingIds.has(e.eventId))
+
+          if (newEvents.length === 0) break // All duplicates, nothing to do
+
           const fromIndex = state.events.length
-          state.events.push(...msg.events)
-          const lastEvent = msg.events[msg.events.length - 1]
+          state.events.push(...newEvents)
+          const lastEvent = newEvents[newEvents.length - 1]
           if (lastEvent?.type === 'MatchFinished' || lastEvent?.type === 'CricketMatchFinished') {
             state.phase = 'finished'
             broadcastPhase(room)
           }
-          broadcastAll(room, { type: 'events', events: msg.events, fromIndex })
+          broadcastAll(room, { type: 'events', events: newEvents, fromIndex })
           await save(room)
           break
         }

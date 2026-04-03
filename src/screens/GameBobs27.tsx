@@ -35,6 +35,7 @@ type MultiplayerProp = {
   roomCode: string
   myPlayerId: string
   localPlayerIds?: string[]
+  isHost: boolean
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -176,10 +177,23 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'Bobs27MatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
       setMatchEndDelay(true)
-      ;(async () => {
-        await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
+      if (multiplayer?.isHost) {
+        // Host persists immediately
+        ;(async () => {
+          try { await persistBobs27Events(matchId, remote) } catch {}
+          await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
+          if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
+        })()
+      } else {
+        // Guest: persist as backup after 5s (in case host disconnected before saving)
+        setTimeout(async () => {
+          try {
+            await persistBobs27Events(matchId, remote)
+            await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
+          } catch {}
+        }, 5000)
         if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
-      })()
+      }
     }
     // Ensure match exists locally for guest
     if (remote.length > 0) {

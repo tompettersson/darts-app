@@ -1210,7 +1210,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         matchWonAnnouncedRef.current = true
         setTimeout(() => announceMatchDart(), 500)
 
-        // Only host persists to DB to avoid duplicate writes from both browsers
+        // Host persists immediately. Guest persists as backup after 5s (in case host disconnected).
         const evtsToSave = [...multiplayer.remoteEvents]
         if (multiplayer.isHost) {
           const startEvt2 = evtsToSave.find((e: any) => e.type === 'MatchStarted') as any
@@ -1230,7 +1230,24 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
             try { updateGlobalX01PlayerStatsFromMatch(matchId, evtsToSave) } catch {}
           })()
         } else {
-          // Guest: only clear local cache, no DB writes
+          // Guest: persist as backup after 5s (in case host disconnected before saving)
+          setTimeout(async () => {
+            try {
+              const startEvt2 = evtsToSave.find((e: any) => e.type === 'MatchStarted') as any
+              if (startEvt2) {
+                await ensureX01MatchExistsAsync(
+                  matchId, evtsToSave,
+                  startEvt2.players?.map((p: any) => p.playerId) ?? [],
+                  `${startEvt2.mode ?? 'X01'} – Multiplayer`,
+                )
+              }
+              await persistEvents(matchId, evtsToSave)
+              await finishMatch(matchId)
+              updateLeaderboardsWithMatch({ id: matchId, events: evtsToSave, finishedAt: now() })
+              updateGlobalX01PlayerStatsFromMatch(matchId, evtsToSave)
+            } catch {}
+          }, 5000)
+          // Finish local state immediately so UI updates
           ;(async () => {
             try { await finishMatch(matchId) } catch {}
           })()
