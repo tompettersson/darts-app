@@ -177,12 +177,44 @@ function getCricketInfo(m: CricketStoredMatch) {
 
 function isFinishedX01(m: StoredMatch) {
   if (m.finished) return true
-  return (m.events as any[])?.some((e) => e?.type === 'MatchFinished')
+  if ((m.events as any[])?.some((e) => e?.type === 'MatchFinished')) return true
+  // Detect completed matches where MatchFinished was lost (race condition):
+  // check if a player won enough legs/sets to win the series
+  const startEv = (m.events as any[])?.find((e) => e?.type === 'MatchStarted')
+  if (!startEv) return false
+  const structure = startEv.structure
+  const isSets = structure?.kind === 'sets'
+  const bestOf = isSets
+    ? (structure?.bestOfSets ?? structure?.setsCount ?? 1)
+    : (structure?.bestOfLegs ?? structure?.legsCount ?? 1)
+  const target = Math.ceil(bestOf / 2)
+  const winType = isSets ? 'SetFinished' : 'LegFinished'
+  const wins: Record<string, number> = {}
+  for (const e of (m.events || [])) {
+    if ((e as any).type === winType) {
+      const wid = (e as any).winnerPlayerId
+      if (wid) wins[wid] = (wins[wid] || 0) + 1
+    }
+  }
+  return Object.values(wins).some(w => w >= target)
 }
 
 function isFinishedCricket(m: CricketStoredMatch) {
   if (m.finished) return true
-  return (m.events as any[])?.some((e) => e?.type === 'CricketMatchFinished')
+  if ((m.events as any[])?.some((e) => e?.type === 'CricketMatchFinished')) return true
+  // Detect completed matches where CricketMatchFinished was lost
+  const startEv = (m.events as any[])?.find((e) => e?.type === 'CricketMatchStarted')
+  if (!startEv) return false
+  const targetWins = startEv.targetWins ?? Math.ceil((startEv.legsCount ?? 1) / 2)
+  if (!targetWins || targetWins <= 0) return false
+  const wins: Record<string, number> = {}
+  for (const e of (m.events || [])) {
+    if ((e as any).type === 'CricketLegFinished') {
+      const wid = (e as any).winnerPlayerId
+      if (wid) wins[wid] = (wins[wid] || 0) + 1
+    }
+  }
+  return Object.values(wins).some(w => w >= targetWins)
 }
 
 function getATBInfo(m: ATBStoredMatch) {

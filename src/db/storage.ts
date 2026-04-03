@@ -3674,28 +3674,26 @@ export async function dbRepairUnfinishedMatches(): Promise<{ repaired: string[] 
     }
   }
 
-  // Stale matches: no finish event but > 3 events — mark as finished (abandoned)
+  // Undo: revert matches that were incorrectly marked finished by the old stale repair
+  // These have finished=1 but NO MatchFinished event — they were genuinely abandoned
   for (const mode of modes) {
     try {
-      const staleRows = await query(
-        `SELECT m.id, COUNT(e.id) as event_count, MAX(e.ts) as last_ts
-         FROM ${mode.matchTable} m
-         JOIN ${mode.eventTable} e ON e.match_id = m.id
-         WHERE (m.finished = 0 OR m.finished IS NULL OR m.finished::text = 'false')
-         GROUP BY m.id
-         HAVING COUNT(e.id) > 3`,
-        []
+      const wronglyFinished = await query(
+        `SELECT m.id FROM ${mode.matchTable} m
+         WHERE (m.finished = 1)
+         AND NOT EXISTS (SELECT 1 FROM ${mode.eventTable} e WHERE e.match_id = m.id AND e.type = ?)`,
+        [mode.finishType]
       )
-      for (const row of staleRows) {
+      for (const row of wronglyFinished) {
         await exec(
-          `UPDATE ${mode.matchTable} SET finished = 1, finished_at = ? WHERE id = ?`,
-          [row.last_ts, row.id]
+          `UPDATE ${mode.matchTable} SET finished = 0, finished_at = NULL WHERE id = ?`,
+          [row.id]
         )
-        repaired.push(`${mode.label}:${row.id}(stale)`)
-        console.log(`[DB Repair] Marked stale ${mode.label} match ${row.id} as finished (${row.event_count} events)`)
+        repaired.push(`${mode.label}:${row.id}(reverted)`)
+        console.log(`[DB Repair] Reverted ${mode.label} match ${row.id} back to unfinished (no finish event)`)
       }
     } catch (err) {
-      console.warn(`[DB Repair] Error repairing stale ${mode.label}:`, err)
+      console.warn(`[DB Repair] Error reverting ${mode.label}:`, err)
     }
   }
 
