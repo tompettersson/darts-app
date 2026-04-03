@@ -65,9 +65,9 @@ export default function ScoreProgressionChart({
   // Padding (top größer für "Sieg" Label, right größer für Average-Anzeige)
   const PADDING = { top: 30, right: 45, bottom: 25, left: 40 }
 
-  // Chart-Bereich berechnen
-  const chartWidth = dimensions.width - PADDING.left - PADDING.right
-  const chartHeight = dimensions.height - PADDING.top - PADDING.bottom - 20 // 20 für Legende
+  // Chart-Bereich berechnen (min 0 to prevent negative SVG dimensions)
+  const chartWidth = Math.max(0, dimensions.width - PADDING.left - PADDING.right)
+  const chartHeight = Math.max(0, dimensions.height - PADDING.top - PADDING.bottom - 20)
 
   // Max Visits über alle Spieler (inkl. Live-Block wenn jemand gerade wirft)
   const maxVisits = Math.max(
@@ -142,7 +142,7 @@ export default function ScoreProgressionChart({
       {/* SVG Chart */}
       <svg
         width={dimensions.width}
-        height={dimensions.height - 20}
+        height={Math.max(0, dimensions.height - 20)}
         style={{ flexShrink: 0 }}
       >
         {/* Animationen */}
