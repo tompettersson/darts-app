@@ -1165,7 +1165,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
       if (currentLeg) {
         const nextPid = getCurrentPlayerId(match, currentLeg, multiplayer.remoteEvents)
         // Only announce if it's now MY turn
-        if (nextPid === multiplayer.myPlayerId) {
+        const localIdsForAnnounce = multiplayer.localPlayerIds ?? (multiplayer.myPlayerId ? [multiplayer.myPlayerId] : [])
+        if (localIdsForAnnounce.includes(nextPid)) {
           const nextName = match.players.find(p => p.playerId === nextPid)?.name ?? nextPid
           const nextRemaining = currentLeg.remainingByPlayer[nextPid] ?? 999
           if (nextRemaining <= 170 && nextRemaining >= 2) {
@@ -1311,7 +1312,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
   // ---------- ENDSCREEN Ende ----------
 
   // Multiplayer: Ist der lokale Spieler gerade am Zug?
-  const isMyTurn = !multiplayer?.enabled || activePlayerId === multiplayer.myPlayerId
+  const localIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || localIds.includes(activePlayerId)
 
   const handleThrow = (bed: Bed, mult: 1 | 2 | 3) => {
     if (isPaused) return
@@ -1802,7 +1804,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
 
           // Nächsten Spieler ansagen — nur wenn ICH der nächste bin (Multiplayer)
           // oder im lokalen Spiel (kein Multiplayer)
-          const isNextMe = !multiplayer?.enabled || nextPlayerId === multiplayer.myPlayerId
+          const nextLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+          const isNextMe = !multiplayer?.enabled || nextLocalIds.includes(nextPlayerId)
           if (match.players.length > 1 && isNextMe) {
             if (nextRemaining <= 170) {
               debouncedAnnounce(() => announcePlayerFinishArea(nextPlayerName, nextRemaining))
@@ -2115,13 +2118,14 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
               const lastVisit = lastVisitByPlayer[p.playerId] ?? derivedVisit
               const flashLabel = flashByPlayer[p.playerId] ?? null
               const recentScores = leg.visits.filter(v => v.playerId === p.playerId).slice(-10).map(v => v.visitScore)
+              const pLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
               const resolvedRemaining =
-                isActive && (!multiplayer?.enabled || p.playerId === multiplayer.myPlayerId)
+                isActive && (!multiplayer?.enabled || pLocalIds.includes(p.playerId))
                   ? live.remaining
                   : multiplayer?.livePreview?.playerId === p.playerId
                     ? multiplayer.livePreview.remaining
                     : remaining
-              const isMyPlayer = !multiplayer?.enabled || p.playerId === multiplayer.myPlayerId
+              const isMyPlayer = !multiplayer?.enabled || pLocalIds.includes(p.playerId)
               return { isActive, avg, playerLegs, playerSets, remaining, currentDarts, dartsRemaining, derivedVisit, lastVisit, flashLabel, recentScores, resolvedRemaining, isMyPlayer }
             }
 

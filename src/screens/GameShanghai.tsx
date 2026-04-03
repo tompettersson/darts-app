@@ -71,6 +71,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -148,6 +149,10 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   const activePlayer = players.find(p => p.playerId === activePlayerId)
   const shanghaiState = state.shanghaiState
 
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const shanghaiLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && shanghaiLocalIds.includes(activePlayerId))
+
   // "[Name], throw first! Game on!" Ansage
   useEffect(() => {
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
@@ -203,6 +208,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   const addDart = useCallback((dartTarget: number) => {
     if (gamePaused) return
     if (!activePlayerId || !state.match) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     if (current.length >= 3) return
 
     const currentMult = multRef.current
@@ -239,18 +246,20 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
 
     // Nach jedem Wurf zurueck auf Single
     setMult(1)
-  }, [activePlayerId, current, state, gamePaused, targetNumber, currentRound])
+  }, [activePlayerId, current, state, gamePaused, targetNumber, currentRound, multiplayer, isMyTurn])
 
   // Miss hinzufuegen
   const addMiss = useCallback(() => {
     if (gamePaused) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     const dart: ShanghaiDart = { target: 'MISS', mult: 1 }
     setCurrent(prev => {
       if (prev.length >= 3) return prev
       return [...prev, dart]
     })
     setMult(1)
-  }, [gamePaused])
+  }, [gamePaused, multiplayer, isMyTurn])
 
   // Refs fuer addDart/addMiss (damit Timer-Callbacks immer die aktuelle Version nutzen)
   const addDartRef = useRef(addDart)
@@ -279,6 +288,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   const confirmTurn = useCallback(() => {
     if (gamePaused) return
     if (!activePlayerId || current.length === 0) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const darts = [...current]
     while (darts.length < 3) {
@@ -372,7 +383,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     setCurrent([])
     setMult(1)
     if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-  }, [activePlayerId, current, events, matchId, state, players, onShowSummary, multiplayer])
+  }, [activePlayerId, current, events, matchId, state, players, onShowSummary, multiplayer, isMyTurn])
 
   // Letzten Zug rueckgaengig machen
   const undoLastTurn = useCallback(() => {

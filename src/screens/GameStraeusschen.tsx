@@ -73,6 +73,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -143,6 +144,10 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   const availableDarts = activePlayerId ? getAvailableDarts(state, activePlayerId) : 0
   const activePlayerState = activePlayerId ? state.playerState[activePlayerId] : null
 
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const strLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && strLocalIds.includes(activePlayerId))
+
   // Ring-Modus Helpers
   const ringMode: StrRingMode = state.match?.ringMode ?? 'triple'
   const ringPrefix = ringMode === 'double' ? 'D' : 'T'
@@ -179,21 +184,25 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   // Treffer hinzufügen
   const addHit = useCallback(() => {
     if (gamePaused || !activePlayerId) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     if (activePlayerState?.currentNumber === 20 && ringMode === 'triple') playTriple20Sound()
     setCurrent(prev => {
       if (prev.length >= availableDarts) return prev
       return [...prev, 'hit' as StrDart]
     })
-  }, [gamePaused, activePlayerId, availableDarts, activePlayerState?.currentNumber, ringMode])
+  }, [gamePaused, activePlayerId, availableDarts, activePlayerState?.currentNumber, ringMode, multiplayer, isMyTurn])
 
   // Miss hinzufügen
   const addMiss = useCallback(() => {
     if (gamePaused || !activePlayerId) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     setCurrent(prev => {
       if (prev.length >= availableDarts) return prev
       return [...prev, 'miss' as StrDart]
     })
-  }, [gamePaused, activePlayerId, availableDarts])
+  }, [gamePaused, activePlayerId, availableDarts, multiplayer, isMyTurn])
 
   // Turn bestätigen (intern)
   const doConfirmTurn = useCallback((darts: StrDart[], nextNumber?: StrTargetNumber) => {
@@ -289,6 +298,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   // Turn bestätigen (public) – prüft ob Zahlenwahl nötig
   const confirmTurn = useCallback(() => {
     if (gamePaused || !activePlayerId || current.length === 0) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     // Prüfe ob aktuelle Zahl mit diesen Darts abgeschlossen wird UND mode='all' + order='free'
     const ps = state.playerState[activePlayerId]
@@ -311,7 +322,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
     }
 
     doConfirmTurn(current)
-  }, [gamePaused, activePlayerId, current, state, doConfirmTurn])
+  }, [gamePaused, activePlayerId, current, state, doConfirmTurn, multiplayer, isMyTurn])
 
   // Zahlenwahl bestätigen
   const handlePickNumber = useCallback((num: StrTargetNumber) => {

@@ -85,6 +85,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -172,6 +173,10 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = players.find(p => p.playerId === activePlayerId)
 
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const ctfLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && ctfLocalIds.includes(activePlayerId))
+
   // "[Name], throw first! Game on!" + erstes Ziel ansagen
   useEffect(() => {
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
@@ -231,6 +236,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
   const addDart = useCallback((targetNumber: number | 'BULL') => {
     if (gamePaused) return
     if (!activePlayerId || !state.match) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     if (current.length >= 3) return
 
     const currentMult = multRef.current
@@ -250,18 +257,20 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
 
     // Nach jedem Wurf zurueck auf Single
     setMult(1)
-  }, [activePlayerId, current, state, gamePaused])
+  }, [activePlayerId, current, state, gamePaused, multiplayer, isMyTurn])
 
   // Miss hinzufuegen
   const addMiss = useCallback(() => {
     if (gamePaused) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     const dart: CTFDart = { target: 'MISS', mult: 1 }
     setCurrent(prev => {
       if (prev.length >= 3) return prev
       return [...prev, dart]
     })
     setMult(1)
-  }, [gamePaused])
+  }, [gamePaused, multiplayer, isMyTurn])
 
   // Refs fuer addDart/addMiss (damit Timer-Callbacks immer die aktuelle Version nutzen)
   const addDartRef = useRef(addDart)
@@ -287,6 +296,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
   const confirmTurn = useCallback(() => {
     if (gamePaused) return
     if (!activePlayerId || current.length === 0) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const darts = [...current]
     while (darts.length < 3) {
@@ -421,7 +432,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     setCurrent([])
     setMult(1)
     if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-  }, [activePlayerId, activePlayer, current, events, matchId, state, players, seqLen, onShowSummary, multiplayer])
+  }, [activePlayerId, activePlayer, current, events, matchId, state, players, seqLen, onShowSummary, multiplayer, isMyTurn])
 
   // Letzten Zug rueckgaengig machen
   const undoLastTurn = useCallback(() => {

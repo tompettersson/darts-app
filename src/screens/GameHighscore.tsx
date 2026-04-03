@@ -52,6 +52,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -102,6 +103,10 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
   const state = applyHighscoreEvents(events)
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = getActivePlayer(state)
+
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const hsLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && hsLocalIds.includes(activePlayerId))
 
   // Shared game state (pause, mute, timer, visibility)
   const { gamePaused, setGamePaused, muted, setMuted, elapsedMs, setElapsedMs } = useGameState({
@@ -165,6 +170,8 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
   // Dart hinzufügen
   const addDart = useCallback((bed: Bed | 'MISS', multOverride?: 1 | 2 | 3) => {
     if (gamePausedRef.current || !activePlayerIdRef.current) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     if (currentDartsRef.current.length >= 3) return
 
     let target: number | 'BULL' | 'MISS'
@@ -193,7 +200,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
 
     // Reset Multiplikator nach Wurf
     setMult(1)
-  }, [])
+  }, [multiplayer, isMyTurn])
 
   // Ref für Timer-Callbacks aktualisieren
   addDartRef.current = addDart
@@ -201,6 +208,8 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
   // Turn bestätigen
   const confirmTurn = useCallback(() => {
     if (!activePlayerId || currentDarts.length === 0) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const result = recordHighscoreTurn(state, activePlayerId, currentDarts, elapsedMs)
     let newEvents: HighscoreEvent[] = [...events, result.turnEvent]
@@ -283,7 +292,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     setEvents(newEvents)
     setCurrentDarts([])
     if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-  }, [activePlayerId, currentDarts, state, events, matchId, elapsedMs, legStartElapsedMs, onShowSummary, multiplayer])
+  }, [activePlayerId, currentDarts, state, events, matchId, elapsedMs, legStartElapsedMs, onShowSummary, multiplayer, isMyTurn])
 
   // Auto-Confirm bei 3 Darts
   useEffect(() => {

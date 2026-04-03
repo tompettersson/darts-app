@@ -314,6 +314,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -362,6 +363,10 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = players.find(p => p.playerId === activePlayerId)
   const currentLeg = getCurrentLeg(state)
+
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const opLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && opLocalIds.includes(activePlayerId))
 
   // Aktiver Spieler-State im aktuellen Leg
   const activePlayerLegState = useMemo(() => {
@@ -435,6 +440,8 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
   const recordDart = useCallback((hitType: HitType) => {
     if (gamePaused || state.isComplete || matchEndDelay || showLegSummary) return
     if (!activePlayerId || !state.match) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const result: OperationDartResult = recordOperationDart(state, activePlayerId, hitType)
 
@@ -541,7 +548,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     } else {
       persistOperationEvents(matchId, updatedEvents)
     }
-  }, [events, state, activePlayerId, activePlayerLegState, dartsThrown, players, gamePaused, matchEndDelay, showLegSummary, matchId, elapsedMs, onShowSummary, multiplayer])
+  }, [events, state, activePlayerId, activePlayerLegState, dartsThrown, players, gamePaused, matchEndDelay, showLegSummary, matchId, elapsedMs, onShowSummary, multiplayer, isMyTurn])
 
   // Undo: Letztes Dart-Event entfernen
   const undoLast = useCallback(() => {

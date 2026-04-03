@@ -40,6 +40,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   isHost: boolean
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
@@ -704,6 +705,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const match = baseState.match
   const order = baseState.players
   const activeId = currentPlayerId(baseState) ?? order[0]
+
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const cricketLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || cricketLocalIds.includes(activeId)
 
   // Spielerfarben aus Profilen holen
   const profiles = useMemo(() => getProfiles(), [])
@@ -2383,6 +2388,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     // Pause? Keine Eingaben
     if (gamePaused) return
     if (events.some(e => e.type === 'CricketMatchFinished')) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
 
     // Doppeltrigger verhindern (Debounce 120ms)
     if (inputLockRef.current) return
@@ -2424,6 +2431,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     // Pause? Keine Eingaben
     if (gamePaused) return
     if (events.some(e => e.type === 'CricketMatchFinished')) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     // Lock setzen um doppelte Eingaben zu verhindern
     if (turnLockRef.current) return

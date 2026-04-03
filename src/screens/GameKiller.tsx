@@ -87,6 +87,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -170,6 +171,10 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   const players = state.players
   const config = state.config
   const activePlayerId = getActivePlayerId(state)
+
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const killerLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && killerLocalIds.includes(activePlayerId))
 
   // Spielernamen aus dem MatchStarted Event
   const playerNames = useMemo(() => {
@@ -264,6 +269,8 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   const addDart = useCallback((dartTarget: number) => {
     if (gamePaused) return
     if (!activePlayerId) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     if (current.length >= 3) return
 
     const currentMult = multRef.current
@@ -276,19 +283,21 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       return [...prev, dart]
     })
     setMult(1)
-  }, [activePlayerId, current, gamePaused])
+  }, [activePlayerId, current, gamePaused, multiplayer, isMyTurn])
 
   // Miss hinzufuegen
   const addMiss = useCallback(() => {
     if (gamePaused) return
     if (current.length >= 3) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     const dart: KillerDart = { target: 'MISS', mult: 1 }
     setCurrent(prev => {
       if (prev.length >= 3) return prev
       return [...prev, dart]
     })
     setMult(1)
-  }, [gamePaused, current])
+  }, [gamePaused, current, multiplayer, isMyTurn])
 
   // Refs fuer Timer-Callbacks
   const addDartRef = useRef(addDart)
@@ -314,6 +323,8 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   const confirmTurn = useCallback(() => {
     if (gamePaused || intermission) return
     if (!activePlayerId || current.length === 0) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const darts = [...current]
     while (darts.length < 3) {
@@ -448,7 +459,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     setCurrent([])
     setMult(1)
     if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
-  }, [activePlayerId, current, events, matchId, state, gamePaused, onFinish, intermission, playerNames, multiplayer])
+  }, [activePlayerId, current, events, matchId, state, gamePaused, onFinish, intermission, playerNames, multiplayer, isMyTurn])
 
   // Undo
   const undoLastTurn = useCallback(() => {

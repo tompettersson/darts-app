@@ -34,6 +34,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -76,6 +77,10 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   const activePlayer = players.find(p => p.playerId === activePlayerId)
   const activePlayerState = activePlayerId ? state.playerStates[activePlayerId] : null
   const currentTarget = activePlayerId ? getCurrentTarget(state, activePlayerId) : null
+
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const bobsLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && bobsLocalIds.includes(activePlayerId))
 
   // Safety-Net: Erkennt wenn alle Spieler fertig sind aber kein MatchFinished generiert wurde
   useEffect(() => {
@@ -228,6 +233,8 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   const doThrow = useCallback((hit: boolean) => {
     if (gamePaused || state.finished || matchEndDelay) return
     if (!activePlayerId || !state.match) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const result: Bobs27ThrowResult = recordBobs27Throw(state, activePlayerId, hit)
 
@@ -275,7 +282,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     } else {
       persistBobs27Events(matchId, updatedEvents)
     }
-  }, [events, state, activePlayerId, gamePaused, matchEndDelay, matchId, elapsedMs, onShowSummary, multiplayer])
+  }, [events, state, activePlayerId, gamePaused, matchEndDelay, matchId, elapsedMs, onShowSummary, multiplayer, isMyTurn])
 
   // Undo: Letzten Wurf rueckgaengig machen
   const undoLast = useCallback(() => {

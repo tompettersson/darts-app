@@ -105,6 +105,7 @@ type MultiplayerProp = {
   enabled: boolean
   roomCode: string
   myPlayerId: string
+  localPlayerIds?: string[]
   submitEvents: (events: any[]) => void
   undo: (removeCount: number) => void
   remoteEvents: any[] | null
@@ -166,6 +167,10 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   // Aktiver Spieler + Ziel für Ansage (muss VOR den useEffects definiert werden)
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = state.match?.players.find(p => p.playerId === activePlayerId)
+
+  // Multiplayer: Ist der lokale Spieler gerade am Zug?
+  const atbLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
+  const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && atbLocalIds.includes(activePlayerId))
 
   // "[Name], throw first! Game on!" + erstes Ziel ansagen
   useEffect(() => {
@@ -296,6 +301,8 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   const addHit = useCallback(() => {
     if (gamePaused) return
     if (!activePlayerId || !state.match) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     const targetNum = getPreviewTargetNumber(activePlayerId)
     if (!targetNum) return
 
@@ -343,23 +350,27 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
 
     // Nach jedem Wurf zurück auf Single
     setMult(1)
-  }, [activePlayerId, current, state])
+  }, [activePlayerId, current, state, multiplayer, isMyTurn])
 
   // Miss hinzufügen
   const addMiss = useCallback(() => {
     if (gamePaused) return
+    // Multiplayer: Nur eigene Würfe eingeben
+    if (multiplayer?.enabled && !isMyTurn) return
     const dart: ATBDart = { target: 'MISS', mult: 1 }
     setCurrent(prev => {
       if (prev.length >= 3) return prev
       return [...prev, dart]
     })
     setMult(1)
-  }, [gamePaused])
+  }, [gamePaused, multiplayer, isMyTurn])
 
   // Turn bestätigen
   const confirmTurn = useCallback(() => {
     if (gamePaused) return
     if (!activePlayerId || current.length === 0) return
+    // Multiplayer: Nur eigene Turns bestätigen
+    if (multiplayer?.enabled && !isMyTurn) return
 
     const darts = [...current]
     while (darts.length < 3) {
@@ -502,7 +513,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
       }
     }
 
-  }, [activePlayerId, current, events, matchId, state, onShowSummary, config, extSeq])
+  }, [activePlayerId, current, events, matchId, state, onShowSummary, config, extSeq, multiplayer, isMyTurn])
 
   // Letzten Zug rückgängig machen
   const undoLastTurn = useCallback(() => {
