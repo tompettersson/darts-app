@@ -1232,7 +1232,6 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     side: 'left' | 'right'
     hideScore?: boolean
   }) {
-    const justifyContent = side === 'left' ? 'flex-end' : 'flex-start'
     const textAlign = side === 'left' ? 'right' : 'left'
     const fontSize = isMobileScreen ? 11 : 14
 
@@ -1241,9 +1240,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         style={{
           minHeight: headerBarHeight,
           display: 'flex',
-          flexDirection: side === 'left' ? 'row-reverse' : 'row',
+          flexDirection: 'row',
           alignItems: 'baseline',
-          justifyContent,
+          justifyContent: side === 'left' ? 'flex-end' : 'flex-start',
           fontWeight: 700,
           fontSize,
           lineHeight: `${headerBarHeight}px`,
@@ -1311,6 +1310,26 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       >
         {targetList.map(t => {
           const tKey = String(t)
+
+          // MISS row: show score instead of marks/tally
+          if (t === 'MISS' && !isSimple) {
+            return (
+              <div
+                key={pid + '-score'}
+                style={{
+                  gridColumn: '1 / -1',
+                  fontWeight: 800,
+                  fontSize: isMobileScreen ? 16 : 20,
+                  color: playerChartColors[order.indexOf(pid)] ?? '#f97316',
+                  textAlign: side === 'left' ? 'right' : 'left',
+                  lineHeight: `${ROW_H}px`,
+                }}
+              >
+                {scoreOf(pid)}
+              </div>
+            )
+          }
+
           const mv = displayMarkOf(pid, tKey)
           const mvBase = baseMarkOf(pid, tKey)
           const isPreview = mv > mvBase
@@ -1339,7 +1358,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           const tallyNode = (
             <Tally
               key={tKey + '-tally'}
-              count={t === 'MISS' ? 0 : tallyPrev}
+              count={tallyPrev}
               align={alignTallies}
               previewIncrease={previewInc}
             />
@@ -1374,18 +1393,6 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       <div style={playerCardStyle(isActive, playerColor)}>
         <PlayerHeader name={p?.name ?? pid} score={score} side={side} hideScore={!isSimpleStyle} />
         <PlayerRows pid={pid} side={side} />
-        {!isSimpleStyle && (
-          <div style={{
-            fontWeight: 800,
-            fontSize: isMobileScreen ? 16 : 20,
-            color: playerColor,
-            textAlign: 'center',
-            lineHeight: `${ROW_H}px`,
-            marginTop: 4,
-          }}>
-            {score}
-          </div>
-        )}
       </div>
     )
   }
@@ -1996,37 +2003,37 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateRows: `repeat(${targetList.length - 1}, ${ROW_H}px)`,
+                        gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
                         rowGap: 4,
                       }}
                     >
-                      {targetList.filter(t => t !== 'MISS').map(t => {
+                      {targetList.map(t => {
                         const tKey = String(t)
-                        const closedAll = isClosedForAll(tKey)
+                        const closedAll = t !== 'MISS' && isClosedForAll(tKey)
                         const activeCrazyTarget = crazyTargets?.[Math.min(turn.length, (crazyTargets?.length ?? 1) - 1)]
                         const isCrazyTarget = activeCrazyTarget === tKey
 
                         return (
                           <button
                             key={tKey}
-                            onClick={() => addTarget(typeof t === 'number' ? t : t as 'BULL')}
+                            onClick={() => t === 'MISS' ? addTarget('MISS') : addTarget(typeof t === 'number' ? t : t as 'BULL')}
                             style={{
                               borderRadius: isMobileScreen ? 4 : 8,
                               padding: isMobileScreen ? '2px 4px' : '4px 10px',
-                              background: isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : '#fff'),
+                              background: t === 'MISS' ? '#f8fafc' : (isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : '#fff')),
                               border: isCrazyTarget ? '2px solid #f59e0b' : '1px solid #e5e7eb',
                               display: 'flex',
                               justifyContent: 'center',
                               alignItems: 'center',
                               fontWeight: 700,
                               fontSize: isMobileScreen ? 12 : 14,
-                              color: closedAll ? '#94a3b8' : '#111827',
+                              color: t === 'MISS' ? '#64748b' : (closedAll ? '#94a3b8' : '#111827'),
                               textDecoration: closedAll ? 'line-through' : 'none',
                               cursor: 'pointer',
                               WebkitTapHighlightColor: 'transparent',
                             }}
                           >
-                            {isCrazyTarget && '🎯 '}{String(t)}
+                            {isCrazyTarget && '🎯 '}{t === 'MISS' ? 'Miss' : String(t)}
                             {closedAll && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: '#64748b' }}>CLOSED</span>}
                           </button>
                         )
