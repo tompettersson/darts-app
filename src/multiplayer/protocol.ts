@@ -142,6 +142,11 @@ export type LivePreviewMsg = {
   remaining: number
 }
 
+/** Host resets room back to lobby (keep players, clear match) */
+export type ResetToLobbyMsg = {
+  type: 'reset-to-lobby'
+}
+
 /** Join as spectator (read-only, no player added) */
 export type JoinSpectatorMsg = {
   type: 'join-spectator'
@@ -152,6 +157,7 @@ export type ClientMessage =
   | JoinRoomMsg
   | LivePreviewMsg
   | JoinSpectatorMsg
+  | ResetToLobbyMsg
   | AddLocalPlayersMsg
   | RemovePlayerMsg
   | SetGameConfigMsg

@@ -43,10 +43,11 @@ type Props = {
   matchId: string
   onRematch?: () => void
   onBack: () => void
+  onBackToLobby?: () => void
   readOnly?: boolean
 }
 
-export default function KillerSummary({ matchId, onRematch, onBack, readOnly }: Props) {
+export default function KillerSummary({ matchId, onRematch, onBack, onBackToLobby, readOnly }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -66,7 +67,7 @@ export default function KillerSummary({ matchId, onRematch, onBack, readOnly }: 
     )
   }
 
-  return <KillerSummaryContent match={storedMatch} onRematch={onRematch} onBack={onBack} readOnly={readOnly} />
+  return <KillerSummaryContent match={storedMatch} onRematch={onRematch} onBack={onBack} onBackToLobby={onBackToLobby} readOnly={readOnly} />
 }
 
 // ============================================================================
@@ -77,11 +78,13 @@ function KillerSummaryContent({
   match: storedMatch,
   onRematch,
   onBack,
+  onBackToLobby,
   readOnly,
 }: {
   match: KillerStoredMatch
   onRematch?: () => void
   onBack: () => void
+  onBackToLobby?: () => void
   readOnly?: boolean
 }) {
   const { isArcade, colors } = useTheme()
@@ -791,6 +794,20 @@ function KillerSummaryContent({
                 Rematch
               </button>
             )}
+            {onBackToLobby && !readOnly && (
+              <button
+                onClick={onBackToLobby}
+                style={{
+                  ...styles.pill,
+                  flex: 1,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  padding: '10px 14px',
+                }}
+              >
+                Neues Spiel
+              </button>
+            )}
             <button
               onClick={onBack}
               style={{
@@ -798,7 +815,7 @@ function KillerSummaryContent({
                 flex: 1,
               }}
             >
-              Zurueck
+              {onBackToLobby ? '← Menü' : 'Zurueck'}
             </button>
           </div>
 

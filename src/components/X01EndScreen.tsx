@@ -125,6 +125,7 @@ type X01EndScreenProps = {
   playerColors: Record<string, string>
   onExit: () => void
   onRematch?: () => void
+  onBackToLobby?: () => void
   /** Hide name/notes input on guest devices in multiplayer */
   isMultiplayerGuest?: boolean
   isArcade: boolean
@@ -143,6 +144,7 @@ export default function X01EndScreen({
   playerColors,
   onExit,
   onRematch,
+  onBackToLobby,
   isMultiplayerGuest,
   saving,
 }: X01EndScreenProps) {
@@ -312,8 +314,13 @@ export default function X01EndScreen({
               ↻ Nochmal
             </button>
           )}
+          {onBackToLobby && (
+            <button className="g-btn" onClick={onBackToLobby} style={{ fontWeight: 700 }}>
+              Neues Spiel
+            </button>
+          )}
           <button className="g-btn" onClick={onExit}>
-            Zurück ins Menü
+            {onBackToLobby ? '← Menü' : 'Zurück ins Menü'}
           </button>
         </div>
       </div>
@@ -588,8 +595,13 @@ export default function X01EndScreen({
             ↻ Nochmal
           </button>
         )}
+        {onBackToLobby && (
+          <button className="g-btn" onClick={onBackToLobby} style={{ fontWeight: 700 }}>
+            Neues Spiel
+          </button>
+        )}
         <button className="g-btn" onClick={onExit}>
-          Zurück ins Menü
+          {onBackToLobby ? '← Menü' : 'Zurück ins Menü'}
         </button>
       </div>
     </div>

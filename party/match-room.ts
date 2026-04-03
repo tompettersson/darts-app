@@ -405,6 +405,21 @@ export default {
           break
         }
 
+        case 'reset-to-lobby': {
+          const connState2 = conn.state as ConnState | null
+          const isHost2 = state.players.some(p => p.isHost && p.deviceId === conn.id)
+          if (!isHost2) break
+          state.phase = 'lobby'
+          state.events = []
+          for (const p of state.players) {
+            p.isReady = false
+          }
+          broadcastPhase(room)
+          broadcastPlayers(room)
+          await save(room)
+          break
+        }
+
         case 'sync-request': {
           sendSync(conn)
           break

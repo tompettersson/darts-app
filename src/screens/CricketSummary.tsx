@@ -22,6 +22,7 @@ type Props = {
   matchId: string
   onBackToMenu: () => void
   onRematch?: (oldMatchId: string) => void
+  onBackToLobby?: () => void
   onHallOfFame?: () => void
 }
 
@@ -249,7 +250,7 @@ function computeMarksForLeg(
   return { marksByPlayer, pointsByPlayer }
 }
 
-export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHallOfFame }: Props) {
+export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBackToLobby, onHallOfFame }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -941,6 +942,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onHal
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           {onRematch && <button onClick={() => onRematch(matchId)} style={styles.backBtn}>↻ Rematch</button>}
+          {onBackToLobby && <button onClick={onBackToLobby} style={styles.backBtn}>Neues Spiel</button>}
           {onHallOfFame && <button onClick={onHallOfFame} style={styles.backBtn}>🏆 Hall of Fame</button>}
         </div>
       </div>

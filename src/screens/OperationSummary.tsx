@@ -14,9 +14,10 @@ type Props = {
   matchId: string
   onBackToMenu: () => void
   onRematch: () => void
+  onBackToLobby?: () => void
 }
 
-export default function OperationSummary({ matchId, onBackToMenu, onRematch }: Props) {
+export default function OperationSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -284,8 +285,13 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch }: P
             >
               Rematch
             </button>
+            {onBackToLobby && (
+              <button style={{ ...styles.pill, flex: 1 }} onClick={onBackToLobby}>
+                Neues Spiel
+              </button>
+            )}
             <button style={{ ...styles.pill, flex: 1 }} onClick={onBackToMenu}>
-              Zurueck
+              {onBackToLobby ? '← Menü' : 'Zurueck'}
             </button>
           </div>
         </div>

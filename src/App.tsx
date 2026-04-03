@@ -501,6 +501,8 @@ export default function App() {
   )
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
   const [multiplayerGameType, setMultiplayerGameType] = useState<string>(() => sessionStorage.getItem('mp-gametype') || 'x01')
+  // Track if summary screen was reached from a multiplayer game (connection still alive)
+  const [multiplayerSummaryActive, setMultiplayerSummaryActive] = useState(false)
 
   // Persist multiplayer state to sessionStorage
   useEffect(() => {
@@ -537,6 +539,26 @@ export default function App() {
       setMultiplayerRemoteEvents(evts)
     },
   )
+
+  // Helper: clean up multiplayer state when leaving a summary screen that was reached from MP
+  const mpSummaryDisconnect = () => {
+    if (multiplayerSummaryActive) {
+      mpActions.disconnect()
+      setMultiplayerRoomCode(null)
+      setMultiplayerMatchId(null)
+      setMultiplayerRemoteEvents(null)
+      setMultiplayerSummaryActive(false)
+    }
+  }
+
+  // Helper: go back to multiplayer lobby (keep connection, reset room to lobby phase)
+  const mpBackToLobby = multiplayerSummaryActive ? () => {
+    mpActions.resetToLobby()
+    setMultiplayerMatchId(null)
+    setMultiplayerRemoteEvents(null)
+    setMultiplayerSummaryActive(false)
+    setView('multiplayer-lobby-host')
+  } : undefined
 
   const openMatch = getOpenMatch()
   const openCricket = getOpenCricketMatch()
@@ -1083,9 +1105,11 @@ export default function App() {
       <ATBSummary
         matchId={summaryATBId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryATBId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={(oldMatchId: string) => {
           const oldData = getATBMatchById(oldMatchId)
           if (!oldData) {
@@ -1175,9 +1199,11 @@ export default function App() {
       <StraeusschenSummary
         matchId={summaryStrId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryStrId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={(oldMatchId: string) => {
           const oldData = getStrMatchById(oldMatchId)
           if (!oldData) {
@@ -1266,9 +1292,11 @@ export default function App() {
       <HighscoreSummary
         matchId={summaryHighscoreId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryHighscoreId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={(oldMatchId: string) => {
           const oldData = getHighscoreMatchById(oldMatchId)
           if (!oldData) {
@@ -1351,9 +1379,11 @@ export default function App() {
       <CTFSummary
         matchId={summaryCTFId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryCTFId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={(oldMatchId: string) => {
           const oldData = getCTFMatchById(oldMatchId)
           if (!oldData) {
@@ -1435,9 +1465,11 @@ export default function App() {
       <ShanghaiSummary
         matchId={summaryShanghaiId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryShanghaiId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={(oldMatchId: string) => {
           const oldData = getShanghaiMatchById(oldMatchId)
           if (!oldData) {
@@ -1518,9 +1550,11 @@ export default function App() {
       <KillerSummary
         matchId={summaryKillerId}
         onBack={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryKillerId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={() => {
           const oldData = getKillerMatchById(summaryKillerId)
           if (!oldData) {
@@ -1581,9 +1615,11 @@ export default function App() {
       <Bobs27Summary
         matchId={summaryBobs27Id}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryBobs27Id(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={() => {
           const oldData = getBobs27MatchById(summaryBobs27Id)
           if (!oldData) {
@@ -1651,9 +1687,11 @@ export default function App() {
       <OperationSummary
         matchId={summaryOperationId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           setView('menu')
           setSummaryOperationId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={() => {
           const oldData = getOperationMatchById(summaryOperationId)
           if (!oldData) {
@@ -2062,7 +2100,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowCricketSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryCricketId(id)
             setActiveCricketId(id)
             setView('summary-cricket')
@@ -2078,7 +2116,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryATBId(id)
             setView('summary-atb')
           }}
@@ -2093,7 +2131,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryStrId(id)
             setView('summary-str')
           }}
@@ -2108,7 +2146,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryHighscoreId(id)
             setView('summary-highscore')
           }}
@@ -2123,7 +2161,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryCTFId(id)
             setView('summary-ctf')
           }}
@@ -2138,7 +2176,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryShanghaiId(id)
             setView('summary-shanghai')
           }}
@@ -2152,7 +2190,7 @@ export default function App() {
         <><MultiplayerAbortButton /><GameKiller
           matchId={multiplayerMatchId}
           onFinish={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryKillerId(id)
             setView('summary-killer')
           }}
@@ -2168,7 +2206,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryBobs27Id(id)
             setActiveBobs27Id(id)
             setView('summary-bobs27')
@@ -2184,7 +2222,7 @@ export default function App() {
           matchId={multiplayerMatchId}
           onExit={mpOnExit}
           onShowSummary={(id) => {
-            mpActions.disconnect()
+            setMultiplayerSummaryActive(true)
             setSummaryOperationId(id)
             setActiveOperationId(id)
             setView('summary-operation')
@@ -2200,6 +2238,12 @@ export default function App() {
         matchId={multiplayerMatchId}
         onExit={mpOnExit}
         onNewGame={() => setView('new-start')}
+        onBackToLobby={() => {
+          mpActions.resetToLobby()
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
+          setView('multiplayer-lobby-host')
+        }}
         multiplayer={mpProps}
       /></>
     )
@@ -2242,6 +2286,7 @@ export default function App() {
       <CricketSummary
         matchId={summaryCricketId}
         onBackToMenu={() => {
+          mpSummaryDisconnect()
           // Wenn aus StatsArea gekommen, dorthin zurück
           if (statsAreaReturnView) {
             setView('stats-area')
@@ -2250,6 +2295,7 @@ export default function App() {
           }
           setSummaryCricketId(undefined)
         }}
+        onBackToLobby={mpBackToLobby}
         onRematch={(oldMatchId: string) => {
           const oldData = getCricketMatchById(oldMatchId)
           if (!oldData) {

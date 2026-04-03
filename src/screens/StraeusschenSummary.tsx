@@ -36,9 +36,10 @@ type Props = {
   matchId: string
   onBackToMenu: () => void
   onRematch: (matchId: string) => void
+  onBackToLobby?: () => void
 }
 
-export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }: Props) {
+export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -607,11 +608,19 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch }
             >
               Rematch
             </button>
+            {onBackToLobby && (
+              <button
+                onClick={onBackToLobby}
+                style={{ ...styles.pill, flex: 1 }}
+              >
+                Neues Spiel
+              </button>
+            )}
             <button
               onClick={onBackToMenu}
               style={{ ...styles.backBtn, flex: 1 }}
             >
-              Menü
+              {onBackToLobby ? '← Menü' : 'Menü'}
             </button>
           </div>
         </div>

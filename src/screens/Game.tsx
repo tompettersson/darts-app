@@ -815,10 +815,11 @@ type Props = {
   matchId: string
   onExit: () => void
   onNewGame?: () => void
+  onBackToLobby?: () => void
   multiplayer?: MultiplayerProps
 }
 
-export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props) {
+export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multiplayer }: Props) {
   useDisableScale() // Game screens handle their own responsive layout
 
   // Globales Theme System
@@ -2002,6 +2003,7 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
         playerColors={playerColors}
         onExit={onExit}
         onRematch={onNewGame}
+        onBackToLobby={onBackToLobby}
         isArcade={isArcade}
         c={colors}
         isMultiplayerGuest={!!multiplayer?.enabled && !multiplayer?.isHost}

@@ -45,6 +45,7 @@ export type MultiplayerActions = {
   playerReady: (playerId: string) => void
   requestSync: () => void
   reconnect: () => void
+  resetToLobby: () => void
   disconnect: () => void
 }
 
@@ -307,6 +308,10 @@ export function useMultiplayerRoom(
     setTimeout(() => setInitMessage(saved), 100)
   }, [initMessage, addDebug])
 
+  const resetToLobby = useCallback(() => {
+    sendMsg({ type: 'reset-to-lobby' })
+  }, [sendMsg])
+
   const disconnect = useCallback(() => {
     socketRef.current?.close()
     socketRef.current = null
@@ -343,7 +348,7 @@ export function useMultiplayerRoom(
   const actions: MultiplayerActions = {
     createRoom, joinRoom, joinAsSpectator, addLocalPlayers, removePlayer, triggerDiceRoll, sendLivePreview,
     setGameConfig: setGameConfigAction, setPlayerOrder: setPlayerOrderAction,
-    startGame, submitEvents, undo, playerReady, requestSync, reconnect, disconnect,
+    startGame, submitEvents, undo, playerReady, requestSync, reconnect, resetToLobby, disconnect,
   }
 
   return [state, actions]

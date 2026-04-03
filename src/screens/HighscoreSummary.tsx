@@ -33,9 +33,10 @@ type Props = {
   matchId: string
   onBackToMenu: () => void
   onRematch: (matchId: string) => void
+  onBackToLobby?: () => void
 }
 
-export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: Props) {
+export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -486,6 +487,18 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: P
             >
               Revanche
             </button>
+            {onBackToLobby && (
+              <button
+                style={{
+                  ...styles.button,
+                  padding: '12px 24px',
+                  fontSize: 14,
+                }}
+                onClick={onBackToLobby}
+              >
+                Neues Spiel
+              </button>
+            )}
             <button
               style={{
                 ...styles.button,
@@ -494,7 +507,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch }: P
               }}
               onClick={onBackToMenu}
             >
-              Zum Menü
+              {onBackToLobby ? '← Menü' : 'Zum Menü'}
             </button>
           </div>
         </div>
