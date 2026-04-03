@@ -170,8 +170,11 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
         warmCricketPlayerStatsCache(cricketStats)
 
         console.debug(`[DB Init] Phase 2 (matches + stats) in ${Date.now() - bgStart}ms`)
+        // Signal to UI components that match data is now available
+        window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
         console.warn('[DB Init] Background load failed:', e)
+        window.dispatchEvent(new CustomEvent('darts-data-ready'))
       }
     }, 100) // Small delay to let the UI render first
 

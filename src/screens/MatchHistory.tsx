@@ -503,16 +503,18 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   // Refresh key: incremented to force all match lists to re-evaluate from cache
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Re-read match data whenever the component gains focus (e.g. returning from admin panel)
+  // Re-read match data when: focus returns, visibility changes, or DB phase 2 finishes loading
   useEffect(() => {
-    const onFocus = () => setRefreshKey(k => k + 1)
+    const refresh = () => setRefreshKey(k => k + 1)
     const onVisChange = () => {
-      if (document.visibilityState === 'visible') onFocus()
+      if (document.visibilityState === 'visible') refresh()
     }
-    window.addEventListener('focus', onFocus)
+    window.addEventListener('focus', refresh)
+    window.addEventListener('darts-data-ready', refresh)
     document.addEventListener('visibilitychange', onVisChange)
     return () => {
-      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('darts-data-ready', refresh)
       document.removeEventListener('visibilitychange', onVisChange)
     }
   }, [])
