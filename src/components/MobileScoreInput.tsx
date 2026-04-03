@@ -108,7 +108,7 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
   }
 
   const btnBase: React.CSSProperties = {
-    height: effectiveLarge ? 64 : 52,
+    height: effectiveLarge ? 56 : 44,
     borderRadius: effectiveLarge ? 10 : 8,
     border: `1.5px solid ${btnBorder}`,
     background: btnBg,

@@ -2247,16 +2247,15 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
           })()}
 
           {/* Chart + Scoreboard: side-by-side on desktop, stacked on mobile */}
-          <div className="g-classic-bottom-row" style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
-            {/* Score Progression Chart — hidden on mobile to save space */}
+          <div className="g-classic-bottom-row" style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            {/* Score Progression Chart — fills remaining space on the left */}
             {chartData && (
               <div className="g-chart-mobile-hide" style={{
                 borderRadius: 12,
                 overflow: 'hidden',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                 flex: 1,
-                minHeight: 80,
-                maxHeight: 180,
+                minWidth: 0,
               }}>
                 <ScoreProgressionChart
                   startScore={chartData.startScore}
@@ -2269,8 +2268,8 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
               </div>
             )}
 
-            {/* Eingabeblock */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* Eingabeblock — right-aligned, fits available height */}
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, maxHeight: '100%', overflow: 'auto' }}>
               {multiplayer?.enabled && !isMyTurn && (
                 <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
                   {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug

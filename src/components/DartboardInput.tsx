@@ -95,16 +95,17 @@ export default function DartboardInput({ onThrow }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, maxHeight: '100%' }}>
       <svg
         viewBox="0 0 400 400"
-        width="320"
-        height="320"
         role="img"
         aria-label="Interaktive Dartscheibe zur Wurf-Eingabe"
         style={{
           cursor: 'pointer',
           filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
+          width: '100%',
+          maxWidth: 280,
+          height: 'auto',
         }}
       >
         {/* Hintergrund (Miss-Bereich) */}
