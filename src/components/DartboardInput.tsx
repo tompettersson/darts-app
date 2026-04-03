@@ -104,7 +104,7 @@ export default function DartboardInput({ onThrow }: Props) {
           cursor: 'pointer',
           filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
           width: '100%',
-          maxWidth: 280,
+          maxWidth: 260,
           height: 'auto',
         }}
       >
