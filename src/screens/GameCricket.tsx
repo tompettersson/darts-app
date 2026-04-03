@@ -1374,25 +1374,18 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     return (
       <div style={playerCardStyle(isActive, playerColor)}>
         <PlayerHeader name={p?.name ?? pid} score={score} side={side} hideScore={hideScore} />
-        {isMobileScreen && !isSimpleStyle ? (
-          <div style={{ display: 'flex', flexDirection: side === 'left' ? 'row' : 'row-reverse', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              fontWeight: 800,
-              fontSize: 16,
-              color: playerColor,
-              minWidth: 28,
-              textAlign: 'center',
-              lineHeight: 1,
-              flexShrink: 0,
-            }}>
-              {score}
-            </div>
-            <div style={{ flex: 1 }}>
-              <PlayerRows pid={pid} side={side} />
-            </div>
+        <PlayerRows pid={pid} side={side} />
+        {isMobileScreen && (
+          <div style={{
+            fontWeight: 800,
+            fontSize: 16,
+            color: playerColor,
+            textAlign: 'center',
+            lineHeight: `${ROW_H}px`,
+            marginTop: 4,
+          }}>
+            {score}
           </div>
-        ) : (
-          <PlayerRows pid={pid} side={side} />
         )}
       </div>
     )
