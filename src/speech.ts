@@ -1,17 +1,9 @@
 // src/speech.ts
-// Sprachausgabe-Modul für Darts - ElevenLabs + Web Speech API Fallback
+// Sprachausgabe-Modul für Darts — Web Speech API
 
 import { speechTexts, type SpeechLang } from './speechTranslations'
 
-const API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY as string | undefined
-const VOICE_ID = import.meta.env.VITE_ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
-const MODEL_ID = 'eleven_multilingual_v2'
-
 let enabled = true
-let currentAudio: HTMLAudioElement | null = null
-
-// Audio-Cache für häufige Phrasen (spart API-Calls)
-const audioCache = new Map<string, string>()
 
 // ===== Stimmen-Konfiguration =====
 export type { SpeechLang }
@@ -228,20 +220,12 @@ function speakWebSpeechFallback(text: string, options?: { pitch?: number; rate?:
  */
 export function initSpeech() {
   initWebSpeechFallback()
-
-  if (API_KEY) {
-    console.debug('ElevenLabs Sprachausgabe aktiviert')
-  } else {
-    console.debug('Kein ElevenLabs API-Key gefunden, verwende Web Speech API')
-  }
 }
 
 /**
- * Spricht Text mit ElevenLabs (oder Web Speech Fallback)
+ * Spricht Text mit Web Speech API. Bricht aktuelle Ansage ab und ersetzt sie.
  */
-// Queue management: cancel pending speech when new one arrives
 let pendingSpeechTimer: ReturnType<typeof setTimeout> | null = null
-let speechBusy = false
 
 export async function speak(text: string, options?: { pitch?: number; rate?: number; volume?: number }) {
   if (!enabled) return
@@ -257,79 +241,7 @@ export async function speak(text: string, options?: { pitch?: number; rate?: num
     speechSynthesis.cancel()
   }
 
-  if (!API_KEY) {
-    speakWebSpeechFallback(text, options)
-    return
-  }
-
-  if (currentAudio) {
-    currentAudio.pause()
-    currentAudio = null
-  }
-
-  // If a speech API call is in flight, skip this one (don't queue)
-  if (speechBusy) return
-  speechBusy = true
-  // Auto-reset busy flag after 3s max (safety net)
-  const busyTimer = setTimeout(() => { speechBusy = false }, 3000)
-
-  const cacheKey = text.toLowerCase().trim()
-  if (audioCache.has(cacheKey)) {
-    const audio = new Audio(audioCache.get(cacheKey)!)
-    audio.volume = options?.volume ?? 1.0
-    currentAudio = audio
-    await audio.play().catch(err => {
-      console.warn('Audio playback failed:', err)
-      speakWebSpeechFallback(text, options)
-    })
-    speechBusy = false
-    clearTimeout(busyTimer)
-    return
-  }
-
-  try {
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text,
-        model_id: MODEL_ID,
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.5,
-          use_speaker_boost: true,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      console.warn('ElevenLabs API error:', response.status, await response.text())
-      speakWebSpeechFallback(text, options)
-      return
-    }
-
-    const audioBlob = await response.blob()
-    const audioUrl = URL.createObjectURL(audioBlob)
-
-    if (text.length < 30) {
-      audioCache.set(cacheKey, audioUrl)
-    }
-
-    const audio = new Audio(audioUrl)
-    audio.volume = options?.volume ?? 1.0
-    currentAudio = audio
-    await audio.play()
-  } catch (err) {
-    console.warn('ElevenLabs fetch error:', err)
-    speakWebSpeechFallback(text, options)
-  } finally {
-    speechBusy = false
-    clearTimeout(busyTimer)
-  }
+  speakWebSpeechFallback(text, options)
 }
 
 /**
@@ -338,10 +250,6 @@ export async function speak(text: string, options?: { pitch?: number; rate?: num
 export function setSpeechEnabled(value: boolean) {
   enabled = value
   if (!value) {
-    if (currentAudio) {
-      currentAudio.pause()
-      currentAudio = null
-    }
     if (typeof speechSynthesis !== 'undefined') {
       speechSynthesis.cancel()
     }
@@ -394,10 +302,6 @@ export function cancelDebouncedAnnounce() {
 export function cancelPendingSpeech() {
   speechQueue.length = 0
   isSpeaking = false
-  if (currentAudio) {
-    currentAudio.pause()
-    currentAudio = null
-  }
   if (typeof speechSynthesis !== 'undefined') {
     speechSynthesis.cancel()
   }
