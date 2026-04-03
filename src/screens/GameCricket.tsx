@@ -2527,28 +2527,30 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     const marksBefore = baseState.marksByPlayer[activeId] ?? {}
     const { marksAdded } = computeMarksDetail(darts, marksBefore, targetKeys)
 
-    // Ansage: Treffer (nur wenn welche gezählt haben)
-    if (!winnerId && marksAdded > 0) {
-      setTimeout(() => announceCricketMarks(marksAdded), 400)
-    }
-
-    // Ansage: Neu geschlossene Zahlen (nicht bei Leg/Match-Ende, da dort eigene Ansage kommt)
-    // Zeitplan: Treffer (400ms) -> 1200ms Platz -> Closed Ansagen (1600ms, 2800ms, etc.)
-    const marksDelay = marksAdded > 0 ? 1200 : 0 // Platz für Treffer-Ansage
-    if (!winnerId && newlyClosed.length > 0) {
-      newlyClosed.forEach((target, i) => {
-        setTimeout(() => announceClosed(target), 400 + marksDelay + i * 1200)
-      })
-    }
-
-    // Nächsten Spieler ansagen (nur bei normalem Cricket, nicht Crazy - bei Crazy erfolgt die Ansage mit Target)
-    // Nach Treffer + Closed Ansagen
+    // Ansagen: Treffer → Closed → Nächster Spieler (alle queued, in Reihenfolge)
+    const marksDelay = marksAdded > 0 ? 1200 : 0
     const closedDelay = newlyClosed.length * 1200 + marksDelay
-    if (!winnerId && match.style !== 'crazy') {
-      const nextState = applyCricketEvents(nextEvents)
-      const nextActiveId = currentPlayerId(nextState) ?? order[0]
-      const nextActivePlayer = match.players.find(p => p.playerId === nextActiveId)
-      debouncedAnnounce(() => announceNextPlayer(nextActivePlayer?.name ?? nextActiveId))
+    if (!winnerId) {
+      // 1) Treffer ansagen
+      if (marksAdded > 0) {
+        setTimeout(() => announceCricketMarks(marksAdded), 400)
+      }
+
+      // 2) Neu geschlossene Zahlen ansagen
+      if (newlyClosed.length > 0) {
+        newlyClosed.forEach((target, i) => {
+          setTimeout(() => announceClosed(target), 400 + marksDelay + i * 1200)
+        })
+      }
+
+      // 3) Nächsten Spieler ansagen — NACH allen anderen Ansagen
+      const totalDelay = 400 + closedDelay + 200
+      if (match.style !== 'crazy') {
+        const nextState = applyCricketEvents(nextEvents)
+        const nextActiveId = currentPlayerId(nextState) ?? order[0]
+        const nextActivePlayer = match.players.find(p => p.playerId === nextActiveId)
+        setTimeout(() => announceNextPlayer(nextActivePlayer?.name ?? nextActiveId), totalDelay)
+      }
     }
 
     // Crazy-Target-Ansage für den NÄCHSTEN Turn (nur wenn kein Leg/Match gewonnen)

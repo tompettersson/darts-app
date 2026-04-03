@@ -532,12 +532,12 @@ export function announceCricketMatch(winnerName: string) {
 
 export function announceClosed(target: string) {
   const name = target === 'BULL' ? 'Bull' : target
-  speak(t().closed(name))
+  speakQueued(t().closed(name))
 }
 
 export function announceCricketMarks(count: number) {
   if (count <= 0) return
-  speak(t().cricketMarks(count))
+  speakQueued(t().cricketMarks(count))
 }
 
 export function announcePlayerNeeds(playerName: string, needs: { target: string; count: number }[]) {
