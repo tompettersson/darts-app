@@ -362,11 +362,13 @@ export default function App() {
   }, [])
 
   const [view, setView] = useState<View>(() => {
-    // Restore multiplayer game view after rotation (within 10s window only)
+    // Restore multiplayer game view after disconnect/rotation (5 min window)
     const savedView = sessionStorage.getItem('mp-view')
     const savedTs = sessionStorage.getItem('mp-ts')
-    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
-    if (savedView === 'multiplayer-game' && isRecent) return 'multiplayer-game' as View
+    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 5 * 60 * 1000
+    if (savedView === 'multiplayer-game' && isRecent && sessionStorage.getItem('mp-room')) {
+      return 'multiplayer-game' as View
+    }
     // Stale session — clean up
     sessionStorage.removeItem('mp-view')
     sessionStorage.removeItem('mp-room')
@@ -484,21 +486,19 @@ export default function App() {
 
   // --- Multiplayer State (persisted to sessionStorage to survive rotation/reload) ---
   const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
-  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(() => {
-    const savedTs = sessionStorage.getItem('mp-ts')
-    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
-    return isRecent ? (sessionStorage.getItem('mp-room') || null) : null
-  })
-  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(() => {
-    const savedTs = sessionStorage.getItem('mp-ts')
-    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
-    return isRecent ? (sessionStorage.getItem('mp-match') || null) : null
-  })
-  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>(() => {
-    const savedTs = sessionStorage.getItem('mp-ts')
-    const isRecent = savedTs && (Date.now() - parseInt(savedTs, 10)) < 10000
-    return isRecent ? (sessionStorage.getItem('mp-player') || '') : ''
-  })
+  const mpSessionFresh = (() => {
+    const ts = sessionStorage.getItem('mp-ts')
+    return ts ? (Date.now() - parseInt(ts, 10)) < 5 * 60 * 1000 : false
+  })()
+  const [multiplayerRoomCode, setMultiplayerRoomCode] = useState<string | null>(
+    () => mpSessionFresh ? (sessionStorage.getItem('mp-room') || null) : null
+  )
+  const [multiplayerMatchId, setMultiplayerMatchId] = useState<string | null>(
+    () => mpSessionFresh ? (sessionStorage.getItem('mp-match') || null) : null
+  )
+  const [multiplayerMyPlayerId, setMultiplayerMyPlayerId] = useState<string>(
+    () => mpSessionFresh ? (sessionStorage.getItem('mp-player') || '') : ''
+  )
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
   const [multiplayerGameType, setMultiplayerGameType] = useState<string>(() => sessionStorage.getItem('mp-gametype') || 'x01')
 
@@ -2612,7 +2612,15 @@ export default function App() {
 
   // ---------- HAUPTMENÜ ----------
 
+  // Check if there's a recoverable MP session (for "Spiel fortsetzen")
+  const hasMpSession = Boolean(multiplayerRoomCode && multiplayerMatchId && multiplayerMyPlayerId)
+
   const handleContinueGame = () => {
+    // Rejoin multiplayer game if session exists
+    if (hasMpSession) {
+      setView('multiplayer-game')
+      return
+    }
     // Direct resume if an active game ID is already set (e.g., returned from menu during MP)
     if (!continueInfo) {
       if (activeCricketId) { setView('game-cricket'); return }
@@ -2666,7 +2674,7 @@ export default function App() {
   }
 
   const menuItems: PickerItem[] = [
-    { id: 'continue', label: 'Spiel fortsetzen', sub: continueInfo ? continueInfo.title : 'Kein laufendes Spiel', icon: <MenuIconContinue /> },
+    { id: 'continue', label: 'Spiel fortsetzen', sub: hasMpSession ? `Online-Spiel · ${multiplayerRoomCode}` : (continueInfo ? continueInfo.title : 'Kein laufendes Spiel'), icon: <MenuIconContinue /> },
     { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket', icon: <MenuIconNewGame /> },
     { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <MenuIconOnline /> },
     { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores', icon: <MenuIconStats /> },
