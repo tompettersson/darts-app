@@ -3,6 +3,108 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import type { Plugin } from 'vite'
 
+/** Auth handler for dev server — mirrors api/auth.js logic */
+async function handleAuthRequest(sql: any, bcrypt: any, body: any): Promise<any> {
+  const SALT_ROUNDS = 10
+  try { await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'` } catch {}
+
+  switch (body.type) {
+    case 'verify': {
+      const { profileId, password } = body
+      if (!profileId || !password) return { valid: false }
+      const rows = await sql`SELECT password_hash, settings FROM profiles WHERE id = ${profileId}`
+      if (!rows[0]?.password_hash) return { valid: false }
+      const valid = await bcrypt.compare(password, rows[0].password_hash)
+      if (!valid) return { valid: false }
+      const sessionToken = crypto.randomUUID()
+      const now = new Date().toISOString()
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      await sql`DELETE FROM sessions WHERE profile_id = ${profileId}`
+      await sql`INSERT INTO sessions (session_token, profile_id, created_at, expires_at, last_used_at) VALUES (${sessionToken}, ${profileId}, ${now}, ${expiresAt}, ${now})`
+      return { valid: true, sessionToken, settings: rows[0]?.settings || {} }
+    }
+    case 'validate-session': {
+      const { sessionToken } = body
+      if (!sessionToken) return { valid: false }
+      const rows = await sql`SELECT profile_id, expires_at FROM sessions WHERE session_token = ${sessionToken}`
+      if (!rows[0]) return { valid: false }
+      if (rows[0].expires_at < new Date().toISOString()) {
+        await sql`DELETE FROM sessions WHERE session_token = ${sessionToken}`
+        return { valid: false }
+      }
+      await sql`UPDATE sessions SET last_used_at = ${new Date().toISOString()} WHERE session_token = ${sessionToken}`
+      const profileRows = await sql`SELECT settings FROM profiles WHERE id = ${rows[0].profile_id}`
+      return { valid: true, profileId: rows[0].profile_id, settings: profileRows[0]?.settings || {} }
+    }
+    case 'update-settings': {
+      const { sessionToken, settings } = body
+      if (!sessionToken || !settings) throw new Error('Missing fields')
+      const session = await sql`SELECT profile_id FROM sessions WHERE session_token = ${sessionToken} AND expires_at > ${new Date().toISOString()}`
+      if (!session[0]) throw new Error('Invalid session')
+      await sql`UPDATE profiles SET settings = ${JSON.stringify(settings)}, updated_at = ${new Date().toISOString()} WHERE id = ${session[0].profile_id}`
+      return { success: true }
+    }
+    case 'logout': {
+      if (body.sessionToken) await sql`DELETE FROM sessions WHERE session_token = ${body.sessionToken}`
+      return { success: true }
+    }
+    case 'verify-multi': {
+      const { players } = body
+      if (!Array.isArray(players)) return { results: [] }
+      const ids = players.map((p: any) => p.profileId)
+      const rows = await sql`SELECT id, password_hash FROM profiles WHERE id = ANY(${ids})`
+      const hashMap = Object.fromEntries(rows.map((r: any) => [r.id, r.password_hash]))
+      const results = await Promise.all(players.map(async (p: any) => {
+        const hash = hashMap[p.profileId]
+        if (!hash) return { profileId: p.profileId, valid: false }
+        return { profileId: p.profileId, valid: await bcrypt.compare(p.password, hash) }
+      }))
+      return { results }
+    }
+    case 'change-password': {
+      const { profileId, oldPassword, newPassword } = body
+      if (!profileId || !oldPassword || !newPassword) throw new Error('Missing fields')
+      const rows = await sql`SELECT password_hash FROM profiles WHERE id = ${profileId}`
+      if (!rows[0]?.password_hash) throw new Error('Profile not found')
+      if (!await bcrypt.compare(oldPassword, rows[0].password_hash)) return { success: false, error: 'Falsches Passwort' }
+      await sql`UPDATE profiles SET password_hash = ${await bcrypt.hash(newPassword, SALT_ROUNDS)}, updated_at = ${new Date().toISOString()} WHERE id = ${profileId}`
+      return { success: true }
+    }
+    case 'admin-reset-password': {
+      const { adminId, adminPassword, targetProfileId, newPassword } = body
+      if (!adminId || !adminPassword || !targetProfileId || !newPassword) throw new Error('Missing fields')
+      const adminRows = await sql`SELECT password_hash, is_admin FROM profiles WHERE id = ${adminId}`
+      if (!adminRows[0]?.is_admin) throw new Error('Not admin')
+      if (!await bcrypt.compare(adminPassword, adminRows[0].password_hash)) return { success: false, error: 'Admin-Passwort falsch' }
+      await sql`UPDATE profiles SET password_hash = ${await bcrypt.hash(newPassword, SALT_ROUNDS)}, updated_at = ${new Date().toISOString()} WHERE id = ${targetProfileId}`
+      return { success: true }
+    }
+    case 'create-profile': {
+      const { name, password, color } = body
+      if (!name || !password) throw new Error('Missing name or password')
+      const existing = await sql`SELECT id FROM profiles WHERE LOWER(name) = LOWER(${name.trim()})`
+      if (existing.length > 0) throw new Error('Name existiert bereits')
+      const id = crypto.randomUUID()
+      const now = new Date().toISOString()
+      await sql`INSERT INTO profiles (id, name, color, password_hash, is_admin, created_at, updated_at) VALUES (${id}, ${name.trim()}, ${color || null}, ${await bcrypt.hash(password, SALT_ROUNDS)}, 0, ${now}, ${now})`
+      return { success: true, id, name: name.trim() }
+    }
+    case 'migrate-passwords': {
+      const profiles = await sql`SELECT id, name FROM profiles WHERE password_hash IS NULL`
+      let count = 0
+      for (const p of profiles) { await sql`UPDATE profiles SET password_hash = ${await bcrypt.hash(p.name + '1', SALT_ROUNDS)} WHERE id = ${p.id}`; count++ }
+      await sql`UPDATE profiles SET is_admin = 1 WHERE LOWER(name) = 'david'`
+      await sql`INSERT INTO system_meta (key, value) VALUES ('passwords_migrated', 'true') ON CONFLICT (key) DO UPDATE SET value = 'true'`
+      return { migrated: true, count }
+    }
+    case 'get-auth-profiles': {
+      const rows = await sql`SELECT id, name, color, is_admin FROM profiles ORDER BY name`
+      return { profiles: rows.map((r: any) => ({ id: r.id, name: r.name, color: r.color, isAdmin: r.is_admin === 1 || r.is_admin === true })) }
+    }
+    default: throw new Error('Unknown auth type: ' + body.type)
+  }
+}
+
 /** Vite Plugin: Local API proxy for /api/db → Neon Postgres */
 function localApiProxy(): Plugin {
   return {
@@ -93,6 +195,14 @@ function localApiProxy(): Plugin {
                   }
                 })
               )
+              break
+            }
+            case 'auth': {
+              // Auth requests routed through /api/db to work around Vite middleware issues
+              const bcryptLib = await import('bcryptjs')
+              const bcrypt = bcryptLib.default
+              const authBody = body.auth
+              data = await handleAuthRequest(sql, bcrypt, authBody)
               break
             }
           }
@@ -215,6 +325,7 @@ function localApiProxy(): Plugin {
           res.end(JSON.stringify({ error: err.message }))
         }
       })
+
     },
   }
 }

@@ -2037,35 +2037,39 @@ export default function Game({ matchId, onExit, onNewGame, multiplayer }: Props)
             })}
           </div>
 
-          {/* Score Progression Chart — hidden on mobile to save space */}
-          {chartData && (
-            <div className="g-chart-mobile-hide" style={{
-              marginTop: 8,
-              borderRadius: 12,
-              overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              flex: 1,
-              minHeight: 80,
-              maxHeight: 180,
-            }}>
-              <ScoreProgressionChart
-                startScore={chartData.startScore}
-                players={chartData.players}
-                liveRemaining={chartData.liveRemaining}
-                activePlayerId={chartData.activePlayerId}
-                liveDartCount={chartData.liveDartCount}
-                liveDartScores={chartData.liveDartScores}
-              />
-            </div>
-          )}
+          {/* Chart + Scoreboard: side-by-side on desktop, stacked on mobile */}
+          <div className="g-classic-bottom-row" style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
+            {/* Score Progression Chart — hidden on mobile to save space */}
+            {chartData && (
+              <div className="g-chart-mobile-hide" style={{
+                borderRadius: 12,
+                overflow: 'hidden',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                flex: 1,
+                minHeight: 80,
+                maxHeight: 180,
+              }}>
+                <ScoreProgressionChart
+                  startScore={chartData.startScore}
+                  players={chartData.players}
+                  liveRemaining={chartData.liveRemaining}
+                  activePlayerId={chartData.activePlayerId}
+                  liveDartCount={chartData.liveDartCount}
+                  liveDartScores={chartData.liveDartScores}
+                />
+              </div>
+            )}
 
-          {/* Eingabeblock */}
-          {multiplayer?.enabled && !isMyTurn && (
-            <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
-              {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+            {/* Eingabeblock */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              {multiplayer?.enabled && !isMyTurn && (
+                <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
+                  {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                </div>
+              )}
+              <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
             </div>
-          )}
-          <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+          </div>
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>

@@ -65,7 +65,12 @@ import {
 
 // Auth
 import { useAuth } from './auth/AuthContext'
-const LoginScreen = React.lazy(() => import('./screens/LoginScreen'))
+const LoginScreen = React.lazy(() =>
+  import('./screens/LoginScreen').catch(() => {
+    window.location.reload()
+    return import('./screens/LoginScreen')
+  })
+)
 
 // X01 Engine Types
 import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501'
@@ -667,7 +672,15 @@ export default function App() {
 
   // ---------- Auth Gate ----------
   if (!auth.user) {
-    return <LoginScreen />
+    return (
+      <React.Suspense fallback={
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <div style={{ width: 32, height: 32, border: '3px solid #ccc', borderTopColor: '#333', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      }>
+        <LoginScreen />
+      </React.Suspense>
+    )
   }
 
   // ---------- View Routing ----------

@@ -85,19 +85,33 @@ function getX01Info(m: StoredMatch) {
   // Parse mode like '501-double-out' -> '501'
   const baseScore = mode.split('-')[0] || '501'
   const playerNames = players.map((p: any) => p.name)
-  const winnerId = finishEv?.winnerPlayerId
-  const winnerName = players.find((p: any) => p.playerId === winnerId)?.name
 
   // Struktur: Sets/Legs
   const structure = startEv?.structure
   const isSets = structure?.kind === 'sets'
+
+  // Winner: from MatchFinished event, or fallback to leg/set wins if event is missing
+  let winnerId = finishEv?.winnerPlayerId
+  if (!winnerId && m.finished) {
+    const winEvents = (m.events || []).filter((e: any) => e.type === (isSets ? 'SetFinished' : 'LegFinished'))
+    const wins: Record<string, number> = {}
+    for (const ev of winEvents) {
+      const wid = (ev as any).winnerPlayerId
+      if (wid) wins[wid] = (wins[wid] || 0) + 1
+    }
+    const sorted = Object.entries(wins).sort((a, b) => b[1] - a[1])
+    if (sorted.length > 0 && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) {
+      winnerId = sorted[0][0]
+    }
+  }
+  const winnerName = players.find((p: any) => p.playerId === winnerId)?.name
 
   // Modus mit S/L Suffix
   const score = `${baseScore} ${isSets ? 'S' : 'L'}`
 
   // Ergebnis berechnen (Sets oder Legs) für beliebig viele Spieler
   let result = ''
-  if (players.length >= 1 && finishEv) {
+  if (players.length >= 1 && (finishEv || m.finished)) {
     // Wins pro Spieler zählen
     const winsPerPlayer: Record<string, number> = {}
     for (const p of players) {
@@ -132,12 +146,19 @@ function getCricketInfo(m: CricketStoredMatch) {
   const style = startEv?.style as string | undefined // 'standard' | 'cutthroat' | 'simple' | 'crazy'
   const isCrazy = style === 'crazy'
   const playerNames = players.map((p: any) => p.name)
-  const winnerId = finishEv?.winnerPlayerId
+  let winnerId = finishEv?.winnerPlayerId
+  if (!winnerId && m.finished) {
+    const legEvents = (m.events || []).filter((e: any) => e.type === 'CricketLegFinished')
+    const wins: Record<string, number> = {}
+    for (const ev of legEvents) { const wid = (ev as any).winnerPlayerId; if (wid) wins[wid] = (wins[wid] || 0) + 1 }
+    const sorted = Object.entries(wins).sort((a, b) => b[1] - a[1])
+    if (sorted.length > 0 && (sorted.length === 1 || sorted[0][1] > sorted[1][1])) winnerId = sorted[0][0]
+  }
   const winnerName = players.find((p: any) => p.playerId === winnerId)?.name
 
   // Ergebnis berechnen (Legs) für beliebig viele Spieler
   let result = ''
-  if (players.length >= 1 && finishEv) {
+  if (players.length >= 1 && (finishEv || m.finished)) {
     const winsPerPlayer: Record<string, number> = {}
     for (const p of players) {
       winsPerPlayer[p.playerId] = 0
@@ -447,6 +468,23 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   const [showUnfinished, setShowUnfinished] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
+  // Refresh key: incremented to force all match lists to re-evaluate from cache
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Re-read match data whenever the component gains focus (e.g. returning from admin panel)
+  useEffect(() => {
+    const onFocus = () => setRefreshKey(k => k + 1)
+    const onVisChange = () => {
+      if (document.visibilityState === 'visible') onFocus()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisChange)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisChange)
+    }
+  }, [])
+
   // X01 Matches async laden (SQLite-aware)
   const [x01, setX01] = useState<StoredMatch[]>(() => getMatches())
   useEffect(() => {
@@ -464,17 +502,17 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
     }).catch((err) => {
       console.error('[MatchHistory] Async load failed:', err)
     })
-  }, [])
+  }, [refreshKey])
 
-  const cricket = useMemo(() => getCricketMatches(), [])
-  const atb = useMemo(() => getATBMatches(), [])
-  const str = useMemo(() => getStrMatches(), [])
-  const highscore = useMemo(() => getHighscoreMatches(), [])
-  const ctf = useMemo(() => getCTFMatches(), [])
-  const shanghai = useMemo(() => getShanghaiMatches(), [])
-  const killer = useMemo(() => getKillerMatches(), [])
-  const bobs27 = useMemo(() => { repairBobs27Matches(); return getBobs27Matches() }, [])
-  const operation = useMemo(() => { repairOperationMatches(); return getOperationMatches() }, [])
+  const cricket = useMemo(() => getCricketMatches(), [refreshKey])
+  const atb = useMemo(() => getATBMatches(), [refreshKey])
+  const str = useMemo(() => getStrMatches(), [refreshKey])
+  const highscore = useMemo(() => getHighscoreMatches(), [refreshKey])
+  const ctf = useMemo(() => getCTFMatches(), [refreshKey])
+  const shanghai = useMemo(() => getShanghaiMatches(), [refreshKey])
+  const killer = useMemo(() => getKillerMatches(), [refreshKey])
+  const bobs27 = useMemo(() => { repairBobs27Matches(); return getBobs27Matches() }, [refreshKey])
+  const operation = useMemo(() => { repairOperationMatches(); return getOperationMatches() }, [refreshKey])
 
   const items = useMemo(() => {
     const x01Items = x01.map((m) => {
@@ -867,9 +905,9 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
               )}
               {m.winnerName ? (
                 <span style={{ fontWeight: 600, color: colors.success, flexShrink: 0, fontSize: 12 }}>{m.winnerName}</span>
-              ) : (
+              ) : !m.finished ? (
                 <span style={{ color: colors.warning, fontWeight: 500, flexShrink: 0, fontSize: 12 }}>offen</span>
-              )}
+              ) : null}
               <span style={{ color: colors.fgDim, fontSize: 11, flexShrink: 0 }}>{fmtDate(m.createdAt)}</span>
             </div>
           ))

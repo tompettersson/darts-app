@@ -176,7 +176,7 @@ export default function NewGameOperation({ onCancel, onStart }: Props) {
 
   const TARGET_MODE_OPTIONS: { value: OperationTargetMode; label: string }[] = [
     { value: 'MANUAL_NUMBER', label: 'Zahl waehlen' },
-    { value: 'RANDOM_NUMBER', label: 'Zufallszahl' },
+    { value: 'RANDOM_NUMBER', label: '\uD83C\uDFB2 Zufallszahl' },
     { value: 'BULL', label: 'Bull' },
   ]
 
@@ -254,7 +254,7 @@ export default function NewGameOperation({ onCancel, onStart }: Props) {
                   style={pill(legsCount === l)}
                   onClick={() => setLegsCount(l)}
                 >
-                  {l}
+                  First to {Math.ceil(l / 2)} Leg{Math.ceil(l / 2) > 1 ? 's' : ''}
                 </button>
               ))}
             </div>

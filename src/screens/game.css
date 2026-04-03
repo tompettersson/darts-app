@@ -870,6 +870,10 @@ html, body, #root {
   .g-chart-mobile-hide {
     display: none !important;
   }
+  /* On mobile, classic bottom row stacks vertically (chart hidden anyway) */
+  .g-classic-bottom-row {
+    flex-direction: column !important;
+  }
   /* Compact player cards: hide dart columns, show only score */
   .g-player-darts-col {
     display: none !important;

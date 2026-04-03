@@ -21,6 +21,7 @@ export type OperationLegStats = {
   singleBullCount: number
   doubleBullCount: number
   bestTurnScore: number
+  noScoreTurns: number
 }
 
 export type OperationMatchStats = {
@@ -38,6 +39,7 @@ export type OperationMatchStats = {
   singleBullCount: number
   doubleBullCount: number
   bestTurnScore: number
+  noScoreTurns: number
   legScores: number[]
   legHitScores: number[]
   legHitRates: number[]
@@ -51,6 +53,25 @@ function computeBestTurnScore(events: OperationDartEvent[]): number {
     turnScores.set(key, (turnScores.get(key) ?? 0) + ev.points)
   }
   return turnScores.size > 0 ? Math.max(...turnScores.values()) : 0
+}
+
+/**
+ * Zaehlt Turns (Gruppen von 3 Darts) in denen der Spieler 0 Punkte erzielt hat.
+ */
+function computeNoScoreTurns(events: OperationDartEvent[]): number {
+  const turnScores = new Map<number, number>()
+  const turnDarts = new Map<number, number>()
+  for (const ev of events) {
+    const key = ev.turnIndex
+    turnScores.set(key, (turnScores.get(key) ?? 0) + ev.points)
+    turnDarts.set(key, (turnDarts.get(key) ?? 0) + 1)
+  }
+  let count = 0
+  for (const [turn, score] of turnScores) {
+    // Nur vollstaendige Turns zaehlen (3 Darts)
+    if ((turnDarts.get(turn) ?? 0) >= 3 && score === 0) count++
+  }
+  return count
 }
 
 export function computeOperationLegStats(
@@ -89,6 +110,7 @@ export function computeOperationLegStats(
     singleBullCount: ps.singleBullCount,
     doubleBullCount: ps.doubleBullCount,
     bestTurnScore: computeBestTurnScore(ps.events),
+    noScoreTurns: computeNoScoreTurns(ps.events),
   }
 }
 
@@ -110,6 +132,7 @@ export function computeOperationMatchStats(
   let singleBullCount = 0
   let doubleBullCount = 0
   let bestTurnScore = 0
+  let noScoreTurns = 0
   const legScores: number[] = []
   const legHitScores: number[] = []
   const legHitRates: number[] = []
@@ -135,6 +158,9 @@ export function computeOperationMatchStats(
     const turnScore = computeBestTurnScore(ps.events)
     if (turnScore > bestTurnScore) bestTurnScore = turnScore
 
+    const legNoScoreTurns = computeNoScoreTurns(ps.events)
+    noScoreTurns += legNoScoreTurns
+
     legScores.push(ps.totalScore)
     legHitScores.push(ps.hitScore)
     const lr = ps.dartsThrown > 0 ? (hits / ps.dartsThrown) * 100 : 0
@@ -157,6 +183,7 @@ export function computeOperationMatchStats(
       singleBullCount: ps.singleBullCount,
       doubleBullCount: ps.doubleBullCount,
       bestTurnScore: turnScore,
+      noScoreTurns: legNoScoreTurns,
     })
   }
 
@@ -179,6 +206,7 @@ export function computeOperationMatchStats(
     singleBullCount,
     doubleBullCount,
     bestTurnScore,
+    noScoreTurns,
     legScores,
     legHitScores,
     legHitRates,

@@ -3622,3 +3622,82 @@ export async function dbLoadAllCricketPlayerStats(): Promise<Record<string, any>
   }
   return result
 }
+
+// ============================================================================
+// DB Repair — fix matches with finish events but not marked as finished
+// ============================================================================
+
+export async function dbRepairUnfinishedMatches(): Promise<{ repaired: string[] }> {
+  const ready = await ensureDB()
+  if (!ready) return { repaired: [] }
+
+  const repaired: string[] = []
+
+  const modes: Array<{
+    matchTable: string
+    eventTable: string
+    finishType: string
+    label: string
+  }> = [
+    { matchTable: 'x01_matches', eventTable: 'x01_events', finishType: 'MatchFinished', label: 'x01' },
+    { matchTable: 'cricket_matches', eventTable: 'cricket_events', finishType: 'CricketMatchFinished', label: 'cricket' },
+    { matchTable: 'atb_matches', eventTable: 'atb_events', finishType: 'ATBMatchFinished', label: 'atb' },
+    { matchTable: 'ctf_matches', eventTable: 'ctf_events', finishType: 'CTFMatchFinished', label: 'ctf' },
+    { matchTable: 'str_matches', eventTable: 'str_events', finishType: 'StrMatchFinished', label: 'str' },
+    { matchTable: 'highscore_matches', eventTable: 'highscore_events', finishType: 'HighscoreMatchFinished', label: 'highscore' },
+    { matchTable: 'shanghai_matches', eventTable: 'shanghai_events', finishType: 'ShanghaiMatchFinished', label: 'shanghai' },
+    { matchTable: 'killer_matches', eventTable: 'killer_events', finishType: 'KillerMatchFinished', label: 'killer' },
+    { matchTable: 'bobs27_matches', eventTable: 'bobs27_events', finishType: 'Bobs27MatchFinished', label: 'bobs27' },
+    { matchTable: 'operation_matches', eventTable: 'operation_events', finishType: 'OperationMatchFinished', label: 'operation' },
+  ]
+
+  for (const mode of modes) {
+    try {
+      // Find unfinished matches that DO have a finish event
+      const rows = await query(
+        `SELECT m.id, e.ts
+         FROM ${mode.matchTable} m
+         JOIN ${mode.eventTable} e ON e.match_id = m.id AND e.type = ?
+         WHERE (m.finished = 0 OR m.finished IS NULL)`,
+        [mode.finishType]
+      )
+      for (const row of rows) {
+        await exec(
+          `UPDATE ${mode.matchTable} SET finished = 1, finished_at = ? WHERE id = ?`,
+          [row.ts, row.id]
+        )
+        repaired.push(`${mode.label}:${row.id}`)
+        console.log(`[DB Repair] Marked ${mode.label} match ${row.id} as finished`)
+      }
+    } catch (err) {
+      console.warn(`[DB Repair] Error repairing ${mode.label}:`, err)
+    }
+  }
+
+  // Stale matches: no finish event but > 3 events — mark as finished (abandoned)
+  for (const mode of modes) {
+    try {
+      const staleRows = await query(
+        `SELECT m.id, COUNT(e.id) as event_count, MAX(e.ts) as last_ts
+         FROM ${mode.matchTable} m
+         JOIN ${mode.eventTable} e ON e.match_id = m.id
+         WHERE (m.finished = 0 OR m.finished IS NULL OR m.finished::text = 'false')
+         GROUP BY m.id
+         HAVING COUNT(e.id) > 3`,
+        []
+      )
+      for (const row of staleRows) {
+        await exec(
+          `UPDATE ${mode.matchTable} SET finished = 1, finished_at = ? WHERE id = ?`,
+          [row.last_ts, row.id]
+        )
+        repaired.push(`${mode.label}:${row.id}(stale)`)
+        console.log(`[DB Repair] Marked stale ${mode.label} match ${row.id} as finished (${row.event_count} events)`)
+      }
+    } catch (err) {
+      console.warn(`[DB Repair] Error repairing stale ${mode.label}:`, err)
+    }
+  }
+
+  return { repaired }
+}

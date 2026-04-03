@@ -246,14 +246,14 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
             border: `1px solid ${colors.error}`,
             width: '100%',
           }}
-          onClick={() => {
+          onClick={async () => {
             const openCount = countOpenMatches()
             if (openCount === 0) {
               showToast('Keine offenen Spiele vorhanden')
               return
             }
             if (!confirm(`${openCount} offene(s) Spiel(e) löschen? Diese wurden nicht beendet und gehen nicht in die Statistik ein.`)) return
-            const deleted = deleteAllOpenMatches()
+            const deleted = await deleteAllOpenMatches()
             showToast(`${deleted} offene(s) Spiel(e) gelöscht`)
           }}
         >

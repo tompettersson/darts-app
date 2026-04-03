@@ -57,6 +57,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch }: P
         tripleCount: stats?.tripleCount ?? 0,
         singleBullCount: stats?.singleBullCount ?? 0,
         doubleBullCount: stats?.doubleBullCount ?? 0,
+        noScoreTurns: stats?.noScoreTurns ?? 0,
         legsWon: finished?.legWins?.[p.playerId] ?? state.totalsByPlayer[p.playerId]?.legsWon ?? 0,
       }
     })
@@ -200,6 +201,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch }: P
               {statRow('Punkte', r.totalScore)}
               {statRow('Ø Punkte/Dart', r.avgPointsPerDart.toFixed(1))}
               {statRow('Bester Turn', r.bestTurnScore)}
+              {statRow('No Score Turns', r.noScoreTurns)}
               {match.config.legsCount > 1 && statRow('Legs gewonnen', r.legsWon)}
 
               {/* Trefferverteilung */}

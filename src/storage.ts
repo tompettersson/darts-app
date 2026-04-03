@@ -146,6 +146,22 @@ export function getDBErrors(): Array<{ ts: string; type: string; id: string; err
   }
 }
 
+/* -------------------------------------------------
+   Write Queue — serializes DB writes per match
+   Prevents race conditions with DELETE+re-INSERT pattern
+   when multiple fire-and-forget persist calls overlap
+------------------------------------------------- */
+const writeQueues = new Map<string, Promise<void>>()
+
+function queueWrite(key: string, fn: () => Promise<void>): void {
+  const prev = writeQueues.get(key) ?? Promise.resolve()
+  const next = prev.then(fn, () => fn()).catch(err => {
+    console.warn('[DB] queued write failed:', err)
+  })
+  writeQueues.set(key, next)
+  next.then(() => { if (writeQueues.get(key) === next) writeQueues.delete(key) })
+}
+
 // Debug-Funktion um DB-Fehler zu löschen
 export function clearDBErrors() {
   localStorage.removeItem('darts.dbErrors')
@@ -704,8 +720,14 @@ export function persistEvents(
   list[idx] = { ...list[idx], events }
   saveMatches(list)
 
-  // Await DB write to prevent data loss on quick navigation
-  return dbUpdateX01Events(matchId, events).catch(err => trackDBError('x01-events', matchId, err))
+  // Queued + awaitable DB write — prevents race conditions
+  return new Promise<void>((resolve) => {
+    queueWrite(`x01-${matchId}`, async () => {
+      try { await dbUpdateX01Events(matchId, events) }
+      catch (err) { trackDBError('x01-events', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 export function finishMatch(matchId: string): Promise<void> {
@@ -719,8 +741,14 @@ export function finishMatch(matchId: string): Promise<void> {
   const last = getLastOpenMatchId()
   if (last === matchId) setLastOpenMatchId(undefined)
 
-  // Await DB write to prevent data loss on quick navigation
-  return dbFinishX01Match(matchId).catch(err => trackDBError('x01-finish', matchId, err))
+  // Queued + awaitable DB write
+  return new Promise<void>((resolve) => {
+    queueWrite(`x01-${matchId}`, async () => {
+      try { await dbFinishX01Match(matchId) }
+      catch (err) { trackDBError('x01-finish', matchId, err) }
+      resolve()
+    })
+  })
 }
 
 /** Setzt Spielname und Bemerkungen für ein Match (nur einmal möglich). */
@@ -1908,8 +1936,8 @@ export function persistCricketEvents(
   list[idx] = { ...list[idx], events }
   saveCricketMatches(list)
 
-  // Async SQLite update
-  dbUpdateCricketEvents(matchId, events).catch(err => trackDBError('cricket-events', matchId, err))
+  // Queued DB write — prevents race condition with concurrent persist calls
+  queueWrite(`cricket-${matchId}`, () => dbUpdateCricketEvents(matchId, events).catch(err => trackDBError('cricket-events', matchId, err)))
 }
 
 /**
@@ -1947,18 +1975,19 @@ export function finishCricketMatch(
     )
   }
 
-  // Async SQLite update - Cricket Match als finished markieren
-  dbSaveCricketMatch({
-    id: list[idx].id,
-    title: list[idx].title,
-    matchName: list[idx].matchName ?? null,
-    notes: list[idx].notes ?? null,
-    createdAt: list[idx].createdAt,
+  // Queued DB write — serialized with event persist
+  const matchData = list[idx]
+  queueWrite(`cricket-${matchId}`, () => dbSaveCricketMatch({
+    id: matchData.id,
+    title: matchData.title,
+    matchName: matchData.matchName ?? null,
+    notes: matchData.notes ?? null,
+    createdAt: matchData.createdAt,
     finished: true,
     finishedAt: now(),
-    events: list[idx].events,
-    playerIds: list[idx].playerIds,
-  }).catch(err => trackDBError('cricket-finish', list[idx].id, err))
+    events: matchData.events,
+    playerIds: matchData.playerIds,
+  }).catch(err => trackDBError('cricket-finish', matchData.id, err)))
 }
 
 /** Setzt Spielname und Bemerkungen für ein Cricket-Match (nur einmal möglich). */
@@ -2865,8 +2894,7 @@ export function persistATBEvents(matchId: string, events: ATBEvent[]) {
   atbMatchesCache = all
 
 
-  // Async SQLite update
-  dbUpdateATBEvents(matchId, events).catch(err => trackDBError('atb-events', matchId, err))
+  queueWrite(`atb-${matchId}`, () => dbUpdateATBEvents(matchId, events).catch(err => trackDBError('atb-events', matchId, err)))
 }
 
 export function finishATBMatch(
@@ -2886,9 +2914,7 @@ export function finishATBMatch(
   all[idx].durationMs = durationMs
   atbMatchesCache = all
 
-
-  // Async SQLite update
-  dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('atb-finish', matchId, err))
+  queueWrite(`atb-${matchId}`, () => dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('atb-finish', matchId, err)))
 
   // Update Highscores
   const match = all[idx]
@@ -3479,8 +3505,7 @@ export function persistStrEvents(matchId: string, events: StrEvent[]) {
   strMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateStrEvents(matchId, events as any[]).catch(err => trackDBError('str-events', matchId, err))
+  queueWrite(`str-${matchId}`, () => dbUpdateStrEvents(matchId, events as any[]).catch(err => trackDBError('str-events', matchId, err)))
 }
 
 export function finishStrMatch(
@@ -3500,9 +3525,7 @@ export function finishStrMatch(
   all[idx].durationMs = durationMs
   strMatchesCache = all
 
-
-  // SQLite Dual-Write
-  dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('str-finish', matchId, err))
+  queueWrite(`str-${matchId}`, () => dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs).catch(err => trackDBError('str-finish', matchId, err)))
 }
 
 export function deleteStrMatch(matchId: string) {
@@ -3639,8 +3662,7 @@ export function persistCTFEvents(matchId: string, events: CTFEvent[]) {
   ctfMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateCTFEvents(matchId, events).catch(err => trackDBError('ctf-events', matchId, err))
+  queueWrite(`ctf-${matchId}`, () => dbUpdateCTFEvents(matchId, events).catch(err => trackDBError('ctf-events', matchId, err)))
 }
 
 export function finishCTFMatch(
@@ -3693,9 +3715,8 @@ export function finishCTFMatch(
   ctfMatchesCache = all
 
 
-  // SQLite Dual-Write: finales Speichern mit allen Daten
   const match = all[idx]
-  dbSaveCTFMatch({
+  queueWrite(`ctf-${matchId}`, () => dbSaveCTFMatch({
     id: match.id,
     title: match.title,
     createdAt: match.createdAt,
@@ -3712,7 +3733,7 @@ export function finishCTFMatch(
     captureFieldWinners: match.captureFieldWinners,
     captureTotalScores: match.captureTotalScores,
     captureFieldPoints: match.captureFieldPoints,
-  }).catch(err => trackDBError('ctf-finish', matchId, err))
+  }).catch(err => trackDBError('ctf-finish', matchId, err)))
 }
 
 export function deleteCTFMatch(matchId: string) {
@@ -3845,8 +3866,7 @@ export function persistShanghaiEvents(matchId: string, events: ShanghaiEvent[]) 
   shanghaiMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateShanghaiEvents(matchId, events).catch(err => trackDBError('shanghai-events', matchId, err))
+  queueWrite(`shanghai-${matchId}`, () => dbUpdateShanghaiEvents(matchId, events).catch(err => trackDBError('shanghai-events', matchId, err)))
 }
 
 export function finishShanghaiMatch(
@@ -3874,10 +3894,8 @@ export function finishShanghaiMatch(
 
   shanghaiMatchesCache = all
 
-
-  // SQLite Dual-Write
   const match = all[idx]
-  dbSaveShanghaiMatch({
+  queueWrite(`shanghai-${matchId}`, () => dbSaveShanghaiMatch({
     id: match.id,
     title: match.title,
     createdAt: match.createdAt,
@@ -3893,7 +3911,7 @@ export function finishShanghaiMatch(
     finalScores: match.finalScores,
     legWins: match.legWins,
     setWins: match.setWins,
-  }).catch(err => trackDBError('shanghai-finish', matchId, err))
+  }).catch(err => trackDBError('shanghai-finish', matchId, err)))
 }
 
 export function deleteShanghaiMatch(matchId: string) {
@@ -4025,8 +4043,7 @@ export function persistKillerEvents(matchId: string, events: KillerEvent[]) {
   killerMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateKillerEvents(matchId, events).catch(err => trackDBError('killer-events', matchId, err))
+  queueWrite(`killer-${matchId}`, () => dbUpdateKillerEvents(matchId, events).catch(err => trackDBError('killer-events', matchId, err)))
 }
 
 export function finishKillerMatch(
@@ -4053,10 +4070,8 @@ export function finishKillerMatch(
 
   killerMatchesCache = all
 
-
-  // SQLite Dual-Write
-  dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins)
-    .catch(err => trackDBError('killer-finish', matchId, err))
+  queueWrite(`killer-${matchId}`, () => dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins)
+    .catch(err => trackDBError('killer-finish', matchId, err)))
 }
 
 export function deleteKillerMatch(matchId: string) {
@@ -4180,8 +4195,7 @@ export function persistBobs27Events(matchId: string, events: Bobs27Event[]) {
   bobs27MatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateBobs27Events(matchId, events).catch(err => trackDBError('bobs27-events', matchId, err))
+  queueWrite(`bobs27-${matchId}`, () => dbUpdateBobs27Events(matchId, events).catch(err => trackDBError('bobs27-events', matchId, err)))
 }
 
 export function finishBobs27Match(
@@ -4204,10 +4218,8 @@ export function finishBobs27Match(
 
   bobs27MatchesCache = all
 
-
-  // SQLite Dual-Write
   const match = all[idx]
-  dbSaveBobs27Match({
+  queueWrite(`bobs27-${matchId}`, () => dbSaveBobs27Match({
     id: match.id,
     title: match.title,
     createdAt: match.createdAt,
@@ -4221,7 +4233,7 @@ export function finishBobs27Match(
     config: match.config,
     targets: match.targets,
     finalScores: match.finalScores,
-  }).catch(err => trackDBError('bobs27-finish', matchId, err))
+  }).catch(err => trackDBError('bobs27-finish', matchId, err)))
 }
 
 export function deleteBobs27Match(matchId: string) {
@@ -4440,8 +4452,7 @@ export function persistOperationEvents(matchId: string, events: OperationEvent[]
   operationMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateOperationEvents(matchId, events).catch(err => trackDBError('operation-events', matchId, err))
+  queueWrite(`operation-${matchId}`, () => dbUpdateOperationEvents(matchId, events).catch(err => trackDBError('operation-events', matchId, err)))
 }
 
 export function finishOperationMatch(
@@ -4464,10 +4475,8 @@ export function finishOperationMatch(
 
   operationMatchesCache = all
 
-
-  // SQLite Dual-Write
   const match = all[idx]
-  dbSaveOperationMatch({
+  queueWrite(`operation-${matchId}`, () => dbSaveOperationMatch({
     id: match.id,
     title: match.title,
     createdAt: match.createdAt,
@@ -4483,7 +4492,7 @@ export function finishOperationMatch(
     config: match.config,
     finalScores: match.finalScores,
     legWins: match.legWins,
-  }).catch(err => trackDBError('operation-finish', matchId, err))
+  }).catch(err => trackDBError('operation-finish', matchId, err)))
 }
 
 export function deleteOperationMatch(matchId: string) {
@@ -4973,7 +4982,7 @@ export function countOpenMatches(): number {
  * Löscht ALLE offenen (nicht-beendeten) Matches über alle Spielmodi.
  * Gibt die Anzahl gelöschter Matches zurück.
  */
-export function deleteAllOpenMatches(): number {
+export async function deleteAllOpenMatches(): Promise<number> {
   let deleted = 0
   const tables = ['x01', 'cricket', 'atb', 'str', 'highscore', 'ctf', 'shanghai', 'killer', 'bobs27', 'operation']
 
@@ -4989,11 +4998,15 @@ export function deleteAllOpenMatches(): number {
   const b27 = getBobs27Matches(); const b27f = b27.filter(m => (m as any).finished); deleted += b27.length - b27f.length; saveBobs27Matches(b27f)
   const op = getOperationMatches(); const opf = op.filter(m => (m as any).finished); deleted += op.length - opf.length; saveOperationMatches(opf)
 
-  // Also delete from Postgres DB (fire-and-forget, non-blocking)
+  // Also delete from DB — await all deletions with error logging
   for (const table of tables) {
-    exec(`DELETE FROM ${table}_events WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`).catch(() => {})
-    exec(`DELETE FROM ${table}_match_players WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`).catch(() => {})
-    exec(`DELETE FROM ${table}_matches WHERE finished = 0 OR finished IS NULL`).catch(() => {})
+    try {
+      await exec(`DELETE FROM ${table}_events WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`)
+      await exec(`DELETE FROM ${table}_match_players WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`)
+      await exec(`DELETE FROM ${table}_matches WHERE finished = 0 OR finished IS NULL`)
+    } catch (err) {
+      console.warn(`[deleteAllOpenMatches] DB cleanup failed for table ${table}:`, err)
+    }
   }
 
   return deleted
@@ -5109,8 +5122,7 @@ export function persistHighscoreEvents(matchId: string, events: HighscoreEvent[]
   highscoreMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbUpdateHighscoreEvents(matchId, events as any[]).catch(err => trackDBError('highscore-events', matchId, err))
+  queueWrite(`highscore-${matchId}`, () => dbUpdateHighscoreEvents(matchId, events as any[]).catch(err => trackDBError('highscore-events', matchId, err)))
 }
 
 export function finishHighscoreMatch(
@@ -5134,10 +5146,8 @@ export function finishHighscoreMatch(
   if (setWins) all[idx].setWins = setWins
   highscoreMatchesCache = all
 
-
-  // SQLite Dual-Write
-  dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins)
-    .catch(err => trackDBError('highscore-finish', matchId, err))
+  queueWrite(`highscore-${matchId}`, () => dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins)
+    .catch(err => trackDBError('highscore-finish', matchId, err)))
 }
 
 export function deleteHighscoreMatch(matchId: string) {

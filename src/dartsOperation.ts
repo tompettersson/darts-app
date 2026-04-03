@@ -415,34 +415,62 @@ export function recordOperationDart(
       winnerId,
     }
 
-    // Pruefen ob Match fertig (alle Legs gespielt)
+    // Pruefen ob Match fertig ("First to X" Logik)
     const legsPlayed = leg.legIndex + 1
-    if (legsPlayed >= state.match.config.legsCount) {
+    const legsCount = state.match.config.legsCount
+    const winsNeeded = Math.ceil(legsCount / 2)
+
+    // Berechne aktuelle Leg-Wins inkl. dieses gerade beendeten Legs
+    const legWins: Record<string, number> = {}
+    for (const p of state.match.players) {
+      const totals = state.totalsByPlayer[p.playerId]
+      legWins[p.playerId] = (totals?.legsWon ?? 0) + (winnerId === p.playerId ? 1 : 0)
+    }
+
+    // Match ist fertig wenn ein Spieler genug Legs gewonnen hat ODER alle Legs gespielt
+    const someoneReachedThreshold = Object.values(legWins).some(w => w >= winsNeeded)
+    const allLegsPlayed = legsPlayed >= legsCount
+
+    if (someoneReachedThreshold || allLegsPlayed) {
       // Match fertig
       const finalScores: Record<string, number> = {}
       const finalHitScores: Record<string, number> = {}
-      const legWins: Record<string, number> = {}
       for (const p of state.match.players) {
         const totals = state.totalsByPlayer[p.playerId]
         finalScores[p.playerId] = (totals?.totalScore ?? 0) + (playerScores[p.playerId] ?? 0)
         finalHitScores[p.playerId] = (totals?.totalHitScore ?? 0) + (playerHitScores[p.playerId] ?? 0)
-        legWins[p.playerId] = (totals?.legsWon ?? 0) + (winnerId === p.playerId ? 1 : 0)
       }
 
-      // Gesamtsieger = hoechster Hit Score
+      // Gesamtsieger: Spieler mit meisten Leg-Wins, bei Gleichstand hoechster Hit Score
       let matchWinnerId: string | null = null
-      let matchBestHitScore = -1
-      let matchTieCount = 0
-      for (const [pid, hs] of Object.entries(finalHitScores)) {
-        if (hs > matchBestHitScore) {
-          matchBestHitScore = hs
+      let bestLegWins = -1
+      let tiedPlayers: string[] = []
+      for (const [pid, wins] of Object.entries(legWins)) {
+        if (wins > bestLegWins) {
+          bestLegWins = wins
           matchWinnerId = pid
-          matchTieCount = 1
-        } else if (hs === matchBestHitScore) {
-          matchTieCount++
+          tiedPlayers = [pid]
+        } else if (wins === bestLegWins) {
+          tiedPlayers.push(pid)
         }
       }
-      if (matchTieCount > 1) matchWinnerId = null
+      // Bei Gleichstand in Leg-Wins → hoechster Hit Score entscheidet
+      if (tiedPlayers.length > 1) {
+        let bestHs = -1
+        let hsWinner: string | null = null
+        let hsTieCount = 0
+        for (const pid of tiedPlayers) {
+          const hs = finalHitScores[pid] ?? 0
+          if (hs > bestHs) {
+            bestHs = hs
+            hsWinner = pid
+            hsTieCount = 1
+          } else if (hs === bestHs) {
+            hsTieCount++
+          }
+        }
+        matchWinnerId = hsTieCount > 1 ? null : hsWinner
+      }
 
       const totalDarts = state.match.players.length * DARTS_PER_LEG * legsPlayed
       const durationMs = Date.now() - state.startTime

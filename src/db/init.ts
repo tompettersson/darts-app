@@ -19,6 +19,7 @@ import {
   dbLoadX01Leaderboards,
   dbLoadCricketLeaderboards,
   dbLoadAllCricketPlayerStats,
+  dbRepairUnfinishedMatches,
 } from './storage'
 import { warmMemCache, warmAllCaches, warmStats121Cache } from '../storage'
 import { warmCricketPlayerStatsCache } from '../stats/computePlayerStats'
@@ -110,6 +111,12 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     // This runs after the app is already interactive
     setTimeout(async () => {
       try {
+        // Repair stale matches BEFORE loading data into cache
+        try {
+          const { repaired } = await dbRepairUnfinishedMatches()
+          if (repaired.length > 0) console.log(`[DB Repair] Fixed ${repaired.length} matches:`, repaired)
+        } catch {}
+
         const bgStart = Date.now()
         const [x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
                shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([

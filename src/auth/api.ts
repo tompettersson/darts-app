@@ -2,14 +2,32 @@
 // Client-side helpers for auth API calls
 
 const AUTH_URL = '/api/auth'
+const DB_URL = '/api/db'
 const API_KEY = 'darts-2024-local'
 
 async function authRequest<T>(body: Record<string, unknown>): Promise<T> {
+  // Try /api/auth first (Vercel serverless function)
   const res = await fetch(AUTH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY },
     body: JSON.stringify(body),
   })
+
+  // Fallback to /api/db with type:'auth' (Vite dev server)
+  if (res.status === 404) {
+    const fallbackRes = await fetch(DB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': API_KEY },
+      body: JSON.stringify({ type: 'auth', auth: body }),
+    })
+    if (!fallbackRes.ok) {
+      const err = await fallbackRes.json().catch(() => ({ error: fallbackRes.statusText }))
+      throw new Error(err.error || fallbackRes.statusText)
+    }
+    const json = await fallbackRes.json()
+    return json.data as T
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || res.statusText)
