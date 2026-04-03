@@ -705,7 +705,11 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const matchNotReady = !matchStored || !baseState.match
 
   const storedId = matchStored?.id ?? matchId
-  const match = baseState.match!
+  const match = baseState.match ?? {
+    matchId, players: [] as { playerId: string; name: string }[], range: 'short' as const,
+    style: 'standard' as const, crazyMode: undefined as any, crazySameForAll: undefined as any,
+    crazySalt: undefined as any, crazyWithPoints: undefined as any, cutthroatEndgame: undefined as any,
+  } as NonNullable<typeof baseState.match>
   const order = baseState.players?.length > 0 ? baseState.players : [] as string[]
   const activeId = (baseState.match ? currentPlayerId(baseState) : null) ?? order[0] ?? ''
 
@@ -728,8 +732,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const activePlayerColor = playerChartColors[activePlayerIndex] ?? '#f97316'
 
   // Targets für diese Cricket-Variante
+  const matchRange = match?.range ?? 'short'
   const targetList: (number | 'BULL' | 'MISS')[] = [
-    ...(match.range === 'short'
+    ...(matchRange === 'short'
       ? [20, 19, 18, 17, 16, 15]
       : [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10]),
     'BULL',
@@ -737,7 +742,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   ]
 
   // Valid Targets für Marks-Berechnung (ohne MISS)
-  const validTargets = match.range === 'short'
+  const validTargets = matchRange === 'short'
     ? ['15', '16', '17', '18', '19', '20', 'BULL']
     : ['10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 'BULL']
 
