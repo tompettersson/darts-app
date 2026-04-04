@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import type { OperationLegState, OperationTargetMode, OperationPlayer } from '../types/operation'
@@ -50,6 +50,13 @@ export default function OperationLegSummary({
 }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const [selectedManualTarget, setSelectedManualTarget] = useState<number | null>(null)
 
@@ -144,8 +151,8 @@ export default function OperationLegSummary({
 
   const cardStyle: React.CSSProperties = {
     background: colors.bgCard,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: isMobile ? 12 : 16,
+    padding: isMobile ? 12 : 20,
     maxWidth: 500,
     width: '100%',
     boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
@@ -179,9 +186,9 @@ export default function OperationLegSummary({
   }
 
   const numberBtnBase: React.CSSProperties = {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: isMobile ? 40 : 48,
+    height: isMobile ? 40 : 48,
+    borderRadius: isMobile ? 8 : 10,
     border: `1px solid ${colors.border}`,
     background: colors.bgMuted,
     color: colors.fg,
@@ -227,10 +234,10 @@ export default function OperationLegSummary({
     <div style={overlayStyle}>
       <div style={cardStyle}>
         {/* Titel */}
-        <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800, color: colors.fg }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: isMobile ? 17 : 20, fontWeight: 800, color: colors.fg }}>
           Leg {legIndex + 1} Zusammenfassung
         </h2>
-        <div style={{ fontSize: 13, color: colors.fgMuted, marginBottom: 16 }}>
+        <div style={{ fontSize: isMobile ? 12 : 13, color: colors.fgMuted, marginBottom: isMobile ? 10 : 16 }}>
           Ziel: {isBull ? 'Bull' : `Feld ${targetLabel}`} &middot; 30 Darts
         </div>
 
@@ -238,14 +245,14 @@ export default function OperationLegSummary({
         {winnerPlayer && (
           <div style={{
             textAlign: 'center',
-            padding: '10px 14px',
+            padding: isMobile ? '8px 10px' : '10px 14px',
             borderRadius: 10,
             background: colors.successBg,
             border: `1px solid ${colors.success}`,
-            marginBottom: 14,
+            marginBottom: isMobile ? 10 : 14,
           }}>
-            <div style={{ fontSize: 12, color: colors.fgMuted, marginBottom: 2 }}>Leg-Gewinner</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: colors.success }}>
+            <div style={{ fontSize: isMobile ? 11 : 12, color: colors.fgMuted, marginBottom: 2 }}>Leg-Gewinner</div>
+            <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: colors.success }}>
               {winnerPlayer.name}
             </div>
           </div>
@@ -451,33 +458,33 @@ export default function OperationLegSummary({
             {highlights.longestStreak > 0 && (
               <div style={{
                 flex: 1,
-                minWidth: 140,
-                padding: '10px 12px',
+                minWidth: isMobile ? 100 : 140,
+                padding: isMobile ? '8px 10px' : '10px 12px',
                 borderRadius: 10,
                 background: colors.bgMuted,
                 border: `1px solid ${colors.border}`,
               }}>
-                <div style={{ fontSize: 11, color: colors.fgMuted, marginBottom: 2 }}>Laengste Streak</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: colors.warning }}>
+                <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted, marginBottom: 2 }}>Laengste Streak</div>
+                <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: colors.warning }}>
                   {highlights.longestStreak}
                 </div>
-                <div style={{ fontSize: 12, color: colors.fgMuted }}>{highlights.longestStreakPlayer}</div>
+                <div style={{ fontSize: isMobile ? 11 : 12, color: colors.fgMuted }}>{highlights.longestStreakPlayer}</div>
               </div>
             )}
             {highlights.best3Dart > 0 && (
               <div style={{
                 flex: 1,
-                minWidth: 140,
-                padding: '10px 12px',
+                minWidth: isMobile ? 100 : 140,
+                padding: isMobile ? '8px 10px' : '10px 12px',
                 borderRadius: 10,
                 background: colors.bgMuted,
                 border: `1px solid ${colors.border}`,
               }}>
-                <div style={{ fontSize: 11, color: colors.fgMuted, marginBottom: 2 }}>Bester 3-Dart-Turn</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: colors.accent }}>
+                <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted, marginBottom: 2 }}>Bester 3-Dart-Turn</div>
+                <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: colors.accent }}>
                   {highlights.best3Dart}
                 </div>
-                <div style={{ fontSize: 12, color: colors.fgMuted }}>{highlights.best3DartPlayer}</div>
+                <div style={{ fontSize: isMobile ? 11 : 12, color: colors.fgMuted }}>{highlights.best3DartPlayer}</div>
               </div>
             )}
           </div>

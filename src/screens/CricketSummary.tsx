@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getCricketComputedStats, getCricketMatchById, setCricketMatchMetadata, getProfiles } from '../storage'
@@ -254,15 +254,22 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const card: React.CSSProperties = {
     border: `1px solid ${colors.border}`,
     background: colors.bgCard,
     borderRadius: 14,
     boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 10px 20px rgba(0,0,0,0.03)',
-    padding: 14,
+    padding: isMobile ? 8 : 14,
     display: 'grid',
-    gap: 10,
-    maxWidth: 700,
+    gap: isMobile ? 6 : 10,
+    maxWidth: isMobile ? '100%' : 700,
     margin: '0 auto',
   }
   const thLeft: React.CSSProperties = { textAlign: 'left', fontSize: 13, fontWeight: 600, color: colors.fgDim, padding: '10px 14px', borderBottom: `2px solid ${colors.border}` }
@@ -501,7 +508,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
 
     return (
       <div style={styles.page}>
-        <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 10px' }}>
+        <div style={{ maxWidth: isMobile ? '100%' : 700, margin: '0 auto', padding: isMobile ? '0 4px' : '0 10px' }}>
           {/* Einheitlicher Leg-Header */}
           <LegHeader
             legNumber={selectedLegIndex + 1}
@@ -718,7 +725,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
 
   return (
     <div style={styles.page}>
-      <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 10px' }}>
+      <div style={{ maxWidth: isMobile ? '100%' : 700, margin: '0 auto', padding: isMobile ? '0 4px' : '0 10px' }}>
         {/* Einheitlicher Match-Header */}
         <MatchHeader
           gameName={matchData.matchName}
@@ -762,7 +769,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
             marginBottom: 16, padding: '16px 20px', borderRadius: 12,
             background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
             border: '1px solid #93c5fd',
-            maxWidth: 700, margin: '0 auto 16px',
+            maxWidth: isMobile ? '100%' : 700, margin: '0 auto 16px',
           }}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: '#1e40af' }}>
               Spielbericht
@@ -940,10 +947,10 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
       </div>
 
         {/* Buttons */}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          {onRematch && <button onClick={() => onRematch(matchId)} style={styles.backBtn}>↻ Rematch</button>}
-          {onBackToLobby && <button onClick={onBackToLobby} style={styles.backBtn}>Neues Spiel</button>}
-          {onHallOfFame && <button onClick={onHallOfFame} style={styles.backBtn}>🏆 Hall of Fame</button>}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, justifyContent: 'center' }}>
+          {onRematch && <button onClick={() => onRematch(matchId)} style={{ ...styles.backBtn, minHeight: isMobile ? 44 : undefined, width: isMobile ? '100%' : undefined }}>↻ Rematch</button>}
+          {onBackToLobby && <button onClick={onBackToLobby} style={{ ...styles.backBtn, minHeight: isMobile ? 44 : undefined, width: isMobile ? '100%' : undefined }}>Neues Spiel</button>}
+          {onHallOfFame && <button onClick={onHallOfFame} style={{ ...styles.backBtn, minHeight: isMobile ? 44 : undefined, width: isMobile ? '100%' : undefined }}>Hall of Fame</button>}
         </div>
       </div>
     </div>

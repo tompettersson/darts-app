@@ -148,6 +148,13 @@ export default function X01EndScreen({
   isMultiplayerGuest,
   saving,
 }: X01EndScreenProps) {
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   // Spielname + Bemerkungen Eingabe im Endscreen
   const [endscreenName, setEndscreenName] = useState(matchStored?.matchName ?? '')
   const [endscreenNotes, setEndscreenNotes] = useState(matchStored?.notes ?? '')
@@ -303,23 +310,23 @@ export default function X01EndScreen({
   }
 
   return (
-    <div className="g-page">
-      <div className="g-header">
-        <h2 className="g-title">
+    <div className="g-page" style={isMobile ? { padding: '8px 4px' } : undefined}>
+      <div className="g-header" style={isMobile ? { flexDirection: 'column', gap: 8, alignItems: 'stretch' } : undefined}>
+        <h2 className="g-title" style={isMobile ? { fontSize: 16 } : undefined}>
           {metadataSaved && endscreenName ? endscreenName : matchStored?.title ?? 'Match'} – beendet
         </h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8 }}>
           {onRematch && (
-            <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700 }}>
+            <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700, minHeight: isMobile ? 44 : undefined }}>
               ↻ Nochmal
             </button>
           )}
           {onBackToLobby && (
-            <button className="g-btn" onClick={onBackToLobby} style={{ fontWeight: 700 }}>
+            <button className="g-btn" onClick={onBackToLobby} style={{ fontWeight: 700, minHeight: isMobile ? 44 : undefined }}>
               Neues Spiel
             </button>
           )}
-          <button className="g-btn" onClick={onExit}>
+          <button className="g-btn" onClick={onExit} style={isMobile ? { minHeight: 44 } : undefined}>
             {onBackToLobby ? '← Menü' : 'Zurück ins Menü'}
           </button>
         </div>
@@ -332,8 +339,8 @@ export default function X01EndScreen({
         </div>
       )}
 
-      <div className="g-tableWrap">
-        <table className="g-table">
+      <div className="g-tableWrap" style={{ overflowX: 'auto' }}>
+        <table className="g-table" style={isMobile ? { fontSize: 12 } : undefined}>
           <thead>
             <tr>
               <th className="g-th"></th>
@@ -433,7 +440,7 @@ export default function X01EndScreen({
 
         return report ? (
           <div style={{
-            margin: '16px 8px 0', padding: '16px 20px', borderRadius: 12,
+            margin: isMobile ? '12px 0 0' : '16px 8px 0', padding: isMobile ? '12px 10px' : '16px 20px', borderRadius: 12,
             background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
             border: '1px solid #93c5fd',
           }}>
@@ -450,8 +457,8 @@ export default function X01EndScreen({
       {/* Personal Bests */}
       {Object.keys(personalBests).length > 0 && (
         <div style={{
-          margin: '16px 8px 0',
-          padding: 16,
+          margin: isMobile ? '12px 0 0' : '16px 8px 0',
+          padding: isMobile ? 10 : 16,
           background: 'linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)',
           borderRadius: 12,
           border: '2px solid #f59e0b',
@@ -589,18 +596,18 @@ export default function X01EndScreen({
         )}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         {onRematch && (
-          <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700 }}>
+          <button className="g-btn" onClick={onRematch} style={{ fontWeight: 700, minHeight: isMobile ? 44 : undefined }}>
             ↻ Nochmal
           </button>
         )}
         {onBackToLobby && (
-          <button className="g-btn" onClick={onBackToLobby} style={{ fontWeight: 700 }}>
+          <button className="g-btn" onClick={onBackToLobby} style={{ fontWeight: 700, minHeight: isMobile ? 44 : undefined }}>
             Neues Spiel
           </button>
         )}
-        <button className="g-btn" onClick={onExit}>
+        <button className="g-btn" onClick={onExit} style={isMobile ? { minHeight: 44 } : undefined}>
           {onBackToLobby ? '← Menü' : 'Zurück ins Menü'}
         </button>
       </div>

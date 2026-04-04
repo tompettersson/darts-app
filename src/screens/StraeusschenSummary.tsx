@@ -1,7 +1,7 @@
 // src/screens/StraeusschenSummary.tsx
 // Zusammenfassung für Sträußchen – Match-Kopf + detaillierte Statistik
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import { getStrMatchById } from '../storage'
@@ -42,6 +42,13 @@ type Props = {
 export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const storedMatch = getStrMatchById(matchId)
 
@@ -190,18 +197,18 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
         <div style={{ ...styles.centerInner, maxWidth: 600 }}>
 
           {/* Match-Kopf */}
-          <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ ...styles.card, marginBottom: isMobile ? 10 : 16, textAlign: 'center', padding: isMobile ? '10px 8px' : undefined }}>
             {/* Endergebnis */}
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: isMobile ? 8 : 12 }}>
               {setScore && (
-                <div style={{ fontSize: 14, color: colors.fgDim, marginBottom: 2 }}>
+                <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim, marginBottom: 2 }}>
                   Sets: {setScore}
                 </div>
               )}
-              <div style={{ fontSize: 14, color: colors.fgDim, marginBottom: 4 }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim, marginBottom: 4 }}>
                 {match.structure.kind === 'sets' ? 'Legs' : 'Legs'}: {legScore}
               </div>
-              <div style={{ fontSize: 14, color: colors.fgDim }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim }}>
                 {formatDuration(storedMatch.durationMs ?? 0)}
               </div>
             </div>
@@ -209,42 +216,42 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
             {/* Gewinner */}
             {winner && (
               <>
-                <div style={{ fontSize: 14, color: colors.fgDim, marginBottom: 2 }}>Gewinner</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
+                <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim, marginBottom: 2 }}>Gewinner</div>
+                <div style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
                   {winner.name}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: isMobile ? 14 : 24 }}>
                   {/* Winner Score */}
                   {(() => {
                     const winnerStat = sorted.find(s => s.playerId === storedMatch.winnerId)
                     const score = isMultiLeg ? winnerStat?.avgScorePerLeg : winnerStat?.totalScore
                     return score != null ? (
                       <div>
-                        <div style={{ fontSize: 24, fontWeight: 700, color: '#0ea5e9' }}>
+                        <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: '#0ea5e9' }}>
                           {score.toFixed(1)}
                         </div>
-                        <div style={{ fontSize: 11, color: colors.fgDim }}>{isMultiLeg ? 'Ø Score' : 'Score'}</div>
+                        <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>{isMultiLeg ? 'Ø Score' : 'Score'}</div>
                       </div>
                     ) : null
                   })()}
                   <div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: isArcade ? '#0ea5e9' : '#2563eb' }}>
+                    <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: isArcade ? '#0ea5e9' : '#2563eb' }}>
                       {storedMatch.winnerDarts}
                     </div>
-                    <div style={{ fontSize: 11, color: colors.fgDim }}>Darts</div>
+                    <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>Darts</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
+                    <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.accent }}>
                       {formatDuration(storedMatch.durationMs ?? 0)}
                     </div>
-                    <div style={{ fontSize: 11, color: colors.fgDim }}>Zeit</div>
+                    <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>Zeit</div>
                   </div>
                   {isMultiLeg && (
                     <div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: colors.fg }}>
+                      <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.fg }}>
                         {legsPlayed}
                       </div>
-                      <div style={{ fontSize: 11, color: colors.fgDim }}>Legs</div>
+                      <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>Legs</div>
                     </div>
                   )}
                 </div>
@@ -291,7 +298,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
             <div style={{ ...styles.sub, marginBottom: 8, fontWeight: 700 }}>
               {isMultiLeg ? 'Match-Statistik' : 'Statistik'}
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: colors.fg }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isMobile ? 12 : 13, color: colors.fg }}>
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', ...headerStyle, color: colors.fgDim }}></th>
@@ -492,7 +499,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
           {isMultiField && (
             <div style={{ ...styles.card, marginBottom: 16, overflowX: 'auto' }}>
               <div style={{ ...styles.sub, marginBottom: 8, fontWeight: 700 }}>Pro Feld</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: colors.fg }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isMobile ? 11 : 13, color: colors.fg }}>
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left', ...headerStyle, color: colors.fgDim }}>Feld</th>
@@ -601,7 +608,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
           )}
 
           {/* Aktionen */}
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <button
               onClick={() => onRematch(matchId)}
               style={{ ...styles.pill, flex: 1 }}

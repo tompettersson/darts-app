@@ -1,7 +1,7 @@
 // src/screens/OperationSummary.tsx
 // Match-Summary Screen fuer Operation
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import { getOperationMatchById } from '../storage'
@@ -20,6 +20,13 @@ type Props = {
 export default function OperationSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const match = useMemo(() => getOperationMatchById(matchId), [matchId])
   const state = useMemo(() => match ? applyOperationEvents(match.events) : null, [match])
@@ -83,10 +90,10 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
-        <div style={{ ...styles.centerInner, maxWidth: 560 }}>
+        <div style={{ ...styles.centerInner, maxWidth: isMobile ? '100%' : 560, padding: isMobile ? '0 4px' : undefined }}>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 8 }}>
-            <h2 style={{ margin: 0, color: colors.fg }}>Operation: EFKG – Ergebnis</h2>
+            <h2 style={{ margin: 0, color: colors.fg, fontSize: isMobile ? 18 : undefined }}>Operation: EFKG – Ergebnis</h2>
             {finished && (
               <div style={{ color: colors.fgDim, fontSize: 13, marginTop: 4 }}>
                 Dauer: {formatDuration(finished.durationMs)} · {match.config.legsCount} Leg{match.config.legsCount > 1 ? 's' : ''}
@@ -271,7 +278,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
           ))}
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, marginTop: 8 }}>
             <button
               style={{
                 ...styles.pill,
@@ -280,17 +287,18 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                 background: isArcade ? colors.accent : '#111827',
                 color: '#fff',
                 fontWeight: 700,
+                minHeight: isMobile ? 44 : undefined,
               }}
               onClick={onRematch}
             >
               Rematch
             </button>
             {onBackToLobby && (
-              <button style={{ ...styles.pill, flex: 1 }} onClick={onBackToLobby}>
+              <button style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }} onClick={onBackToLobby}>
                 Neues Spiel
               </button>
             )}
-            <button style={{ ...styles.pill, flex: 1 }} onClick={onBackToMenu}>
+            <button style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }} onClick={onBackToMenu}>
               {onBackToLobby ? '← Menü' : 'Zurueck'}
             </button>
           </div>

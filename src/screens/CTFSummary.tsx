@@ -1,7 +1,7 @@
 // src/screens/CTFSummary.tsx
 // Match-Zusammenfassung fuer Capture the Field
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getCTFMatchById } from '../storage'
@@ -21,6 +21,13 @@ type Props = {
 export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const storedMatch = getCTFMatchById(matchId)
 
@@ -198,31 +205,31 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToL
 
           {/* Gewinner-Anzeige */}
           {winner && rankings.length > 0 && (
-            <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: colors.fgMuted, marginBottom: 4 }}>
+            <div style={{ ...styles.card, marginBottom: isMobile ? 10 : 16, textAlign: 'center', padding: isMobile ? '10px 8px' : undefined }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgMuted, marginBottom: 4 }}>
                 Gewinner
               </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
+              <div style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
                 {winner.name}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 24 }}>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.accent }}>
                     {rankings.find(p => p.isWinner)?.fieldPoints ?? 0}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Feldpunkte</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Feldpunkte</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.warning }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.warning }}>
                     {rankings.find(p => p.isWinner)?.fieldsWon ?? 0}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Felder</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Felder</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.fgDim }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.fgDim }}>
                     {formatDuration(storedMatch.durationMs ?? 0)}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Zeit</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Zeit</div>
                 </div>
               </div>
             </div>
@@ -269,7 +276,7 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToL
               <ATBDartboard
                 currentTarget={null}
                 players={[]}
-                size={280}
+                size={isMobile ? 200 : 280}
                 fieldOwners={fieldOwners}
               />
               <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -335,8 +342,8 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToL
                       {/* Detaillierte Stats */}
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
-                        gap: '6px 12px',
+                        gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)',
+                        gap: isMobile ? '4px 6px' : '6px 12px',
                         marginTop: 8,
                         padding: '8px 0 0',
                         borderTop: `1px solid ${colors.border}`,
@@ -406,32 +413,32 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToL
           )}
 
           {/* Match-Info */}
-          <div style={{ ...styles.card, marginBottom: 16 }}>
+          <div style={{ ...styles.card, marginBottom: isMobile ? 10 : 16 }}>
             <div style={{ ...styles.sub, marginBottom: 8 }}>Match-Info</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, textAlign: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: isMobile ? 6 : 12, textAlign: 'center' }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: colors.fg }}>
+                <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 700, color: colors.fg }}>
                   {formatDuration(storedMatch.durationMs ?? 0)}
                 </div>
-                <div style={{ fontSize: 11, color: colors.fgMuted }}>Dauer</div>
+                <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Dauer</div>
               </div>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: colors.accent }}>
+                <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 700, color: colors.accent }}>
                   {resolvedFields}
                 </div>
-                <div style={{ fontSize: 11, color: colors.fgMuted }}>Felder gespielt</div>
+                <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Felder gespielt</div>
               </div>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: tieCount > 0 ? '#888' : colors.fgDim }}>
+                <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 700, color: tieCount > 0 ? '#888' : colors.fgDim }}>
                   {tieCount}
                 </div>
-                <div style={{ fontSize: 11, color: colors.fgMuted }}>Unentschieden</div>
+                <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Unentschieden</div>
               </div>
             </div>
           </div>
 
           {/* Aktionen */}
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <button
               onClick={() => onRematch(matchId)}
               style={{ ...styles.pill, flex: 1 }}

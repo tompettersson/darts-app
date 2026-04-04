@@ -91,6 +91,13 @@ function KillerSummaryContent({
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
   const [logExpanded, setLogExpanded] = useState(false)
 
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const state = useMemo(() => applyKillerEvents(storedMatch.events), [storedMatch.events])
 
   const startEvt = storedMatch.events.find(e => e.type === 'KillerMatchStarted')
@@ -216,48 +223,48 @@ function KillerSummaryContent({
           {/* 1. Winner Banner */}
           {/* ============================================================ */}
           {winnerId && winner ? (
-            <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: colors.fgMuted, marginBottom: 4 }}>
+            <div style={{ ...styles.card, marginBottom: isMobile ? 10 : 16, textAlign: 'center', padding: isMobile ? '10px 8px' : undefined }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgMuted, marginBottom: 4 }}>
                 Gewinner
               </div>
-              <div style={{ fontSize: 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
+              <div style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
                 {'\u{1F3C6}'} {winner.name} gewinnt!
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 24 }}>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.fgDim }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.fgDim }}>
                     {formatDuration(durationMs)}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Dauer</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Dauer</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.accent }}>
                     {totalDartsAll}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Darts gesamt</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Darts gesamt</div>
                 </div>
               </div>
             </div>
           ) : (
-            <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: colors.fgMuted, marginBottom: 4 }}>
+            <div style={{ ...styles.card, marginBottom: isMobile ? 10 : 16, textAlign: 'center', padding: isMobile ? '10px 8px' : undefined }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgMuted, marginBottom: 4 }}>
                 Ergebnis
               </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#888', marginBottom: 8 }}>
+              <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: '#888', marginBottom: 8 }}>
                 Unentschieden!
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 24 }}>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.fgDim }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.fgDim }}>
                     {formatDuration(durationMs)}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Dauer</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Dauer</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
+                  <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.accent }}>
                     {totalDartsAll}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.fgMuted }}>Darts gesamt</div>
+                  <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted }}>Darts gesamt</div>
                 </div>
               </div>
             </div>
@@ -776,7 +783,7 @@ function KillerSummaryContent({
           {/* ============================================================ */}
           {/* 5. Action Buttons */}
           {/* ============================================================ */}
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             {onRematch && !readOnly && (
               <button
                 onClick={onRematch}
@@ -787,8 +794,8 @@ function KillerSummaryContent({
                   color: '#000',
                   border: `1px solid ${colors.success}`,
                   fontWeight: 700,
-                  fontSize: 14,
-                  padding: '10px 14px',
+                  fontSize: isMobile ? 13 : 14,
+                  padding: isMobile ? '8px 10px' : '10px 14px',
                 }}
               >
                 Rematch
@@ -801,8 +808,8 @@ function KillerSummaryContent({
                   ...styles.pill,
                   flex: 1,
                   fontWeight: 700,
-                  fontSize: 14,
-                  padding: '10px 14px',
+                  fontSize: isMobile ? 13 : 14,
+                  padding: isMobile ? '8px 10px' : '10px 14px',
                 }}
               >
                 Neues Spiel

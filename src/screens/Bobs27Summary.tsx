@@ -1,7 +1,7 @@
 // src/screens/Bobs27Summary.tsx
 // Match-Zusammenfassung fuer Bob's 27
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getBobs27MatchById } from '../storage'
@@ -20,6 +20,13 @@ type Props = {
 export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const storedMatch = getBobs27MatchById(matchId)
 
@@ -101,7 +108,7 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
       </div>
 
       <div style={styles.centerPage}>
-        <div style={{ ...styles.centerInner, maxWidth: 500 }}>
+        <div style={{ ...styles.centerInner, maxWidth: isMobile ? '100%' : 500, padding: isMobile ? '0 4px' : undefined }}>
 
           {/* Ergebnis-Anzeige */}
           <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
@@ -112,7 +119,7 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
             {isSolo ? (
               <>
                 <div style={{
-                  fontSize: 48, fontWeight: 800,
+                  fontSize: isMobile ? 28 : 48, fontWeight: 800,
                   color: rankings[0]?.eliminated ? colors.error : colors.success,
                   marginBottom: 4,
                 }}>
@@ -245,8 +252,8 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
               </div>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '8px 16px',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+                gap: isMobile ? '6px 8px' : '8px 16px',
                 fontSize: 13,
               }}>
                 <StatItem label="Final Score" value={`${p.finalScore}`} colors={colors}
@@ -344,16 +351,16 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
           })}
 
           {/* Aktionen */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => onRematch(matchId)} style={{ ...styles.pill, flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8 }}>
+            <button onClick={() => onRematch(matchId)} style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }}>
               Rematch
             </button>
             {onBackToLobby && (
-              <button onClick={onBackToLobby} style={{ ...styles.pill, flex: 1 }}>
+              <button onClick={onBackToLobby} style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }}>
                 Neues Spiel
               </button>
             )}
-            <button onClick={onBackToMenu} style={{ ...styles.backBtn, flex: 1 }}>
+            <button onClick={onBackToMenu} style={{ ...styles.backBtn, flex: 1, minHeight: isMobile ? 44 : undefined }}>
               {onBackToLobby ? '← Menü' : 'Menu'}
             </button>
           </div>

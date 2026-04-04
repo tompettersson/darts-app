@@ -1,7 +1,7 @@
 // src/screens/HighscoreSummary.tsx
 // Zusammenfassung für Highscore – Match-Kopf + detaillierte Statistik
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import { getHighscoreMatchById, getProfiles } from '../storage'
@@ -39,6 +39,13 @@ type Props = {
 export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const storedMatch = getHighscoreMatchById(matchId)
 
@@ -208,18 +215,18 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
         <div style={{ ...styles.centerInner, maxWidth: 600 }}>
 
           {/* Match-Kopf */}
-          <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
+          <div style={{ ...styles.card, marginBottom: isMobile ? 10 : 16, textAlign: 'center', padding: isMobile ? '10px 8px' : undefined }}>
             {/* Endergebnis */}
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: isMobile ? 8 : 12 }}>
               {setScore && (
-                <div style={{ fontSize: 14, color: colors.fgDim, marginBottom: 2 }}>
+                <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim, marginBottom: 2 }}>
                   Sets: {setScore}
                 </div>
               )}
-              <div style={{ fontSize: 14, color: colors.fgDim, marginBottom: 4 }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim, marginBottom: 4 }}>
                 Legs: {legScore}
               </div>
-              <div style={{ fontSize: 14, color: colors.fgDim }}>
+              <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim }}>
                 {formatDuration(storedMatch.durationMs ?? 0)}
               </div>
             </div>
@@ -227,8 +234,8 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
             {/* Gewinner */}
             {winner && (
               <>
-                <div style={{ fontSize: 14, color: colors.fgDim, marginBottom: 2 }}>Gewinner</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
+                <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgDim, marginBottom: 2 }}>Gewinner</div>
+                <div style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
                   {winner.name}
                 </div>
                 {/* 999-Equivalent prominent anzeigen (wenn targetScore < 999) */}
@@ -252,29 +259,29 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                     </div>
                   ) : null
                 })()}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 24 }}>
                   {/* Winner Stats */}
                   {(() => {
                     const winnerStat = sorted.find(s => s.playerId === storedMatch.winnerId)
                     return (
                       <>
                         <div>
-                          <div style={{ fontSize: 24, fontWeight: 700, color: '#0ea5e9' }}>
+                          <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: '#0ea5e9' }}>
                             {winnerStat?.avgPointsPerTurn.toFixed(1) ?? '0'}
                           </div>
-                          <div style={{ fontSize: 11, color: colors.fgDim }}>3-Dart Avg</div>
+                          <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>3-Dart Avg</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 24, fontWeight: 700, color: isArcade ? '#0ea5e9' : '#2563eb' }}>
+                          <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: isArcade ? '#0ea5e9' : '#2563eb' }}>
                             {storedMatch.winnerDarts}
                           </div>
-                          <div style={{ fontSize: 11, color: colors.fgDim }}>Darts</div>
+                          <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>Darts</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
+                          <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700, color: colors.accent }}>
                             {winnerStat?.bestTurn ?? 0}
                           </div>
-                          <div style={{ fontSize: 11, color: colors.fgDim }}>Best Turn</div>
+                          <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgDim }}>Best Turn</div>
                         </div>
                       </>
                     )
@@ -320,7 +327,8 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
 
           {/* Statistik-Tabelle */}
           <div style={{ ...styles.card, padding: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+           <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isMobile ? 12 : 13 }}>
               <thead>
                 <tr>
                   <th style={labelStyle}></th>
@@ -400,6 +408,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                 )}
               </tbody>
             </table>
+           </div>
           </div>
 
           {/* Leg-Grafiken mit Navigation */}
@@ -416,7 +425,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   onClick={() => setSelectedLegIndex(i => Math.max(0, i - 1))}
                   disabled={selectedLegIndex === 0}
                   style={{
-                    padding: '8px 16px',
+                    padding: isMobile ? '6px 10px' : '8px 16px',
                     borderRadius: 6,
                     border: `1px solid ${colors.border}`,
                     background: selectedLegIndex === 0 ? 'transparent' : colors.bgCard,
@@ -448,7 +457,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   onClick={() => setSelectedLegIndex(i => Math.min(legs.length - 1, i + 1))}
                   disabled={selectedLegIndex === legs.length - 1}
                   style={{
-                    padding: '8px 16px',
+                    padding: isMobile ? '6px 10px' : '8px 16px',
                     borderRadius: 6,
                     border: `1px solid ${colors.border}`,
                     background: selectedLegIndex === legs.length - 1 ? 'transparent' : colors.bgCard,
@@ -463,7 +472,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
               </div>
 
               {/* Chart */}
-              <div style={{ height: 280 }}>
+              <div style={{ height: isMobile ? 200 : 280 }}>
                 <HighscoreProgressionChart
                   targetScore={targetScore}
                   players={selectedLegChartPlayers}
@@ -474,14 +483,15 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: 12, marginTop: 20, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: isMobile ? 8 : 12, marginTop: isMobile ? 12 : 20, justifyContent: 'center', flexDirection: isMobile ? 'column' : 'row' }}>
             <button
               style={{
                 ...styles.button,
-                padding: '12px 24px',
-                fontSize: 14,
+                padding: isMobile ? '10px 16px' : '12px 24px',
+                fontSize: isMobile ? 13 : 14,
                 background: colors.accent,
                 color: '#fff',
+                width: isMobile ? '100%' : undefined,
               }}
               onClick={() => onRematch(matchId)}
             >
@@ -491,8 +501,9 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
               <button
                 style={{
                   ...styles.button,
-                  padding: '12px 24px',
-                  fontSize: 14,
+                  padding: isMobile ? '10px 16px' : '12px 24px',
+                  fontSize: isMobile ? 13 : 14,
+                  width: isMobile ? '100%' : undefined,
                 }}
                 onClick={onBackToLobby}
               >
@@ -502,8 +513,9 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
             <button
               style={{
                 ...styles.button,
-                padding: '12px 24px',
-                fontSize: 14,
+                padding: isMobile ? '10px 16px' : '12px 24px',
+                fontSize: isMobile ? 13 : 14,
+                width: isMobile ? '100%' : undefined,
               }}
               onClick={onBackToMenu}
             >
