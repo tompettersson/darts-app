@@ -873,7 +873,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             )}
           </div>
 
-          {/* Number Pad 4x5 */}
+          {/* Quick Input: Single / Double / Triple / Miss — 2x2 grid */}
           <div
             style={{
               background: c.cardBg,
@@ -883,78 +883,47 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
               marginBottom: 6,
             }}
           >
-            {NUMBER_PAD.map((row, rowIdx) => (
-              <div key={rowIdx} style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 4 }}>
-                {row.map(num => {
-                  const isCurrentTarget = targetNumber === num
-                  return (
-                    <button
-                      key={num}
-                      onClick={() => addDart(num)}
-                      disabled={current.length >= 3}
-                      style={{
-                        flex: 1,
-                        maxWidth: 60,
-                        height: 40,
-                        borderRadius: 6,
-                        border: isCurrentTarget ? `2px solid ${c.ledOn}` : '1px solid #333',
-                        background: isCurrentTarget ? '#1a2a3a' : '#1a1a1a',
-                        color: isCurrentTarget ? c.ledOn : c.textBright,
-                        fontWeight: isCurrentTarget ? 800 : 600,
-                        fontSize: 15,
-                        cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
-                        opacity: current.length >= 3 ? 0.5 : 1,
-                        boxShadow: isCurrentTarget ? `0 0 10px ${c.ledGlow}` : 'none',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {num}
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-
-            {/* S / D / T / Miss row */}
-            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 4 }}>
-              {([1, 2, 3] as const).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setMult(m)}
-                  style={{
-                    flex: 1,
-                    maxWidth: 60,
-                    height: 40,
-                    borderRadius: 6,
-                    fontWeight: 700,
-                    fontSize: 14,
-                    cursor: 'pointer',
-                    background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#1a1a1a',
-                    color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : c.textDim,
-                    border: mult === m ? `2px solid ${m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444'}` : '1px solid #333',
-                    boxShadow: mult === m ? `0 0 12px ${m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444'}50` : 'none',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
-                </button>
-              ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+              <button
+                onClick={() => { multRef.current = 1; setMult(1); addDart(targetNumber as any) }}
+                disabled={current.length >= 3}
+                style={{
+                  height: 56, borderRadius: 8, border: '2px solid #0ea5e9', background: '#1e3a5f',
+                  color: '#0ea5e9', fontWeight: 800, fontSize: 18, cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+                  opacity: current.length >= 3 ? 0.4 : 1, boxShadow: '0 0 12px #0ea5e950', transition: 'all 0.15s',
+                }}
+              >
+                Single {targetNumber}
+              </button>
+              <button
+                onClick={() => { multRef.current = 2; setMult(2); addDart(targetNumber as any) }}
+                disabled={current.length >= 3}
+                style={{
+                  height: 56, borderRadius: 8, border: '2px solid #22c55e', background: '#14532d',
+                  color: '#22c55e', fontWeight: 800, fontSize: 18, cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+                  opacity: current.length >= 3 ? 0.4 : 1, boxShadow: '0 0 12px #22c55e50', transition: 'all 0.15s',
+                }}
+              >
+                Double {targetNumber}
+              </button>
+              <button
+                onClick={() => { multRef.current = 3; setMult(3); addDart(targetNumber as any) }}
+                disabled={current.length >= 3}
+                style={{
+                  height: 56, borderRadius: 8, border: '2px solid #ef4444', background: '#7f1d1d',
+                  color: '#ef4444', fontWeight: 800, fontSize: 18, cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+                  opacity: current.length >= 3 ? 0.4 : 1, boxShadow: '0 0 12px #ef444450', transition: 'all 0.15s',
+                }}
+              >
+                Triple {targetNumber}
+              </button>
               <button
                 onClick={addMiss}
                 disabled={current.length >= 3}
                 style={{
-                  flex: 2,
-                  maxWidth: 124,
-                  height: 40,
-                  borderRadius: 6,
-                  border: '1px solid #333',
-                  background: '#1a1a1a',
-                  color: c.red,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
-                  opacity: current.length >= 3 ? 0.5 : 1,
-                  transition: 'all 0.15s',
+                  height: 56, borderRadius: 8, border: '1px solid #666', background: '#1a1a1a',
+                  color: c.red, fontWeight: 800, fontSize: 18, cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+                  opacity: current.length >= 3 ? 0.4 : 1, transition: 'all 0.15s',
                 }}
               >
                 Miss
@@ -962,65 +931,18 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             </div>
 
             {/* Undo / Remove dart / Confirm row */}
-            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 6 }}>
-              <button
-                onClick={undoLastTurn}
-                disabled={!canUndo}
-                style={{
-                  flex: 1,
-                  height: 40,
-                  borderRadius: 6,
-                  border: canUndo ? '1px solid #666' : '1px solid #333',
-                  background: canUndo ? '#2a2a2a' : '#1a1a1a',
-                  color: canUndo ? c.textBright : c.textDim,
-                  cursor: canUndo ? 'pointer' : 'not-allowed',
-                  fontWeight: 600,
-                  fontSize: 13,
-                  opacity: canUndo ? 1 : 0.4,
-                  transition: 'all 0.15s',
-                }}
-              >
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={undoLastTurn} disabled={!canUndo}
+                style={{ flex: 1, height: 38, borderRadius: 6, border: canUndo ? '1px solid #666' : '1px solid #333', background: canUndo ? '#2a2a2a' : '#1a1a1a', color: canUndo ? c.textBright : c.textDim, cursor: canUndo ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: 13, opacity: canUndo ? 1 : 0.4 }}>
                 {'\u21B6'} Undo
               </button>
-              <button
-                onClick={() => setCurrent(prev => prev.slice(0, -1))}
-                disabled={current.length === 0}
-                style={{
-                  flex: 1,
-                  height: 40,
-                  borderRadius: 6,
-                  border: '1px solid #333',
-                  background: '#1a1a1a',
-                  color: current.length > 0 ? c.textBright : c.textDim,
-                  fontWeight: 600,
-                  fontSize: 13,
-                  cursor: current.length > 0 ? 'pointer' : 'not-allowed',
-                  opacity: current.length > 0 ? 1 : 0.4,
-                  transition: 'all 0.15s',
-                }}
-              >
+              <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0}
+                style={{ flex: 1, height: 38, borderRadius: 6, border: '1px solid #333', background: '#1a1a1a', color: current.length > 0 ? c.textBright : c.textDim, fontWeight: 600, fontSize: 13, cursor: current.length > 0 ? 'pointer' : 'not-allowed', opacity: current.length > 0 ? 1 : 0.4 }}>
                 {'\u2014'} Dart
               </button>
-              <button
-                onClick={confirmTurn}
-                disabled={current.length === 0}
-                style={{
-                  flex: 2,
-                  height: 40,
-                  borderRadius: 6,
-                  border: 'none',
-                  background: current.length > 0
-                    ? 'linear-gradient(180deg, #22c55e, #16a34a)'
-                    : '#1a1a1a',
-                  color: current.length > 0 ? '#fff' : c.textDim,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: current.length > 0 ? 'pointer' : 'not-allowed',
-                  boxShadow: current.length > 0 ? '0 2px 10px rgba(34, 197, 94, 0.3)' : 'none',
-                  transition: 'all 0.15s',
-                }}
-              >
-                Bestaetigen
+              <button onClick={confirmTurn} disabled={current.length === 0}
+                style={{ flex: 2, height: 38, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : '#1a1a1a', color: current.length > 0 ? '#fff' : c.textDim, fontWeight: 700, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed', boxShadow: current.length > 0 ? '0 2px 10px rgba(34,197,94,0.3)' : 'none' }}>
+                OK
               </button>
             </div>
           </div>
