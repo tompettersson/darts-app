@@ -146,11 +146,17 @@ export function useMultiplayerRoom(
           case 'events':
             setLivePreview(null) // Clear preview when real events arrive
             setEvents(prev => {
+              // fromIndex 0 = full event list (game start or full sync) — replace entirely
+              if (msg.fromIndex === 0) {
+                onRemoteEventsRef.current?.(msg.events, 0)
+                return msg.events
+              }
               if (msg.fromIndex === prev.length) {
                 const updated = [...prev, ...msg.events]
                 onRemoteEventsRef.current?.(msg.events, msg.fromIndex)
                 return updated
               }
+              // Gap detected — request full sync
               socket.send(JSON.stringify({ type: 'sync-request' }))
               return prev
             })
