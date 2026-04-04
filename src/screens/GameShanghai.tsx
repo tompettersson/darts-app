@@ -95,8 +95,12 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
 
   // Mobile detection — stays mobile in landscape too (check shortest dimension)
   const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  const [isLandscape, setIsLandscape] = useState(() => window.innerWidth > window.innerHeight)
   useEffect(() => {
-    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    const check = () => {
+      setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
@@ -802,126 +806,112 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             </div>
           )}
 
-          {/* Zielzahl + Mini-Dartscheibe */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 6 }}>
-            {/* Mini Dartboard — highlights target segment */}
-            <svg viewBox="0 0 240 240" style={{ width: 95, height: 95, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
-              {/* Outer ring */}
-              <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
-              <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
-              {/* Number ring background */}
-              <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />
-              {/* Segments */}
-              {[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5].map((num, i) => {
-                const a1 = (i * 18 - 99) * Math.PI / 180
-                const a2 = ((i + 1) * 18 - 99) * Math.PI / 180
-                const isTarget = num === targetNumber
-                const r1 = 28, r2 = 88
-                const d = `M${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} L${120+r2*Math.cos(a1)},${120+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${120+r2*Math.cos(a2)},${120+r2*Math.sin(a2)} L${120+r1*Math.cos(a2)},${120+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} Z`
-                return (
-                  <path key={num} d={d}
-                    fill={isTarget ? '#22c55e' : (i % 2 === 0 ? '#1f2937' : '#111827')}
-                    stroke="#374151" strokeWidth="0.5"
-                    opacity={isTarget ? 1 : 0.7}
-                    style={isTarget ? { filter: 'drop-shadow(0 0 6px #22c55e80)' } : undefined}
-                  />
-                )
-              })}
-              {/* Bull rings */}
-              <circle cx="120" cy="120" r="16" fill="#14532d" stroke="#374151" strokeWidth="0.5" />
-              <circle cx="120" cy="120" r="7" fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
-              {/* Wire ring at outer edge of segments */}
-              <circle cx="120" cy="120" r="88" fill="none" stroke="#4b5563" strokeWidth="0.5" />
-              {/* Number labels in outer ring */}
-              {[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5].map((num, i) => {
-                const angle = (i * 18 - 90) * Math.PI / 180
-                const r = 99
-                const isTarget = num === targetNumber
-                return (
-                  <text key={num} x={120 + r * Math.cos(angle)} y={120 + r * Math.sin(angle) + 3.5}
-                    textAnchor="middle" fontSize={isTarget ? 11 : 8} fontWeight={isTarget ? 900 : 500}
-                    fill={isTarget ? '#22c55e' : '#9ca3af'}
-                    style={isTarget ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}
-                  >{num}</text>
-                )
-              })}
-            </svg>
-            {/* Große Zielzahl */}
-            <div style={{
-              fontSize: 88, fontWeight: 900, lineHeight: 1,
-              color: isArcade ? c.ledOn : colors.accent,
-              textShadow: isArcade ? `0 0 30px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)',
-            }}>
-              {targetNumber}
-            </div>
-          </div>
-
-          {/* Dart Slots */}
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 6 }}>
-            {[0, 1, 2].map(i => {
-              const dart = current[i]
-              return (
-                <div key={i} style={{
-                  flex: 1, maxWidth: 80, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: dart ? (isArcade ? '#1c1c1c' : colors.bgCard) : (isArcade ? '#0a0a0a' : colors.bgMuted),
-                  border: dart ? `2px solid ${isArcade ? c.ledOn : colors.accent}` : `1px solid ${isArcade ? '#333' : colors.border}`,
-                  borderRadius: 6, fontWeight: 700, fontSize: 12,
-                  color: dart ? (isArcade ? c.ledOn : colors.fg) : (isArcade ? c.textDim : colors.fgMuted),
-                }}>
-                  {dart ? formatDart(dart) : '\u2014'}
-                </div>
-              )
-            })}
-            {current.length > 0 && (
-              <div style={{ height: 30, display: 'flex', alignItems: 'center', paddingLeft: 4, fontSize: 13, fontWeight: 700, color: isArcade ? c.yellow : '#b45309' }}>
-                = {current.reduce((sum, d) => sum + (d.target === 'MISS' ? 0 : d.target * d.mult), 0)}
-              </div>
-            )}
-          </div>
-
-          {/* Buttons */}
+          {/* Shared components for portrait + landscape */}
           {(() => {
-            const dis = current.length >= 3
-            const sCol = '#0ea5e9', dCol = '#22c55e', tCol = '#ef4444'
-            const btnH = 48
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {/* Row 1: Single / Double / Triple */}
-                <div style={{ display: 'flex', gap: 5 }}>
-                  <button onClick={() => { multRef.current = 1; setMult(1); addDart(targetNumber as any) }} disabled={dis}
-                    style={{ flex: 1, height: btnH, borderRadius: 8, border: `2px solid ${sCol}`, background: isArcade ? '#1e3a5f' : '#dbeafe', color: isArcade ? sCol : '#1d4ed8', fontWeight: 800, fontSize: 15, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
-                    Single
-                  </button>
-                  <button onClick={() => { multRef.current = 2; setMult(2); addDart(targetNumber as any) }} disabled={dis}
-                    style={{ flex: 1, height: btnH, borderRadius: 8, border: `2px solid ${dCol}`, background: isArcade ? '#14532d' : '#dcfce7', color: isArcade ? dCol : '#15803d', fontWeight: 800, fontSize: 15, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
-                    Double
-                  </button>
-                  <button onClick={() => { multRef.current = 3; setMult(3); addDart(targetNumber as any) }} disabled={dis}
-                    style={{ flex: 1, height: btnH, borderRadius: 8, border: `2px solid ${tCol}`, background: isArcade ? '#7f1d1d' : '#fee2e2', color: isArcade ? tCol : '#b91c1c', fontWeight: 800, fontSize: 15, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
-                    Triple
-                  </button>
-                </div>
-                {/* Row 2: Undo / Dart zurück / Miss / OK */}
-                <div style={{ display: 'flex', gap: 5 }}>
-                  <button onClick={undoLastTurn} disabled={!canUndo}
-                    style={{ flex: 1, height: 38, borderRadius: 6, border: `1.5px solid ${isArcade ? '#555' : colors.border}`, background: isArcade ? '#222' : colors.bgCard, color: canUndo ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 12, cursor: canUndo ? 'pointer' : 'not-allowed', opacity: canUndo ? 1 : 0.3 }}>
-                    ↩ Undo
-                  </button>
-                  <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0}
-                    style={{ flex: 1, height: 38, borderRadius: 6, border: `1.5px solid ${isArcade ? '#444' : colors.border}`, background: isArcade ? '#222' : colors.bgCard, color: current.length > 0 ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 12, cursor: current.length > 0 ? 'pointer' : 'not-allowed', opacity: current.length > 0 ? 1 : 0.3 }}>
-                    ← Dart
-                  </button>
-                  <button onClick={addMiss} disabled={dis}
-                    style={{ flex: 1.5, height: 38, borderRadius: 6, border: `1.5px solid ${isArcade ? '#666' : '#dc262680'}`, background: isArcade ? '#2a1a1a' : '#fef2f2', color: isArcade ? c.red : '#dc2626', fontWeight: 800, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
-                    ✕ Miss
-                  </button>
-                  <button onClick={confirmTurn} disabled={current.length === 0}
-                    style={{ flex: 1.5, height: 38, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : (isArcade ? '#1a1a1a' : colors.bgMuted), color: current.length > 0 ? '#fff' : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 800, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed' }}>
-                    ✓ OK
-                  </button>
-                </div>
+            const SEGS = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5]
+            const boardSize = isLandscape ? 120 : 95
+            const dartBoard = (
+              <svg viewBox="0 0 240 240" style={{ width: boardSize, height: boardSize, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+                <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
+                <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
+                <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />
+                {SEGS.map((num, i) => {
+                  const a1 = (i * 18 - 99) * Math.PI / 180, a2 = ((i + 1) * 18 - 99) * Math.PI / 180
+                  const isT = num === targetNumber, r1 = 28, r2 = 88
+                  return <path key={num} d={`M${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} L${120+r2*Math.cos(a1)},${120+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${120+r2*Math.cos(a2)},${120+r2*Math.sin(a2)} L${120+r1*Math.cos(a2)},${120+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} Z`}
+                    fill={isT ? '#22c55e' : (i % 2 === 0 ? '#1f2937' : '#111827')} stroke="#374151" strokeWidth="0.5"
+                    opacity={isT ? 1 : 0.7} style={isT ? { filter: 'drop-shadow(0 0 6px #22c55e80)' } : undefined} />
+                })}
+                <circle cx="120" cy="120" r="16" fill="#14532d" stroke="#374151" strokeWidth="0.5" />
+                <circle cx="120" cy="120" r="7" fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
+                <circle cx="120" cy="120" r="88" fill="none" stroke="#4b5563" strokeWidth="0.5" />
+                {SEGS.map((num, i) => {
+                  const angle = (i * 18 - 90) * Math.PI / 180, r = 99, isT = num === targetNumber
+                  return <text key={num} x={120 + r * Math.cos(angle)} y={120 + r * Math.sin(angle) + 3.5}
+                    textAnchor="middle" fontSize={isT ? 11 : 8} fontWeight={isT ? 900 : 500}
+                    fill={isT ? '#22c55e' : '#9ca3af'} style={isT ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}>{num}</text>
+                })}
+              </svg>
+            )
+            const targetNum = (
+              <div style={{ fontSize: isLandscape ? 72 : 88, fontWeight: 900, lineHeight: 1, minWidth: isLandscape ? 60 : 80, textAlign: 'center',
+                color: isArcade ? c.ledOn : colors.accent, textShadow: isArcade ? `0 0 30px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)' }}>
+                {targetNumber}
               </div>
             )
+            const dartSlots = (
+              <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                {[0, 1, 2].map(i => {
+                  const dart = current[i]
+                  return <div key={i} style={{ flex: 1, maxWidth: 70, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: dart ? (isArcade ? '#1c1c1c' : colors.bgCard) : (isArcade ? '#0a0a0a' : colors.bgMuted),
+                    border: dart ? `2px solid ${isArcade ? c.ledOn : colors.accent}` : `1px solid ${isArcade ? '#333' : colors.border}`,
+                    borderRadius: 5, fontWeight: 700, fontSize: 11, color: dart ? (isArcade ? c.ledOn : colors.fg) : (isArcade ? c.textDim : colors.fgMuted) }}>
+                    {dart ? formatDart(dart) : '\u2014'}
+                  </div>
+                })}
+                {current.length > 0 && (
+                  <div style={{ height: 28, display: 'flex', alignItems: 'center', paddingLeft: 3, fontSize: 12, fontWeight: 700, color: isArcade ? c.yellow : '#b45309' }}>
+                    ={current.reduce((sum, d) => sum + (d.target === 'MISS' ? 0 : d.target * d.mult), 0)}
+                  </div>
+                )}
+              </div>
+            )
+
+            const dis = current.length >= 3
+            const sCol = '#0ea5e9', dCol = '#22c55e', tCol = '#ef4444'
+            const btnS = { borderRadius: 8, border: `2px solid ${sCol}`, background: isArcade ? '#1e3a5f' : '#dbeafe', color: isArcade ? sCol : '#1d4ed8', fontWeight: 800 as const, fontSize: 15, cursor: dis ? 'not-allowed' as const : 'pointer' as const, opacity: dis ? 0.4 : 1 }
+            const btnD = { ...btnS, border: `2px solid ${dCol}`, background: isArcade ? '#14532d' : '#dcfce7', color: isArcade ? dCol : '#15803d' }
+            const btnT = { ...btnS, border: `2px solid ${tCol}`, background: isArcade ? '#7f1d1d' : '#fee2e2', color: isArcade ? tCol : '#b91c1c' }
+            const actBtnStyle = (enabled: boolean) => ({ flex: 1, height: 36, borderRadius: 6, border: `1.5px solid ${isArcade ? (enabled ? '#555' : '#333') : colors.border}`, background: isArcade ? '#222' : colors.bgCard, color: enabled ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700 as const, fontSize: 12, cursor: enabled ? 'pointer' as const : 'not-allowed' as const, opacity: enabled ? 1 : 0.3 })
+
+            const singleBtn = <button onClick={() => { multRef.current = 1; setMult(1); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: 46, ...btnS }}>Single</button>
+            const doubleBtn = <button onClick={() => { multRef.current = 2; setMult(2); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: 46, ...btnD }}>Double</button>
+            const tripleBtn = <button onClick={() => { multRef.current = 3; setMult(3); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: 46, ...btnT }}>Triple</button>
+            const undoBtn = <button onClick={undoLastTurn} disabled={!canUndo} style={actBtnStyle(canUndo)}>↩ Undo</button>
+            const dartBackBtn = <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={actBtnStyle(current.length > 0)}>← Dart</button>
+            const missBtn = <button onClick={addMiss} disabled={dis} style={{ flex: 1.5, height: 36, borderRadius: 6, border: `1.5px solid ${isArcade ? '#666' : '#dc262680'}`, background: isArcade ? '#2a1a1a' : '#fef2f2', color: isArcade ? c.red : '#dc2626', fontWeight: 800, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>✕ Miss</button>
+            const okBtn = <button onClick={confirmTurn} disabled={current.length === 0} style={{ flex: 1.5, height: 36, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : (isArcade ? '#1a1a1a' : colors.bgMuted), color: current.length > 0 ? '#fff' : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 800, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed' }}>✓ OK</button>
+
+            if (isLandscape) {
+              // LANDSCAPE: Board+Number+Darts left | S/D/T right top | Undo/Miss/OK right bottom
+              return (<>
+                <div style={{ display: 'flex', gap: 8, flex: 1, minHeight: 0, marginBottom: 4 }}>
+                  {/* Left column: Board + Number + Darts */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {dartBoard}
+                      {targetNum}
+                    </div>
+                    {dartSlots}
+                  </div>
+                  {/* Right column: S/D/T stacked + action row */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {singleBtn}
+                      {doubleBtn}
+                      {tripleBtn}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {undoBtn}{dartBackBtn}{missBtn}{okBtn}
+                    </div>
+                  </div>
+                </div>
+              </>)
+            }
+
+            // PORTRAIT: Board+Number centered, Darts, S/D/T row, action row
+            return (<>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 6 }}>
+                {dartBoard}
+                {targetNum}
+              </div>
+              <div style={{ marginBottom: 6 }}>{dartSlots}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 6 }}>
+                <div style={{ display: 'flex', gap: 5 }}>{singleBtn}{doubleBtn}{tripleBtn}</div>
+                <div style={{ display: 'flex', gap: 5 }}>{undoBtn}{dartBackBtn}{missBtn}{okBtn}</div>
+              </div>
+            </>)
           })()}
 
           {/* Player scores — compact horizontal */}
