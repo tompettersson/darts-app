@@ -622,6 +622,11 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     setShowLegSummary(false)
   }, [events, state, matchId])
 
+  // Ensure keyboard focus when a local player's turn starts
+  useEffect(() => {
+    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
+  }, [activePlayerId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Tastatur-Steuerung
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

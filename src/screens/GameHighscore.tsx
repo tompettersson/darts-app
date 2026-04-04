@@ -374,6 +374,11 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
   }, [matchId, onExit])
 
 
+  // Ensure keyboard focus when a local player's turn starts
+  useEffect(() => {
+    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
+  }, [activePlayerId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Tastatur
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

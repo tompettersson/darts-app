@@ -457,6 +457,11 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     }
   }, [current.length, confirmTurn])
 
+  // Ensure keyboard focus when a local player's turn starts
+  useEffect(() => {
+    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
+  }, [activePlayerId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keyboard Handler
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

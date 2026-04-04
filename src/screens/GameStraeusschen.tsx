@@ -397,6 +397,11 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
 
   const canUndo = useMemo(() => events.some(e => e.type === 'StrTurnAdded'), [events])
 
+  // Ensure keyboard focus when a local player's turn starts
+  useEffect(() => {
+    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
+  }, [activePlayerId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keyboard Handler
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

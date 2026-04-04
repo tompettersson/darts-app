@@ -1307,8 +1307,10 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
     }
   }, [activePlayerId, multiplayer?.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ensure document has focus so keydown events are captured immediately
-  useEffect(() => { document.body.focus() }, [])
+  // Ensure keyboard focus when a local player's turn starts
+  useEffect(() => {
+    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
+  }, [activePlayerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard Handler: P für Pause, Backspace für Undo
   useEffect(() => {
