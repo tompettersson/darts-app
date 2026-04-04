@@ -802,12 +802,50 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             </div>
           )}
 
-          {/* Große Zielzahl — mittig */}
-          <div style={{ textAlign: 'center', marginBottom: 6 }}>
+          {/* Zielzahl + Mini-Dartscheibe */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 6 }}>
+            {/* Mini Dartboard — highlights target segment */}
+            <svg viewBox="0 0 200 200" style={{ width: 90, height: 90, flexShrink: 0 }}>
+              {/* Board background */}
+              <circle cx="100" cy="100" r="95" fill={isArcade ? '#1a1a1a' : '#e5e7eb'} />
+              {/* Segments */}
+              {[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5].map((num, i) => {
+                const angle = (i * 18 - 99) * Math.PI / 180
+                const angle2 = ((i + 1) * 18 - 99) * Math.PI / 180
+                const isTarget = num === targetNumber
+                const r1 = 30, r2 = 90
+                const d = `M${100+r1*Math.cos(angle)},${100+r1*Math.sin(angle)} L${100+r2*Math.cos(angle)},${100+r2*Math.sin(angle)} A${r2},${r2} 0 0,1 ${100+r2*Math.cos(angle2)},${100+r2*Math.sin(angle2)} L${100+r1*Math.cos(angle2)},${100+r1*Math.sin(angle2)} A${r1},${r1} 0 0,0 ${100+r1*Math.cos(angle)},${100+r1*Math.sin(angle)} Z`
+                const baseColor = i % 2 === 0
+                  ? (isArcade ? '#222' : '#d1d5db')
+                  : (isArcade ? '#333' : '#f3f4f6')
+                return (
+                  <path key={num} d={d}
+                    fill={isTarget ? '#22c55e' : baseColor}
+                    stroke={isArcade ? '#444' : '#9ca3af'} strokeWidth="0.5"
+                    opacity={isTarget ? 1 : 0.5}
+                  />
+                )
+              })}
+              {/* Bull */}
+              <circle cx="100" cy="100" r="12" fill={isArcade ? '#333' : '#d1d5db'} stroke={isArcade ? '#444' : '#9ca3af'} strokeWidth="0.5" />
+              {/* Number labels */}
+              {[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5].map((num, i) => {
+                const angle = (i * 18 - 90) * Math.PI / 180
+                const r = 82
+                const isTarget = num === targetNumber
+                return (
+                  <text key={num} x={100 + r * Math.cos(angle)} y={100 + r * Math.sin(angle) + 3}
+                    textAnchor="middle" fontSize={isTarget ? 9 : 7} fontWeight={isTarget ? 900 : 400}
+                    fill={isTarget ? '#fff' : (isArcade ? '#888' : '#6b7280')}
+                  >{num}</text>
+                )
+              })}
+            </svg>
+            {/* Große Zielzahl */}
             <div style={{
-              fontSize: 56, fontWeight: 900, lineHeight: 1,
+              fontSize: 88, fontWeight: 900, lineHeight: 1,
               color: isArcade ? c.ledOn : colors.accent,
-              textShadow: isArcade ? `0 0 25px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)',
+              textShadow: isArcade ? `0 0 30px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)',
             }}>
               {targetNumber}
             </div>
