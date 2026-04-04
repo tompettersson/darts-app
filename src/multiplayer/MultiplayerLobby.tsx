@@ -7,6 +7,7 @@ import type { ConnectionStatus } from './useMultiplayerRoom'
 import type { RoomPlayer, RoomPhase, GameConfig, PlayerOrder } from './protocol'
 import { generateRoomCode } from './protocol'
 import type { Profile } from '../storage'
+import { verifyPassword } from '../auth/api'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import DiceAnimation from '../components/DiceAnimation'
@@ -241,10 +242,39 @@ export default function MultiplayerLobby({
     if (code.length >= 4) onJoinRoom(code)
   }
 
-  // Add a local player
+  // Add a local player — requires password verification
+  const [pendingProfile, setPendingProfile] = useState<Profile | null>(null)
+  const [addPlayerPw, setAddPlayerPw] = useState('')
+  const [addPlayerError, setAddPlayerError] = useState('')
+  const [addPlayerBusy, setAddPlayerBusy] = useState(false)
+  const addPlayerPwRef = useRef<HTMLInputElement>(null)
+
   const handleAddLocalPlayer = (profile: Profile) => {
-    onAddLocalPlayers([{ playerId: profile.id, name: profile.name, color: profile.color }])
-    setShowAddPlayer(false)
+    setPendingProfile(profile)
+    setAddPlayerPw('')
+    setAddPlayerError('')
+    setTimeout(() => addPlayerPwRef.current?.focus(), 100)
+  }
+
+  const confirmAddPlayer = async () => {
+    if (!pendingProfile || !addPlayerPw) return
+    setAddPlayerBusy(true)
+    setAddPlayerError('')
+    try {
+      const result = await verifyPassword(pendingProfile.id, addPlayerPw)
+      if (result.valid) {
+        onAddLocalPlayers([{ playerId: pendingProfile.id, name: pendingProfile.name, color: pendingProfile.color }])
+        setPendingProfile(null)
+        setShowAddPlayer(false)
+        setAddPlayerPw('')
+      } else {
+        setAddPlayerError('Falsches Passwort')
+      }
+    } catch {
+      setAddPlayerError('Fehler bei der Überprüfung')
+    } finally {
+      setAddPlayerBusy(false)
+    }
   }
 
   // Shuffle: Send dice-roll (animation) + new order separately
@@ -496,16 +526,48 @@ export default function MultiplayerLobby({
           {/* Add Local Player Picker */}
           {showAddPlayer && (
             <div style={{ display: 'grid', gap: 4, marginBottom: 10, padding: 8, background: colors.bgMuted, borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: colors.fgMuted, marginBottom: 2 }}>Lokalen Spieler hinzufügen:</div>
-              {availableProfiles.map(p => (
-                <button key={p.id} onClick={() => handleAddLocalPlayer(p)}
-                  style={{ ...s.playerRow, cursor: 'pointer', border: `1px solid ${colors.border}` }}>
-                  <div style={s.dot(p.color)} />
-                  <div style={{ fontWeight: 600, fontSize: 13, color: colors.fg }}>{p.name}</div>
-                </button>
-              ))}
-              {availableProfiles.length === 0 && (
-                <div style={{ fontSize: 12, color: colors.fgMuted }}>Keine weiteren Profile verfügbar</div>
+              {pendingProfile ? (
+                <>
+                  <div style={{ fontSize: 12, color: colors.fg, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={s.dot(pendingProfile.color)} />
+                    Passwort für {pendingProfile.name}:
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      ref={addPlayerPwRef}
+                      type="password"
+                      value={addPlayerPw}
+                      onChange={e => setAddPlayerPw(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') confirmAddPlayer(); if (e.key === 'Escape') setPendingProfile(null) }}
+                      placeholder="Passwort"
+                      disabled={addPlayerBusy}
+                      style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: `1px solid ${addPlayerError ? '#ef4444' : colors.border}`, fontSize: 14, background: colors.bgCard, color: colors.fg }}
+                    />
+                    <button onClick={confirmAddPlayer} disabled={addPlayerBusy || !addPlayerPw}
+                      style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: colors.accent, color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', opacity: addPlayerBusy || !addPlayerPw ? 0.5 : 1 }}>
+                      {addPlayerBusy ? '...' : 'OK'}
+                    </button>
+                    <button onClick={() => setPendingProfile(null)}
+                      style={{ padding: '6px 10px', borderRadius: 6, border: `1px solid ${colors.border}`, background: 'transparent', color: colors.fgMuted, fontSize: 13, cursor: 'pointer' }}>
+                      ✕
+                    </button>
+                  </div>
+                  {addPlayerError && <div style={{ fontSize: 12, color: '#ef4444' }}>{addPlayerError}</div>}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 11, color: colors.fgMuted, marginBottom: 2 }}>Lokalen Spieler hinzufügen:</div>
+                  {availableProfiles.map(p => (
+                    <button key={p.id} onClick={() => handleAddLocalPlayer(p)}
+                      style={{ ...s.playerRow, cursor: 'pointer', border: `1px solid ${colors.border}` }}>
+                      <div style={s.dot(p.color)} />
+                      <div style={{ fontWeight: 600, fontSize: 13, color: colors.fg }}>{p.name}</div>
+                    </button>
+                  ))}
+                  {availableProfiles.length === 0 && (
+                    <div style={{ fontSize: 12, color: colors.fgMuted }}>Keine weiteren Profile verfügbar</div>
+                  )}
+                </>
               )}
             </div>
           )}
