@@ -1,6 +1,6 @@
 // src/screens/CreateProfile.tsx
 import React, { useMemo, useState, useRef, useEffect } from 'react'
-import { getProfiles, upsertProfile, saveProfiles } from '../storage'
+import { getProfiles, saveProfiles } from '../storage'
 import { createProfileWithPassword } from '../auth/api'
 import { ui } from '../ui'
 import { showToast } from '../components/Toast'
@@ -12,8 +12,6 @@ type Props = {
 
 export default function CreateProfile({ onDone, onCancel }: Props) {
   const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -31,38 +29,31 @@ export default function CreateProfile({ onDone, onCancel }: Props) {
   const tooShort = name.trim().length < 2
   const tooLong = name.trim().length > 24
   const invalid = tooShort || tooLong
-  const passwordMismatch = confirmPassword.length > 0 && password !== confirmPassword
-  const passwordTooShort = password.length > 0 && password.length < 2
-  const canSave = !saving && !invalid && !exists && !passwordMismatch && !passwordTooShort
+  const canSave = !saving && !invalid && !exists
 
   const handleSave = async () => {
     if (!canSave) return
     setSaving(true)
     setError('')
-    // Wenn kein Passwort gesetzt → Standardpasswort: {name}1
-    const finalPassword = password.length > 0 ? password : `${name.trim()}1`
+    const defaultPw = `${name.trim()}1`
     try {
-      // Erstelle Server-seitig mit Passwort (das schreibt in die DB)
-      const result = await createProfileWithPassword(name.trim(), finalPassword)
+      const result = await createProfileWithPassword(name.trim(), defaultPw)
       if (result.success && result.id) {
-        // Nur den lokalen Cache aktualisieren (NICHT nochmal in die DB schreiben)
         const list = getProfiles()
         if (!list.some(p => p.id === result.id)) {
           const ts = new Date().toISOString()
           list.push({ id: result.id, name: result.name || name.trim(), createdAt: ts, updatedAt: ts })
           saveProfiles(list)
         }
-        showToast(`Profil "${result.name || name.trim()}" erstellt`)
+        showToast(`Profil "${result.name || name.trim()}" erstellt (Passwort: ${defaultPw})`)
         onDone?.()
       } else {
         setError(result.error || 'Fehler beim Erstellen')
         setSaving(false)
       }
     } catch (e: any) {
-      // Falls Server nicht erreichbar, lokal anlegen
-      upsertProfile(name.trim())
-      showToast(`Profil "${name.trim()}" erstellt (offline)`)
-      onDone?.()
+      setError(e.message || 'Fehler beim Erstellen')
+      setSaving(false)
     }
   }
 
@@ -83,7 +74,8 @@ export default function CreateProfile({ onDone, onCancel }: Props) {
                   ref={inputRef}
                   value={name}
                   onChange={(e) => { setName(e.target.value); setError('') }}
-                  placeholder="z. B. Thomas"
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  placeholder="z. B. Leo"
                   maxLength={32}
                   style={{
                     height: 40,
@@ -95,74 +87,24 @@ export default function CreateProfile({ onDone, onCancel }: Props) {
                 />
               </label>
 
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={ui.sub}>Passwort</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  placeholder="Passwort wählen"
-                  style={{
-                    height: 40,
-                    borderRadius: 10,
-                    border: '1px solid #e5e7eb',
-                    padding: '8px 12px',
-                    fontSize: 14,
-                  }}
-                />
-              </label>
-
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={ui.sub}>Passwort bestätigen</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); setError('') }}
-                  onKeyDown={e => e.key === 'Enter' && handleSave()}
-                  placeholder="Passwort wiederholen"
-                  style={{
-                    height: 40,
-                    borderRadius: 10,
-                    border: '1px solid #e5e7eb',
-                    padding: '8px 12px',
-                    fontSize: 14,
-                  }}
-                />
-              </label>
-
-              {/* Validation-Hinweise */}
               <div style={{ fontSize: 12, color: '#6b7280' }}>
-                Name: 2–24 Zeichen. Passwort optional — ohne Eingabe wird „{name.trim() || 'Name'}1" als Standardpasswort gesetzt.
+                Passwort wird automatisch auf {name.trim() ? `"${name.trim()}1"` : '"Name1"'} gesetzt.
+                Kann später in den Einstellungen geändert werden.
               </div>
+
               {exists && (
                 <div style={{ fontSize: 12, color: '#b91c1c' }}>
                   Es gibt bereits ein Profil mit diesem Namen.
                 </div>
               )}
               {tooShort && name.length > 0 && (
-                <div style={{ fontSize: 12, color: '#b91c1c' }}>
-                  Name ist zu kurz.
-                </div>
+                <div style={{ fontSize: 12, color: '#b91c1c' }}>Name ist zu kurz (min. 2 Zeichen).</div>
               )}
               {tooLong && (
-                <div style={{ fontSize: 12, color: '#b91c1c' }}>
-                  Name ist zu lang.
-                </div>
-              )}
-              {passwordTooShort && (
-                <div style={{ fontSize: 12, color: '#b91c1c' }}>
-                  Passwort ist zu kurz (min. 2 Zeichen).
-                </div>
-              )}
-              {passwordMismatch && (
-                <div style={{ fontSize: 12, color: '#b91c1c' }}>
-                  Passwörter stimmen nicht überein.
-                </div>
+                <div style={{ fontSize: 12, color: '#b91c1c' }}>Name ist zu lang (max. 24 Zeichen).</div>
               )}
               {error && (
-                <div style={{ fontSize: 12, color: '#b91c1c' }}>
-                  {error}
-                </div>
+                <div style={{ fontSize: 12, color: '#b91c1c' }}>{error}</div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
@@ -179,10 +121,6 @@ export default function CreateProfile({ onDone, onCancel }: Props) {
                 </button>
               </div>
             </div>
-          </div>
-
-          <div style={{ ...ui.sub, marginTop: 10 }}>
-            Tipp: Wenn Leute ohne Profil mitspielen, nutze im Spiel die „Gast hinzufügen"-Option.
           </div>
         </div>
       </div>
