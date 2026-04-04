@@ -155,7 +155,7 @@ function SimpleLegsConfig({ config, onChange, label }: { config: GameConfig; onC
     <div style={{ display: 'grid', gap: 10 }}>
       <label style={{ fontWeight: 600, fontSize: 13 }}>{label || 'Legs'}</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {[1, 2, 3, 5, 7].map(n => (
+        {[1, 3, 5, 7].map(n => (
           <button key={n} onClick={() => onChange({ ...config, bestOfLegs: n })}
             style={pillStyle(config.bestOfLegs === n)}>First to {Math.ceil(n / 2)}</button>
         ))}
