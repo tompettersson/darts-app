@@ -3,7 +3,7 @@
 // Cricket-Setup, Live-Games (X01 & Cricket), Summary-Screens,
 // StatsArea (ausgelagert), Profile-Verwaltung
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react'
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { ui, getThemedUI } from './ui'
 import { useTheme } from './ThemeProvider'
 import type { AppTheme } from './theme'
@@ -542,36 +542,56 @@ export default function App() {
   )
 
   // Guest auto-start: when phase changes to 'playing' and events arrive, navigate to game
+  const mpEventsRef = useRef(mpState.events)
+  mpEventsRef.current = mpState.events
+  const mpConfigRef = useRef(mpState.gameConfig)
+  mpConfigRef.current = mpState.gameConfig
+
   useEffect(() => {
     if (view !== 'multiplayer-lobby-join') return
     if (mpState.phase !== 'playing') return
-    if (mpState.events.length === 0) return // Wait for events to arrive
 
-    const firstEvent = mpState.events[0] as any
-    const matchId = firstEvent?.matchId
-    if (!matchId) return
+    // Events might not be here yet — poll until they arrive
+    const tryStart = () => {
+      const events = mpEventsRef.current
+      if (!events || events.length === 0) return false
 
-    const config = mpState.gameConfig
-    const gameType = config?.gameType || (() => {
-      const eventType: string = firstEvent?.type ?? ''
-      if (eventType.startsWith('Cricket')) return 'cricket'
-      if (eventType.startsWith('ATB')) return 'atb'
-      if (eventType.startsWith('CTF')) return 'ctf'
-      if (eventType.startsWith('Str')) return 'str'
-      if (eventType.startsWith('Shanghai')) return 'shanghai'
-      if (eventType.startsWith('Killer')) return 'killer'
-      if (eventType.startsWith('Bobs27')) return 'bobs27'
-      if (eventType.startsWith('Operation')) return 'operation'
-      if (eventType.startsWith('Highscore')) return 'highscore'
-      return 'x01'
-    })()
+      const firstEvent = events[0] as any
+      const matchId = firstEvent?.matchId
+      if (!matchId) return false
 
-    setMultiplayerMatchId(matchId)
-    setMultiplayerGameType(gameType)
-    setMultiplayerRemoteEvents(mpState.events)
-    setActiveMatchId(matchId)
-    setView('multiplayer-game')
-  }, [view, mpState.phase, mpState.events, mpState.gameConfig]) // eslint-disable-line react-hooks/exhaustive-deps
+      const config = mpConfigRef.current
+      const gameType = config?.gameType || (() => {
+        const eventType: string = firstEvent?.type ?? ''
+        if (eventType.startsWith('Cricket')) return 'cricket'
+        if (eventType.startsWith('ATB')) return 'atb'
+        if (eventType.startsWith('CTF')) return 'ctf'
+        if (eventType.startsWith('Str')) return 'str'
+        if (eventType.startsWith('Shanghai')) return 'shanghai'
+        if (eventType.startsWith('Killer')) return 'killer'
+        if (eventType.startsWith('Bobs27')) return 'bobs27'
+        if (eventType.startsWith('Operation')) return 'operation'
+        if (eventType.startsWith('Highscore')) return 'highscore'
+        return 'x01'
+      })()
+
+      setMultiplayerMatchId(matchId)
+      setMultiplayerGameType(gameType)
+      setMultiplayerRemoteEvents(events)
+      setActiveMatchId(matchId)
+      setView('multiplayer-game')
+      return true
+    }
+
+    if (!tryStart()) {
+      // Events not here yet — poll every 200ms for up to 10s
+      const timer = setInterval(() => {
+        if (tryStart()) clearInterval(timer)
+      }, 200)
+      const timeout = setTimeout(() => clearInterval(timer), 10000)
+      return () => { clearInterval(timer); clearTimeout(timeout) }
+    }
+  }, [view, mpState.phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Helper: clean up multiplayer state when leaving a summary screen that was reached from MP
   const mpSummaryDisconnect = () => {
