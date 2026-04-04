@@ -1,6 +1,6 @@
 // src/screens/CreateProfile.tsx
 import React, { useMemo, useState, useRef, useEffect } from 'react'
-import { getProfiles, upsertProfile } from '../storage'
+import { getProfiles, upsertProfile, saveProfiles } from '../storage'
 import { createProfileWithPassword } from '../auth/api'
 import { ui } from '../ui'
 import { showToast } from '../components/Toast'
@@ -42,19 +42,24 @@ export default function CreateProfile({ onDone, onCancel }: Props) {
     // Wenn kein Passwort gesetzt → Standardpasswort: {name}1
     const finalPassword = password.length > 0 ? password : `${name.trim()}1`
     try {
-      // Versuche Server-seitig mit Passwort zu erstellen
+      // Erstelle Server-seitig mit Passwort (das schreibt in die DB)
       const result = await createProfileWithPassword(name.trim(), finalPassword)
-      if (result.success) {
-        // Auch lokal anlegen damit das Profil sofort im Cache ist
-        upsertProfile(name.trim())
-        showToast(`Profil "${name.trim()}" erstellt`)
+      if (result.success && result.id) {
+        // Nur den lokalen Cache aktualisieren (NICHT nochmal in die DB schreiben)
+        const list = getProfiles()
+        if (!list.some(p => p.id === result.id)) {
+          const ts = new Date().toISOString()
+          list.push({ id: result.id, name: result.name || name.trim(), createdAt: ts, updatedAt: ts })
+          saveProfiles(list)
+        }
+        showToast(`Profil "${result.name || name.trim()}" erstellt`)
         onDone?.()
       } else {
         setError(result.error || 'Fehler beim Erstellen')
         setSaving(false)
       }
     } catch (e: any) {
-      // Falls Server nicht erreichbar, nur lokal anlegen
+      // Falls Server nicht erreichbar, lokal anlegen
       upsertProfile(name.trim())
       showToast(`Profil "${name.trim()}" erstellt (offline)`)
       onDone?.()
