@@ -805,38 +805,43 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
           {/* Zielzahl + Mini-Dartscheibe */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 6 }}>
             {/* Mini Dartboard — highlights target segment */}
-            <svg viewBox="0 0 200 200" style={{ width: 90, height: 90, flexShrink: 0 }}>
-              {/* Board background */}
-              <circle cx="100" cy="100" r="95" fill={isArcade ? '#1a1a1a' : '#e5e7eb'} />
+            <svg viewBox="0 0 240 240" style={{ width: 95, height: 95, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+              {/* Outer ring */}
+              <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
+              <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
+              {/* Number ring background */}
+              <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />
               {/* Segments */}
               {[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5].map((num, i) => {
-                const angle = (i * 18 - 99) * Math.PI / 180
-                const angle2 = ((i + 1) * 18 - 99) * Math.PI / 180
+                const a1 = (i * 18 - 99) * Math.PI / 180
+                const a2 = ((i + 1) * 18 - 99) * Math.PI / 180
                 const isTarget = num === targetNumber
-                const r1 = 30, r2 = 90
-                const d = `M${100+r1*Math.cos(angle)},${100+r1*Math.sin(angle)} L${100+r2*Math.cos(angle)},${100+r2*Math.sin(angle)} A${r2},${r2} 0 0,1 ${100+r2*Math.cos(angle2)},${100+r2*Math.sin(angle2)} L${100+r1*Math.cos(angle2)},${100+r1*Math.sin(angle2)} A${r1},${r1} 0 0,0 ${100+r1*Math.cos(angle)},${100+r1*Math.sin(angle)} Z`
-                const baseColor = i % 2 === 0
-                  ? (isArcade ? '#222' : '#d1d5db')
-                  : (isArcade ? '#333' : '#f3f4f6')
+                const r1 = 28, r2 = 88
+                const d = `M${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} L${120+r2*Math.cos(a1)},${120+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${120+r2*Math.cos(a2)},${120+r2*Math.sin(a2)} L${120+r1*Math.cos(a2)},${120+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} Z`
                 return (
                   <path key={num} d={d}
-                    fill={isTarget ? '#22c55e' : baseColor}
-                    stroke={isArcade ? '#444' : '#9ca3af'} strokeWidth="0.5"
-                    opacity={isTarget ? 1 : 0.5}
+                    fill={isTarget ? '#22c55e' : (i % 2 === 0 ? '#1f2937' : '#111827')}
+                    stroke="#374151" strokeWidth="0.5"
+                    opacity={isTarget ? 1 : 0.7}
+                    style={isTarget ? { filter: 'drop-shadow(0 0 6px #22c55e80)' } : undefined}
                   />
                 )
               })}
-              {/* Bull */}
-              <circle cx="100" cy="100" r="12" fill={isArcade ? '#333' : '#d1d5db'} stroke={isArcade ? '#444' : '#9ca3af'} strokeWidth="0.5" />
-              {/* Number labels */}
+              {/* Bull rings */}
+              <circle cx="120" cy="120" r="16" fill="#14532d" stroke="#374151" strokeWidth="0.5" />
+              <circle cx="120" cy="120" r="7" fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
+              {/* Wire ring at outer edge of segments */}
+              <circle cx="120" cy="120" r="88" fill="none" stroke="#4b5563" strokeWidth="0.5" />
+              {/* Number labels in outer ring */}
               {[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5].map((num, i) => {
                 const angle = (i * 18 - 90) * Math.PI / 180
-                const r = 82
+                const r = 99
                 const isTarget = num === targetNumber
                 return (
-                  <text key={num} x={100 + r * Math.cos(angle)} y={100 + r * Math.sin(angle) + 3}
-                    textAnchor="middle" fontSize={isTarget ? 9 : 7} fontWeight={isTarget ? 900 : 400}
-                    fill={isTarget ? '#fff' : (isArcade ? '#888' : '#6b7280')}
+                  <text key={num} x={120 + r * Math.cos(angle)} y={120 + r * Math.sin(angle) + 3.5}
+                    textAnchor="middle" fontSize={isTarget ? 11 : 8} fontWeight={isTarget ? 900 : 500}
+                    fill={isTarget ? '#22c55e' : '#9ca3af'}
+                    style={isTarget ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}
                   >{num}</text>
                 )
               })}
