@@ -93,14 +93,13 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   // Shared theme colors
   const { c, isArcade, colors } = useGameColors()
 
-  // Mobile detection
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 600)
+  // Mobile detection — stays mobile in landscape too (check shortest dimension)
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 599px)')
-    setIsMobile(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
   }, [])
 
   const [storedMatch, setStoredMatch] = useState(() => getShanghaiMatchById(matchId))
@@ -859,23 +858,23 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                     Triple
                   </button>
                 </div>
-                {/* Row 2: Undo (small) / Dart zurück (small) / Miss / OK */}
+                {/* Row 2: Undo / Dart zurück / Miss / OK */}
                 <div style={{ display: 'flex', gap: 5 }}>
                   <button onClick={undoLastTurn} disabled={!canUndo}
-                    style={{ width: 44, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#444' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgCard, color: canUndo ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 600, fontSize: 14, cursor: canUndo ? 'pointer' : 'not-allowed', opacity: canUndo ? 1 : 0.3, flexShrink: 0 }}>
-                    ↩
+                    style={{ flex: 1, height: 38, borderRadius: 6, border: `1.5px solid ${isArcade ? '#555' : colors.border}`, background: isArcade ? '#222' : colors.bgCard, color: canUndo ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 12, cursor: canUndo ? 'pointer' : 'not-allowed', opacity: canUndo ? 1 : 0.3 }}>
+                    ↩ Undo
                   </button>
                   <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0}
-                    style={{ width: 44, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#333' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgCard, color: current.length > 0 ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 600, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed', opacity: current.length > 0 ? 1 : 0.3, flexShrink: 0 }}>
-                    ←
+                    style={{ flex: 1, height: 38, borderRadius: 6, border: `1.5px solid ${isArcade ? '#444' : colors.border}`, background: isArcade ? '#222' : colors.bgCard, color: current.length > 0 ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 12, cursor: current.length > 0 ? 'pointer' : 'not-allowed', opacity: current.length > 0 ? 1 : 0.3 }}>
+                    ← Dart
                   </button>
                   <button onClick={addMiss} disabled={dis}
-                    style={{ flex: 1, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#666' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgMuted, color: isArcade ? c.red : '#dc2626', fontWeight: 700, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
-                    Miss
+                    style={{ flex: 1.5, height: 38, borderRadius: 6, border: `1.5px solid ${isArcade ? '#666' : '#dc262680'}`, background: isArcade ? '#2a1a1a' : '#fef2f2', color: isArcade ? c.red : '#dc2626', fontWeight: 800, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
+                    ✕ Miss
                   </button>
                   <button onClick={confirmTurn} disabled={current.length === 0}
-                    style={{ flex: 1, height: 36, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : (isArcade ? '#1a1a1a' : colors.bgMuted), color: current.length > 0 ? '#fff' : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed' }}>
-                    OK
+                    style={{ flex: 1.5, height: 38, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : (isArcade ? '#1a1a1a' : colors.bgMuted), color: current.length > 0 ? '#fff' : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 800, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed' }}>
+                    ✓ OK
                   </button>
                 </div>
               </div>
