@@ -2108,10 +2108,21 @@ export default function App() {
 
   if (view === 'multiplayer-game' && multiplayerMatchId) {
     // Determine all player IDs on this device (primary player + local players sharing device)
+    // Try from live mpState.players first, then fall back to cached list
     const myDeviceId = mpState.players.find(p => p.playerId === multiplayerMyPlayerId)?.deviceId
-    const localPlayerIds = myDeviceId
+    let localPlayerIds = myDeviceId
       ? mpState.players.filter(p => p.deviceId === myDeviceId).map(p => p.playerId)
       : [multiplayerMyPlayerId]
+    // Cache localPlayerIds when we have good data (more than just the primary player)
+    if (localPlayerIds.length > 1) {
+      sessionStorage.setItem('mp-local-pids', JSON.stringify(localPlayerIds))
+    } else {
+      // Try to restore from cache (e.g., after reconnect when mpState.players is stale)
+      try {
+        const cached = JSON.parse(sessionStorage.getItem('mp-local-pids') || '[]')
+        if (cached.length > 1 && cached.includes(multiplayerMyPlayerId)) localPlayerIds = cached
+      } catch {}
+    }
 
     const mpProps = {
       enabled: true as const,
