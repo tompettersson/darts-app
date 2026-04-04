@@ -789,134 +789,92 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
       {/* Main Content — Mobile */}
       {isMobile ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 8px 8px' }}>
-          {/* Round info + active player bar */}
+          {/* Header: Runde + Spieler + Timer */}
           {activePlayer && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 10px',
-                background: isArcade ? c.cardBg : colors.bgCard,
-                borderRadius: 10,
-                border: `1px solid ${isArcade ? '#222' : colors.border}`,
-                marginBottom: 6,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div
-                  style={{
-                    fontSize: 36,
-                    fontWeight: 800,
-                    color: isArcade ? c.ledOn : colors.accent,
-                    textShadow: isArcade ? `0 0 18px ${c.ledGlow}` : 'none',
-                    lineHeight: 1,
-                    minWidth: 44,
-                    textAlign: 'center',
-                  }}
-                >
-                  {targetNumber}
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: isArcade ? c.textDim : colors.fgMuted }}>Feld {targetNumber} {'\u00b7'} Runde {currentRound}/20</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: activePlayerColor ?? (isArcade ? c.textBright : colors.fg) }}>
-                    {activePlayer.name}
-                    <span style={{ fontWeight: 500, color: isArcade ? c.yellow : '#b45309', marginLeft: 6, fontSize: 13 }}>
-                      {shanghaiState.scoreByPlayer[activePlayerId!] ?? 0} Pkt
-                    </span>
-                  </div>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px', marginBottom: 4 }}>
+              <div style={{ fontSize: 11, color: isArcade ? c.textDim : colors.fgMuted }}>Runde {currentRound}/20</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: activePlayerColor ?? (isArcade ? c.textBright : colors.fg) }}>
+                {activePlayer.name}
+                <span style={{ fontWeight: 500, color: isArcade ? c.yellow : '#b45309', marginLeft: 6 }}>
+                  {shanghaiState.scoreByPlayer[activePlayerId!] ?? 0}
+                </span>
               </div>
-              {/* Timer compact */}
-              <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: isArcade ? c.ledOn : colors.fgMuted }}>
-                {formatDuration(elapsedMs)}
-              </div>
+              <div style={{ fontFamily: 'monospace', fontSize: 11, color: isArcade ? c.ledOn : colors.fgMuted }}>{formatDuration(elapsedMs)}</div>
             </div>
           )}
+
+          {/* Große Zielzahl — mittig */}
+          <div style={{ textAlign: 'center', marginBottom: 6 }}>
+            <div style={{
+              fontSize: 56, fontWeight: 900, lineHeight: 1,
+              color: isArcade ? c.ledOn : colors.accent,
+              textShadow: isArcade ? `0 0 25px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)',
+            }}>
+              {targetNumber}
+            </div>
+          </div>
 
           {/* Dart Slots */}
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 6 }}>
             {[0, 1, 2].map(i => {
               const dart = current[i]
               return (
-                <div
-                  key={i}
-                  style={{
-                    flex: 1,
-                    maxWidth: 90,
-                    height: 34,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: dart ? (isArcade ? '#1c1c1c' : colors.bgCard) : (isArcade ? '#0a0a0a' : colors.bgMuted),
-                    border: dart ? `2px solid ${isArcade ? c.ledOn : colors.accent}` : `1px solid ${isArcade ? '#333' : colors.border}`,
-                    borderRadius: 6,
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: dart ? (isArcade ? c.ledOn : colors.fg) : (isArcade ? c.textDim : colors.fgMuted),
-                  }}
-                >
+                <div key={i} style={{
+                  flex: 1, maxWidth: 80, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: dart ? (isArcade ? '#1c1c1c' : colors.bgCard) : (isArcade ? '#0a0a0a' : colors.bgMuted),
+                  border: dart ? `2px solid ${isArcade ? c.ledOn : colors.accent}` : `1px solid ${isArcade ? '#333' : colors.border}`,
+                  borderRadius: 6, fontWeight: 700, fontSize: 12,
+                  color: dart ? (isArcade ? c.ledOn : colors.fg) : (isArcade ? c.textDim : colors.fgMuted),
+                }}>
                   {dart ? formatDart(dart) : '\u2014'}
                 </div>
               )
             })}
-            {/* Round score for current darts */}
             {current.length > 0 && (
-              <div
-                style={{
-                  height: 34,
-                  display: 'flex',
-                  alignItems: 'center',
-                  paddingLeft: 6,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: c.yellow,
-                }}
-              >
+              <div style={{ height: 30, display: 'flex', alignItems: 'center', paddingLeft: 4, fontSize: 13, fontWeight: 700, color: isArcade ? c.yellow : '#b45309' }}>
                 = {current.reduce((sum, d) => sum + (d.target === 'MISS' ? 0 : d.target * d.mult), 0)}
               </div>
             )}
           </div>
 
-          {/* Quick Input: Single / Double / Triple / Miss — 2x2 grid */}
+          {/* Buttons */}
           {(() => {
             const dis = current.length >= 3
-            const btnBase: React.CSSProperties = {
-              height: 52, borderRadius: 8, fontWeight: 800, fontSize: 16,
-              cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1, transition: 'all 0.15s',
-            }
             const sCol = '#0ea5e9', dCol = '#22c55e', tCol = '#ef4444'
+            const btnH = 48
             return (
-              <div style={{ background: isArcade ? c.cardBg : colors.bgCard, borderRadius: 10, padding: '8px 6px', border: `1px solid ${isArcade ? '#222' : colors.border}`, marginBottom: 6 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {/* Row 1: Single / Double / Triple */}
+                <div style={{ display: 'flex', gap: 5 }}>
                   <button onClick={() => { multRef.current = 1; setMult(1); addDart(targetNumber as any) }} disabled={dis}
-                    style={{ ...btnBase, border: `2px solid ${sCol}`, background: isArcade ? '#1e3a5f' : '#dbeafe', color: isArcade ? sCol : '#1d4ed8' }}>
-                    Single {targetNumber}
+                    style={{ flex: 1, height: btnH, borderRadius: 8, border: `2px solid ${sCol}`, background: isArcade ? '#1e3a5f' : '#dbeafe', color: isArcade ? sCol : '#1d4ed8', fontWeight: 800, fontSize: 15, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
+                    Single
                   </button>
                   <button onClick={() => { multRef.current = 2; setMult(2); addDart(targetNumber as any) }} disabled={dis}
-                    style={{ ...btnBase, border: `2px solid ${dCol}`, background: isArcade ? '#14532d' : '#dcfce7', color: isArcade ? dCol : '#15803d' }}>
-                    Double {targetNumber}
+                    style={{ flex: 1, height: btnH, borderRadius: 8, border: `2px solid ${dCol}`, background: isArcade ? '#14532d' : '#dcfce7', color: isArcade ? dCol : '#15803d', fontWeight: 800, fontSize: 15, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
+                    Double
                   </button>
                   <button onClick={() => { multRef.current = 3; setMult(3); addDart(targetNumber as any) }} disabled={dis}
-                    style={{ ...btnBase, border: `2px solid ${tCol}`, background: isArcade ? '#7f1d1d' : '#fee2e2', color: isArcade ? tCol : '#b91c1c' }}>
-                    Triple {targetNumber}
-                  </button>
-                  <button onClick={addMiss} disabled={dis}
-                    style={{ ...btnBase, border: `1px solid ${isArcade ? '#666' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgMuted, color: isArcade ? c.red : '#dc2626' }}>
-                    Miss
+                    style={{ flex: 1, height: btnH, borderRadius: 8, border: `2px solid ${tCol}`, background: isArcade ? '#7f1d1d' : '#fee2e2', color: isArcade ? tCol : '#b91c1c', fontWeight: 800, fontSize: 15, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
+                    Triple
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
+                {/* Row 2: Undo (small) / Dart zurück (small) / Miss / OK */}
+                <div style={{ display: 'flex', gap: 5 }}>
                   <button onClick={undoLastTurn} disabled={!canUndo}
-                    style={{ flex: 1, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? (canUndo ? '#666' : '#333') : colors.border}`, background: isArcade ? (canUndo ? '#2a2a2a' : '#1a1a1a') : colors.bgCard, color: canUndo ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), cursor: canUndo ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: 12, opacity: canUndo ? 1 : 0.4 }}>
-                    {'\u21B6'} Undo
+                    style={{ width: 44, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#444' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgCard, color: canUndo ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 600, fontSize: 14, cursor: canUndo ? 'pointer' : 'not-allowed', opacity: canUndo ? 1 : 0.3, flexShrink: 0 }}>
+                    ↩
                   </button>
                   <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0}
-                    style={{ flex: 1, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#333' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgCard, color: current.length > 0 ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 600, fontSize: 12, cursor: current.length > 0 ? 'pointer' : 'not-allowed', opacity: current.length > 0 ? 1 : 0.4 }}>
-                    {'\u2014'} Dart
+                    style={{ width: 44, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#333' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgCard, color: current.length > 0 ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 600, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed', opacity: current.length > 0 ? 1 : 0.3, flexShrink: 0 }}>
+                    ←
+                  </button>
+                  <button onClick={addMiss} disabled={dis}
+                    style={{ flex: 1, height: 36, borderRadius: 6, border: `1px solid ${isArcade ? '#666' : colors.border}`, background: isArcade ? '#1a1a1a' : colors.bgMuted, color: isArcade ? c.red : '#dc2626', fontWeight: 700, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>
+                    Miss
                   </button>
                   <button onClick={confirmTurn} disabled={current.length === 0}
-                    style={{ flex: 2, height: 36, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : (isArcade ? '#1a1a1a' : colors.bgMuted), color: current.length > 0 ? '#fff' : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed' }}>
+                    style={{ flex: 1, height: 36, borderRadius: 6, border: 'none', background: current.length > 0 ? 'linear-gradient(180deg, #22c55e, #16a34a)' : (isArcade ? '#1a1a1a' : colors.bgMuted), color: current.length > 0 ? '#fff' : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700, fontSize: 14, cursor: current.length > 0 ? 'pointer' : 'not-allowed' }}>
                     OK
                   </button>
                 </div>
