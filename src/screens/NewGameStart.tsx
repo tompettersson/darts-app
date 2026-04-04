@@ -296,7 +296,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     { id: 'feldspiele', label: 'Feldspiele', sub: 'ATB, Capture the Field, Shanghai', icon: <IconBoard /> },
     { id: 'funparty', label: 'Fun & Party', sub: 'Sträußchen, Highscore, Killer & mehr', icon: <IconBouquet /> },
     { id: 'training', label: 'Training', sub: '121 Sprint, Bob\'s 27 & Checkout', icon: <IconTraining /> },
-    { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <IconOnline /> },
   ], [])
 
   const handlePickerConfirm = (index: number) => {
@@ -307,7 +306,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     else if (id === 'feldspiele') setStep('feldspiele')
     else if (id === 'funparty') setStep('funparty')
     else if (id === 'training') setStep('training')
-    else if (id === 'online') setStep('online')
   }
 
   // Preset Picker items (X01 only)
@@ -561,20 +559,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                 </div>
               </button>
 
-              {/* Online spielen */}
-              <button
-                style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.online}` }}
-                onClick={() => setStep('online')}
-                aria-label="Online spielen"
-              >
-                <div style={tileWithIconStyle}>
-                  <div style={iconWrapStyle}><IconOnline /></div>
-                  <div>
-                    <div style={{ ...styles.title, marginBottom: 4 }}>Online spielen</div>
-                    <div style={styles.sub}>Match hosten oder beitreten</div>
-                  </div>
-                </div>
-              </button>
             </div>
           )
         )}
@@ -805,63 +789,6 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
                   <div>
                     <div style={{ ...styles.title, marginBottom: 4 }}>Operation: EFKG</div>
                     <div style={styles.sub}>Ein Feld, keine Gnade</div>
-                  </div>
-                </div>
-              </button>
-            </div>
-          )
-        )}
-
-        {/* Step: Online spielen */}
-        {step === 'online' && (
-          isArcade ? (
-            <div style={{ display: 'grid', gap: 12, width: 'min(480px, 92vw)' }}>
-              <h1 style={titleStyle}>Online spielen</h1>
-              <ArcadeScrollPicker
-                items={onlineItems}
-                selectedIndex={onlinePickerIndex}
-                onChange={setOnlinePickerIndex}
-                onConfirm={handleOnlineConfirm}
-                colors={colors}
-              />
-            </div>
-          ) : (
-            <div style={styles.centerInner}>
-              <h1 style={titleStyle}>Online spielen</h1>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <button
-                  style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.host}` }}
-                  onClick={() => { onMultiplayerHost?.(); setStep('type') }}
-                  aria-label="Match hosten"
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <div style={iconWrapStyle}><IconOnline /></div>
-                    <div style={{ ...styles.title, marginBottom: 4 }}>Match hosten</div>
-                    <div style={styles.sub}>Remote-Spiel erstellen</div>
-                  </div>
-                </button>
-                <button
-                  style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.join}` }}
-                  onClick={() => onMultiplayerJoin?.()}
-                  aria-label="Match beitreten"
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <div style={iconWrapStyle}><IconOnline /></div>
-                    <div style={{ ...styles.title, marginBottom: 4 }}>Match beitreten</div>
-                    <div style={styles.sub}>Code eingeben</div>
-                  </div>
-                </button>
-              </div>
-              <button
-                style={{ ...styles.tile, borderLeft: '4px solid #8b5cf6', marginTop: 8 }}
-                onClick={() => onMultiplayerSpectate?.()}
-                aria-label="Zuschauen"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-                  <span style={{ fontSize: 20 }}>👁</span>
-                  <div>
-                    <div style={{ ...styles.title, marginBottom: 2 }}>Zuschauen</div>
-                    <div style={styles.sub}>Live-Spiel verfolgen</div>
                   </div>
                 </div>
               </button>
