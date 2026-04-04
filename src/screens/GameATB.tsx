@@ -3,6 +3,7 @@
 // Tastatursteuerung: Space=Treffer, S/D/T=Multiplier, 0=Miss
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getATBMatchById,
@@ -165,6 +166,8 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('atb_matches', matchId)) return
             await persistATBEvents(matchId, remote)
             await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

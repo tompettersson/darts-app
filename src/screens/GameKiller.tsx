@@ -6,6 +6,7 @@
 // Letzter Ueberlebender gewinnt.
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import {
   getKillerMatchById,
   persistKillerEvents,
@@ -175,6 +176,8 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('killer_matches', matchId)) return
             await persistKillerEvents(matchId, remote)
             await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
           } catch {}

@@ -4,6 +4,7 @@
 // Tastatursteuerung: S/D/T=Multiplier, 1-9/0=Zahlen, Space/Enter=Bestaetigen, Backspace=Undo
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getCTFMatchById,
@@ -148,6 +149,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('ctf_matches', matchId)) return
             await persistCTFEvents(matchId, remote)
             await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

@@ -2,6 +2,7 @@
 // Spielscreen für Highscore – Erreiche als Erster das Target!
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getHighscoreMatchById,
@@ -116,6 +117,8 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('highscore_matches', matchId)) return
             await persistHighscoreEvents(matchId, remote)
             await finishHighscoreMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

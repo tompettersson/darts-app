@@ -3,6 +3,7 @@
 // Styling komplett via game.css
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { showToast } from '../components/Toast'
 import { useTheme } from '../ThemeProvider'
 import {
@@ -1234,6 +1235,8 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
           // Guest: persist as backup after 5s (in case host disconnected before saving)
           setTimeout(async () => {
             try {
+              // Skip if host already saved
+              if (await isMatchFinishedInDB('x01_matches', matchId)) return
               const startEvt2 = evtsToSave.find((e: any) => e.type === 'MatchStarted') as any
               if (startEvt2) {
                 await ensureX01MatchExistsAsync(

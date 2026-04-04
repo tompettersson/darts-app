@@ -4,6 +4,7 @@
 // Score: Start 27, Treffer +Doppelwert, Fehler -Doppelwert, < 0 = Game Over.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getBobs27MatchById,
@@ -188,6 +189,8 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('bobs27_matches', matchId)) return
             await persistBobs27Events(matchId, remote)
             await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
           } catch {}

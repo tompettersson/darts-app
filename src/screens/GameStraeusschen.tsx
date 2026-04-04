@@ -3,6 +3,7 @@
 // Tastatur: Space=Treffer, 0=Miss, Backspace=Undo, P=Pause, Escape=Exit
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getStrMatchById,
@@ -134,6 +135,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('str_matches', matchId)) return
             await persistStrEvents(matchId, remote)
             await finishStrMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

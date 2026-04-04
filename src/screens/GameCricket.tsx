@@ -1,5 +1,6 @@
 // src/screens/GameCricket.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useTheme } from '../ThemeProvider'
 import {
   applyCricketEvents,
@@ -711,6 +712,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('cricket_matches', matchId)) return
             await persistCricketEvents(matchId, remote)
             await finishCricketMatch(matchId)
           } catch {}

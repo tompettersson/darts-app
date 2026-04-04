@@ -7,6 +7,7 @@
 // Multi-Leg mit Leg-Summary Modal zwischen den Legs.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getOperationMatchById,
@@ -423,6 +424,8 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('operation_matches', matchId)) return
             await persistOperationEvents(matchId, remote)
             await finishOperationMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores, matchFinishedEvt.legWins)
           } catch {}

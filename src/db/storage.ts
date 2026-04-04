@@ -3623,6 +3623,19 @@ export async function dbLoadAllCricketPlayerStats(): Promise<Record<string, any>
 }
 
 // ============================================================================
+// Check if match is already finished in DB (for guest backup-persist skip)
+// ============================================================================
+
+export async function isMatchFinishedInDB(table: string, matchId: string): Promise<boolean> {
+  const ready = await ensureDB()
+  if (!ready) return false
+  try {
+    const rows = await query(`SELECT finished FROM ${table} WHERE id = ?`, [matchId])
+    return rows.length > 0 && (rows[0].finished === 1 || rows[0].finished === true)
+  } catch { return false }
+}
+
+// ============================================================================
 // DB Repair — fix matches with finish events but not marked as finished
 // ============================================================================
 

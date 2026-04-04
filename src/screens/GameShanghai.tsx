@@ -5,6 +5,7 @@
 // Tastatursteuerung: S/D/T=Multiplier, 1-9/0=Zahlen, Space/Enter=Bestaetigen, Backspace=Undo
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { isMatchFinishedInDB } from '../db/storage'
 import { useGameState, useGameColors } from '../hooks/useGameState'
 import {
   getShanghaiMatchById,
@@ -149,6 +150,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         // Guest: persist as backup after 5s (in case host disconnected before saving)
         setTimeout(async () => {
           try {
+            // Skip if host already saved
+            if (await isMatchFinishedInDB('shanghai_matches', matchId)) return
             await persistShanghaiEvents(matchId, remote)
             await finishShanghaiMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}
