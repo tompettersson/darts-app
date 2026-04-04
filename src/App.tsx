@@ -296,6 +296,7 @@ type View =
   | 'settings'
   | 'admin'
   | 'change-password'
+  | 'multiplayer-menu'
   | 'multiplayer-lobby-host'
   | 'multiplayer-lobby-join'
   | 'multiplayer-spectate'
@@ -1738,6 +1739,42 @@ export default function App() {
   }
 
 
+  // MULTIPLAYER MENU (Host / Join / Spectate)
+  if (view === 'multiplayer-menu') {
+    const mpMenuCleanSlate = () => {
+      mpActions.disconnect()
+      setMultiplayerRoomCode(null)
+      setMultiplayerMatchId(null)
+      setMultiplayerRemoteEvents(null)
+      if (auth.user) setMultiplayerMyPlayerId(auth.user.profileId)
+    }
+    return (
+      <div style={{ ...styles.page, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <h2 style={{ margin: 0, fontSize: 22 }}>Online spielen</h2>
+        <div style={{ display: 'grid', gap: 10, width: 'min(400px, 90vw)' }}>
+          <button onClick={() => { mpMenuCleanSlate(); setView('multiplayer-lobby-host') }}
+            style={{ padding: '14px 20px', borderRadius: 10, border: `2px solid ${colors.accent}`, background: colors.bgCard, cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: colors.fg }}>Match hosten</div>
+            <div style={{ fontSize: 13, color: colors.fgMuted, marginTop: 2 }}>Neues Online-Spiel erstellen</div>
+          </button>
+          <button onClick={() => { mpMenuCleanSlate(); setView('multiplayer-lobby-join') }}
+            style={{ padding: '14px 20px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.bgCard, cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: colors.fg }}>Match beitreten</div>
+            <div style={{ fontSize: 13, color: colors.fgMuted, marginTop: 2 }}>Code eingeben</div>
+          </button>
+          <button onClick={() => setView('multiplayer-spectate')}
+            style={{ padding: '14px 20px', borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.bgCard, cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: colors.fg }}>Live zuschauen</div>
+            <div style={{ fontSize: 13, color: colors.fgMuted, marginTop: 2 }}>Laufende Spiele verfolgen</div>
+          </button>
+        </div>
+        <button onClick={() => setView('menu')} style={{ marginTop: 8, padding: '8px 20px', borderRadius: 8, border: `1px solid ${colors.border}`, background: 'transparent', cursor: 'pointer', color: colors.fgMuted, fontSize: 14 }}>
+          ← Zurück
+        </button>
+      </div>
+    )
+  }
+
   // MULTIPLAYER LOBBY (Host)
   if (view === 'multiplayer-lobby-host') {
     return (
@@ -2734,12 +2771,7 @@ export default function App() {
     if (itemId === 'continue') handleContinueGame()
     else if (itemId === 'online') {
       if (!auth.user || auth.isGuest) { showToast('Bitte zuerst anmelden'); return }
-      mpActions.disconnect()
-      setMultiplayerRoomCode(null)
-      setMultiplayerMatchId(null)
-      setMultiplayerRemoteEvents(null)
-      setMultiplayerMyPlayerId(auth.user.profileId)
-      setView('multiplayer-lobby-host')
+      setView('multiplayer-menu')
     }
     else setView(itemId as View)
   }
@@ -2827,12 +2859,7 @@ export default function App() {
                 {/* ONLINE SPIELEN */}
                 <button ref={el => { menuBtnRefs.current[2] = el }} onClick={() => {
                   if (!auth.user || auth.isGuest) { showToast('Bitte zuerst anmelden'); return }
-                  mpActions.disconnect()
-                  setMultiplayerRoomCode(null)
-                  setMultiplayerMatchId(null)
-                  setMultiplayerRemoteEvents(null)
-                  setMultiplayerMyPlayerId(auth.user.profileId)
-                  setView('multiplayer-lobby-host')
+                  setView('multiplayer-menu')
                 }} style={menuTileStyle(menuAccentColors.online)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconOnline /></div>
                   <div>
