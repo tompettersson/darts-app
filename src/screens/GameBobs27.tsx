@@ -255,17 +255,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     }
   }, [activePlayer, activePlayerState, currentTarget, state.finished, gamePaused, matchEndDelay, state.match])
 
-  if (!storedMatch || !state.match) {
-    return (
-      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          Zurueck
-        </button>
-      </div>
-    )
-  }
-
   // Wurf aufnehmen (HIT oder MISS)
   const doThrow = useCallback((hit: boolean) => {
     if (gamePaused || state.finished || matchEndDelay) return
@@ -422,6 +411,17 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     }
     return result
   }, [players, state.currentPlayerIndex, isMulti])
+
+  if (!storedMatch || !state.match) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright }}>

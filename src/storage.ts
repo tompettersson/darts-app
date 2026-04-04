@@ -634,28 +634,103 @@ export function ensureCricketMatchExists(matchId: string, events: any[], playerI
 }
 
 export function ensureATBMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getATBMatches, saveATBMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getATBMatches, saveATBMatches,
+    (stub) => {
+      dbSaveATBMatch({
+        id: stub.id, title: 'Around the Board – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        mode: '', direction: '', players: [], events: e,
+      }).catch(err => trackDBError('atb-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureStrMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getStrMatches, saveStrMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getStrMatches, saveStrMatches,
+    (stub) => {
+      dbSaveStrMatch({
+        id: stub.id, title: 'Sträußchen – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        mode: '', targetNumber: null, numberOrder: null, turnOrder: null,
+        ringMode: null, bullMode: null, bullPosition: null,
+        players: [], events: e,
+      }).catch(err => trackDBError('str-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureHighscoreMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getHighscoreMatches, saveHighscoreMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getHighscoreMatches, saveHighscoreMatches,
+    (stub) => {
+      dbSaveHighscoreMatch({
+        id: stub.id, title: 'Highscore – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        targetScore: 0, players: [], events: e,
+      }).catch(err => trackDBError('highscore-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureCTFMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getCTFMatches, saveCTFMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getCTFMatches, saveCTFMatches,
+    (stub) => {
+      dbSaveCTFMatch({
+        id: stub.id, title: 'Capture the Field – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        players: [], events: e,
+      }).catch(err => trackDBError('ctf-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureShanghaiMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getShanghaiMatches, saveShanghaiMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getShanghaiMatches, saveShanghaiMatches,
+    (stub) => {
+      dbSaveShanghaiMatch({
+        id: stub.id, title: 'Shanghai – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        players: [], events: e,
+      }).catch(err => trackDBError('shanghai-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureKillerMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getKillerMatches, saveKillerMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getKillerMatches, saveKillerMatches,
+    (stub) => {
+      dbSaveKillerMatch({
+        id: stub.id, title: 'Killer – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        players: [], events: e,
+      }).catch(err => trackDBError('killer-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureBobs27MatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getBobs27Matches, saveBobs27Matches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getBobs27Matches, saveBobs27Matches,
+    (stub) => {
+      dbSaveBobs27Match({
+        id: stub.id, title: "Bob's 27 – Multiplayer",
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        players: [], events: e,
+      }).catch(err => trackDBError('bobs27-mp-ensure', m, err))
+    },
+  )
 }
 export function ensureOperationMatchExists(m: string, e: any[], p: string[]) {
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getOperationMatches, saveOperationMatches)
+  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getOperationMatches, saveOperationMatches,
+    (stub) => {
+      dbSaveOperationMatch({
+        id: stub.id, title: 'Operation – Multiplayer',
+        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
+        durationMs: null, winnerId: null, winnerDarts: null,
+        legsCount: 1, targetMode: 'random',
+        players: [], events: e, config: {},
+      }).catch(err => trackDBError('operation-mp-ensure', m, err))
+    },
+  )
 }
 
 // SQLite-aware Matches laden
@@ -3760,7 +3835,7 @@ export function finishCTFMatch(
       try {
         await dbSaveCTFMatch({
           id: match.id,
-          title: match.title,
+          title: match.title || 'Capture the Field – Multiplayer',
           createdAt: match.createdAt,
           finished: true,
           finishedAt: match.finishedAt ?? null,
@@ -3951,7 +4026,7 @@ export function finishShanghaiMatch(
       try {
         await dbSaveShanghaiMatch({
           id: match.id,
-          title: match.title,
+          title: match.title || 'Shanghai – Multiplayer',
           createdAt: match.createdAt,
           finished: true,
           finishedAt: match.finishedAt ?? null,
@@ -4297,7 +4372,7 @@ export function finishBobs27Match(
       try {
         await dbSaveBobs27Match({
           id: match.id,
-          title: match.title,
+          title: match.title || "Bob's 27 – Multiplayer",
           createdAt: match.createdAt,
           finished: true,
           finishedAt: match.finishedAt ?? null,
@@ -4566,7 +4641,7 @@ export function finishOperationMatch(
       try {
         await dbSaveOperationMatch({
           id: match.id,
-          title: match.title,
+          title: match.title || 'Operation – Multiplayer',
           createdAt: match.createdAt,
           finished: true,
           finishedAt: match.finishedAt ?? null,

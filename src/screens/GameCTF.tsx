@@ -254,17 +254,6 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     }
   }, [activePlayerId, activePlayer, state.finished])
 
-  if (!storedMatch || !state.match) {
-    return (
-      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          Zurueck
-        </button>
-      </div>
-    )
-  }
-
   // Aktuelles Ziel-Nummer (fuer Dartboard-Highlighting)
   const currentTargetNumber = currentTarget?.number ?? null
 
@@ -645,9 +634,9 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
   }, [state.match?.players, profiles])
 
   // Farbe des aktiven Spielers fuer Zielfeld-Highlight
-  const activePlayerIndex = state.match.players.findIndex(p => p.playerId === activePlayerId)
+  const activePlayerIndex = (state.match?.players ?? []).findIndex(p => p.playerId === activePlayerId)
   const activePlayerColor = activePlayerIndex >= 0
-    ? playerColors[state.match.players[activePlayerIndex].playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length]
+    ? playerColors[(state.match?.players ?? [])[activePlayerIndex]?.playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length]
     : undefined
 
   // Spielerfarben-Hintergrund Einstellung
@@ -725,6 +714,17 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     })),
     [players, playerColors]
   )
+
+  if (!storedMatch || !state.match) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div

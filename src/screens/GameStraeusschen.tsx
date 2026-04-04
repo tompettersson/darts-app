@@ -430,7 +430,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
       <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
         <p>Match nicht gefunden.</p>
         <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          ← Zurück
+          Zurueck
         </button>
       </div>
     )

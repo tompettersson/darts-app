@@ -290,17 +290,6 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     })
   }, [activePlayerId, muted, gamePaused, intermission, state.phase, players, playerNames, config.qualifyingRing])
 
-  if (!storedMatch) {
-    return (
-      <div style={{ background: '#181c20', minHeight: '100dvh', color: '#e5e7eb', padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onAbort} style={{ color: '#e5e7eb', background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          Zurueck
-        </button>
-      </div>
-    )
-  }
-
   // Dart hinzufuegen
   const addDart = useCallback((dartTarget: number) => {
     if (gamePaused) return
@@ -690,6 +679,17 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     }
     return colorMap
   }, [players, profiles, state.playerOrder])
+
+  if (!storedMatch) {
+    return (
+      <div style={{ background: '#181c20', minHeight: '100dvh', color: '#e5e7eb', padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onAbort} style={{ color: '#e5e7eb', background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
+  }
 
   // Aktiver Spieler-Info
   const activePs = players.find(p => p.playerId === activePlayerId)

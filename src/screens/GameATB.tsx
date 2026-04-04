@@ -270,21 +270,10 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     }
   }, [activePlayerId, activePlayer, state.finished, state.match?.sequence, state.match?.extendedSequence, state.currentIndexByPlayer])
 
-  if (!storedMatch || !state.match) {
-    return (
-      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          ← Zurück
-        </button>
-      </div>
-    )
-  }
-
   // Konfiguration und Sequenzen
-  const config = state.match.config ?? DEFAULT_ATB_CONFIG
-  const extSeq = state.match.extendedSequence
-  const totalFields = extSeq ? extSeq.length : state.match.sequence.length
+  const config = state.match?.config ?? DEFAULT_ATB_CONFIG
+  const extSeq = state.match?.extendedSequence
+  const totalFields = extSeq ? extSeq.length : (state.match?.sequence.length ?? 0)
 
   // Preview-Index basierend auf aktuellen Würfen
   const getPreviewIndex = (playerId: string): number => {
@@ -669,7 +658,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   }, [state.match?.players, profiles])
 
   // Spieler-Daten für Dartboard
-  const dartboardPlayers = state.match.players.map((p, index) => ({
+  const dartboardPlayers = (state.match?.players ?? []).map((p, index) => ({
     playerId: p.playerId,
     name: p.name,
     target: getPreviewTargetNumber(p.playerId),
@@ -678,9 +667,9 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   }))
 
   // Farbe des aktiven Spielers für Zielfeld-Highlight
-  const activePlayerIndex = state.match.players.findIndex(p => p.playerId === activePlayerId)
+  const activePlayerIndex = (state.match?.players ?? []).findIndex(p => p.playerId === activePlayerId)
   const activePlayerColor = activePlayerIndex >= 0
-    ? playerColors[state.match.players[activePlayerIndex].playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length]
+    ? playerColors[(state.match?.players ?? [])[activePlayerIndex]?.playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length]
     : undefined
 
   // Spielerfarben-Hintergrund Einstellung
@@ -734,6 +723,17 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     if (dart.target === 'BULL') return dart.mult === 2 ? 'DBull' : 'Bull'
     const prefix = dart.mult === 3 ? 'T' : dart.mult === 2 ? 'D' : 'S'
     return `${prefix}${dart.target}`
+  }
+
+  if (!storedMatch || !state.match) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
   }
 
   return (

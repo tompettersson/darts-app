@@ -462,17 +462,6 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     }
   }, [currentLeg?.isComplete, state.isComplete, showLegSummary, matchEndDelay]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!storedMatch || !state.match) {
-    return (
-      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          Zurueck
-        </button>
-      </div>
-    )
-  }
-
   // Dart aufnehmen
   const recordDart = useCallback((hitType: HitType) => {
     if (gamePaused || state.isComplete || matchEndDelay || showLegSummary) return
@@ -809,6 +798,17 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
       ? { animation: 'hitGreen 0.4s ease-out' }
       : { animation: 'missShake 0.4s ease-out' }
     : {}
+
+  if (!storedMatch || !state.match) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{

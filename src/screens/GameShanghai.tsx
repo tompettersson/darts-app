@@ -229,17 +229,6 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     }
   }, [activePlayerId, activePlayer, state.finished, gamePaused, intermission, currentRound, targetNumber])
 
-  if (!storedMatch || !state.match) {
-    return (
-      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          Zurueck
-        </button>
-      </div>
-    )
-  }
-
   // Dart hinzufuegen (Treffer auf eine bestimmte Zahl)
   const addDart = useCallback((dartTarget: number) => {
     if (gamePaused) return
@@ -586,9 +575,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   }, [state.match?.players, profiles])
 
   // Farbe des aktiven Spielers fuer Zielfeld-Highlight
-  const activePlayerIndex = state.match.players.findIndex(p => p.playerId === activePlayerId)
+  const activePlayerIndex = (state.match?.players ?? []).findIndex(p => p.playerId === activePlayerId)
   const activePlayerColor = activePlayerIndex >= 0
-    ? playerColors[state.match.players[activePlayerIndex].playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length]
+    ? playerColors[(state.match?.players ?? [])[activePlayerIndex]?.playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length]
     : undefined
 
   // Spielerfarben-Hintergrund Einstellung
@@ -605,6 +594,17 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
       isActive: true,
     }]
   }, [activePlayerId, activePlayer, targetNumber, activePlayerColor])
+
+  if (!storedMatch || !state.match) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div
