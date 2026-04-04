@@ -2732,7 +2732,15 @@ export default function App() {
   const handleMenuConfirm = (index: number) => {
     const itemId = menuItems[index].id
     if (itemId === 'continue') handleContinueGame()
-    else if (itemId === 'online') { setStartOnlineStep(true); setView('new-start' as View) }
+    else if (itemId === 'online') {
+      if (!auth.user || auth.isGuest) { showToast('Bitte zuerst anmelden'); return }
+      mpActions.disconnect()
+      setMultiplayerRoomCode(null)
+      setMultiplayerMatchId(null)
+      setMultiplayerRemoteEvents(null)
+      setMultiplayerMyPlayerId(auth.user.profileId)
+      setView('multiplayer-lobby-host')
+    }
     else setView(itemId as View)
   }
 
@@ -2817,7 +2825,15 @@ export default function App() {
                 </button>
 
                 {/* ONLINE SPIELEN */}
-                <button ref={el => { menuBtnRefs.current[2] = el }} onClick={() => { setStartOnlineStep(true); setView('new-start') }} style={menuTileStyle(menuAccentColors.online)}>
+                <button ref={el => { menuBtnRefs.current[2] = el }} onClick={() => {
+                  if (!auth.user || auth.isGuest) { showToast('Bitte zuerst anmelden'); return }
+                  mpActions.disconnect()
+                  setMultiplayerRoomCode(null)
+                  setMultiplayerMatchId(null)
+                  setMultiplayerRemoteEvents(null)
+                  setMultiplayerMyPlayerId(auth.user.profileId)
+                  setView('multiplayer-lobby-host')
+                }} style={menuTileStyle(menuAccentColors.online)}>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><MenuIconOnline /></div>
                   <div>
                     <div style={styles.title}>Online spielen</div>
