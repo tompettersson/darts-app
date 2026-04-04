@@ -541,6 +541,38 @@ export default function App() {
     },
   )
 
+  // Guest auto-start: when phase changes to 'playing' and events arrive, navigate to game
+  useEffect(() => {
+    if (view !== 'multiplayer-lobby-join') return
+    if (mpState.phase !== 'playing') return
+    if (mpState.events.length === 0) return // Wait for events to arrive
+
+    const firstEvent = mpState.events[0] as any
+    const matchId = firstEvent?.matchId
+    if (!matchId) return
+
+    const config = mpState.gameConfig
+    const gameType = config?.gameType || (() => {
+      const eventType: string = firstEvent?.type ?? ''
+      if (eventType.startsWith('Cricket')) return 'cricket'
+      if (eventType.startsWith('ATB')) return 'atb'
+      if (eventType.startsWith('CTF')) return 'ctf'
+      if (eventType.startsWith('Str')) return 'str'
+      if (eventType.startsWith('Shanghai')) return 'shanghai'
+      if (eventType.startsWith('Killer')) return 'killer'
+      if (eventType.startsWith('Bobs27')) return 'bobs27'
+      if (eventType.startsWith('Operation')) return 'operation'
+      if (eventType.startsWith('Highscore')) return 'highscore'
+      return 'x01'
+    })()
+
+    setMultiplayerMatchId(matchId)
+    setMultiplayerGameType(gameType)
+    setMultiplayerRemoteEvents(mpState.events)
+    setActiveMatchId(matchId)
+    setView('multiplayer-game')
+  }, [view, mpState.phase, mpState.events, mpState.gameConfig]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Helper: clean up multiplayer state when leaving a summary screen that was reached from MP
   const mpSummaryDisconnect = () => {
     if (multiplayerSummaryActive) {
@@ -2010,25 +2042,7 @@ export default function App() {
         onSetPlayerOrder={() => {}}
         onReady={(pid) => mpActions.playerReady(pid)}
         onStartGame={() => {
-          // Get matchId from received events
-          const firstEvent = mpState.events[0] as any
-          const matchId = firstEvent?.matchId
-          if (!matchId) return
-
-          // Detect game type from config or events
-          const config = mpState.gameConfig
-          const gameType = config?.gameType || (() => {
-            const eventType: string = firstEvent?.type ?? ''
-            if (eventType.startsWith('Cricket')) return 'cricket'
-            if (eventType.startsWith('ATB')) return 'atb'
-            return 'x01'
-          })()
-
-          setMultiplayerMatchId(matchId)
-          setMultiplayerGameType(gameType)
-          setMultiplayerRemoteEvents(mpState.events)
-          setActiveMatchId(matchId)
-          setView('multiplayer-game')
+          // Handled by useEffect below (guestAutoStart) — events may not be available yet
         }}
         onBack={() => {
           mpActions.disconnect()
