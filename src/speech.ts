@@ -223,25 +223,36 @@ export function initSpeech() {
 }
 
 /**
- * Spricht Text mit Web Speech API. Bricht aktuelle Ansage ab und ersetzt sie.
+ * Spricht Text mit Web Speech API.
+ * - Wenn nichts spricht → sofort abspielen
+ * - Wenn etwas spricht aber Queue leer → einreihen (aktuelle Ansage zu Ende sprechen)
+ * - Wenn Queue schon voll (≥2 wartend) → altes abbrechen, nur neuestes behalten
  */
 let pendingSpeechTimer: ReturnType<typeof setTimeout> | null = null
 
 export async function speak(text: string, options?: { pitch?: number; rate?: number; volume?: number }) {
   if (!enabled) return
 
-  // Cancel any pending queued speech
   if (pendingSpeechTimer) {
     clearTimeout(pendingSpeechTimer)
     pendingSpeechTimer = null
   }
 
-  // If currently speaking, cancel and replace immediately
-  if (typeof speechSynthesis !== 'undefined') {
-    speechSynthesis.cancel()
+  if (!isSpeaking) {
+    // Nothing playing → speak immediately
+    speakWebSpeechFallback(text, options)
+  } else if (speechQueue.length === 0) {
+    // Something playing but queue empty → let it finish, then play this
+    speakWebSpeechFallback(text, options)
+  } else {
+    // Queue already has items → drop the queue, keep only this new one
+    speechQueue.length = 0
+    if (typeof speechSynthesis !== 'undefined') {
+      speechSynthesis.cancel()
+      isSpeaking = false
+    }
+    speakWebSpeechFallback(text, options)
   }
-
-  speakWebSpeechFallback(text, options)
 }
 
 /**
