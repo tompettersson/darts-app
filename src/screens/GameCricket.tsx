@@ -1129,6 +1129,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }, [activeId, multiplayer?.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== Keyboard Shortcuts =====
+  // Ensure document has focus so keydown events are captured immediately
+  useEffect(() => { document.body.focus() }, [])
+
   const currentActiveTargetRef = useRef(currentActiveTarget)
   currentActiveTargetRef.current = currentActiveTarget
   const numBuf = useRef('')

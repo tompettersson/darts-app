@@ -1307,6 +1307,9 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
     }
   }, [activePlayerId, multiplayer?.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ensure document has focus so keydown events are captured immediately
+  useEffect(() => { document.body.focus() }, [])
+
   // Keyboard Handler: P für Pause, Backspace für Undo
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
