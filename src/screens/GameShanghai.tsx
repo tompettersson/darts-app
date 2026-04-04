@@ -93,6 +93,16 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   // Shared theme colors
   const { c, isArcade, colors } = useGameColors()
 
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 600)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 599px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const [storedMatch, setStoredMatch] = useState(() => getShanghaiMatchById(matchId))
   const [events, setEvents] = useState<ShanghaiEvent[]>(storedMatch?.events ?? [])
 
@@ -684,10 +694,10 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         title={`Shanghai${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
-      {/* Info-Leiste */}
+      {/* Info-Leiste (hidden on mobile — info shown in mobile round bar) */}
       <div
         style={{
-          display: 'flex',
+          display: isMobile ? 'none' : 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           gap: 12,
@@ -771,7 +781,303 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content — Mobile */}
+      {isMobile ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 8px 8px' }}>
+          {/* Round info + active player bar */}
+          {activePlayer && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 10px',
+                background: c.cardBg,
+                borderRadius: 10,
+                border: '1px solid #222',
+                marginBottom: 6,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    fontSize: 36,
+                    fontWeight: 800,
+                    color: c.ledOn,
+                    textShadow: `0 0 18px ${c.ledGlow}`,
+                    lineHeight: 1,
+                    minWidth: 44,
+                    textAlign: 'center',
+                  }}
+                >
+                  {targetNumber}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: c.textDim }}>Feld {targetNumber} {'\u00b7'} Runde {currentRound}/20</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: activePlayerColor ?? c.textBright }}>
+                    {activePlayer.name}
+                    <span style={{ fontWeight: 500, color: c.yellow, marginLeft: 6, fontSize: 13 }}>
+                      {shanghaiState.scoreByPlayer[activePlayerId!] ?? 0} Pkt
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {/* Timer compact */}
+              <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: c.ledOn }}>
+                {formatDuration(elapsedMs)}
+              </div>
+            </div>
+          )}
+
+          {/* Dart Slots */}
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 6 }}>
+            {[0, 1, 2].map(i => {
+              const dart = current[i]
+              return (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    maxWidth: 90,
+                    height: 34,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: dart ? '#1c1c1c' : '#0a0a0a',
+                    border: dart ? `2px solid ${c.ledOn}` : '1px solid #333',
+                    borderRadius: 6,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: dart ? c.ledOn : c.textDim,
+                  }}
+                >
+                  {dart ? formatDart(dart) : '\u2014'}
+                </div>
+              )
+            })}
+            {/* Round score for current darts */}
+            {current.length > 0 && (
+              <div
+                style={{
+                  height: 34,
+                  display: 'flex',
+                  alignItems: 'center',
+                  paddingLeft: 6,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: c.yellow,
+                }}
+              >
+                = {current.reduce((sum, d) => sum + (d.target === 'MISS' ? 0 : d.target * d.mult), 0)}
+              </div>
+            )}
+          </div>
+
+          {/* Number Pad 4x5 */}
+          <div
+            style={{
+              background: c.cardBg,
+              borderRadius: 10,
+              padding: '8px 6px',
+              border: '1px solid #222',
+              marginBottom: 6,
+            }}
+          >
+            {NUMBER_PAD.map((row, rowIdx) => (
+              <div key={rowIdx} style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 4 }}>
+                {row.map(num => {
+                  const isCurrentTarget = targetNumber === num
+                  return (
+                    <button
+                      key={num}
+                      onClick={() => addDart(num)}
+                      disabled={current.length >= 3}
+                      style={{
+                        flex: 1,
+                        maxWidth: 60,
+                        height: 40,
+                        borderRadius: 6,
+                        border: isCurrentTarget ? `2px solid ${c.ledOn}` : '1px solid #333',
+                        background: isCurrentTarget ? '#1a2a3a' : '#1a1a1a',
+                        color: isCurrentTarget ? c.ledOn : c.textBright,
+                        fontWeight: isCurrentTarget ? 800 : 600,
+                        fontSize: 15,
+                        cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+                        opacity: current.length >= 3 ? 0.5 : 1,
+                        boxShadow: isCurrentTarget ? `0 0 10px ${c.ledGlow}` : 'none',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {num}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+
+            {/* S / D / T / Miss row */}
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 4 }}>
+              {([1, 2, 3] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setMult(m)}
+                  style={{
+                    flex: 1,
+                    maxWidth: 60,
+                    height: 40,
+                    borderRadius: 6,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#1a1a1a',
+                    color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : c.textDim,
+                    border: mult === m ? `2px solid ${m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444'}` : '1px solid #333',
+                    boxShadow: mult === m ? `0 0 12px ${m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444'}50` : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
+                </button>
+              ))}
+              <button
+                onClick={addMiss}
+                disabled={current.length >= 3}
+                style={{
+                  flex: 2,
+                  maxWidth: 124,
+                  height: 40,
+                  borderRadius: 6,
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: c.red,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+                  opacity: current.length >= 3 ? 0.5 : 1,
+                  transition: 'all 0.15s',
+                }}
+              >
+                Miss
+              </button>
+            </div>
+
+            {/* Undo / Remove dart / Confirm row */}
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 6 }}>
+              <button
+                onClick={undoLastTurn}
+                disabled={!canUndo}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  borderRadius: 6,
+                  border: canUndo ? '1px solid #666' : '1px solid #333',
+                  background: canUndo ? '#2a2a2a' : '#1a1a1a',
+                  color: canUndo ? c.textBright : c.textDim,
+                  cursor: canUndo ? 'pointer' : 'not-allowed',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  opacity: canUndo ? 1 : 0.4,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {'\u21B6'} Undo
+              </button>
+              <button
+                onClick={() => setCurrent(prev => prev.slice(0, -1))}
+                disabled={current.length === 0}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  borderRadius: 6,
+                  border: '1px solid #333',
+                  background: '#1a1a1a',
+                  color: current.length > 0 ? c.textBright : c.textDim,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: current.length > 0 ? 'pointer' : 'not-allowed',
+                  opacity: current.length > 0 ? 1 : 0.4,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {'\u2014'} Dart
+              </button>
+              <button
+                onClick={confirmTurn}
+                disabled={current.length === 0}
+                style={{
+                  flex: 2,
+                  height: 40,
+                  borderRadius: 6,
+                  border: 'none',
+                  background: current.length > 0
+                    ? 'linear-gradient(180deg, #22c55e, #16a34a)'
+                    : '#1a1a1a',
+                  color: current.length > 0 ? '#fff' : c.textDim,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: current.length > 0 ? 'pointer' : 'not-allowed',
+                  boxShadow: current.length > 0 ? '0 2px 10px rgba(34, 197, 94, 0.3)' : 'none',
+                  transition: 'all 0.15s',
+                }}
+              >
+                Bestaetigen
+              </button>
+            </div>
+          </div>
+
+          {/* Player scores — compact horizontal */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              padding: '8px 6px',
+              background: c.cardBg,
+              borderRadius: 10,
+              border: '1px solid #222',
+            }}
+          >
+            {players.map((p, index) => {
+              const isActive = p.playerId === activePlayerId
+              const color = playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length]
+              const totalScore = shanghaiState.scoreByPlayer[p.playerId] ?? 0
+              const hasThrownThisRound = shanghaiState.playersCompletedThisRound.includes(p.playerId)
+              const roundTurn = shanghaiState.currentRoundTurns[p.playerId]
+              const roundScore = roundTurn?.score ?? 0
+
+              return (
+                <div
+                  key={p.playerId}
+                  style={{
+                    flex: '1 1 calc(50% - 6px)',
+                    minWidth: 120,
+                    padding: '6px 8px',
+                    borderRadius: 6,
+                    background: isActive ? '#1a1a1a' : 'transparent',
+                    borderLeft: `3px solid ${color}`,
+                    boxShadow: isActive ? `0 0 12px ${color}30` : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: isActive ? 700 : 500, fontSize: 13, color: isActive ? color : c.textBright }}>
+                      {p.name}
+                    </span>
+                    <span style={{ fontSize: 18, color: c.yellow, fontWeight: 800 }}>
+                      {totalScore}
+                    </span>
+                  </div>
+                  {hasThrownThisRound && (
+                    <div style={{ fontSize: 10, color: roundScore > 0 ? c.green : c.red }}>
+                      +{roundScore} (R{currentRound})
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+      /* Main Content — Desktop (unchanged) */
       <div
         style={{
           flex: 1,
@@ -1105,9 +1411,10 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
           </div>
         </div>
       </div>
+      )}
 
-      {/* Trefferwerte-Diagramm */}
-      {currentRound > 1 && (
+      {/* Trefferwerte-Diagramm (hidden on mobile) */}
+      {!isMobile && currentRound > 1 && (
         <div style={{ padding: '0 20px 16px' }}>
           <ShanghaiHitChart
             events={events}
