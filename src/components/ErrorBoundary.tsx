@@ -8,12 +8,15 @@ interface Props {
 interface State {
   hasError: boolean
   error: Error | null
+  retryCount: number
 }
 
-export default class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { hasError: false, error: null }
+const MAX_AUTO_RETRIES = 3
 
-  static getDerivedStateFromError(error: Error): State {
+export default class ErrorBoundary extends React.Component<Props, State> {
+  state: State = { hasError: false, error: null, retryCount: 0 }
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error }
   }
 
@@ -21,12 +24,17 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     console.error('[ErrorBoundary]', error, info.componentStack)
     logError(error, 'ErrorBoundary')
 
-    // Auto-recover from transient React render errors (e.g. orientation change race conditions)
-    if (error.message?.includes('310') ||
-        error.message?.includes('Objects are not valid as a React child') ||
-        error.message?.includes('Minified React error')) {
-      console.warn('[ErrorBoundary] Transient React error — auto-recovering...')
-      setTimeout(() => this.setState({ hasError: false, error: null }), 100)
+    // Auto-recover from transient React render errors (e.g. data not loaded yet)
+    const isTransient =
+      error.message?.includes('310') ||
+      error.message?.includes('Minified React error') ||
+      error.message?.includes('Cannot read properties of undefined') ||
+      error.message?.includes('Cannot read properties of null') ||
+      error.message?.includes('Objects are not valid as a React child')
+
+    if (isTransient && this.state.retryCount < MAX_AUTO_RETRIES) {
+      console.warn(`[ErrorBoundary] Transient error — auto-retry ${this.state.retryCount + 1}/${MAX_AUTO_RETRIES}`)
+      setTimeout(() => this.setState(s => ({ hasError: false, error: null, retryCount: s.retryCount + 1 })), 200)
       return
     }
 
@@ -34,20 +42,22 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     if (error.message?.includes('Failed to fetch dynamically imported module') ||
         error.message?.includes('Loading chunk') ||
         error.message?.includes('Loading CSS chunk')) {
-      // Clear all caches and reload
       if ('caches' in window) {
         caches.keys().then(names => names.forEach(name => caches.delete(name)))
       }
       navigator.serviceWorker?.getRegistrations().then(regs =>
         regs.forEach(r => r.unregister())
       )
-      // Small delay to let cache clearing finish, then reload
       setTimeout(() => window.location.reload(), 300)
     }
   }
 
   render() {
     if (this.state.hasError) {
+      // During auto-retry, show nothing (avoid error flash)
+      if (this.state.retryCount < MAX_AUTO_RETRIES) {
+        return null
+      }
       return (
         <div style={{
           padding: 32,
@@ -66,7 +76,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           </p>
           <button
             onClick={() => {
-              this.setState({ hasError: false, error: null })
+              this.setState({ hasError: false, error: null, retryCount: 0 })
               window.location.reload()
             }}
             style={{
