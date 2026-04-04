@@ -64,13 +64,15 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
   }
 
   async function handleCreateProfile() {
-    if (!createName.trim() || !createPw) return
+    if (!createName.trim()) return
     setCreateBusy(true)
     setCreateError('')
     try {
-      const result = await createProfileWithPassword(createName.trim(), createPw)
+      // Default password: Name + "1" (can be changed in settings)
+      const defaultPw = createName.trim() + '1'
+      const result = await createProfileWithPassword(createName.trim(), defaultPw)
       if (result.success) {
-        showToast(`Profil "${result.name}" erstellt`)
+        showToast(`Profil "${result.name}" erstellt (Passwort: ${defaultPw})`)
         setCreateName('')
         setCreatePw('')
         await loadProfiles()
@@ -149,24 +151,21 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
       {/* Create new profile */}
       <div style={s.card}>
         <div style={s.cardTitle}>Neues Profil erstellen</div>
+        <div style={{ fontSize: 12, color: colors.fgMuted, marginBottom: 6 }}>
+          Passwort wird automatisch auf Name+1 gesetzt (z.B. "Tim1")
+        </div>
         <div style={s.inputRow}>
           <input
             value={createName}
             onChange={e => setCreateName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreateProfile() }}
             placeholder="Name"
-            style={s.input}
-          />
-          <input
-            type="password"
-            value={createPw}
-            onChange={e => setCreatePw(e.target.value)}
-            placeholder="Passwort"
             style={s.input}
           />
           <button
             style={s.btnPrimary}
             onClick={handleCreateProfile}
-            disabled={createBusy || !createName.trim() || !createPw}
+            disabled={createBusy || !createName.trim()}
           >
             {createBusy ? '...' : 'Profil erstellen'}
           </button>
