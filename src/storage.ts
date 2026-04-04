@@ -1988,7 +1988,7 @@ export function finishCricketMatch(
       try {
         await dbSaveCricketMatch({
           id: matchData.id,
-          title: matchData.title,
+          title: matchData.title || 'Cricket – Multiplayer',
           matchName: matchData.matchName ?? null,
           notes: matchData.notes ?? null,
           createdAt: matchData.createdAt,

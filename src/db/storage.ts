@@ -3100,12 +3100,11 @@ export async function dbSaveX01PlayerStats(stats: {
     ]
   )
 
-  // Finishing doubles
-  await exec('DELETE FROM x01_finishing_doubles WHERE player_id = ?', [stats.playerId])
+  // Finishing doubles — use upsert to avoid duplicate key errors from concurrent writes
   for (const [field, count] of Object.entries(stats.finishingDoubles)) {
     if (count > 0) {
       await exec(
-        'INSERT INTO x01_finishing_doubles (player_id, double_field, count) VALUES (?, ?, ?)',
+        'INSERT INTO x01_finishing_doubles (player_id, double_field, count) VALUES (?, ?, ?) ON CONFLICT (player_id, double_field) DO UPDATE SET count = EXCLUDED.count',
         [stats.playerId, field, count]
       )
     }
