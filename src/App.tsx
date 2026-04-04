@@ -1794,7 +1794,9 @@ export default function App() {
 
           const players = orderedPlayerList.map(p => ({ playerId: p.playerId, name: p.name }))
           const starter = orderedPlayerList[0].playerId
-          const legs = config.bestOfLegs || 1
+          // config.bestOfLegs is "First to X" value from lobby — convert to "Best of" for game engine
+          const firstTo = config.bestOfLegs || 1
+          const legs = firstTo === 1 ? 1 : firstTo * 2 - 1 // FT1→1, FT2→3, FT3→5, FT4→7, FT5→9
 
           switch (config.gameType) {
             case 'x01': {

@@ -99,9 +99,9 @@ function X01Config({ config, onChange }: { config: GameConfig; onChange: (c: Gam
       </div>
       <label style={{ fontWeight: 600, fontSize: 13 }}>Legs</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {[1, 2, 3, 5, 7].map(n => (
+        {[1, 2, 3, 4, 5].map(n => (
           <button key={n} onClick={() => onChange({ ...config, bestOfLegs: n, structureKind: 'legs' })}
-            style={pillStyle(config.bestOfLegs === n && config.structureKind === 'legs')}>First to {n}</button>
+            style={pillStyle(config.bestOfLegs === n && config.structureKind === 'legs')}>FT{n}</button>
         ))}
       </div>
     </div>
@@ -139,9 +139,9 @@ function CricketConfig({ config, onChange }: { config: GameConfig; onChange: (c:
       </div>
       <label style={{ fontWeight: 600, fontSize: 13 }}>Legs</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {[1, 2, 3, 5].map(n => (
+        {[1, 2, 3, 4, 5].map(n => (
           <button key={n} onClick={() => onChange({ ...config, cricketLegs: n })}
-            style={pillStyle(config.cricketLegs === n)}>First to {n}</button>
+            style={pillStyle(config.cricketLegs === n)}>FT{n}</button>
         ))}
       </div>
     </div>
@@ -155,9 +155,9 @@ function SimpleLegsConfig({ config, onChange, label }: { config: GameConfig; onC
     <div style={{ display: 'grid', gap: 10 }}>
       <label style={{ fontWeight: 600, fontSize: 13 }}>{label || 'Legs'}</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {[1, 3, 5, 7].map(n => (
+        {[1, 2, 3, 4, 5].map(n => (
           <button key={n} onClick={() => onChange({ ...config, bestOfLegs: n })}
-            style={pillStyle(config.bestOfLegs === n)}>First to {Math.ceil(n / 2)}</button>
+            style={pillStyle(config.bestOfLegs === n)}>FT{n}</button>
         ))}
       </div>
     </div>
@@ -183,13 +183,13 @@ function configSummary(config: GameConfig | null): string {
   if (config.gameType === 'x01') {
     summary += ` ${config.startScore || 501}`
     if (config.outRule) summary += ` ${config.outRule}`
-    if (config.bestOfLegs) summary += ` · Bo${config.bestOfLegs}`
+    if (config.bestOfLegs) summary += ` · FT${config.bestOfLegs}`
   } else if (config.gameType === 'cricket') {
     summary += ` ${config.cricketRange === 'long' ? 'Long' : 'Short'}`
     if (config.cricketStyle && config.cricketStyle !== 'standard') summary += ` ${config.cricketStyle}`
     if (config.cricketLegs) summary += ` · FT${config.cricketLegs}`
   } else if (config.bestOfLegs) {
-    summary += ` · Bo${config.bestOfLegs}`
+    summary += ` · FT${config.bestOfLegs}`
   }
   return summary
 }
