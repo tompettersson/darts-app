@@ -69,6 +69,9 @@ import {
 } from './db/storage'
 
 import { exec } from './db/index'
+import { queueStatsRefresh } from './db/stats-cache'
+import { loadGroup } from './hooks/useSQLStats'
+import { queryClient } from './queryClient'
 // LocalStorage cache removed — data always loaded fresh from DB
 
 import {
@@ -815,6 +818,13 @@ export function finishMatch(matchId: string): Promise<void> {
 
   const last = getLastOpenMatchId()
   if (last === matchId) setLastOpenMatchId(undefined)
+
+  const matchPlayerIds = list[idx].playerIds ?? []
+  if (matchPlayerIds.length > 0) queueStatsRefresh(matchPlayerIds, 'x01', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of matchPlayerIds) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
 
   // Queued + awaitable DB write
   return new Promise<void>((resolve) => {
@@ -2056,6 +2066,13 @@ export function finishCricketMatch(
     )
   }
 
+  const cricketPlayerIds = list[idx].playerIds ?? []
+  if (cricketPlayerIds.length > 0) queueStatsRefresh(cricketPlayerIds, 'cricket', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of cricketPlayerIds) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
+
   // Queued DB write — serialized with event persist
   const matchData = list[idx]
   return new Promise<void>((resolve) => {
@@ -3021,6 +3038,13 @@ export function finishATBMatch(
     })
   }
 
+  const atbPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (atbPids.length > 0) queueStatsRefresh(atbPids, 'atb', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of atbPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
+
   return new Promise<void>((resolve) => {
     queueWrite(`atb-${matchId}`, async () => {
       try { await dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs) }
@@ -3629,6 +3653,13 @@ export function finishStrMatch(
   all[idx].durationMs = durationMs
   strMatchesCache = all
 
+  const strPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (strPids.length > 0) queueStatsRefresh(strPids, 'str', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of strPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
+
   return new Promise<void>((resolve) => {
     queueWrite(`str-${matchId}`, async () => {
       try { await dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs) }
@@ -3829,6 +3860,13 @@ export function finishCTFMatch(
 
   ctfMatchesCache = all
 
+  const ctfPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (ctfPids.length > 0) queueStatsRefresh(ctfPids, 'ctf', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of ctfPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
+
   const match = all[idx]
   return new Promise<void>((resolve) => {
     queueWrite(`ctf-${matchId}`, async () => {
@@ -4020,6 +4058,13 @@ export function finishShanghaiMatch(
 
   shanghaiMatchesCache = all
 
+  const shanghaiPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (shanghaiPids.length > 0) queueStatsRefresh(shanghaiPids, 'shanghai', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of shanghaiPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
+
   const match = all[idx]
   return new Promise<void>((resolve) => {
     queueWrite(`shanghai-${matchId}`, async () => {
@@ -4208,6 +4253,13 @@ export function finishKillerMatch(
 
   killerMatchesCache = all
 
+  const killerPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (killerPids.length > 0) queueStatsRefresh(killerPids, 'killer', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of killerPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
+
   return new Promise<void>((resolve) => {
     queueWrite(`killer-${matchId}`, async () => {
       try { await dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins) }
@@ -4365,6 +4417,13 @@ export function finishBobs27Match(
   if (finalScores) all[idx].finalScores = finalScores
 
   bobs27MatchesCache = all
+
+  const bobs27Pids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (bobs27Pids.length > 0) queueStatsRefresh(bobs27Pids, 'bobs27', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of bobs27Pids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
 
   const match = all[idx]
   return new Promise<void>((resolve) => {
@@ -4634,6 +4693,13 @@ export function finishOperationMatch(
   if (legWins) all[idx].legWins = legWins
 
   operationMatchesCache = all
+
+  const opPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
+  if (opPids.length > 0) queueStatsRefresh(opPids, 'operation', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of opPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
 
   const match = all[idx]
   return new Promise<void>((resolve) => {
@@ -5317,6 +5383,13 @@ export function finishHighscoreMatch(
   if (legWins) all[idx].legWins = legWins
   if (setWins) all[idx].setWins = setWins
   highscoreMatchesCache = all
+
+  const hsPids = all[idx].players.map((p: { id: string }) => p.id)
+  if (hsPids.length > 0) queueStatsRefresh(hsPids, 'highscore', loadGroup)
+  // Invalidate TanStack Query stats cache
+  for (const pid of hsPids) {
+    queryClient.invalidateQueries({ queryKey: ['stats', pid] })
+  }
 
   return new Promise<void>((resolve) => {
     queueWrite(`highscore-${matchId}`, async () => {

@@ -81,6 +81,7 @@ import {
   type DayOfWeekPerformance,
   type Milestone,
 } from '../db/stats'
+import { getCachedGroup, setCachedGroup, backfillPlayerStats } from '../db/stats-cache'
 
 export type ATBBestTime = {
   mode: string
@@ -247,7 +248,8 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
 
       try {
         const partial: Partial<SQLStatsData> = {}
-        await Promise.all(missing.map(g => loadGroup(pid, g, partial)))
+        const results = await Promise.all(missing.map(g => fetchGroup(pid, g)))
+        for (const r of results) Object.assign(partial, r)
 
         if (!cancelled) {
           for (const g of missing) loadedGroupsRef.current.add(g)
@@ -292,7 +294,8 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     const timer = setTimeout(async () => {
       try {
         const partial: Partial<SQLStatsData> = {}
-        await Promise.all(remaining.map(g => loadGroup(pid, g, partial)))
+        const results = await Promise.all(remaining.map(g => fetchGroup(pid, g)))
+        for (const r of results) Object.assign(partial, r)
 
         if (!cancelled) {
           for (const g of remaining) loadedGroupsRef.current.add(g)
@@ -336,8 +339,37 @@ function getGroupsForTab(tab: StatsTab): string[] {
   }
 }
 
-/** Load a specific data group */
-async function loadGroup(pid: string, group: string, out: Partial<SQLStatsData>): Promise<void> {
+/** Track which players are being backfilled to avoid duplicate runs */
+const backfillInProgress = new Set<string>()
+
+/** Fetch function for a single stats group — reads from cache, falls back to live computation */
+async function fetchGroup(playerId: string, group: string): Promise<Partial<SQLStatsData>> {
+  // Try cache first
+  const cached = await getCachedGroup<Partial<SQLStatsData>>(playerId, group)
+  if (cached && Object.keys(cached).length > 0) {
+    return cached
+  }
+
+  // Cache miss: compute live, store in cache for next time
+  const partial: Partial<SQLStatsData> = {}
+  await loadGroup(playerId, group, partial)
+
+  // Store in background (don't block the UI)
+  setCachedGroup(playerId, group, partial).catch(() => {})
+
+  // Trigger full backfill for this player (once) so all groups are cached
+  if (!backfillInProgress.has(playerId)) {
+    backfillInProgress.add(playerId)
+    backfillPlayerStats(playerId, loadGroup)
+      .catch(() => {})
+      .finally(() => backfillInProgress.delete(playerId))
+  }
+
+  return partial
+}
+
+/** Load a specific data group — exported for stats cache refresh */
+export async function loadGroup(pid: string, group: string, out: Partial<SQLStatsData>): Promise<void> {
   const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
     p.catch((err) => { console.warn(`[Stats] ${group} query failed:`, err.message); return fallback })
 
