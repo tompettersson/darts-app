@@ -69,3 +69,64 @@ export async function invalidatePlayerCache(playerId: string): Promise<void> {
     [playerId]
   )
 }
+
+// ============================================================================
+// Refresh Orchestration
+// ============================================================================
+
+type LoadGroupFn = (pid: string, group: string, out: Record<string, unknown>) => Promise<void>
+
+/**
+ * Which stat groups to refresh when a specific game type finishes.
+ * 'core' contains general cross-game stats — refreshed for every game type.
+ */
+const GROUPS_BY_GAME_TYPE: Record<string, string[]> = {
+  x01:        ['core', 'x01variants', 'x01detail', 'insights', 'playerinsights', 'achievements'],
+  cricket:    ['core', 'cricket', 'insights', 'playerinsights', 'achievements'],
+  atb:        ['core', 'achievements'],
+  str:        ['core'],
+  ctf:        ['core'],
+  shanghai:   ['core'],
+  killer:     ['core', 'minigames'],
+  bobs27:     ['core', 'minigames', 'achievements'],
+  operation:  ['core', 'minigames'],
+  highscore:  ['core'],
+}
+
+/**
+ * Recompute and cache stats for a player after a match ends.
+ * Errors are logged but don't block the caller.
+ */
+export async function refreshPlayerStatsAfterMatch(
+  playerId: string,
+  gameType: string,
+  loadGroupFn: LoadGroupFn
+): Promise<void> {
+  const groups = GROUPS_BY_GAME_TYPE[gameType] ?? ['core']
+
+  for (const group of groups) {
+    try {
+      const partial: Record<string, unknown> = {}
+      await loadGroupFn(playerId, group, partial)
+      await setCachedGroup(playerId, group, partial)
+    } catch (err) {
+      console.warn(`[StatsCache] Failed to refresh ${group} for ${playerId}:`, err)
+    }
+  }
+}
+
+/**
+ * Queue stats refresh for all players in a match.
+ * Non-blocking — fires and forgets.
+ */
+export function queueStatsRefresh(
+  playerIds: string[],
+  gameType: string,
+  loadGroupFn: LoadGroupFn
+): void {
+  for (const pid of playerIds) {
+    refreshPlayerStatsAfterMatch(pid, gameType, loadGroupFn).catch((err) =>
+      console.warn(`[StatsCache] Background refresh failed for ${pid}:`, err)
+    )
+  }
+}
