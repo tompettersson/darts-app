@@ -767,7 +767,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
       JOIN x01_matches m ON m.id = lf.match_id AND m.finished = 1 ${scoreFilter}
       WHERE lf.type = 'LegFinished'
         AND lf.data::jsonb->>'winnerPlayerId' = ?
-    )
+    ) t
   `, [playerId, playerId, ...scoreParam, playerId])
 
   // === NEUE QUERIES ===
@@ -838,7 +838,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
     WHERE e.type = 'VisitAdded'
       AND e.data::jsonb->>'playerId' = ?
       AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
-    GROUP BY bed
+    GROUP BY e.data::jsonb->'darts'->((e.data::jsonb->>'finishingDartSeq')::integer - 1)->>'bed'
     ORDER BY cnt DESC
     LIMIT 1
   `, [playerId, ...scoreParam, playerId])
@@ -949,7 +949,7 @@ export async function getX01FullStats(playerId: string, startingScore?: number):
       JOIN x01_matches m ON m.id = lf.match_id AND m.finished = 1 ${scoreFilter}
       WHERE lf.type = 'LegFinished'
         AND lf.data::jsonb->>'winnerPlayerId' = ?
-    )
+    ) t
   `, [playerId, playerId, ...scoreParam, playerId])
 
   // Berechne abgeleitete Werte
