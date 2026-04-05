@@ -336,8 +336,8 @@ function getGroupsForTab(tab: StatsTab): string[] {
   }
 }
 
-/** Load a specific data group */
-async function loadGroup(pid: string, group: string, out: Partial<SQLStatsData>): Promise<void> {
+/** Load a specific data group — exported for stats cache refresh */
+export async function loadGroup(pid: string, group: string, out: Partial<SQLStatsData>): Promise<void> {
   const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
     p.catch((err) => { console.warn(`[Stats] ${group} query failed:`, err.message); return fallback })
 
