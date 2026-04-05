@@ -130,3 +130,33 @@ export function queueStatsRefresh(
     )
   }
 }
+
+// ============================================================================
+// Backfill (one-time for existing players)
+// ============================================================================
+
+const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames',
+                    'insights', 'playerinsights', 'achievements']
+
+/**
+ * Backfill all stat groups for a single player.
+ * Called on first stats view when cache is empty.
+ * Skips groups that are already cached.
+ */
+export async function backfillPlayerStats(
+  playerId: string,
+  loadGroupFn: LoadGroupFn
+): Promise<void> {
+  for (const group of ALL_GROUPS) {
+    try {
+      const existing = await getCachedGroup(playerId, group)
+      if (existing && typeof existing === 'object' && Object.keys(existing).length > 0) continue
+
+      const partial: Record<string, unknown> = {}
+      await loadGroupFn(playerId, group, partial)
+      await setCachedGroup(playerId, group, partial)
+    } catch (err) {
+      console.warn(`[StatsCache] Backfill failed for ${playerId}/${group}:`, err)
+    }
+  }
+}
