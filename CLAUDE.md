@@ -56,3 +56,16 @@ All data persisted to LocalStorage (offline-first design).
 - **Event sourcing**: Game state computed from immutable event logs, not mutated directly
 - **Offline queue** (`src/outbox.ts`): Match uploads queued with exponential backoff
 - **Type-first**: Shared interfaces in `src/types/` for stats and cricket types
+
+## Stats Materialization (player_stats_cache)
+
+Spieler-Statistiken werden **nicht live** aus Events berechnet, sondern aus dem Cache gelesen (`player_stats_cache` Tabelle, JSONB). Der Cache wird nach jedem Spielende im Hintergrund aktualisiert (`queueStatsRefresh` in `storage.ts`). Highscores sind ebenfalls gecacht (globaler Eintrag `_global/highscores`).
+
+- Cache-Logik: `src/db/stats-cache.ts`
+- Read-Path: `src/hooks/useSQLStats.ts` → `getCachedGroups()` → Fallback auf Live-Berechnung
+- Write-Path: Alle `finishXxxMatch()` in `storage.ts` → `queueStatsRefresh()`
+- JSONB-Parameter: Immer `?::text::jsonb` verwenden (nicht `?::jsonb`, sonst wird String statt Objekt gespeichert)
+
+## Geplante Optimierungen
+
+- **Startup Lazy Loading** (`docs/startup-optimization.md`): Phase 2 Match-Loading durch leichtgewichtigen Open-Match-Check ersetzen. Aktuell werden ~30 DB-Queries beim Start gemacht, nur um zu prüfen ob ein offenes Spiel existiert. Ziel: 1 Query statt 30.

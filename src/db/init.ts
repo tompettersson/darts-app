@@ -14,15 +14,9 @@ import {
   dbGetCTFMatches,
   dbGetBobs27Matches,
   dbGetOperationMatches,
-  dbLoadAllX01PlayerStats,
-  dbLoadAll121PlayerStats,
-  dbLoadX01Leaderboards,
-  dbLoadCricketLeaderboards,
-  dbLoadAllCricketPlayerStats,
   dbRepairUnfinishedMatches,
 } from './storage'
-import { warmMemCache, warmAllCaches, warmStats121Cache } from '../storage'
-import { warmCricketPlayerStatsCache } from '../stats/computePlayerStats'
+import { warmAllCaches } from '../storage'
 
 export type DBInitResult = {
   success: boolean
@@ -151,25 +145,12 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
           highscoreMatches: highscoreMatches as any[],
         })
 
-        // Stats & Leaderboards
-        const [x01Stats, stats121, x01Lb, cricketLb, cricketStats] = await Promise.all([
-          safe(dbLoadAllX01PlayerStats(), {}),
-          safe(dbLoadAll121PlayerStats(), {}),
-          safe(dbLoadX01Leaderboards(), null),
-          safe(dbLoadCricketLeaderboards(), null),
-          safe(dbLoadAllCricketPlayerStats(), {}),
-        ])
+        // Stats & Leaderboards — removed from startup.
+        // These were pre-loaded into memCache but never read during normal app usage.
+        // All stats are loaded on-demand via useSQLStats hook + player_stats_cache.
+        // See docs/startup-optimization.md for the full plan.
 
-        warmMemCache({
-          x01PlayerStats: x01Stats,
-          leaderboards: x01Lb ?? undefined,
-          cricketLeaderboards: cricketLb ?? undefined,
-        })
-
-        warmStats121Cache(stats121)
-        warmCricketPlayerStatsCache(cricketStats)
-
-        console.debug(`[DB Init] Phase 2 (matches + stats) in ${Date.now() - bgStart}ms`)
+        console.debug(`[DB Init] Phase 2 (matches) in ${Date.now() - bgStart}ms`)
         // Signal to UI components that match data is now available
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
