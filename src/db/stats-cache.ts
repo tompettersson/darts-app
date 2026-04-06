@@ -50,7 +50,7 @@ export async function setCachedGroup(playerId: string, group: string, data: unkn
   await ensureCacheTable()
   await exec(
     `INSERT INTO player_stats_cache (player_id, stat_group, data, computed_at)
-     VALUES (?, ?, ?::jsonb, ?)
+     VALUES (?, ?, ?::text::jsonb, ?)
      ON CONFLICT (player_id, stat_group) DO UPDATE
        SET data        = EXCLUDED.data,
            computed_at = EXCLUDED.computed_at`,
