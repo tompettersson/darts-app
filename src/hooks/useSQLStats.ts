@@ -344,13 +344,17 @@ const backfillInProgress = new Set<string>()
 
 /** Fetch function for a single stats group — reads from cache, falls back to live computation */
 async function fetchGroup(playerId: string, group: string): Promise<Partial<SQLStatsData>> {
-  // Try cache first
-  const cached = await getCachedGroup<Partial<SQLStatsData>>(playerId, group)
-  if (cached && Object.keys(cached).length > 0) {
-    return cached
+  // Try cache first (silently skip on error — cache is optional)
+  try {
+    const cached = await getCachedGroup<Partial<SQLStatsData>>(playerId, group)
+    if (cached && typeof cached === 'object' && Object.keys(cached).length > 0) {
+      return cached
+    }
+  } catch {
+    // Cache unavailable (cold start, table not yet created) — fall through to live
   }
 
-  // Cache miss: compute live, store in cache for next time
+  // Cache miss or error: compute live
   const partial: Partial<SQLStatsData> = {}
   await loadGroup(playerId, group, partial)
 
