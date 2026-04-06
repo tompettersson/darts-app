@@ -5,6 +5,13 @@ import { initDB, isDBReady, getDBStatus, getDBVersion, closeDB } from './index'
 import {
   dbGetProfiles,
   dbGetOpenMatchSummaries,
+  dbGetX01MatchById,
+  dbGetCricketMatchById,
+  dbGetATBMatchById,
+  dbGetShanghaiMatchById,
+  dbGetKillerMatchById,
+  dbGetBobs27MatchById,
+  dbGetOperationMatchById,
   dbRepairUnfinishedMatches,
 } from './storage'
 import { warmAllCaches, setOpenMatchSummaries } from '../storage'
@@ -104,12 +111,39 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
 
         const bgStart = Date.now()
 
-        // Lightweight: only check which games have open (unfinished) matches
-        // Full match data is loaded on-demand when the user opens a game
+        // Step 1: Find which games have open (unfinished) matches (1 lightweight query)
         const openMatches = await safe(dbGetOpenMatchSummaries(), [])
         setOpenMatchSummaries(openMatches)
 
-        console.debug(`[DB Init] Phase 2 (open matches check) in ${Date.now() - bgStart}ms: ${openMatches.length} open`)
+        // Step 2: Load full match data ONLY for open matches (so "Spiel fortsetzen" works)
+        // This loads at most 1 match per game type — not 50 like before
+        const loaders: Record<string, (id: string) => Promise<any>> = {
+          x01: async (id) => { const m = await dbGetX01MatchById(id); return m ? { x01Matches: [{ id: m.id, title: m.title, matchName: m.matchName, notes: m.notes, createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished }] } : null },
+          cricket: async (id) => { const m = await dbGetCricketMatchById(id); return m ? { cricketMatches: [{ id: m.id, title: m.title, matchName: m.matchName, notes: m.notes, createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished }] } : null },
+          atb: async (id) => { const m = await dbGetATBMatchById(id); return m ? { atbMatches: [m] } : null },
+          shanghai: async (id) => { const m = await dbGetShanghaiMatchById(id); return m ? { shanghaiMatches: [m] } : null },
+          killer: async (id) => { const m = await dbGetKillerMatchById(id); return m ? { killerMatches: [m] } : null },
+          bobs27: async (id) => { const m = await dbGetBobs27MatchById(id); return m ? { bobs27Matches: [m] } : null },
+          operation: async (id) => { const m = await dbGetOperationMatchById(id); return m ? { operationMatches: [m] } : null },
+        }
+
+        if (openMatches.length > 0) {
+          const cacheData: Record<string, any[]> = {}
+          const loadPromises = openMatches
+            .filter(om => loaders[om.gameType])
+            .map(om => safe(loaders[om.gameType](om.id), null))
+
+          const results = await Promise.all(loadPromises)
+          for (const r of results) {
+            if (r) Object.assign(cacheData, r)
+          }
+
+          if (Object.keys(cacheData).length > 0) {
+            warmAllCaches(cacheData)
+          }
+        }
+
+        console.debug(`[DB Init] Phase 2 (open matches) in ${Date.now() - bgStart}ms: ${openMatches.length} open`)
         // Signal to UI components that match data is now available
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
