@@ -603,6 +603,49 @@ export function assembleGenericMatches(
 }
 
 // ============================================================================
+// Open Match Check (lightweight startup query)
+// ============================================================================
+
+export type OpenMatchInfo = {
+  gameType: string
+  id: string
+  title: string
+}
+
+/**
+ * Check all game types for unfinished matches in a single batch query.
+ * Returns minimal data (id + title) — no events, no player lists.
+ * Used at startup instead of loading all match data.
+ */
+export async function dbGetOpenMatchSummaries(): Promise<OpenMatchInfo[]> {
+  await ensureDB()
+
+  const rows = await query<{ game_type: string; id: string; title: string }>(`
+    SELECT 'x01' as game_type, id, title FROM x01_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'cricket', id, title FROM cricket_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'atb', id, title FROM atb_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'str', id, title FROM str_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'highscore', id, title FROM highscore_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'ctf', id, title FROM ctf_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'shanghai', id, title FROM shanghai_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'killer', id, title FROM killer_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'bobs27', id, title FROM bobs27_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+    UNION ALL
+    SELECT 'operation', id, title FROM operation_matches WHERE finished = 0 ORDER BY created_at DESC LIMIT 1
+  `)
+
+  return rows.map(r => ({ gameType: r.game_type, id: r.id, title: r.title }))
+}
+
+// ============================================================================
 // X01 Match Functions
 // ============================================================================
 

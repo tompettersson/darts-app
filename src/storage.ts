@@ -237,6 +237,22 @@ export function warmAllCaches(data: {
   if (data.highscoreMatches) highscoreMatchesCache = data.highscoreMatches
 }
 
+// ============================================================================
+// Open Match Summaries (lightweight startup data)
+// ============================================================================
+
+import type { OpenMatchInfo } from './db/storage'
+
+let openMatchSummariesCache: OpenMatchInfo[] = []
+
+export function setOpenMatchSummaries(summaries: OpenMatchInfo[]): void {
+  openMatchSummariesCache = summaries
+}
+
+export function getOpenMatchSummary(gameType: string): OpenMatchInfo | undefined {
+  return openMatchSummariesCache.find(s => s.gameType === gameType)
+}
+
 /* -------------------------------------------------
    Helper: read / write JSON — NUR noch für UI-Settings
 ------------------------------------------------- */
@@ -785,6 +801,9 @@ export function getOpenMatch(): StoredMatch | undefined {
   const openId = getLastOpenMatchId()
   const m = openId ? loadMatchById(openId) : undefined
   if (m && !m.finished) return m
+  // Fallback: check lightweight summaries from startup
+  const summary = getOpenMatchSummary('x01')
+  if (summary) return { id: summary.id, title: summary.title, finished: false, events: [], createdAt: '' } as any
   return undefined
 }
 
@@ -1918,6 +1937,8 @@ export function getOpenCricketMatch():
     ? getCricketMatches().find(x => x.id === idStr)
     : undefined
   if (m && !m.finished) return m
+  const summary = getOpenMatchSummary('cricket')
+  if (summary) return { id: summary.id, title: summary.title, finished: false, events: [], createdAt: '' } as any
   return undefined
 }
 
@@ -2891,7 +2912,11 @@ export function getOpenATBMatch(): ATBStoredMatch | undefined {
   const lastId = localStorage.getItem(LS_ATB.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getATBMatches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('atb')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenATBMatchId(matchId: string) {
@@ -3497,7 +3522,11 @@ export function getOpenStrMatch(): StrStoredMatch | undefined {
   const lastId = localStorage.getItem(LS_STR.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getStrMatches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('str')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenStrMatchId(matchId: string) {
@@ -3708,7 +3737,11 @@ export function getOpenCTFMatch(): CTFStoredMatch | undefined {
   const lastId = localStorage.getItem(LS_CTF.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getCTFMatches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('ctf')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenCTFMatchId(matchId: string) {
@@ -3935,7 +3968,11 @@ export function getOpenShanghaiMatch(): ShanghaiStoredMatch | undefined {
   const lastId = localStorage.getItem(LS_SHANGHAI.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getShanghaiMatches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('shanghai')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenShanghaiMatchId(matchId: string) {
@@ -4135,7 +4172,11 @@ export function getKillerMatchById(matchId: string): KillerStoredMatch | undefin
 
 export function getOpenKillerMatch(): KillerStoredMatch | undefined {
   const matches = getKillerMatches()
-  return matches.find(m => !m.finished)
+  const found = matches.find(m => !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('killer')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function createKillerMatchShell(
@@ -4317,7 +4358,11 @@ export function getOpenBobs27Match(): Bobs27StoredMatch | undefined {
   const lastId = localStorage.getItem(LS_BOBS27.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getBobs27Matches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('bobs27')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenBobs27MatchId(matchId: string) {
@@ -4598,7 +4643,11 @@ export function getOpenOperationMatch(): OperationStoredMatch | undefined {
   const lastId = localStorage.getItem(LS_OPERATION.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getOperationMatches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('operation')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenOperationMatchId(matchId: string) {
@@ -5284,7 +5333,11 @@ export function getOpenHighscoreMatch(): HighscoreStoredMatch | undefined {
   const lastId = localStorage.getItem(LS_HIGHSCORE.lastOpenMatchId)
   if (!lastId) return undefined
   const matches = getHighscoreMatches()
-  return matches.find(m => m.id === lastId && !m.finished)
+  const found = matches.find(m => m.id === lastId && !m.finished)
+  if (found) return found
+  const summary = getOpenMatchSummary('highscore')
+  if (summary) return { id: summary.id, title: summary.title, finished: false } as any
+  return undefined
 }
 
 export function setLastOpenHighscoreMatchId(matchId: string) {

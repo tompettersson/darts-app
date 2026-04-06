@@ -4,19 +4,10 @@
 import { initDB, isDBReady, getDBStatus, getDBVersion, closeDB } from './index'
 import {
   dbGetProfiles,
-  dbGetX01Matches,
-  dbGetCricketMatches,
-  dbGetATBMatches,
-  dbGetStrMatches,
-  dbGetHighscoreMatches,
-  dbGetShanghaiMatches,
-  dbGetKillerMatches,
-  dbGetCTFMatches,
-  dbGetBobs27Matches,
-  dbGetOperationMatches,
+  dbGetOpenMatchSummaries,
   dbRepairUnfinishedMatches,
 } from './storage'
-import { warmAllCaches } from '../storage'
+import { warmAllCaches, setOpenMatchSummaries } from '../storage'
 
 export type DBInitResult = {
   success: boolean
@@ -112,45 +103,13 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
         } catch {}
 
         const bgStart = Date.now()
-        const [x01Matches, cricketMatches, atbMatches, strMatches, highscoreMatches,
-               shanghaiMatches, killerMatches, ctfMatches, bobs27Matches, operationMatches] = await Promise.all([
-          safe(dbGetX01Matches(), []),
-          safe(dbGetCricketMatches(), []),
-          safe(dbGetATBMatches(), []),
-          safe(dbGetStrMatches(), []),
-          safe(dbGetHighscoreMatches(), []),
-          safe(dbGetShanghaiMatches(), []),
-          safe(dbGetKillerMatches(), []),
-          safe(dbGetCTFMatches(), []),
-          safe(dbGetBobs27Matches(), []),
-          safe(dbGetOperationMatches(), []),
-        ])
 
-        warmAllCaches({
-          x01Matches: x01Matches.map((m) => ({
-            id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
-            createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
-          })),
-          cricketMatches: cricketMatches.map((m) => ({
-            id: m.id, title: m.title, matchName: m.matchName ?? undefined, notes: m.notes ?? undefined,
-            createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished,
-          })),
-          atbMatches: atbMatches as any[],
-          strMatches: strMatches as any[],
-          ctfMatches: ctfMatches as any[],
-          shanghaiMatches: shanghaiMatches as any[],
-          killerMatches: killerMatches as any[],
-          bobs27Matches: bobs27Matches as any[],
-          operationMatches: operationMatches as any[],
-          highscoreMatches: highscoreMatches as any[],
-        })
+        // Lightweight: only check which games have open (unfinished) matches
+        // Full match data is loaded on-demand when the user opens a game
+        const openMatches = await safe(dbGetOpenMatchSummaries(), [])
+        setOpenMatchSummaries(openMatches)
 
-        // Stats & Leaderboards — removed from startup.
-        // These were pre-loaded into memCache but never read during normal app usage.
-        // All stats are loaded on-demand via useSQLStats hook + player_stats_cache.
-        // See docs/startup-optimization.md for the full plan.
-
-        console.debug(`[DB Init] Phase 2 (matches) in ${Date.now() - bgStart}ms`)
+        console.debug(`[DB Init] Phase 2 (open matches check) in ${Date.now() - bgStart}ms: ${openMatches.length} open`)
         // Signal to UI components that match data is now available
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
