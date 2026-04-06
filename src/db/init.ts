@@ -103,11 +103,17 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     // This runs after the app is already interactive
     setTimeout(async () => {
       try {
-        // Repair stale matches BEFORE loading data into cache
-        try {
-          const { repaired } = await dbRepairUnfinishedMatches()
-          if (repaired.length > 0) console.log(`[DB Repair] Fixed ${repaired.length} matches:`, repaired)
-        } catch {}
+        // Repair stale matches — only once per 24h to avoid 10+ queries on every startup
+        const REPAIR_KEY = 'darts.lastRepairCheck'
+        const lastRepair = localStorage.getItem(REPAIR_KEY)
+        const needsRepair = !lastRepair || (Date.now() - parseInt(lastRepair, 10)) > 24 * 60 * 60 * 1000
+        if (needsRepair) {
+          try {
+            const { repaired } = await dbRepairUnfinishedMatches()
+            if (repaired.length > 0) console.log(`[DB Repair] Fixed ${repaired.length} matches:`, repaired)
+            localStorage.setItem(REPAIR_KEY, String(Date.now()))
+          } catch {}
+        }
 
         const bgStart = Date.now()
 
