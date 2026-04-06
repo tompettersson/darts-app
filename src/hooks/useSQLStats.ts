@@ -211,7 +211,7 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     data: emptyData,
   })
   const loadedGroupsRef = useRef<LoadedGroups>(new Set())
-  const [loadTrigger, setLoadTrigger] = useState(0) // used to re-trigger effects
+  const prefetchDoneRef = useRef(false)
   const [currentPlayerId, setCurrentPlayerId] = useState<string | undefined>()
 
   useEffect(() => {
@@ -221,7 +221,6 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
       loadedGroupsRef.current = new Set()
       prefetchDoneRef.current = false
       setState({ loading: true, error: null, data: emptyData })
-      setLoadTrigger(t => t + 1)
     }
   }, [playerId, currentPlayerId])
 
@@ -247,19 +246,41 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
       setState(prev => ({ ...prev, loading: true }))
 
       try {
-        const partial: Partial<SQLStatsData> = {}
         const results = await Promise.all(missing.map(g => fetchGroup(pid, g)))
-        for (const r of results) Object.assign(partial, r)
 
-        if (!cancelled) {
-          for (const g of missing) loadedGroupsRef.current.add(g)
-          setState(prev => ({
-            loading: false,
-            error: null,
-            data: { ...prev.data, ...partial },
-          }))
-          // Trigger background prefetch
-          setLoadTrigger(t => t + 1)
+        if (cancelled) return
+
+        const partial: Partial<SQLStatsData> = {}
+        for (const r of results) Object.assign(partial, r)
+        for (const g of missing) loadedGroupsRef.current.add(g)
+
+        setState(prev => ({
+          loading: false,
+          error: null,
+          data: { ...prev.data, ...partial },
+        }))
+
+        // Background prefetch: load remaining groups silently (no state.loading change)
+        if (!prefetchDoneRef.current) {
+          prefetchDoneRef.current = true
+          const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
+          const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
+          if (remaining.length > 0) {
+            // Delay prefetch to avoid competing with active tab rendering
+            setTimeout(async () => {
+              if (cancelled) return
+              try {
+                const prefetchResults = await Promise.all(remaining.map(g => fetchGroup(pid, g)))
+                if (cancelled) return
+                const prefetchPartial: Partial<SQLStatsData> = {}
+                for (const r of prefetchResults) Object.assign(prefetchPartial, r)
+                for (const g of remaining) loadedGroupsRef.current.add(g)
+                setState(prev => ({ ...prev, data: { ...prev.data, ...prefetchPartial } }))
+              } catch {
+                prefetchDoneRef.current = false // Allow retry on next tab switch
+              }
+            }, 500)
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -276,43 +297,7 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
     loadTabStats()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerId, activeTab, loadTrigger])
-
-  // Background prefetch: after initial tab loads, load ALL remaining groups
-  const prefetchDoneRef = useRef(false)
-  useEffect(() => {
-    if (!playerId || state.loading || loadedGroupsRef.current.size === 0 || prefetchDoneRef.current) return
-
-    const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
-    const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
-    if (remaining.length === 0) { prefetchDoneRef.current = true; return }
-
-    let cancelled = false
-    const pid = playerId
-    prefetchDoneRef.current = true // Only run once per player
-
-    const timer = setTimeout(async () => {
-      try {
-        const partial: Partial<SQLStatsData> = {}
-        const results = await Promise.all(remaining.map(g => fetchGroup(pid, g)))
-        for (const r of results) Object.assign(partial, r)
-
-        if (!cancelled) {
-          for (const g of remaining) loadedGroupsRef.current.add(g)
-          setState(prev => ({
-            ...prev,
-            data: { ...prev.data, ...partial },
-          }))
-        }
-      } catch {
-        // Background prefetch errors are non-critical
-        prefetchDoneRef.current = false // Allow retry on error
-      }
-    }, 500) // Longer delay to let tab loads finish first
-
-    return () => { cancelled = true; clearTimeout(timer) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerId, state.loading, loadTrigger])
+  }, [playerId, activeTab])
 
   return state
 }
