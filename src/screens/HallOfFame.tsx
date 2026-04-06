@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
-import { getAllHighscoresSQL } from '../db/stats'
+import { getAllHighscoresCached } from '../db/stats'
 import type { HighscoreCategory, HighscoreGameType } from '../types/highscores'
 import BarChart from '../components/charts/BarChart'
 
@@ -53,7 +53,7 @@ export default function HallOfFame({ onBack }: Props) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    getAllHighscoresSQL().then(cats => {
+    getAllHighscoresCached().then(cats => {
       if (!cancelled) {
         setAllCategories(deduplicateEntries(cats))
         setLoading(false)

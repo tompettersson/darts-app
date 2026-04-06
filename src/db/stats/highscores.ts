@@ -2,6 +2,7 @@
 // All highscore/hall of fame functions
 
 import { query } from '../index'
+import { getCachedGroup, setCachedGroup } from '../stats-cache'
 import { HIGHSCORE_CATEGORIES, type HighscoreCategory, type HighscoreCategoryId } from '../../types/highscores'
 
 // ============================================================================
@@ -1368,6 +1369,41 @@ export async function getAllHighscoresSQL(): Promise<HighscoreCategory[]> {
   }
 
   return categories
+}
+
+const GLOBAL_PLAYER_ID = '_global'
+
+/**
+ * Cached version of getAllHighscoresSQL.
+ * Reads from player_stats_cache on subsequent calls, computes live on first call.
+ */
+export async function getAllHighscoresCached(): Promise<HighscoreCategory[]> {
+  try {
+    const cached = await getCachedGroup<HighscoreCategory[]>(GLOBAL_PLAYER_ID, 'highscores')
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached
+    }
+  } catch {
+    // Cache unavailable — fall through to live
+  }
+
+  const result = await getAllHighscoresSQL()
+  setCachedGroup(GLOBAL_PLAYER_ID, 'highscores', result).catch(() => {})
+  return result
+}
+
+/**
+ * Invalidate the global highscores cache (call after any match ends).
+ */
+export async function invalidateHighscoresCache(): Promise<void> {
+  try {
+    await import('../index').then(db =>
+      db.exec(
+        'DELETE FROM player_stats_cache WHERE player_id = ? AND stat_group = ?',
+        [GLOBAL_PLAYER_ID, 'highscores']
+      )
+    )
+  } catch {}
 }
 
 /**

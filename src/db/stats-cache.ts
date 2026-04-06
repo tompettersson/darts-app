@@ -140,6 +140,7 @@ export async function refreshPlayerStatsAfterMatch(
 /**
  * Queue stats refresh for all players in a match.
  * Non-blocking — fires and forgets.
+ * Also invalidates global highscores cache.
  */
 export function queueStatsRefresh(
   playerIds: string[],
@@ -151,6 +152,10 @@ export function queueStatsRefresh(
       console.warn(`[StatsCache] Background refresh failed for ${pid}:`, err)
     )
   }
+  // Invalidate global highscores cache (will be recomputed on next HallOfFame visit)
+  exec('DELETE FROM player_stats_cache WHERE player_id = ? AND stat_group = ?',
+    ['_global', 'highscores']
+  ).catch(() => {})
 }
 
 // ============================================================================
