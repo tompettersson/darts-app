@@ -81,7 +81,7 @@ import {
   type DayOfWeekPerformance,
   type Milestone,
 } from '../db/stats'
-import { getCachedGroup, setCachedGroup, backfillPlayerStats } from '../db/stats-cache'
+import { getCachedGroups, setCachedGroup, backfillPlayerStats } from '../db/stats-cache'
 
 export type ATBBestTime = {
   mode: string
@@ -246,12 +246,26 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
       setState(prev => ({ ...prev, loading: true }))
 
       try {
-        const results = await Promise.all(missing.map(g => fetchGroup(pid, g)))
+        // Batch: load all needed groups in a single DB query
+        const cached = await getCachedGroups<Partial<SQLStatsData>>(pid, missing)
 
         if (cancelled) return
 
+        // Determine which groups were cache hits vs misses
+        const hits = missing.filter(g => cached.has(g))
+        const misses = missing.filter(g => !cached.has(g))
+
+        // Merge cached data
         const partial: Partial<SQLStatsData> = {}
-        for (const r of results) Object.assign(partial, r)
+        for (const g of hits) Object.assign(partial, cached.get(g))
+
+        // Compute cache misses live (if any)
+        if (misses.length > 0) {
+          const liveResults = await Promise.all(misses.map(g => fetchGroupLive(pid, g)))
+          if (cancelled) return
+          for (const r of liveResults) Object.assign(partial, r)
+        }
+
         for (const g of missing) loadedGroupsRef.current.add(g)
 
         setState(prev => ({
@@ -260,24 +274,29 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
           data: { ...prev.data, ...partial },
         }))
 
-        // Background prefetch: load remaining groups silently (no state.loading change)
+        // Background prefetch: load remaining groups silently
         if (!prefetchDoneRef.current) {
           prefetchDoneRef.current = true
           const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
           const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
           if (remaining.length > 0) {
-            // Delay prefetch to avoid competing with active tab rendering
             setTimeout(async () => {
               if (cancelled) return
               try {
-                const prefetchResults = await Promise.all(remaining.map(g => fetchGroup(pid, g)))
+                const prefetchCached = await getCachedGroups<Partial<SQLStatsData>>(pid, remaining)
                 if (cancelled) return
+                const prefetchMisses = remaining.filter(g => !prefetchCached.has(g))
                 const prefetchPartial: Partial<SQLStatsData> = {}
-                for (const r of prefetchResults) Object.assign(prefetchPartial, r)
+                for (const g of remaining.filter(g => prefetchCached.has(g))) Object.assign(prefetchPartial, prefetchCached.get(g))
+                if (prefetchMisses.length > 0) {
+                  const liveResults = await Promise.all(prefetchMisses.map(g => fetchGroupLive(pid, g)))
+                  if (cancelled) return
+                  for (const r of liveResults) Object.assign(prefetchPartial, r)
+                }
                 for (const g of remaining) loadedGroupsRef.current.add(g)
                 setState(prev => ({ ...prev, data: { ...prev.data, ...prefetchPartial } }))
               } catch {
-                prefetchDoneRef.current = false // Allow retry on next tab switch
+                prefetchDoneRef.current = false
               }
             }, 500)
           }
@@ -327,19 +346,8 @@ function getGroupsForTab(tab: StatsTab): string[] {
 /** Track which players are being backfilled to avoid duplicate runs */
 const backfillInProgress = new Set<string>()
 
-/** Fetch function for a single stats group — reads from cache, falls back to live computation */
-async function fetchGroup(playerId: string, group: string): Promise<Partial<SQLStatsData>> {
-  // Try cache first (silently skip on error — cache is optional)
-  try {
-    const cached = await getCachedGroup<Partial<SQLStatsData>>(playerId, group)
-    if (cached && typeof cached === 'object' && Object.keys(cached).length > 0) {
-      return cached
-    }
-  } catch {
-    // Cache unavailable (cold start, table not yet created) — fall through to live
-  }
-
-  // Cache miss or error: compute live
+/** Compute a single stats group live and store in cache */
+async function fetchGroupLive(playerId: string, group: string): Promise<Partial<SQLStatsData>> {
   const partial: Partial<SQLStatsData> = {}
   await loadGroup(playerId, group, partial)
 

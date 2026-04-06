@@ -1,7 +1,7 @@
 // src/db/stats-cache.ts
 // Materialized stats cache — read/write utilities for player_stats_cache table
 
-import { exec, queryOne } from './index'
+import { exec, query, queryOne } from './index'
 
 // ============================================================================
 // Table DDL
@@ -34,12 +34,34 @@ export async function ensureCacheTable(): Promise<void> {
 // ============================================================================
 
 export async function getCachedGroup<T>(playerId: string, group: string): Promise<T | null> {
-  await ensureCacheTable()
   const row = await queryOne<{ data: T }>(
     'SELECT data FROM player_stats_cache WHERE player_id = ? AND stat_group = ?',
     [playerId, group]
   )
   return row?.data ?? null
+}
+
+/**
+ * Load multiple stat groups for a player in a single query.
+ * Returns a map: group → data. Missing groups are not in the map.
+ */
+export async function getCachedGroups<T>(playerId: string, groups: string[]): Promise<Map<string, T>> {
+  if (groups.length === 0) return new Map()
+
+  // Build IN clause with positional params: $2, $3, $4, ...
+  const placeholders = groups.map(() => '?').join(', ')
+  const rows = await query<{ stat_group: string; data: T }>(
+    `SELECT stat_group, data FROM player_stats_cache WHERE player_id = ? AND stat_group IN (${placeholders})`,
+    [playerId, ...groups]
+  )
+
+  const map = new Map<string, T>()
+  for (const row of rows) {
+    if (row.data && typeof row.data === 'object') {
+      map.set(row.stat_group, row.data)
+    }
+  }
+  return map
 }
 
 // ============================================================================
