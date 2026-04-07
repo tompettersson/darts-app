@@ -646,6 +646,79 @@ export async function dbGetOpenMatchSummaries(): Promise<OpenMatchInfo[]> {
 }
 
 // ============================================================================
+// Active Games (open/unfinished match tracking)
+// ============================================================================
+
+export type ActiveGame = {
+  id: string
+  playerId: string
+  gameType: string
+  title: string
+  config: Record<string, any> | null
+  players: Array<{ id: string; name: string; color?: string }> | null
+  startedAt: string
+}
+
+const ACTIVE_GAMES_DDL = `
+CREATE TABLE IF NOT EXISTS active_games (
+  id          TEXT PRIMARY KEY,
+  player_id   TEXT NOT NULL,
+  game_type   TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  config      JSONB,
+  players     JSONB,
+  started_at  TEXT NOT NULL
+)`
+
+const ACTIVE_GAMES_INDEX = `CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)`
+
+let activeGamesTableReady = false
+
+async function ensureActiveGamesTable(): Promise<void> {
+  if (activeGamesTableReady) return
+  await exec(ACTIVE_GAMES_DDL)
+  await exec(ACTIVE_GAMES_INDEX)
+  activeGamesTableReady = true
+}
+
+export async function dbInsertActiveGame(game: ActiveGame): Promise<void> {
+  await ensureActiveGamesTable()
+  await exec(
+    `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at)
+     VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       title = EXCLUDED.title,
+       config = EXCLUDED.config,
+       players = EXCLUDED.players`,
+    [game.id, game.playerId, game.gameType, game.title,
+     JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt]
+  )
+}
+
+export async function dbDeleteActiveGame(matchId: string): Promise<void> {
+  await ensureActiveGamesTable()
+  await exec('DELETE FROM active_games WHERE id = ?', [matchId])
+}
+
+export async function dbGetActiveGames(): Promise<ActiveGame[]> {
+  await ensureActiveGamesTable()
+  const rows = await query<{
+    id: string; player_id: string; game_type: string; title: string;
+    config: any; players: any; started_at: string
+  }>('SELECT * FROM active_games ORDER BY started_at DESC')
+
+  return rows.map(r => ({
+    id: r.id,
+    playerId: r.player_id,
+    gameType: r.game_type,
+    title: r.title,
+    config: r.config,
+    players: r.players,
+    startedAt: r.started_at,
+  }))
+}
+
+// ============================================================================
 // X01 Match Functions
 // ============================================================================
 
