@@ -836,6 +836,7 @@ export function finishMatch(matchId: string): Promise<void> {
 
   list[idx] = { ...list[idx], finished: true }
   saveMatches(list)
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const last = getLastOpenMatchId()
   if (last === matchId) setLastOpenMatchId(undefined)
@@ -2096,6 +2097,7 @@ export function finishCricketMatch(
 
   list[idx] = { ...list[idx], finished: true }
   saveCricketMatches(list)
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const last =
     localStorage.getItem(
@@ -3090,6 +3092,7 @@ export function finishATBMatch(
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
   atbMatchesCache = all
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   // Update Highscores
   const match = all[idx]
@@ -3504,6 +3507,7 @@ export function deleteX01Match(matchId: string) {
   const matches = getMatches()
   const filtered = matches.filter(m => m.id !== matchId)
   saveMatches(filtered)
+  dbDeleteActiveGame(matchId).catch(() => {})
   // Pause- und Zeit-Status auch löschen
   clearMatchPaused(matchId, 'x01')
   clearMatchElapsedTime(matchId, 'x01')
@@ -3516,6 +3520,7 @@ export function deleteCricketMatch(matchId: string) {
   const matches = getCricketMatches()
   const filtered = matches.filter(m => m.id !== matchId)
   saveCricketMatches(filtered)
+  dbDeleteActiveGame(matchId).catch(() => {})
   // Pause- und Zeit-Status auch löschen
   clearMatchPaused(matchId, 'cricket')
   clearMatchElapsedTime(matchId, 'cricket')
@@ -3528,6 +3533,7 @@ export function deleteATBMatch(matchId: string) {
   const all = getATBMatches()
   const filtered = all.filter(m => m.id !== matchId)
   atbMatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
   // Pause- und Zeit-Status auch löschen
   clearMatchPaused(matchId, 'atb')
   clearMatchElapsedTime(matchId, 'atb')
@@ -3733,6 +3739,7 @@ export function finishStrMatch(
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
   strMatchesCache = all
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const strPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
   if (strPids.length > 0) queueStatsRefresh(strPids, 'str', loadGroup)
@@ -3754,6 +3761,7 @@ export function deleteStrMatch(matchId: string) {
   const all = getStrMatches()
   const filtered = all.filter(m => m.id !== matchId)
   strMatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   clearMatchPaused(matchId, 'str')
   clearMatchElapsedTime(matchId, 'str')
@@ -3921,6 +3929,7 @@ export function finishCTFMatch(
   all[idx].winnerId = winnerId
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   // Feldpunkte aus Events berechnen und speichern
   const captureFieldPoints: Record<string, number> = {}
@@ -3994,6 +4003,7 @@ export function deleteCTFMatch(matchId: string) {
   const all = getCTFMatches()
   const filtered = all.filter(m => m.id !== matchId)
   ctfMatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   clearMatchPaused(matchId, 'ctf')
   clearMatchElapsedTime(matchId, 'ctf')
@@ -4157,6 +4167,7 @@ export function finishShanghaiMatch(
   all[idx].winnerId = winnerId
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   // Final scores aus letztem LegFinished Event
   const legFinished = all[idx].events.filter((e: any) => e.type === 'ShanghaiLegFinished')
@@ -4205,6 +4216,7 @@ export function deleteShanghaiMatch(matchId: string) {
   const all = getShanghaiMatches()
   const filtered = all.filter(m => m.id !== matchId)
   shanghaiMatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   clearMatchPaused(matchId, 'shanghai')
   clearMatchElapsedTime(matchId, 'shanghai')
@@ -4375,6 +4387,7 @@ export function finishKillerMatch(
   if (setWins) all[idx].setWins = setWins
 
   killerMatchesCache = all
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const killerPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
   if (killerPids.length > 0) queueStatsRefresh(killerPids, 'killer', loadGroup)
@@ -4396,7 +4409,7 @@ export function deleteKillerMatch(matchId: string) {
   const all = getKillerMatches()
   const filtered = all.filter(m => m.id !== matchId)
   killerMatchesCache = filtered
-
+  dbDeleteActiveGame(matchId).catch(() => {})
 }
 
 
@@ -4554,6 +4567,7 @@ export function finishBobs27Match(
   if (finalScores) all[idx].finalScores = finalScores
 
   bobs27MatchesCache = all
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const bobs27Pids = all[idx].players.map((p: { playerId: string }) => p.playerId)
   if (bobs27Pids.length > 0) queueStatsRefresh(bobs27Pids, 'bobs27', loadGroup)
@@ -4591,6 +4605,7 @@ export function deleteBobs27Match(matchId: string) {
   const all = getBobs27Matches()
   const filtered = all.filter(m => m.id !== matchId)
   bobs27MatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   clearMatchPaused(matchId, 'bobs27')
   clearMatchElapsedTime(matchId, 'bobs27')
@@ -4844,6 +4859,7 @@ export function finishOperationMatch(
   if (legWins) all[idx].legWins = legWins
 
   operationMatchesCache = all
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const opPids = all[idx].players.map((p: { playerId: string }) => p.playerId)
   if (opPids.length > 0) queueStatsRefresh(opPids, 'operation', loadGroup)
@@ -4883,6 +4899,7 @@ export function deleteOperationMatch(matchId: string) {
   const all = getOperationMatches()
   const filtered = all.filter(m => m.id !== matchId)
   operationMatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   clearMatchPaused(matchId, 'operation')
   clearMatchElapsedTime(matchId, 'operation')
@@ -5548,6 +5565,7 @@ export function finishHighscoreMatch(
   if (legWins) all[idx].legWins = legWins
   if (setWins) all[idx].setWins = setWins
   highscoreMatchesCache = all
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   const hsPids = all[idx].players.map((p: { id: string }) => p.id)
   if (hsPids.length > 0) queueStatsRefresh(hsPids, 'highscore', loadGroup)
@@ -5569,6 +5587,7 @@ export function deleteHighscoreMatch(matchId: string) {
   const all = getHighscoreMatches()
   const filtered = all.filter(m => m.id !== matchId)
   highscoreMatchesCache = filtered
+  dbDeleteActiveGame(matchId).catch(() => {})
 
   clearMatchPaused(matchId, 'highscore')
   clearMatchElapsedTime(matchId, 'highscore')
