@@ -6,14 +6,23 @@ import {
   getMatches,
   getMatchesAsync,
   getCricketMatches,
+  getCricketMatchesAsync,
   getATBMatches,
+  getATBMatchesAsync,
   getStrMatches,
+  getStrMatchesAsync,
   getHighscoreMatches,
+  getHighscoreMatchesAsync,
   getCTFMatches,
+  getCTFMatchesAsync,
   getShanghaiMatches,
+  getShanghaiMatchesAsync,
   getKillerMatches,
+  getKillerMatchesAsync,
   getBobs27Matches,
+  getBobs27MatchesAsync,
   getOperationMatches,
+  getOperationMatchesAsync,
   repairBobs27Matches,
   repairOperationMatches,
   type StoredMatch,
@@ -527,15 +536,27 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
     getMatchesAsync().then(setX01).catch(() => {})
   }, [refreshKey])
 
-  const cricket = useMemo(() => getCricketMatches(), [refreshKey])
-  const atb = useMemo(() => getATBMatches(), [refreshKey])
-  const str = useMemo(() => getStrMatches(), [refreshKey])
-  const highscore = useMemo(() => getHighscoreMatches(), [refreshKey])
-  const ctf = useMemo(() => getCTFMatches(), [refreshKey])
-  const shanghai = useMemo(() => getShanghaiMatches(), [refreshKey])
-  const killer = useMemo(() => getKillerMatches(), [refreshKey])
-  const bobs27 = useMemo(() => { repairBobs27Matches(); return getBobs27Matches() }, [refreshKey])
-  const operation = useMemo(() => { repairOperationMatches(); return getOperationMatches() }, [refreshKey])
+  const [cricket, setCricket] = useState<CricketStoredMatch[]>(() => getCricketMatches())
+  const [atb, setAtb] = useState<ATBStoredMatch[]>(() => getATBMatches())
+  const [str, setStr] = useState<StrStoredMatch[]>(() => getStrMatches())
+  const [highscore, setHighscore] = useState<HighscoreStoredMatch[]>(() => getHighscoreMatches())
+  const [ctf, setCtf] = useState<CTFStoredMatch[]>(() => getCTFMatches())
+  const [shanghai, setShanghai] = useState<ShanghaiStoredMatch[]>(() => getShanghaiMatches())
+  const [killer, setKiller] = useState<KillerStoredMatch[]>(() => getKillerMatches())
+  const [bobs27, setBobs27] = useState<Bobs27StoredMatch[]>(() => { repairBobs27Matches(); return getBobs27Matches() })
+  const [operation, setOperation] = useState<OperationStoredMatch[]>(() => { repairOperationMatches(); return getOperationMatches() })
+
+  useEffect(() => {
+    getCricketMatchesAsync().then(setCricket).catch(() => {})
+    getATBMatchesAsync().then(setAtb).catch(() => {})
+    getStrMatchesAsync().then(setStr).catch(() => {})
+    getHighscoreMatchesAsync().then(setHighscore).catch(() => {})
+    getCTFMatchesAsync().then(setCtf).catch(() => {})
+    getShanghaiMatchesAsync().then(setShanghai).catch(() => {})
+    getKillerMatchesAsync().then(setKiller).catch(() => {})
+    getBobs27MatchesAsync().then(setBobs27).catch(() => {})
+    getOperationMatchesAsync().then(setOperation).catch(() => {})
+  }, [refreshKey])
 
   const items = useMemo(() => {
     const x01Items = x01.map((m) => {

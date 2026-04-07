@@ -28,21 +28,28 @@ import {
   dbSaveATBMatch,
   dbUpdateATBEvents,
   dbFinishATBMatch,
+  dbGetCTFMatches,
   dbSaveCTFMatch,
   dbUpdateCTFEvents,
+  dbGetStrMatches,
   dbSaveStrMatch,
   dbUpdateStrEvents,
   dbFinishStrMatch,
+  dbGetHighscoreMatches,
   dbSaveHighscoreMatch,
   dbUpdateHighscoreEvents,
   dbFinishHighscoreMatch,
+  dbGetShanghaiMatches,
   dbSaveShanghaiMatch,
   dbUpdateShanghaiEvents,
+  dbGetKillerMatches,
   dbSaveKillerMatch,
   dbUpdateKillerEvents,
   dbFinishKillerMatch,
+  dbGetBobs27Matches,
   dbSaveBobs27Match,
   dbUpdateBobs27Events,
+  dbGetOperationMatches,
   dbSaveOperationMatch,
   dbUpdateOperationEvents,
   type DBProfile,
@@ -3570,6 +3577,22 @@ export function saveStrMatches(all: StrStoredMatch[]) {
   strMatchesCache = all
 }
 
+// SQLite-aware Str Matches laden
+export async function getStrMatchesAsync(): Promise<StrStoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetStrMatches()
+      const matches = dbMatches as any as StrStoredMatch[]
+      strMatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Str load failed:', e)
+  }
+  return getStrMatches()
+}
+
 export function getStrMatchById(matchId: string): StrStoredMatch | null {
   const matches = getStrMatches()
   return matches.find(m => m.id === matchId) ?? null
@@ -3795,6 +3818,22 @@ export function getCTFMatches(): CTFStoredMatch[] {
 
 export function saveCTFMatches(all: CTFStoredMatch[]) {
   ctfMatchesCache = all
+}
+
+// SQLite-aware CTF Matches laden
+export async function getCTFMatchesAsync(): Promise<CTFStoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetCTFMatches()
+      const matches = dbMatches as any as CTFStoredMatch[]
+      ctfMatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite CTF load failed:', e)
+  }
+  return getCTFMatches()
 }
 
 export function getCTFMatchById(matchId: string): CTFStoredMatch | null {
@@ -4040,6 +4079,22 @@ export function saveShanghaiMatches(all: ShanghaiStoredMatch[]) {
   shanghaiMatchesCache = all
 }
 
+// SQLite-aware Shanghai Matches laden
+export async function getShanghaiMatchesAsync(): Promise<ShanghaiStoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetShanghaiMatches()
+      const matches = dbMatches as any as ShanghaiStoredMatch[]
+      shanghaiMatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Shanghai load failed:', e)
+  }
+  return getShanghaiMatches()
+}
+
 export function getShanghaiMatchById(matchId: string): ShanghaiStoredMatch | null {
   const matches = getShanghaiMatches()
   return matches.find(m => m.id === matchId) ?? null
@@ -4258,6 +4313,22 @@ export function saveKillerMatches(all: KillerStoredMatch[]) {
   killerMatchesCache = all
 }
 
+// SQLite-aware Killer Matches laden
+export async function getKillerMatchesAsync(): Promise<KillerStoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetKillerMatches()
+      const matches = dbMatches as any as KillerStoredMatch[]
+      killerMatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Killer load failed:', e)
+  }
+  return getKillerMatches()
+}
+
 export function getKillerMatchById(matchId: string): KillerStoredMatch | undefined {
   const matches = getKillerMatches()
   return matches.find(m => m.id === matchId)
@@ -4451,6 +4522,22 @@ export function getBobs27Matches(): Bobs27StoredMatch[] {
 
 export function saveBobs27Matches(all: Bobs27StoredMatch[]) {
   bobs27MatchesCache = all
+}
+
+// SQLite-aware Bobs27 Matches laden
+export async function getBobs27MatchesAsync(): Promise<Bobs27StoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetBobs27Matches()
+      const matches = dbMatches as any as Bobs27StoredMatch[]
+      bobs27MatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Bobs27 load failed:', e)
+  }
+  return getBobs27Matches()
 }
 
 export function getBobs27MatchById(matchId: string): Bobs27StoredMatch | null {
@@ -4748,6 +4835,22 @@ export function getOperationMatches(): OperationStoredMatch[] {
 
 export function saveOperationMatches(all: OperationStoredMatch[]) {
   operationMatchesCache = all
+}
+
+// SQLite-aware Operation Matches laden
+export async function getOperationMatchesAsync(): Promise<OperationStoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetOperationMatches()
+      const matches = dbMatches as any as OperationStoredMatch[]
+      operationMatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Operation load failed:', e)
+  }
+  return getOperationMatches()
 }
 
 export function getOperationMatchById(matchId: string): OperationStoredMatch | null {
@@ -5450,6 +5553,22 @@ export function getHighscoreMatches(): HighscoreStoredMatch[] {
 
 export function saveHighscoreMatches(all: HighscoreStoredMatch[]) {
   highscoreMatchesCache = all
+}
+
+// SQLite-aware Highscore Matches laden
+export async function getHighscoreMatchesAsync(): Promise<HighscoreStoredMatch[]> {
+  try {
+    const useSQLite = await ensureDB()
+    if (useSQLite) {
+      const dbMatches = await dbGetHighscoreMatches()
+      const matches = dbMatches as any as HighscoreStoredMatch[]
+      highscoreMatchesCache = matches
+      return matches
+    }
+  } catch (e) {
+    console.warn('[Storage] SQLite Highscore load failed:', e)
+  }
+  return getHighscoreMatches()
 }
 
 export function getHighscoreMatchById(matchId: string): HighscoreStoredMatch | null {
