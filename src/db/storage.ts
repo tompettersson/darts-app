@@ -718,6 +718,82 @@ export async function dbGetActiveGames(): Promise<ActiveGame[]> {
   }))
 }
 
+/**
+ * One-time migration: populate active_games from existing unfinished matches.
+ * Only runs if active_games is empty and there are unfinished matches.
+ * Sets a system_meta flag so it only runs once.
+ */
+export async function dbMigrateToActiveGames(): Promise<number> {
+  // Check if migration already done
+  const flag = await queryOne<{ value: string }>(
+    "SELECT value FROM system_meta WHERE key = 'active_games_migrated'"
+  )
+  if (flag) return 0
+
+  // Check if active_games already has data
+  const existing = await queryOne<{ cnt: number }>(
+    'SELECT COUNT(*) as cnt FROM active_games'
+  )
+  if (existing && existing.cnt > 0) {
+    // Already has data, mark as migrated
+    await exec(
+      "INSERT INTO system_meta (key, value, updated_at) VALUES ('active_games_migrated', '1', ?) ON CONFLICT (key) DO UPDATE SET value = '1'",
+      [new Date().toISOString()]
+    )
+    return 0
+  }
+
+  // Find all unfinished matches using the existing UNION ALL query
+  let openMatches: OpenMatchInfo[] = []
+  try {
+    openMatches = await dbGetOpenMatchSummaries()
+  } catch {
+    return 0
+  }
+
+  if (openMatches.length === 0) {
+    await exec(
+      "INSERT INTO system_meta (key, value, updated_at) VALUES ('active_games_migrated', '1', ?) ON CONFLICT (key) DO UPDATE SET value = '1'",
+      [new Date().toISOString()]
+    )
+    return 0
+  }
+
+  // For each open match, get player info from the match_players table
+  let migrated = 0
+  for (const om of openMatches) {
+    try {
+      const tableName = `${om.gameType}_match_players`
+      const playerRows = await query<{ player_id: string }>(
+        `SELECT player_id FROM ${tableName} WHERE match_id = ?`,
+        [om.id]
+      )
+
+      await dbInsertActiveGame({
+        id: om.id,
+        playerId: playerRows[0]?.player_id ?? '',
+        gameType: om.gameType,
+        title: om.title,
+        config: null,
+        players: playerRows.map(p => ({ id: p.player_id, name: '', color: undefined })),
+        startedAt: new Date().toISOString(),
+      })
+      migrated++
+    } catch (err) {
+      console.warn(`[Migration] Failed to migrate ${om.gameType} match ${om.id}:`, err)
+    }
+  }
+
+  // Mark migration as done
+  await exec(
+    "INSERT INTO system_meta (key, value, updated_at) VALUES ('active_games_migrated', '1', ?) ON CONFLICT (key) DO UPDATE SET value = '1'",
+    [new Date().toISOString()]
+  )
+
+  console.log(`[Migration] Migrated ${migrated} open matches to active_games`)
+  return migrated
+}
+
 // ============================================================================
 // X01 Match Functions
 // ============================================================================
