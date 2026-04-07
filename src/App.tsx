@@ -60,8 +60,23 @@ import {
   getOpenOperationMatch,
   getOperationMatchById,
   createCheckoutTrainerMatchShell,
+  getActiveGamesCache,
+  removeFromActiveGamesCache,
   type StoredMatch,
 } from './storage'
+
+// Active Games DB operations
+import {
+  dbDeleteActiveGame,
+  dbGetX01MatchById,
+  dbGetCricketMatchById,
+  dbGetATBMatchById,
+  dbGetShanghaiMatchById,
+  dbGetKillerMatchById,
+  dbGetBobs27MatchById,
+  dbGetOperationMatchById,
+} from './db/storage'
+import type { ActiveGame } from './db/storage'
 
 // Auth
 import { useAuth } from './auth/AuthContext'
@@ -97,6 +112,7 @@ const NewGameKiller = React.lazy(() => import('./screens/NewGameKiller'))
 const NewGameBobs27 = React.lazy(() => import('./screens/NewGameBobs27'))
 const NewGameOperation = React.lazy(() => import('./screens/NewGameOperation'))
 const CheckoutQuiz = React.lazy(() => import('./screens/CheckoutQuiz'))
+const OpenGames = React.lazy(() => import('./screens/OpenGames'))
 
 // Lazy-loaded Game Screens, Summaries & Stats
 const Game = React.lazy(() => import('./screens/Game'))
@@ -303,6 +319,7 @@ type View =
   | 'checkout-quiz'
   | 'game-checkout-trainer'
   | 'multiplayer-game'
+  | 'open-games'
 
 export default function App() {
   // Theme System
@@ -484,6 +501,9 @@ export default function App() {
 
   // Checkout Trainer Match ID
   const [activeCheckoutTrainerId, setActiveCheckoutTrainerId] = useState<string | undefined>()
+
+  // Resume loading state (for active_games flow)
+  const [resumeLoading, setResumeLoading] = useState(false)
 
   // --- Multiplayer State (persisted to sessionStorage to survive rotation/reload) ---
   const [isMultiplayerSetup, setIsMultiplayerSetup] = useState(false)
@@ -1765,6 +1785,20 @@ export default function App() {
     )
   }
 
+  // OPEN GAMES SELECTION
+  if (view === 'open-games') {
+    return (
+      <React.Suspense fallback={<div style={styles.page} />}>
+        <OpenGames
+          games={getActiveGamesCache()}
+          onSelect={resumeGame}
+          onDiscard={discardGame}
+          onBack={() => setView('menu')}
+        />
+      </React.Suspense>
+    )
+  }
+
   // CHECKOUT QUIZ
   if (view === 'checkout-quiz') {
     return <CheckoutQuiz onBack={() => setView('new-start')} />
@@ -2745,66 +2779,119 @@ export default function App() {
   // Check if there's a recoverable MP session (for "Spiel fortsetzen")
   const hasMpSession = Boolean(multiplayerRoomCode && multiplayerMatchId && multiplayerMyPlayerId)
 
+  async function resumeGame(game: ActiveGame) {
+    setResumeLoading(true)
+    try {
+      switch (game.gameType) {
+        case 'x01': {
+          const m = await dbGetX01MatchById(game.id)
+          if (m) {
+            // Warm the in-memory cache so Game.tsx's loadMatchById works
+            const matches = getMatches()
+            if (!matches.find(x => x.id === m.id)) {
+              matches.push({
+                id: m.id, title: m.title, matchName: m.matchName ?? undefined,
+                notes: m.notes ?? undefined, createdAt: m.createdAt,
+                events: m.events, playerIds: m.playerIds, finished: m.finished,
+              })
+              saveMatches(matches)
+            }
+            setActiveMatchId(game.id)
+            setLastActivity('x01', game.id)
+            setView('game')
+          }
+          break
+        }
+        case 'cricket': {
+          setActiveCricketId(game.id)
+          setLastActivity('cricket', game.id)
+          setView('game-cricket')
+          break
+        }
+        case 'atb': {
+          setActiveATBId(game.id)
+          setLastActivity('atb', game.id)
+          setView('game-atb')
+          break
+        }
+        case 'str': {
+          setActiveStrId(game.id)
+          setLastActivity('str', game.id)
+          setView('game-str')
+          break
+        }
+        case 'highscore': {
+          setActiveHighscoreId(game.id)
+          setLastActivity('highscore', game.id)
+          setView('game-highscore')
+          break
+        }
+        case 'ctf': {
+          setActiveCTFId(game.id)
+          setLastActivity('ctf', game.id)
+          setView('game-ctf')
+          break
+        }
+        case 'shanghai': {
+          setActiveShanghaiId(game.id)
+          setLastActivity('shanghai', game.id)
+          setView('game-shanghai')
+          break
+        }
+        case 'killer': {
+          setActiveKillerId(game.id)
+          setLastActivity('killer', game.id)
+          setView('game-killer')
+          break
+        }
+        case 'bobs27': {
+          setActiveBobs27Id(game.id)
+          setLastActivity('bobs27', game.id)
+          setView('game-bobs27')
+          break
+        }
+        case 'operation': {
+          setActiveOperationId(game.id)
+          setLastActivity('operation', game.id)
+          setView('game-operation')
+          break
+        }
+      }
+    } catch (err) {
+      console.error('Failed to resume game:', err)
+      showToast('Spiel konnte nicht geladen werden')
+    } finally {
+      setResumeLoading(false)
+    }
+  }
+
+  async function discardGame(gameId: string) {
+    removeFromActiveGamesCache(gameId)
+    dbDeleteActiveGame(gameId).catch(() => {})
+    // If no more games, go back to menu
+    if (getActiveGamesCache().length === 0) {
+      setView('menu')
+    }
+  }
+
   const handleContinueGame = () => {
     // Rejoin multiplayer game if session exists
     if (hasMpSession) {
       setView('multiplayer-game')
       return
     }
-    // Direct resume if an active game ID is already set (e.g., returned from menu during MP)
-    if (!continueInfo) {
-      if (activeCricketId) { setView('game-cricket'); return }
-      if (activeMatchId) { setView('game'); return }
-      if (activeATBId) { setView('game-atb'); return }
-      if (activeOperationId) { setView('game-operation'); return }
-      if (activeBobs27Id) { setView('game-bobs27'); return }
-      return
-    }
-    if (continueInfo.kind === 'x01') {
-      setActiveMatchId(continueInfo.id)
-      setLastActivity('x01', continueInfo.id)
-      setView('game')
-    } else if (continueInfo.kind === 'cricket') {
-      setActiveCricketId(continueInfo.id)
-      setLastActivity('cricket', continueInfo.id)
-      setView('game-cricket')
-    } else if (continueInfo.kind === 'atb') {
-      setActiveATBId(continueInfo.id)
-      setLastActivity('atb', continueInfo.id)
-      setView('game-atb')
-    } else if (continueInfo.kind === 'str') {
-      setActiveStrId(continueInfo.id)
-      setLastActivity('str', continueInfo.id)
-      setView('game-str')
-    } else if (continueInfo.kind === 'highscore') {
-      setActiveHighscoreId(continueInfo.id)
-      setLastActivity('highscore', continueInfo.id)
-      setView('game-highscore')
-    } else if (continueInfo.kind === 'ctf') {
-      setActiveCTFId(continueInfo.id)
-      setLastActivity('ctf', continueInfo.id)
-      setView('game-ctf')
-    } else if (continueInfo.kind === 'shanghai') {
-      setActiveShanghaiId(continueInfo.id)
-      setLastActivity('shanghai', continueInfo.id)
-      setView('game-shanghai')
-    } else if (continueInfo.kind === 'killer') {
-      setActiveKillerId(continueInfo.id)
-      setLastActivity('killer', continueInfo.id)
-      setView('game-killer')
-    } else if (continueInfo.kind === 'bobs27') {
-      setActiveBobs27Id(continueInfo.id)
-      setLastActivity('bobs27', continueInfo.id)
-      setView('game-bobs27')
-    } else if (continueInfo.kind === 'operation') {
-      setActiveOperationId(continueInfo.id)
-      setLastActivity('operation', continueInfo.id)
-      setView('game-operation')
+
+    const games = getActiveGamesCache()
+    if (games.length === 0) return
+    if (games.length === 1) {
+      resumeGame(games[0])
+    } else {
+      setView('open-games')
     }
   }
 
   const menuItems: PickerItem[] = [
-    { id: 'continue', label: 'Spiel fortsetzen', sub: hasMpSession ? `Online-Spiel · ${multiplayerRoomCode}` : (continueInfo ? continueInfo.title : 'Kein laufendes Spiel'), icon: <MenuIconContinue /> },
+    { id: 'continue', label: 'Spiel fortsetzen', sub: hasMpSession ? `Online-Spiel · ${multiplayerRoomCode}` : getActiveGamesCache().length > 0 ? `${getActiveGamesCache().length} offene(s) Spiel(e)` : 'Kein laufendes Spiel', icon: <MenuIconContinue /> },
     { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket', icon: <MenuIconNewGame /> },
     { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <MenuIconOnline /> },
     { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores', icon: <MenuIconStats /> },

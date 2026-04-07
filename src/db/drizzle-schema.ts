@@ -432,3 +432,17 @@ export const stats121Doubles = pgTable('stats_121_doubles', {
   hits: integer('hits').default(0),
   hitRate: real('hit_rate').default(0),
 }, (t) => [primaryKey({ columns: [t.playerId, t.doubleField] })])
+
+// ============================================================================
+// Active Games (open/unfinished matches for quick resume)
+// ============================================================================
+
+export const activeGames = pgTable('active_games', {
+  id: text('id').primaryKey(),
+  playerId: text('player_id').notNull(),
+  gameType: text('game_type').notNull(),
+  title: text('title').notNull(),
+  config: jsonb('config'),
+  players: jsonb('players'),
+  startedAt: text('started_at').notNull(),
+})

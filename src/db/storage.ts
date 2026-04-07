@@ -646,6 +646,155 @@ export async function dbGetOpenMatchSummaries(): Promise<OpenMatchInfo[]> {
 }
 
 // ============================================================================
+// Active Games (open/unfinished match tracking)
+// ============================================================================
+
+export type ActiveGame = {
+  id: string
+  playerId: string
+  gameType: string
+  title: string
+  config: Record<string, any> | null
+  players: Array<{ id: string; name: string; color?: string }> | null
+  startedAt: string
+}
+
+const ACTIVE_GAMES_DDL = `
+CREATE TABLE IF NOT EXISTS active_games (
+  id          TEXT PRIMARY KEY,
+  player_id   TEXT NOT NULL,
+  game_type   TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  config      JSONB,
+  players     JSONB,
+  started_at  TEXT NOT NULL
+)`
+
+const ACTIVE_GAMES_INDEX = `CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)`
+
+let activeGamesTableReady = false
+
+async function ensureActiveGamesTable(): Promise<void> {
+  if (activeGamesTableReady) return
+  await exec(ACTIVE_GAMES_DDL)
+  await exec(ACTIVE_GAMES_INDEX)
+  activeGamesTableReady = true
+}
+
+export async function dbInsertActiveGame(game: ActiveGame): Promise<void> {
+  await ensureActiveGamesTable()
+  await exec(
+    `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at)
+     VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       title = EXCLUDED.title,
+       config = EXCLUDED.config,
+       players = EXCLUDED.players`,
+    [game.id, game.playerId, game.gameType, game.title,
+     JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt]
+  )
+}
+
+export async function dbDeleteActiveGame(matchId: string): Promise<void> {
+  await ensureActiveGamesTable()
+  await exec('DELETE FROM active_games WHERE id = ?', [matchId])
+}
+
+export async function dbGetActiveGames(): Promise<ActiveGame[]> {
+  await ensureActiveGamesTable()
+  const rows = await query<{
+    id: string; player_id: string; game_type: string; title: string;
+    config: any; players: any; started_at: string
+  }>('SELECT * FROM active_games ORDER BY started_at DESC')
+
+  return rows.map(r => ({
+    id: r.id,
+    playerId: r.player_id,
+    gameType: r.game_type,
+    title: r.title,
+    config: r.config,
+    players: r.players,
+    startedAt: r.started_at,
+  }))
+}
+
+/**
+ * One-time migration: populate active_games from existing unfinished matches.
+ * Only runs if active_games is empty and there are unfinished matches.
+ * Sets a system_meta flag so it only runs once.
+ */
+export async function dbMigrateToActiveGames(): Promise<number> {
+  // Check if migration already done
+  const flag = await queryOne<{ value: string }>(
+    "SELECT value FROM system_meta WHERE key = 'active_games_migrated'"
+  )
+  if (flag) return 0
+
+  // Check if active_games already has data
+  const existing = await queryOne<{ cnt: number }>(
+    'SELECT COUNT(*) as cnt FROM active_games'
+  )
+  if (existing && existing.cnt > 0) {
+    // Already has data, mark as migrated
+    await exec(
+      "INSERT INTO system_meta (key, value, updated_at) VALUES ('active_games_migrated', '1', ?) ON CONFLICT (key) DO UPDATE SET value = '1'",
+      [new Date().toISOString()]
+    )
+    return 0
+  }
+
+  // Find all unfinished matches using the existing UNION ALL query
+  let openMatches: OpenMatchInfo[] = []
+  try {
+    openMatches = await dbGetOpenMatchSummaries()
+  } catch {
+    return 0
+  }
+
+  if (openMatches.length === 0) {
+    await exec(
+      "INSERT INTO system_meta (key, value, updated_at) VALUES ('active_games_migrated', '1', ?) ON CONFLICT (key) DO UPDATE SET value = '1'",
+      [new Date().toISOString()]
+    )
+    return 0
+  }
+
+  // For each open match, get player info from the match_players table
+  let migrated = 0
+  for (const om of openMatches) {
+    try {
+      const tableName = `${om.gameType}_match_players`
+      const playerRows = await query<{ player_id: string }>(
+        `SELECT player_id FROM ${tableName} WHERE match_id = ?`,
+        [om.id]
+      )
+
+      await dbInsertActiveGame({
+        id: om.id,
+        playerId: playerRows[0]?.player_id ?? '',
+        gameType: om.gameType,
+        title: om.title,
+        config: null,
+        players: playerRows.map(p => ({ id: p.player_id, name: '', color: undefined })),
+        startedAt: new Date().toISOString(),
+      })
+      migrated++
+    } catch (err) {
+      console.warn(`[Migration] Failed to migrate ${om.gameType} match ${om.id}:`, err)
+    }
+  }
+
+  // Mark migration as done
+  await exec(
+    "INSERT INTO system_meta (key, value, updated_at) VALUES ('active_games_migrated', '1', ?) ON CONFLICT (key) DO UPDATE SET value = '1'",
+    [new Date().toISOString()]
+  )
+
+  console.log(`[Migration] Migrated ${migrated} open matches to active_games`)
+  return migrated
+}
+
+// ============================================================================
 // X01 Match Functions
 // ============================================================================
 
