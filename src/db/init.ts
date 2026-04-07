@@ -4,17 +4,11 @@
 import { initDB, isDBReady, getDBStatus, getDBVersion, closeDB } from './index'
 import {
   dbGetProfiles,
-  dbGetOpenMatchSummaries,
-  dbGetX01MatchById,
-  dbGetCricketMatchById,
-  dbGetATBMatchById,
-  dbGetShanghaiMatchById,
-  dbGetKillerMatchById,
-  dbGetBobs27MatchById,
-  dbGetOperationMatchById,
+  dbGetActiveGames,
+  dbMigrateToActiveGames,
   dbRepairUnfinishedMatches,
 } from './storage'
-import { warmAllCaches, setOpenMatchSummaries } from '../storage'
+import { warmAllCaches, setActiveGamesCache } from '../storage'
 
 export type DBInitResult = {
   success: boolean
@@ -87,8 +81,11 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
       p.catch((err) => { console.warn('[DB Init] Query failed:', err.message); return fallback })
 
     // === Phase 1: Critical data for login screen (fast) ===
-    // Only load profiles — everything else is loaded lazily when needed
-    const profiles = await safe(dbGetProfiles(), [])
+    // Load profiles + active games together — needed for "Spiel fortsetzen"
+    const [profiles, activeGames] = await Promise.all([
+      safe(dbGetProfiles(), []),
+      safe(dbGetActiveGames(), []),
+    ])
 
     warmAllCaches({
       profiles: profiles.map((p) => ({
@@ -96,13 +93,17 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
       })),
     })
 
-    const phase1Ms = Date.now() - startTime
-    console.debug(`[DB Init] Phase 1 (profiles) in ${phase1Ms}ms: ${profiles.length} profiles`)
+    setActiveGamesCache(activeGames)
 
-    // === Phase 2: Match data loaded in background (non-blocking) ===
-    // This runs after the app is already interactive
+    const phase1Ms = Date.now() - startTime
+    console.debug(`[DB Init] Phase 1 (profiles + active games) in ${phase1Ms}ms: ${profiles.length} profiles, ${activeGames.length} active games`)
+
+    // === Phase 2: Background tasks (non-blocking) ===
     setTimeout(async () => {
       try {
+        // One-time migration of existing open matches to active_games table
+        await safe(dbMigrateToActiveGames(), 0)
+
         // Repair stale matches — only once per 24h to avoid 10+ queries on every startup
         const REPAIR_KEY = 'darts.lastRepairCheck'
         const lastRepair = localStorage.getItem(REPAIR_KEY)
@@ -115,51 +116,15 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
           } catch {}
         }
 
-        const bgStart = Date.now()
-
-        // Step 1: Find which games have open (unfinished) matches (1 lightweight query)
-        const openMatches = await safe(dbGetOpenMatchSummaries(), [])
-        setOpenMatchSummaries(openMatches)
-
-        // Step 2: Load full match data ONLY for open matches (so "Spiel fortsetzen" works)
-        // This loads at most 1 match per game type — not 50 like before
-        const loaders: Record<string, (id: string) => Promise<any>> = {
-          x01: async (id) => { const m = await dbGetX01MatchById(id); return m ? { x01Matches: [{ id: m.id, title: m.title, matchName: m.matchName, notes: m.notes, createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished }] } : null },
-          cricket: async (id) => { const m = await dbGetCricketMatchById(id); return m ? { cricketMatches: [{ id: m.id, title: m.title, matchName: m.matchName, notes: m.notes, createdAt: m.createdAt, events: m.events, playerIds: m.playerIds, finished: m.finished }] } : null },
-          atb: async (id) => { const m = await dbGetATBMatchById(id); return m ? { atbMatches: [m] } : null },
-          shanghai: async (id) => { const m = await dbGetShanghaiMatchById(id); return m ? { shanghaiMatches: [m] } : null },
-          killer: async (id) => { const m = await dbGetKillerMatchById(id); return m ? { killerMatches: [m] } : null },
-          bobs27: async (id) => { const m = await dbGetBobs27MatchById(id); return m ? { bobs27Matches: [m] } : null },
-          operation: async (id) => { const m = await dbGetOperationMatchById(id); return m ? { operationMatches: [m] } : null },
-        }
-
-        if (openMatches.length > 0) {
-          const cacheData: Record<string, any[]> = {}
-          const loadPromises = openMatches
-            .filter(om => loaders[om.gameType])
-            .map(om => safe(loaders[om.gameType](om.id), null))
-
-          const results = await Promise.all(loadPromises)
-          for (const r of results) {
-            if (r) Object.assign(cacheData, r)
-          }
-
-          if (Object.keys(cacheData).length > 0) {
-            warmAllCaches(cacheData)
-          }
-        }
-
-        console.debug(`[DB Init] Phase 2 (open matches) in ${Date.now() - bgStart}ms: ${openMatches.length} open`)
-        // Signal to UI components that match data is now available
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
-        console.warn('[DB Init] Background load failed:', e)
+        console.warn('[DB Init] Background tasks failed:', e)
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       }
     }, 100) // Small delay to let the UI render first
 
     const durationMs = Date.now() - startTime
-    console.debug(`[DB Init] Ready in ${durationMs}ms (${profiles.length} profiles, matches loading in background)`)
+    console.debug(`[DB Init] Ready in ${durationMs}ms (${profiles.length} profiles, ${activeGames.length} active games)`)
 
     return {
       profiles: profiles.length,

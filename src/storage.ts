@@ -240,19 +240,28 @@ export function warmAllCaches(data: {
 }
 
 // ============================================================================
-// Open Match Summaries (lightweight startup data)
+// Active Games Cache (loaded at startup)
 // ============================================================================
 
-import type { OpenMatchInfo } from './db/storage'
+import type { ActiveGame } from './db/storage'
 
-let openMatchSummariesCache: OpenMatchInfo[] = []
+let activeGamesCache: ActiveGame[] = []
 
-export function setOpenMatchSummaries(summaries: OpenMatchInfo[]): void {
-  openMatchSummariesCache = summaries
+export function setActiveGamesCache(games: ActiveGame[]): void {
+  activeGamesCache = games
 }
 
-export function getOpenMatchSummary(gameType: string): OpenMatchInfo | undefined {
-  return openMatchSummariesCache.find(s => s.gameType === gameType)
+export function getActiveGamesCache(): ActiveGame[] {
+  return activeGamesCache
+}
+
+export function removeFromActiveGamesCache(matchId: string): void {
+  activeGamesCache = activeGamesCache.filter(g => g.id !== matchId)
+}
+
+/** Internal helper: find an active (unfinished) game by game type — replaces old getOpenMatchSummary. */
+function getOpenMatchSummary(gameType: string): { id: string; title: string } | undefined {
+  return activeGamesCache.find(g => g.gameType === gameType)
 }
 
 /* -------------------------------------------------
