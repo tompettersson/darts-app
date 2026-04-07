@@ -659,25 +659,29 @@ export type ActiveGame = {
   startedAt: string
 }
 
-const ACTIVE_GAMES_DDL = `
-CREATE TABLE IF NOT EXISTS active_games (
-  id          TEXT PRIMARY KEY,
-  player_id   TEXT NOT NULL,
-  game_type   TEXT NOT NULL,
-  title       TEXT NOT NULL,
-  config      JSONB,
-  players     JSONB,
-  started_at  TEXT NOT NULL
-)`
-
-const ACTIVE_GAMES_INDEX = `CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)`
-
 let activeGamesTableReady = false
 
 async function ensureActiveGamesTable(): Promise<void> {
   if (activeGamesTableReady) return
-  await exec(ACTIVE_GAMES_DDL)
-  await exec(ACTIVE_GAMES_INDEX)
+  // Try SELECT first — if table exists, skip DDL (saves 1-2 roundtrips)
+  try {
+    await query('SELECT 1 FROM active_games LIMIT 0')
+    activeGamesTableReady = true
+    return
+  } catch {
+    // Table doesn't exist yet — create it
+  }
+  await exec(`
+    CREATE TABLE IF NOT EXISTS active_games (
+      id          TEXT PRIMARY KEY,
+      player_id   TEXT NOT NULL,
+      game_type   TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      config      JSONB,
+      players     JSONB,
+      started_at  TEXT NOT NULL
+    )`)
+  await exec('CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)')
   activeGamesTableReady = true
 }
 
@@ -701,21 +705,28 @@ export async function dbDeleteActiveGame(matchId: string): Promise<void> {
 }
 
 export async function dbGetActiveGames(): Promise<ActiveGame[]> {
-  await ensureActiveGamesTable()
-  const rows = await query<{
-    id: string; player_id: string; game_type: string; title: string;
-    config: any; players: any; started_at: string
-  }>('SELECT * FROM active_games ORDER BY started_at DESC')
+  // Try direct query first — avoids DDL roundtrip when table already exists
+  try {
+    const rows = await query<{
+      id: string; player_id: string; game_type: string; title: string;
+      config: any; players: any; started_at: string
+    }>('SELECT * FROM active_games ORDER BY started_at DESC')
 
-  return rows.map(r => ({
-    id: r.id,
-    playerId: r.player_id,
-    gameType: r.game_type,
-    title: r.title,
-    config: r.config,
-    players: r.players,
-    startedAt: r.started_at,
-  }))
+    activeGamesTableReady = true
+    return rows.map(r => ({
+      id: r.id,
+      playerId: r.player_id,
+      gameType: r.game_type,
+      title: r.title,
+      config: r.config,
+      players: r.players,
+      startedAt: r.started_at,
+    }))
+  } catch {
+    // Table doesn't exist yet — create it and return empty
+    await ensureActiveGamesTable()
+    return []
+  }
 }
 
 /**
