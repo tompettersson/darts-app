@@ -6,7 +6,6 @@ import {
   dbGetProfiles,
   dbGetActiveGames,
   dbMigrateToActiveGames,
-  dbRepairUnfinishedMatches,
 } from './storage'
 import { warmAllCaches, setActiveGamesCache } from '../storage'
 
@@ -104,17 +103,8 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
         // One-time migration of existing open matches to active_games table
         await safe(dbMigrateToActiveGames(), 0)
 
-        // Repair stale matches — only once per 24h to avoid 10+ queries on every startup
-        const REPAIR_KEY = 'darts.lastRepairCheck'
-        const lastRepair = localStorage.getItem(REPAIR_KEY)
-        const needsRepair = !lastRepair || (Date.now() - parseInt(lastRepair, 10)) > 24 * 60 * 60 * 1000
-        if (needsRepair) {
-          try {
-            const { repaired } = await dbRepairUnfinishedMatches()
-            if (repaired.length > 0) console.log(`[DB Repair] Fixed ${repaired.length} matches:`, repaired)
-            localStorage.setItem(REPAIR_KEY, String(Date.now()))
-          } catch {}
-        }
+        // Repair no longer needed — active_games table is the source of truth
+        // for open matches. Old dbRepairUnfinishedMatches scanned 10 tables (20 queries).
 
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
