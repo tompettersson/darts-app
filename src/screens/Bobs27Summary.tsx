@@ -154,6 +154,11 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
                 <div style={{ fontSize: 32, fontWeight: 700, color: colors.success, marginBottom: 4 }}>
                   {winner.name}
                 </div>
+                {(storedMatch.config.legsCount ?? 1) > 1 && storedMatch.legWins && (
+                  <div style={{ fontSize: 18, fontWeight: 700, color: colors.accent, marginBottom: 4 }}>
+                    {players.map(p => storedMatch.legWins![p.playerId] ?? 0).join(' – ')} Legs
+                  </div>
+                )}
                 <div style={{ fontSize: 24, fontWeight: 700, color: colors.accent }}>
                   {rankings.find(p => p.isWinner)?.finalScore ?? 0} Punkte
                 </div>

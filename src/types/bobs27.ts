@@ -22,6 +22,7 @@ export type Bobs27Config = {
   dartsPerTarget: number         // Default: 3
   includeBull: boolean           // D-Bull als 21. Ziel
   allowNegative: boolean         // true = Score darf unter 0 gehen, false = Game Over bei < 0
+  legsCount: number              // "Best of" value (1=single, 3=FT2, 5=FT3, etc.)
 }
 
 // ===== Events (Event-Sourcing) =====
@@ -71,10 +72,31 @@ export type Bobs27MatchFinishedEvent = {
   finalScores: Record<string, number>
 }
 
+export type Bobs27LegFinishedEvent = {
+  type: 'Bobs27LegFinished'
+  eventId: string
+  matchId: string
+  ts: string
+  legIndex: number
+  winnerId: string | null
+  finalScores: Record<string, number>
+}
+
+export type Bobs27LegStartedEvent = {
+  type: 'Bobs27LegStarted'
+  eventId: string
+  matchId: string
+  ts: string
+  legIndex: number
+  starterPlayerId: string
+}
+
 export type Bobs27Event =
   | Bobs27MatchStartedEvent
   | Bobs27ThrowEvent
   | Bobs27TargetFinishedEvent
+  | Bobs27LegFinishedEvent
+  | Bobs27LegStartedEvent
   | Bobs27MatchFinishedEvent
 
 // ===== Derived State =====
@@ -110,6 +132,11 @@ export type Bobs27State = {
   } | null
   playerStates: Record<string, Bobs27PlayerState>
   currentPlayerIndex: number
+  currentLegIndex: number
+  legWins: Record<string, number>
+  legFinished: boolean
+  legWinnerId: string | null
+  legFinalScores: Record<string, number> | null
   startTime: number
   finished: {
     winnerId: string | null
@@ -136,4 +163,5 @@ export type Bobs27StoredMatch = {
   winnerId?: string | null
   winnerDarts?: number
   finalScores?: Record<string, number>
+  legWins?: Record<string, number>
 }

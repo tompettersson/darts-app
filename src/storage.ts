@@ -4649,7 +4649,8 @@ export function finishBobs27Match(
   winnerId: string | null,
   winnerDarts: number,
   durationMs: number,
-  finalScores?: Record<string, number>
+  finalScores?: Record<string, number>,
+  legWins?: Record<string, number>
 ): Promise<void> {
   const all = getBobs27Matches()
   const idx = all.findIndex(m => m.id === matchId)
@@ -4661,6 +4662,7 @@ export function finishBobs27Match(
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
   if (finalScores) all[idx].finalScores = finalScores
+  if (legWins) all[idx].legWins = legWins
 
   bobs27MatchesCache = all
   dbDeleteActiveGame(matchId).catch(() => {})

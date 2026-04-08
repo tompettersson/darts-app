@@ -51,6 +51,7 @@ function throwTarget(
     const result = recordBobs27Throw(state, playerId, hit)
     newEvents.push(result.throwEvent)
     if (result.targetFinished) newEvents.push(result.targetFinished)
+    if (result.legFinished) newEvents.push(result.legFinished)
     if (result.matchFinished) newEvents.push(result.matchFinished)
     lastResult = result
   }

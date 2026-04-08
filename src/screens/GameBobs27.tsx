@@ -21,6 +21,7 @@ import {
   getActivePlayerId,
   getCurrentTarget,
   formatDuration,
+  startNewBobs27Leg,
   id as bobs27Id,
   now as bobs27Now,
   type Bobs27Event,
@@ -94,9 +95,10 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   const bobsLocalIds = multiplayer?.localPlayerIds ?? (multiplayer?.myPlayerId ? [multiplayer.myPlayerId] : [])
   const isMyTurn = !multiplayer?.enabled || (activePlayerId != null && bobsLocalIds.includes(activePlayerId))
 
-  // Safety-Net: Erkennt wenn alle Spieler fertig sind aber kein MatchFinished generiert wurde
+  // Safety-Net: Erkennt wenn alle Spieler fertig sind aber kein MatchFinished/LegFinished generiert wurde
   useEffect(() => {
     if (!state.match || state.finished || matchEndDelay) return
+    if (state.legFinished) return // Leg already finished, waiting for user to start next
     if (events.length <= 1) return // Nur MatchStarted vorhanden
 
     // Pruefen ob alle Spieler fertig sind (eliminiert oder alle Targets gespielt)
@@ -106,7 +108,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     })
     if (!allDone) return
 
-    console.warn('[GameBobs27] Safety-Net: Alle Spieler fertig aber kein MatchFinished — generiere Event')
+    console.warn('[GameBobs27] Safety-Net: Alle Spieler fertig aber kein MatchFinished/LegFinished — generiere Event')
 
     // finalScores berechnen
     const finalScores: Record<string, number> = {}
@@ -131,36 +133,95 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
       winnerId = null
     }
 
-    const totalDarts = Object.values(state.playerStates).reduce((s, ps) => s + ps.totalDarts, 0)
-    const durationMs = Date.now() - state.startTime
+    const legsCount = state.match.config.legsCount ?? 1
+    const winsNeeded = Math.ceil(legsCount / 2)
 
-    const finishEvent: Bobs27Event = {
-      type: 'Bobs27MatchFinished',
-      eventId: bobs27Id(),
-      matchId: state.match.matchId,
-      ts: bobs27Now(),
-      winnerId,
-      totalDarts,
-      durationMs,
-      finalScores,
-    }
-
-    const updatedEvents = [...events, finishEvent]
-    setEvents(updatedEvents)
-    setMatchEndDelay(true)
-    // Persist + finish must complete before navigating to summary
-    setSaving(true)
-    ;(async () => {
-      try {
-        await persistBobs27Events(matchId, updatedEvents)
-        await finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores)
-      } catch (err) {
-        console.warn('[Bobs27] Persist failed:', err)
-      } finally {
-        setSaving(false)
+    if (legsCount > 1) {
+      // Multi-leg: generate LegFinished, then check if match is done
+      const legFinishEvent: Bobs27Event = {
+        type: 'Bobs27LegFinished',
+        eventId: bobs27Id(),
+        matchId: state.match.matchId,
+        ts: bobs27Now(),
+        legIndex: state.currentLegIndex,
+        winnerId,
+        finalScores,
       }
-      setTimeout(() => onShowSummary(matchId), 2000)
-    })()
+
+      const newLegWins = { ...state.legWins }
+      if (winnerId) newLegWins[winnerId] = (newLegWins[winnerId] ?? 0) + 1
+
+      const safetyEvents: Bobs27Event[] = [legFinishEvent]
+
+      if (winnerId && newLegWins[winnerId] >= winsNeeded) {
+        // Match is also done
+        const totalDarts = Object.values(state.playerStates).reduce((s, ps) => s + ps.totalDarts, 0)
+        const durationMs = Date.now() - state.startTime
+        const matchFinishEvent: Bobs27Event = {
+          type: 'Bobs27MatchFinished',
+          eventId: bobs27Id(),
+          matchId: state.match.matchId,
+          ts: bobs27Now(),
+          winnerId,
+          totalDarts,
+          durationMs,
+          finalScores,
+        }
+        safetyEvents.push(matchFinishEvent)
+
+        const updatedEvents = [...events, ...safetyEvents]
+        setEvents(updatedEvents)
+        setMatchEndDelay(true)
+        setSaving(true)
+        ;(async () => {
+          try {
+            await persistBobs27Events(matchId, updatedEvents)
+            await finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores, newLegWins)
+          } catch (err) {
+            console.warn('[Bobs27] Persist failed:', err)
+          } finally {
+            setSaving(false)
+          }
+          setTimeout(() => onShowSummary(matchId), 2000)
+        })()
+      } else {
+        // Just leg finished, match continues — show leg summary
+        const updatedEvents = [...events, ...safetyEvents]
+        setEvents(updatedEvents)
+        persistBobs27Events(matchId, updatedEvents)
+      }
+    } else {
+      // Single-leg: original behavior
+      const totalDarts = Object.values(state.playerStates).reduce((s, ps) => s + ps.totalDarts, 0)
+      const durationMs = Date.now() - state.startTime
+
+      const finishEvent: Bobs27Event = {
+        type: 'Bobs27MatchFinished',
+        eventId: bobs27Id(),
+        matchId: state.match.matchId,
+        ts: bobs27Now(),
+        winnerId,
+        totalDarts,
+        durationMs,
+        finalScores,
+      }
+
+      const updatedEvents = [...events, finishEvent]
+      setEvents(updatedEvents)
+      setMatchEndDelay(true)
+      setSaving(true)
+      ;(async () => {
+        try {
+          await persistBobs27Events(matchId, updatedEvents)
+          await finishBobs27Match(matchId, winnerId, totalDarts, elapsedMs, finalScores)
+        } catch (err) {
+          console.warn('[Bobs27] Persist failed:', err)
+        } finally {
+          setSaving(false)
+        }
+        setTimeout(() => onShowSummary(matchId), 2000)
+      })()
+    }
   }, [state, events, matchId, matchEndDelay, elapsedMs, onShowSummary])
 
   // Multiplayer: Remote-Events synchronisieren
@@ -271,6 +332,9 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
       // Delta-Animation
       setDeltaFlash({ value: result.targetFinished.delta, key: Date.now() })
     }
+    if (result.legFinished) {
+      newEvents.push(result.legFinished)
+    }
     if (result.matchFinished) {
       newEvents.push(result.matchFinished)
     }
@@ -291,12 +355,15 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
       ;(async () => {
         try {
           await persistBobs27Events(matchId, updatedEvents)
+          // Include legWins in finish data
+          const updatedState = applyBobs27Events(updatedEvents)
           await finishBobs27Match(
             matchId,
             result.matchFinished!.winnerId,
             result.matchFinished!.totalDarts,
             elapsedMs,
-            result.matchFinished!.finalScores
+            result.matchFinished!.finalScores,
+            updatedState.legWins
           )
         } catch (err) {
           console.warn('[Bobs27] Persist failed:', err)
@@ -305,6 +372,9 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
         }
         setTimeout(() => onShowSummary(matchId), 2000)
       })()
+    } else if (result.legFinished && !result.matchFinished) {
+      // Leg finished but match continues — show leg summary
+      persistBobs27Events(matchId, updatedEvents)
     } else {
       persistBobs27Events(matchId, updatedEvents)
     }
@@ -340,6 +410,21 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
       multiplayer.undo(events.length - cutIndex)
     }
   }, [events, gamePaused, state.finished, matchEndDelay, matchId, multiplayer])
+
+  // Naechstes Leg starten
+  const handleNextLeg = useCallback(() => {
+    if (!state.match || state.finished) return
+    const legStartEvent = startNewBobs27Leg(state)
+    const updatedEvents = [...events, legStartEvent]
+    setEvents(updatedEvents)
+    persistBobs27Events(matchId, updatedEvents)
+    // Reset speech tracking for new leg
+    gameOnAnnouncedRef.current = false
+    lastAnnouncedKeyRef.current = ''
+    if (multiplayer?.enabled) {
+      multiplayer.submitEvents([legStartEvent])
+    }
+  }, [events, state, matchId, multiplayer])
 
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {
@@ -449,6 +534,11 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 13, color: c.textDim }}>Bob's 27</span>
+            {(state.match?.config.legsCount ?? 1) > 1 && (
+              <span style={{ fontSize: 12, color: c.accent, fontWeight: 600 }}>
+                Leg {state.currentLegIndex + 1}
+              </span>
+            )}
             <span style={{ fontSize: 13, fontFamily: 'monospace', color: c.textDim }}>
               {formatDuration(elapsedMs)}
             </span>
@@ -537,6 +627,69 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
             </div>
           )}
 
+          {/* Leg-Summary (multi-leg: leg finished but match continues) */}
+          {state.legFinished && !state.finished && !matchEndDelay && (
+            <div style={{
+              background: c.cardBg, border: `2px solid ${c.accent}`,
+              borderRadius: 12, padding: '20px 24px', textAlign: 'center',
+              width: '100%', maxWidth: 440,
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: c.accent, marginBottom: 12 }}>
+                Leg {state.currentLegIndex + 1} beendet
+              </div>
+              {/* Leg winner */}
+              {state.legWinnerId && (
+                <div style={{ fontSize: 16, fontWeight: 600, color: c.green, marginBottom: 8 }}>
+                  {players.find(p => p.playerId === state.legWinnerId)?.name ?? 'Unbekannt'} gewinnt das Leg!
+                </div>
+              )}
+              {!state.legWinnerId && (
+                <div style={{ fontSize: 16, fontWeight: 600, color: c.textDim, marginBottom: 8 }}>
+                  Unentschieden
+                </div>
+              )}
+              {/* Scores */}
+              {state.legFinalScores && (
+                <div style={{ marginBottom: 12 }}>
+                  {players.map((p, i) => (
+                    <div key={p.playerId} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '4px 8px', fontSize: 14,
+                      color: p.playerId === state.legWinnerId ? c.green : c.textBright,
+                      fontWeight: p.playerId === state.legWinnerId ? 700 : 400,
+                    }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: PLAYER_COLORS[i % PLAYER_COLORS.length],
+                        }} />
+                        {p.name}
+                      </span>
+                      <span>{state.legFinalScores![p.playerId] ?? 0}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Leg-Wins Stand */}
+              <div style={{ fontSize: 13, color: c.textDim, marginBottom: 12 }}>
+                Stand: {players.map(p =>
+                  `${p.name} ${state.legWins[p.playerId] ?? 0}`
+                ).join(' – ')}
+              </div>
+              <button
+                onClick={handleNextLeg}
+                style={{
+                  padding: '12px 24px', fontSize: 16, fontWeight: 700,
+                  background: c.accent, border: 'none',
+                  color: '#fff', borderRadius: 8, cursor: 'pointer',
+                  touchAction: 'manipulation',
+                }}
+              >
+                Naechstes Leg &rarr;
+              </button>
+            </div>
+          )}
+
           {/* Match beendet */}
           {(state.finished || matchEndDelay) && (
             <div style={{
@@ -546,6 +699,12 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
               <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>
                 {activePlayerState?.eliminated ? 'Game Over!' : 'Geschafft!'}
               </div>
+              {(state.match?.config.legsCount ?? 1) > 1 && state.finished?.winnerId && (
+                <div style={{ fontSize: 14, color: c.textDim, marginTop: 4 }}>
+                  {players.find(p => p.playerId === state.finished?.winnerId)?.name ?? ''} gewinnt{' '}
+                  {players.map(p => `${state.legWins[p.playerId] ?? 0}`).join('–')}
+                </div>
+              )}
               {saving ? (
                 <div style={{ fontSize: 13, color: c.textDim, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -560,7 +719,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
           )}
 
           {/* HIT / MISS Buttons */}
-          {!state.finished && !matchEndDelay && currentTarget && (
+          {!state.finished && !matchEndDelay && !state.legFinished && currentTarget && (
             <div style={{ display: 'flex', gap: 12, width: '100%', maxWidth: 440 }}>
               <button
                 onClick={() => doThrow(false)}
@@ -588,7 +747,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
           )}
 
           {/* Undo Button */}
-          {!state.finished && !matchEndDelay && events.length > 1 && (
+          {!state.finished && !matchEndDelay && !state.legFinished && events.length > 1 && (
             <button
               onClick={undoLast}
               style={{
@@ -724,6 +883,14 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
                         : `D${state.match?.targets[targetIdx]?.fieldNumber ?? '?'} (${targetIdx + 1}/${totalTargets})`
                     }
                   </div>
+                  {(state.match?.config.legsCount ?? 1) > 1 && (
+                    <div style={{
+                      fontSize: 10, color: c.accent, fontWeight: 600,
+                      paddingLeft: 14, marginTop: 2,
+                    }}>
+                      Legs: {state.legWins[p.playerId] ?? 0}
+                    </div>
+                  )}
                 </div>
               )
             })}

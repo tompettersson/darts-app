@@ -50,6 +50,7 @@ export default function NewGameBobs27({ onCancel, onStart }: Props) {
   // Config
   const [includeBull, setIncludeBull] = useState(false)
   const [allowNegative, setAllowNegative] = useState(false)
+  const [firstTo, setFirstTo] = useState(1)
 
   const maxPlayers = 8
 
@@ -149,7 +150,8 @@ export default function NewGameBobs27({ onCancel, onStart }: Props) {
         }
       })
 
-    const config: Partial<Bobs27Config> = { includeBull, allowNegative }
+    const legsCount = firstTo === 1 ? 1 : firstTo * 2 - 1
+    const config: Partial<Bobs27Config> = { includeBull, allowNegative, legsCount }
     onStart?.({ players: orderedPlayers, config })
   }
 
@@ -219,6 +221,29 @@ export default function NewGameBobs27({ onCancel, onStart }: Props) {
                 'Weiterspielen auch unter 0 Punkten',
                 allowNegative,
                 () => setAllowNegative(!allowNegative)
+              )}
+            </div>
+
+            {/* First-to Legs */}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg, marginBottom: 6 }}>
+                First to
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[1, 2, 3, 4, 5].map(ft => (
+                  <button
+                    key={ft}
+                    style={pill(firstTo === ft)}
+                    onClick={() => setFirstTo(ft)}
+                  >
+                    FT{ft}
+                  </button>
+                ))}
+              </div>
+              {firstTo > 1 && (
+                <div style={{ fontSize: 11, color: colors.fgDim, marginTop: 4 }}>
+                  Best of {firstTo * 2 - 1} Legs
+                </div>
               )}
             </div>
 

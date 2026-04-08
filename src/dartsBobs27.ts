@@ -9,6 +9,7 @@ import type {
   Bobs27Event, Bobs27State, Bobs27PlayerState,
   Bobs27MatchStartedEvent, Bobs27ThrowEvent,
   Bobs27TargetFinishedEvent, Bobs27MatchFinishedEvent,
+  Bobs27LegFinishedEvent, Bobs27LegStartedEvent,
   Bobs27TargetResult,
 } from './types/bobs27'
 
@@ -18,6 +19,7 @@ export type {
   Bobs27Event, Bobs27State, Bobs27PlayerState,
   Bobs27MatchStartedEvent, Bobs27ThrowEvent,
   Bobs27TargetFinishedEvent, Bobs27MatchFinishedEvent,
+  Bobs27LegFinishedEvent, Bobs27LegStartedEvent,
   Bobs27TargetResult,
 }
 
@@ -46,6 +48,7 @@ export const DEFAULT_CONFIG: Bobs27Config = {
   dartsPerTarget: 3,
   includeBull: false,
   allowNegative: false,
+  legsCount: 1,
 }
 
 /**
@@ -113,6 +116,11 @@ export function applyBobs27Events(events: Bobs27Event[]): Bobs27State {
     match: null,
     playerStates: {},
     currentPlayerIndex: 0,
+    currentLegIndex: 0,
+    legWins: {},
+    legFinished: false,
+    legWinnerId: null,
+    legFinalScores: null,
     startTime: 0,
     finished: null,
     events,
@@ -129,6 +137,7 @@ export function applyBobs27Events(events: Bobs27Event[]): Bobs27State {
         }
         for (const p of event.players) {
           state.playerStates[p.playerId] = createEmptyPlayerState(p.playerId, event.config.startScore)
+          state.legWins[p.playerId] = 0
         }
         state.startTime = new Date(event.ts).getTime()
         break
@@ -178,6 +187,32 @@ export function applyBobs27Events(events: Bobs27Event[]): Bobs27State {
         if (state.match.players.length > 1) {
           advanceToNextPlayer(state)
         }
+        break
+      }
+
+      case 'Bobs27LegFinished': {
+        state.legFinished = true
+        state.legWinnerId = event.winnerId
+        state.legFinalScores = event.finalScores
+        if (event.winnerId) {
+          state.legWins[event.winnerId] = (state.legWins[event.winnerId] ?? 0) + 1
+        }
+        break
+      }
+
+      case 'Bobs27LegStarted': {
+        if (!state.match) break
+        state.currentLegIndex = event.legIndex
+        state.legFinished = false
+        state.legWinnerId = null
+        state.legFinalScores = null
+        // Reset all player states for the new leg
+        for (const p of state.match.players) {
+          state.playerStates[p.playerId] = createEmptyPlayerState(p.playerId, state.match.config.startScore)
+        }
+        // Set starter player
+        const starterIdx = state.match.players.findIndex(p => p.playerId === event.starterPlayerId)
+        state.currentPlayerIndex = starterIdx >= 0 ? starterIdx : 0
         break
       }
 
@@ -231,6 +266,7 @@ export function getCurrentTarget(state: Bobs27State, playerId: string): Bobs27Ta
 export type Bobs27ThrowResult = {
   throwEvent: Bobs27ThrowEvent
   targetFinished?: Bobs27TargetFinishedEvent
+  legFinished?: Bobs27LegFinishedEvent
   matchFinished?: Bobs27MatchFinishedEvent
 }
 
@@ -307,57 +343,126 @@ export function recordBobs27Throw(
 
         // Gewinner: Wer weiter gekommen ist (hoeheres Double).
         // Bei gleichem Fortschritt: hoeherer Score gewinnt.
-        // Fortschritt = Target-Index bis wohin gespielt wurde.
-        // Eliminierter Spieler: currentTargetIndex (= Target wo er rausflog)
-        // Fertiger Spieler: currentTargetIndex + 1 (= targets.length)
-        const playerRanking = state.match.players.map(p => {
-          const ps = state.playerStates[p.playerId]
-          if (!ps) return { pid: p.playerId, progress: 0, score: 0 }
-          if (p.playerId === playerId) {
-            // Aktueller Spieler: State noch nicht aktualisiert
-            return {
-              pid: p.playerId,
-              progress: eliminated ? ps.currentTargetIndex : ps.currentTargetIndex + 1,
-              score: finalScores[p.playerId] ?? 0,
+        const { winnerId: legWinnerId } = computeLegWinner(state, playerId, eliminated, finalScores)
+
+        const legsCount = config.legsCount ?? 1
+        const winsNeeded = Math.ceil(legsCount / 2)
+
+        if (legsCount > 1) {
+          // Multi-leg: Generate LegFinished event
+          result.legFinished = {
+            type: 'Bobs27LegFinished',
+            eventId: id(),
+            matchId: state.match.matchId,
+            ts: now(),
+            legIndex: state.currentLegIndex,
+            winnerId: legWinnerId,
+            finalScores,
+          }
+
+          // Check if match is won
+          const updatedLegWins = { ...state.legWins }
+          if (legWinnerId) {
+            updatedLegWins[legWinnerId] = (updatedLegWins[legWinnerId] ?? 0) + 1
+          }
+
+          if (legWinnerId && updatedLegWins[legWinnerId] >= winsNeeded) {
+            const totalDarts = Object.values(state.playerStates)
+              .reduce((sum, p) => sum + p.totalDarts, 0) + 1
+            const durationMs = Date.now() - state.startTime
+
+            result.matchFinished = {
+              type: 'Bobs27MatchFinished',
+              eventId: id(),
+              matchId: state.match.matchId,
+              ts: now(),
+              winnerId: legWinnerId,
+              totalDarts,
+              durationMs,
+              finalScores,
             }
           }
-          // Andere Spieler: State bereits aktualisiert
-          return {
-            pid: p.playerId,
-            progress: ps.eliminated ? ps.currentTargetIndex : ps.currentTargetIndex,
-            score: finalScores[p.playerId] ?? 0,
+          // If no match winner yet, game screen will show leg summary and start next leg
+        } else {
+          // Single-leg: Original behavior — match finishes immediately
+          const totalDarts = Object.values(state.playerStates)
+            .reduce((sum, p) => sum + p.totalDarts, 0) + 1
+          const durationMs = Date.now() - state.startTime
+
+          result.matchFinished = {
+            type: 'Bobs27MatchFinished',
+            eventId: id(),
+            matchId: state.match.matchId,
+            ts: now(),
+            winnerId: legWinnerId,
+            totalDarts,
+            durationMs,
+            finalScores,
           }
-        })
-        // Sortieren: 1. Fortschritt absteigend, 2. Score absteigend
-        playerRanking.sort((a, b) => b.progress - a.progress || b.score - a.score)
-
-        let winnerId: string | null = playerRanking[0]?.pid ?? null
-        // Bei Gleichstand (gleicher Fortschritt UND gleicher Score): null
-        if (playerRanking.length > 1 &&
-            playerRanking[0].progress === playerRanking[1].progress &&
-            playerRanking[0].score === playerRanking[1].score) {
-          winnerId = null
-        }
-
-        const totalDarts = Object.values(state.playerStates)
-          .reduce((sum, p) => sum + p.totalDarts, 0) + 1 // +1 for current throw
-        const durationMs = Date.now() - state.startTime
-
-        result.matchFinished = {
-          type: 'Bobs27MatchFinished',
-          eventId: id(),
-          matchId: state.match.matchId,
-          ts: now(),
-          winnerId,
-          totalDarts,
-          durationMs,
-          finalScores,
         }
       }
     }
   }
 
   return result
+}
+
+/** Berechnet den Leg-Gewinner basierend auf Fortschritt und Score */
+function computeLegWinner(
+  state: Bobs27State,
+  currentPlayerId: string,
+  currentEliminated: boolean,
+  finalScores: Record<string, number>
+): { winnerId: string | null } {
+  if (!state.match) return { winnerId: null }
+
+  const playerRanking = state.match.players.map(p => {
+    const ps = state.playerStates[p.playerId]
+    if (!ps) return { pid: p.playerId, progress: 0, score: 0 }
+    if (p.playerId === currentPlayerId) {
+      return {
+        pid: p.playerId,
+        progress: currentEliminated ? ps.currentTargetIndex : ps.currentTargetIndex + 1,
+        score: finalScores[p.playerId] ?? 0,
+      }
+    }
+    return {
+      pid: p.playerId,
+      progress: ps.eliminated ? ps.currentTargetIndex : ps.currentTargetIndex,
+      score: finalScores[p.playerId] ?? 0,
+    }
+  })
+  playerRanking.sort((a, b) => b.progress - a.progress || b.score - a.score)
+
+  let winnerId: string | null = playerRanking[0]?.pid ?? null
+  if (playerRanking.length > 1 &&
+      playerRanking[0].progress === playerRanking[1].progress &&
+      playerRanking[0].score === playerRanking[1].score) {
+    winnerId = null
+  }
+
+  return { winnerId }
+}
+
+/**
+ * Erstellt ein Bobs27LegStarted-Event fuer ein neues Leg.
+ */
+export function startNewBobs27Leg(state: Bobs27State): Bobs27LegStartedEvent {
+  if (!state.match) throw new Error('No match started')
+
+  const newLegIndex = state.currentLegIndex + 1
+  // Rotate starter: leg 0 = player 0, leg 1 = player 1, etc.
+  const starterIdx = newLegIndex % state.match.players.length
+  const starterPlayerId = state.match.players[starterIdx].playerId
+
+  return {
+    type: 'Bobs27LegStarted',
+    eventId: id(),
+    matchId: state.match.matchId,
+    ts: now(),
+    legIndex: newLegIndex,
+    starterPlayerId,
+  }
 }
 
 /** Pruefen ob nach diesem Spieler alle Spieler fertig sind */
