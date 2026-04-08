@@ -487,7 +487,7 @@ function getOperationInfo(m: OperationStoredMatch) {
 
   const targetLabel = m.config?.targetMode === 'BULL' ? 'Bull' :
     m.config?.targetMode === 'RANDOM_NUMBER' ? 'Zufall' : 'Manuell'
-  const mode = `Operation: EFKG (${targetLabel})`
+  const mode = targetLabel === 'Zufall' ? 'EFKG' : `EFKG ${targetLabel}`
 
   let result = ''
   if (m.finished && m.finalScores) {
