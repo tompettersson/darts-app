@@ -5522,6 +5522,14 @@ export async function deleteAllOpenMatches(): Promise<number> {
     }
   }
 
+  // Clear active_games table + cache
+  try {
+    await exec('DELETE FROM active_games')
+  } catch (err) {
+    console.warn('[deleteAllOpenMatches] active_games cleanup failed:', err)
+  }
+  activeGamesCache = []
+
   return deleted
 }
 

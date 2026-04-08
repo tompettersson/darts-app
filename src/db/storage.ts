@@ -420,6 +420,11 @@ export async function dbDeleteProfile(id: string): Promise<void> {
     'DELETE FROM cricket_leaderboards WHERE player_id = ?',
     // Highscores
     'DELETE FROM atb_highscores WHERE player_id = ?',
+    // Sessions + Active Games
+    'DELETE FROM sessions WHERE profile_id = ?',
+    'DELETE FROM active_games WHERE player_id = ?',
+    // Stats cache
+    'DELETE FROM player_stats_cache WHERE player_id = ?',
     // Profil
     'DELETE FROM profiles WHERE id = ?',
   ]
