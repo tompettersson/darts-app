@@ -415,17 +415,6 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
             )
           })()}
 
-          {/* Score-Verlaufs-Chart (SVG) */}
-          {rankings.length > 0 && rankings[0].scoreHistory.length > 1 && (
-            <div style={{ ...styles.card, marginBottom: 16 }}>
-              <div style={{ ...styles.sub, marginBottom: 8 }}>Score-Verlauf</div>
-              <ScoreChart
-                players={rankings.map(p => ({ name: p.name, color: p.color, scores: p.scoreHistory }))}
-                colors={colors}
-              />
-            </div>
-          )}
-
           {/* Target-Timeline */}
           {rankings.map((p, pi) => {
             if (p.targetResults.length === 0) return null
