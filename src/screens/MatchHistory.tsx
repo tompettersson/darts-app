@@ -755,7 +755,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   }, [x01, cricket, atb, str, highscore, ctf, shanghai, killer, bobs27, operation, filter, search, showUnfinished])
 
   return (
-    <div style={{ ...styles.page, maxWidth: '100vw', overflowX: 'hidden' }}>
+    <div style={{ ...styles.page, width: '100%', maxWidth: '100vw', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <div style={{ ...styles.headerRow, position: 'sticky', top: 0, zIndex: 10, background: isArcade ? colors.bg : colors.bg }}>
         <h2 style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Matchhistorie</h2>
         <button style={styles.backBtn} onClick={onBack}>
@@ -764,8 +764,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       </div>
 
       {/* Filter + Suche */}
-      <div style={styles.card}>
-        <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ ...styles.card, maxWidth: '100%', overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gap: 10, maxWidth: '100%' }}>
           {/* Filter Buttons — fixed width, no shifting */}
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap' }} role="tablist" aria-label="Spielmodus-Filter">
             {(['all', 'x01', 'cricket', 'training', 'party'] as Filter[]).map((f) => (
@@ -875,7 +875,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       </div>
 
       {/* Liste (paginiert) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '100%', overflow: 'hidden' }}>
         {items.length === 0 ? (
           <div style={{ padding: '12px 16px', background: colors.bgCard, borderRadius: 8, opacity: 0.75, color: colors.fgMuted }}>
             Keine Matches im aktuellen Filter.
