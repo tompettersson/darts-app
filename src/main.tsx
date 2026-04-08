@@ -17,6 +17,18 @@ import './screens/game.css'
 import { installGlobalErrorHandlers } from './errorLog'
 installGlobalErrorHandlers()
 
+// Auto-reload on stale chunk errors (after deployment, old JS files are gone)
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = e.reason?.message || String(e.reason || '')
+  if (msg.includes('dynamically imported module') || msg.includes('Loading chunk') || msg.includes('Failed to fetch')) {
+    e.preventDefault()
+    console.warn('[Auto-reload] Stale chunk detected, reloading...')
+    // Clear caches before reload
+    if ('caches' in window) caches.keys().then(names => names.forEach(name => caches.delete(name)))
+    window.location.reload()
+  }
+})
+
 // SQLite DB Module laden (registriert Console Helpers)
 import './db/init'
 
