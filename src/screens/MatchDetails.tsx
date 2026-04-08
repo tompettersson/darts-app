@@ -507,7 +507,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     return (
       <div style={styles.page}>
         <div style={styles.centerPage}>
-          <div style={{ ...styles.centerInner, width: 'min(600px, 95vw)' }}>
+          <div style={{ ...styles.centerInner, width: 'min(600px, 95vw)', maxWidth: '100vw' }}>
             {/* Header mit Navigation */}
             <div style={styles.headerRow}>
               <button style={styles.backBtn} onClick={() => setSelectedSetIndex(null)}>← Zurück</button>
@@ -823,7 +823,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     return (
       <div style={styles.page}>
         <div style={styles.centerPage}>
-          <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)' }}>
+          <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)', maxWidth: '100vw' }}>
             {/* Einheitlicher Leg-Header */}
             <LegHeader
               legNumber={selectedLegIndex}
@@ -1287,7 +1287,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
-        <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)' }}>
+        <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)', maxWidth: '100vw' }}>
           {/* Einheitlicher Match-Header */}
           <MatchHeader
             gameName={stored.matchName}

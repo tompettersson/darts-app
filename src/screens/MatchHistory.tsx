@@ -755,7 +755,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   }, [x01, cricket, atb, str, highscore, ctf, shanghai, killer, bobs27, operation, filter, search, showUnfinished])
 
   return (
-    <div style={styles.page}>
+    <div style={{ ...styles.page, maxWidth: '100vw', overflowX: 'hidden' }}>
       <div style={{ ...styles.headerRow, position: 'sticky', top: 0, zIndex: 10, background: isArcade ? colors.bg : colors.bg }}>
         <h2 style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Matchhistorie</h2>
         <button style={styles.backBtn} onClick={onBack}>
@@ -926,7 +926,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                   Abgebr.
                 </span>
               )}
-              <span style={{ fontWeight: 700, flexShrink: 0, color: colors.fg, fontSize: 12 }}>
+              <span style={{ fontWeight: 700, flexShrink: 1, color: colors.fg, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                 {m.matchName || m.mode}
                 {(m as any).isCrazy && ' 🤪'}
                 {(m as any).isCapture && ' 🚩'}

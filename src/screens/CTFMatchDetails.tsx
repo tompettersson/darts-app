@@ -597,7 +597,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
     return (
       <div style={styles.page}>
         <div style={styles.centerPage}>
-          <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)' }}>
+          <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)', maxWidth: '100vw' }}>
             {/* Einheitlicher Leg-Header */}
             <LegHeader
               legNumber={selectedLeg.legIndex}
@@ -1080,7 +1080,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
-        <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)' }}>
+        <div style={{ ...styles.centerInner, width: 'min(650px, 95vw)', maxWidth: '100vw' }}>
           {/* Einheitlicher Match-Header */}
           <MatchHeader
             gameName={match.title}

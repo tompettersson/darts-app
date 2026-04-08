@@ -29,6 +29,8 @@ export const ui: Record<string, CSSProperties> = {
     placeItems: 'center',
     minHeight: '70vh',
     padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+    maxWidth: '100vw',
+    overflowX: 'hidden' as const,
   },
   centerInner: {
     display: 'grid',
@@ -235,6 +237,8 @@ export function getThemedUI(colors: ThemeColors, isArcade = false): Record<strin
       minHeight: '70vh',
       padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px)',
       background: colors.bg,
+      maxWidth: '100vw',
+      overflowX: 'hidden' as const,
       color: colors.fg,
     },
     centerInner: {
