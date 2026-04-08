@@ -221,6 +221,7 @@ export default function NewGameBobs27({ onCancel, onStart }: Props) {
                 () => setAllowNegative(!allowNegative)
               )}
             </div>
+
           </div>
 
           {/* Spieler-Auswahl */}

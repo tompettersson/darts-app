@@ -408,15 +408,8 @@ export async function dbDeleteProfile(id: string): Promise<void> {
 
   // Kaskaden-Löschung: Alle spielerspezifischen Stats, Leaderboards und Highscores entfernen.
   // Matches und Match-Player-Zuordnungen bleiben erhalten (für Matchhistorie).
-  // Delete profile FIRST (most important)
-  try {
-    await exec('DELETE FROM profiles WHERE id = ?', [id])
-  } catch (e) {
-    console.warn('[DB] Profile delete failed:', e)
-  }
-
-  // Then cascade-delete related data (non-critical, tables may not exist)
-  const cascadeDeletes = [
+  // 1. Delete stats, leaderboards, sessions (no FK issues)
+  const statsDeletes = [
     'DELETE FROM x01_player_stats WHERE player_id = ?',
     'DELETE FROM x01_finishing_doubles WHERE player_id = ?',
     'DELETE FROM cricket_player_stats WHERE player_id = ?',
@@ -429,13 +422,27 @@ export async function dbDeleteProfile(id: string): Promise<void> {
     'DELETE FROM active_games WHERE player_id = ?',
     'DELETE FROM player_stats_cache WHERE player_id = ?',
   ]
+  for (const sql of statsDeletes) {
+    try { await exec(sql, [id]) } catch {}
+  }
 
-  for (const sql of cascadeDeletes) {
-    try {
-      await exec(sql, [id])
-    } catch {
-      // Table may not exist — ignore silently
-    }
+  // 2. Remove FK references in match_players tables (keep matches, just unlink player)
+  // This allows the profile to be deleted without violating FK constraints
+  const matchPlayerTables = [
+    'x01_match_players', 'cricket_match_players', 'atb_match_players',
+    'str_match_players', 'highscore_match_players', 'ctf_match_players',
+    'shanghai_match_players', 'killer_match_players', 'bobs27_match_players',
+    'operation_match_players',
+  ]
+  for (const table of matchPlayerTables) {
+    try { await exec(`DELETE FROM ${table} WHERE player_id = ?`, [id]) } catch {}
+  }
+
+  // 3. Now delete profile (FK constraints cleared)
+  try {
+    await exec('DELETE FROM profiles WHERE id = ?', [id])
+  } catch (e) {
+    console.warn('[DB] Profile delete failed:', e)
   }
 }
 

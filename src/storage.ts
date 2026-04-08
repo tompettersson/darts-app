@@ -5521,26 +5521,30 @@ export async function deleteAllOpenMatches(): Promise<number> {
   const b27 = getBobs27Matches(); const b27f = b27.filter(m => (m as any).finished); deleted += b27.length - b27f.length; saveBobs27Matches(b27f)
   const op = getOperationMatches(); const opf = op.filter(m => (m as any).finished); deleted += op.length - opf.length; saveOperationMatches(opf)
 
-  // Also delete from DB — await all deletions with error logging
+  // Delete from DB — all 10 game modes
+  let dbDeleted = 0
   for (const table of tables) {
     try {
       await exec(`DELETE FROM ${table}_events WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`)
       await exec(`DELETE FROM ${table}_match_players WHERE match_id IN (SELECT id FROM ${table}_matches WHERE finished = 0 OR finished IS NULL)`)
       await exec(`DELETE FROM ${table}_matches WHERE finished = 0 OR finished IS NULL`)
-    } catch (err) {
-      console.warn(`[deleteAllOpenMatches] DB cleanup failed for table ${table}:`, err)
+      dbDeleted++
+      console.log(`[deleteAllOpenMatches] Cleaned ${table}`)
+    } catch (err: any) {
+      console.error(`[deleteAllOpenMatches] FAILED for ${table}:`, err?.message ?? err)
     }
   }
 
   // Clear active_games table + cache
   try {
     await exec('DELETE FROM active_games')
-  } catch (err) {
-    console.warn('[deleteAllOpenMatches] active_games cleanup failed:', err)
+    console.log('[deleteAllOpenMatches] Cleared active_games')
+  } catch (err: any) {
+    console.error('[deleteAllOpenMatches] active_games failed:', err?.message ?? err)
   }
   activeGamesCache = []
 
-  return deleted
+  return Math.max(deleted, dbDeleted)
 }
 
 /* -------------------------------------------------
