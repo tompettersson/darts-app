@@ -278,7 +278,7 @@ export default function HighscoreStaircaseChart({
                       width: Math.max(currentTurnWidth, 4),
                       background: turnColor,
                       boxShadow: `0 0 8px ${turnColor}`,
-                      transition: 'width 0.3s ease',
+                      /* no transition — prevents collapse animation */
                     }}
                   />
                   {/* Score-Label im Balken */}
@@ -348,7 +348,7 @@ export default function HighscoreStaircaseChart({
                         width: `${Math.min(100, (visit.runningScore / targetScore) * 100)}%`,
                         height: '100%',
                         background: isFinish(visit) ? '#22c55e' : visitPlayerColor,
-                        transition: 'width 0.3s',
+                        /* no transition — prevents collapse animation */
                       }}
                     />
                   </div>
@@ -427,15 +427,16 @@ export function HighscoreStaircaseMini({
   const stepWidth = width / Math.max(visits.length, 1)
 
   return (
-    <svg width={width} height={height} style={{ display: 'block' }}>
+    <svg width={Math.max(0, width)} height={Math.max(0, height)} style={{ display: 'block' }}>
       {/* Hintergrund */}
-      <rect x={0} y={0} width={width} height={height} fill="#1a1a1a" rx={4} />
+      <rect x={0} y={0} width={Math.max(0, width)} height={Math.max(0, height)} fill="#1a1a1a" rx={4} />
 
       {/* Stufen als aufsteigende Blöcke */}
       {visits.map((v, i) => {
         // Höhe proportional zum Turn-Score (max 180)
-        const blockHeight = Math.min((v.turnScore / 180) * (height - 4), height - 4)
-        const y = height - 2 - blockHeight
+        const safeH = Math.max(0, height - 4)
+        const blockHeight = Math.min((v.turnScore / 180) * safeH, safeH)
+        const y = Math.max(0, height - 2 - blockHeight)
         const isLast = v.runningScore >= targetScore
 
         return (

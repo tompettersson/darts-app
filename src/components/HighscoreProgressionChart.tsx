@@ -62,8 +62,8 @@ export default function HighscoreProgressionChart({
   const PADDING = { top: 30, right: 15, bottom: 25, left: 45 }
 
   // Chart-Bereich berechnen
-  const chartWidth = dimensions.width - PADDING.left - PADDING.right
-  const chartHeight = dimensions.height - PADDING.top - PADDING.bottom - 20
+  const chartWidth = Math.max(0, dimensions.width - PADDING.left - PADDING.right)
+  const chartHeight = Math.max(0, dimensions.height - PADDING.top - PADDING.bottom - 20)
 
   // Max Turns über alle Spieler
   const maxTurns = Math.max(
@@ -134,7 +134,7 @@ export default function HighscoreProgressionChart({
       {/* SVG Chart */}
       <svg
         width={dimensions.width}
-        height={dimensions.height - 20}
+        height={Math.max(0, dimensions.height - 20)}
         style={{ flexShrink: 0 }}
       >
         {/* Animationen */}
