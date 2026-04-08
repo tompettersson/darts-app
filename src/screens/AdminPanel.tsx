@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { getAuthProfiles, adminResetPassword, createProfileWithPassword, type AuthProfile } from '../auth/api'
-import { deleteProfile, getProfiles, countOpenMatches, deleteAllOpenMatches } from '../storage'
+import { deleteProfile, getProfiles, countOpenMatchesFromDB, deleteAllOpenMatches } from '../storage'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import { showToast } from '../components/Toast'
@@ -246,17 +246,17 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
             width: '100%',
           }}
           onClick={async () => {
-            const openCount = countOpenMatches()
+            const openCount = await countOpenMatchesFromDB()
             if (openCount === 0) {
               showToast('Keine offenen Spiele vorhanden')
               return
             }
-            if (!confirm(`${openCount} offene(s) Spiel(e) löschen? Diese wurden nicht beendet und gehen nicht in die Statistik ein.`)) return
+            if (!confirm(`${openCount} offene(s) Spiel(e) löschen?`)) return
             const deleted = await deleteAllOpenMatches()
-            showToast(`${deleted} offene(s) Spiel(e) gelöscht`)
+            showToast(`${deleted + openCount} offene(s) Spiel(e) gelöscht`)
           }}
         >
-          Offene Spiele aufräumen ({countOpenMatches()})
+          Offene Spiele aufräumen
         </button>
         <div style={{ fontSize: 11, color: colors.fgMuted, marginTop: 4 }}>
           Löscht alle nicht-beendeten Matches aus allen Spielmodi.

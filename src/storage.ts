@@ -77,7 +77,7 @@ import {
   dbDeleteActiveGame,
 } from './db/storage'
 
-import { exec } from './db/index'
+import { exec, query } from './db/index'
 import { queueStatsRefresh } from './db/stats-cache'
 import { loadGroup } from './hooks/useSQLStats'
 import { queryClient } from './queryClient'
@@ -5477,18 +5477,28 @@ export function cleanupStaleUnfinishedMatches(): void {
  * Zählt alle offenen (nicht-beendeten) Matches über alle Spielmodi.
  */
 export function countOpenMatches(): number {
-  let count = 0
-  count += getMatches().filter(m => !m.finished).length
-  count += getCricketMatches().filter(m => !m.finished).length
-  count += getATBMatches().filter(m => !(m as any).finished).length
-  count += getStrMatches().filter(m => !(m as any).finished).length
-  count += getHighscoreMatches().filter(m => !(m as any).finished).length
-  count += getCTFMatches().filter(m => !(m as any).finished).length
-  count += getShanghaiMatches().filter(m => !(m as any).finished).length
-  count += getKillerMatches().filter(m => !(m as any).finished).length
-  count += getBobs27Matches().filter(m => !(m as any).finished).length
-  count += getOperationMatches().filter(m => !(m as any).finished).length
-  return count
+  // Count from active_games cache (source of truth since architecture update)
+  return activeGamesCache.length
+}
+
+// Async version that counts directly from DB (more accurate)
+export async function countOpenMatchesFromDB(): Promise<number> {
+  try {
+    const tables = ['x01', 'cricket', 'atb', 'str', 'highscore', 'ctf', 'shanghai', 'killer', 'bobs27', 'operation']
+    let total = 0
+    for (const table of tables) {
+      try {
+        const rows = await query<any>(`SELECT COUNT(*) as cnt FROM ${table}_matches WHERE finished = 0 OR finished IS NULL`, [])
+        total += Number(rows[0]?.cnt ?? 0)
+      } catch {}
+    }
+    // Also count active_games entries
+    try {
+      const rows = await query<any>('SELECT COUNT(*) as cnt FROM active_games', [])
+      total = Math.max(total, Number(rows[0]?.cnt ?? 0))
+    } catch {}
+    return total
+  } catch { return 0 }
 }
 
 /**
