@@ -267,7 +267,7 @@ export default function HighscoreStaircaseChart({
                         height: '100%',
                         width: previousProgress,
                         background: darkenColor(visitPlayerColor, 0.4),
-                        transition: 'width 0.3s ease',
+                        /* no transition — prevents collapse animation on re-render */
                       }}
                     />
                   )}

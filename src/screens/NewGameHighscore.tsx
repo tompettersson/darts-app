@@ -318,9 +318,9 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
               First to {targetLegs} Leg{targetLegs > 1 ? 's' : ''}
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[1, 3, 5, 7].map((n) => (
+              {[1, 2, 3, 4, 5].map((n) => (
                 <button key={n} onClick={() => setTargetLegs(n)} style={pill(targetLegs === n)}>
-                  {n}
+                  FT{n}
                 </button>
               ))}
             </div>
@@ -334,9 +334,9 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
                 First to {targetSets} Set{targetSets > 1 ? 's' : ''}
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[1, 3, 5].map((n) => (
+                {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} onClick={() => setTargetSets(n)} style={pill(targetSets === n)}>
-                    {n}
+                    FT{n}
                   </button>
                 ))}
               </div>
@@ -346,9 +346,9 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
                 Legs pro Set: First to {legsPerSet}
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[1, 3, 5].map((n) => (
+                {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} onClick={() => setLegsPerSet(n)} style={pill(legsPerSet === n)}>
-                    {n}
+                    FT{n}
                   </button>
                 ))}
               </div>
