@@ -6,9 +6,23 @@ import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
 import { getOperationMatchById } from '../storage'
 import { applyOperationEvents, formatDuration } from '../dartsOperation'
-import { computeOperationMatchStats } from '../stats/computeOperationStats'
+import { computeOperationMatchStats, computeOperationLegStats } from '../stats/computeOperationStats'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateOperationReport } from '../narratives/generateModeReports'
+
+// Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Spalte
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
@@ -31,6 +45,9 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
   const match = useMemo(() => getOperationMatchById(matchId), [matchId])
   const state = useMemo(() => match ? applyOperationEvents(match.events) : null, [match])
 
+  // Leg selector state
+  const [selectedLegIndex, setSelectedLegIndex] = useState(0)
+
   if (!match || !state) {
     return (
       <div style={styles.page}>
@@ -42,6 +59,8 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
 
   const isSolo = match.players.length === 1
   const finished = state.finished
+  const legsCount = match.config.legsCount
+  const isBull = match.config.targetMode === 'BULL'
 
   // Rankings nach Hit Score (faire Bewertung unabhaengig von Zielzahl)
   const rankings = match.players
@@ -73,19 +92,55 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
 
   const winner = finished?.winnerId ? match.players.find(p => p.playerId === finished.winnerId) : null
 
-  const cardStyle: React.CSSProperties = {
-    background: colors.bgCard,
-    borderRadius: 12,
-    padding: 16,
-    border: `1px solid ${colors.border}`,
+  // Player color map
+  const playerColorMap: Record<string, string> = {}
+  match.players.forEach((p, i) => { playerColorMap[p.playerId] = PLAYER_COLORS[i % PLAYER_COLORS.length] })
+
+  const pIds = rankings.map(r => r.playerId)
+
+  // Stat winner colors for table
+  const hitScoreWin = getStatWinnerColors(rankings.map(r => r.totalHitScore), pIds, 'high', playerColorMap)
+  const hitRateWin = getStatWinnerColors(rankings.map(r => r.hitRate), pIds, 'high', playerColorMap)
+  const avgHitWin = getStatWinnerColors(rankings.map(r => r.avgHitScorePerDart), pIds, 'high', playerColorMap)
+  const avgPtsWin = getStatWinnerColors(rankings.map(r => r.avgPointsPerDart), pIds, 'high', playerColorMap)
+  const streakWin = getStatWinnerColors(rankings.map(r => r.maxHitStreak), pIds, 'high', playerColorMap)
+  const bestTurnWin = getStatWinnerColors(rankings.map(r => r.bestTurnScore), pIds, 'high', playerColorMap)
+  const noScoreWin = getStatWinnerColors(rankings.map(r => r.noScoreTurns), pIds, 'low', playerColorMap)
+
+  // Per-leg stats for selected leg
+  const legPlayerStats = useMemo(() => {
+    return rankings.map(r => ({
+      ...r,
+      legStats: computeOperationLegStats(match, r.playerId, selectedLegIndex),
+    }))
+  }, [match, rankings, selectedLegIndex])
+
+  // Table styles
+  const thStyle: React.CSSProperties = {
+    textAlign: 'right',
+    padding: '6px 8px',
+    borderBottom: `1px solid ${colors.border}`,
+    color: colors.fgMuted,
+    fontWeight: 600,
+    fontSize: 12,
+    whiteSpace: 'nowrap',
+  }
+  const tdStyle: React.CSSProperties = {
+    textAlign: 'right',
+    padding: '6px 8px',
+    borderBottom: `1px solid ${colors.border}`,
+    fontSize: 13,
+    fontVariantNumeric: 'tabular-nums',
+  }
+  const tdLabelStyle: React.CSSProperties = {
+    ...tdStyle,
+    textAlign: 'left',
+    color: colors.fgMuted,
+    fontWeight: 500,
   }
 
-  const statRow = (label: string, value: string | number, highlight = false): React.ReactNode => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-      <span style={{ color: colors.fgDim, fontSize: 13 }}>{label}</span>
-      <span style={{ color: highlight ? colors.accent : colors.fg, fontWeight: highlight ? 700 : 600, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-    </div>
-  )
+  const tdHighlight = (winColor: string | undefined): React.CSSProperties =>
+    winColor ? { ...tdStyle, fontWeight: 700, color: winColor } : { ...tdStyle, fontWeight: 600 }
 
   return (
     <div style={styles.page}>
@@ -96,13 +151,13 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
             <h2 style={{ margin: 0, color: colors.fg, fontSize: isMobile ? 18 : undefined }}>Operation: EFKG – Ergebnis</h2>
             {finished && (
               <div style={{ color: colors.fgDim, fontSize: 13, marginTop: 4 }}>
-                Dauer: {formatDuration(finished.durationMs)} · {match.config.legsCount} Leg{match.config.legsCount > 1 ? 's' : ''}
+                Dauer: {formatDuration(finished.durationMs)} · {legsCount} Leg{legsCount > 1 ? 's' : ''}
               </div>
             )}
           </div>
 
           {/* Hit Score Ergebnis (faire Bewertung) */}
-          <div style={{ ...cardStyle, textAlign: 'center', marginBottom: 12 }}>
+          <div style={{ ...styles.card, textAlign: 'center', marginBottom: 12, padding: isMobile ? '10px 8px' : undefined }}>
             {isSolo ? (
               <>
                 <div style={{ fontSize: 14, color: colors.fgDim }}>Hit Score</div>
@@ -110,7 +165,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                   {rankings[0]?.totalHitScore ?? 0}
                 </div>
                 <div style={{ fontSize: 12, color: colors.fgDim }}>
-                  von {(match.config.legsCount * 30 * 3)} moeglich (S=1 D=2 T=3)
+                  von {(legsCount * 30 * 3)} moeglich (S=1 D=2 T=3)
                 </div>
               </>
             ) : winner ? (
@@ -153,7 +208,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                 singleCount: r.singleCount,
                 noScoreCount: r.noScoreCount,
               })),
-              legsCount: match.config.legsCount,
+              legsCount,
             })
             return report ? (
               <div style={{
@@ -171,9 +226,9 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
             ) : null
           })()}
 
-          {/* Rankings */}
+          {/* Rankings (multi-player only) */}
           {!isSolo && (
-            <div style={{ ...cardStyle, marginBottom: 12 }}>
+            <div style={{ ...styles.card, marginBottom: 12 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: colors.fg, marginBottom: 8 }}>Rankings</div>
               {rankings.map((r, rank) => (
                 <div key={r.playerId} style={{
@@ -183,7 +238,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                   <span style={{ fontWeight: 800, fontSize: 16, color: colors.fgDim, width: 24 }}>{rank + 1}.</span>
                   <span style={{ flex: 1, fontWeight: 600, color: PLAYER_COLORS[r.index % PLAYER_COLORS.length] }}>{r.name}</span>
                   <span style={{ fontWeight: 800, fontSize: 18, color: colors.fg, fontVariantNumeric: 'tabular-nums' }}>{r.totalHitScore}</span>
-                  {match.config.legsCount > 1 && (
+                  {legsCount > 1 && (
                     <span style={{ fontSize: 11, color: colors.fgDim }}>({r.legsWon}L)</span>
                   )}
                 </div>
@@ -191,91 +246,344 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
             </div>
           )}
 
-          {/* Stats per Player */}
-          {rankings.map((r) => (
-            <div key={r.playerId} style={{ ...cardStyle, marginBottom: 12 }}>
-              <div style={{
-                fontWeight: 700, fontSize: 14, marginBottom: 8,
-                color: PLAYER_COLORS[r.index % PLAYER_COLORS.length],
-                borderLeft: `3px solid ${PLAYER_COLORS[r.index % PLAYER_COLORS.length]}`,
-                paddingLeft: 8,
-              }}>
-                {r.name}
-              </div>
-              {statRow('Hit Score', `${r.totalHitScore} / ${match.config.legsCount * 90}`, true)}
-              {statRow('Ø Hit Score/Dart', r.avgHitScorePerDart.toFixed(2))}
-              {statRow('Hit-Rate', `${r.hitRate.toFixed(1)}%`)}
-              {statRow('Beste Streak', `${r.maxHitStreak}x`)}
-              {statRow('Punkte', r.totalScore)}
-              {statRow('Ø Punkte/Dart', r.avgPointsPerDart.toFixed(1))}
-              {statRow('Bester Turn', r.bestTurnScore)}
-              {statRow('No Score Turns', r.noScoreTurns)}
-              {match.config.legsCount > 1 && statRow('Legs gewonnen', r.legsWon)}
-
-              {/* Trefferverteilung */}
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}` }}>
-                <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 4 }}>Trefferverteilung</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, background: colors.bgMuted, padding: '2px 6px', borderRadius: 4 }}>
-                    Miss: {r.noScoreCount}
-                  </span>
-                  {match.config.targetMode === 'BULL' ? (
+          {/* ============================================================ */}
+          {/* Spieler-Statistiken (Vergleichstabelle) - Match Summary */}
+          {/* ============================================================ */}
+          <div style={{ ...styles.card, marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: colors.fg, marginBottom: 8 }}>
+              {legsCount > 1 ? 'Gesamt-Statistiken' : 'Spieler-Statistiken'}
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>Stat</th>
+                    {rankings.map(r => (
+                      <th key={r.playerId} style={{ ...thStyle, color: PLAYER_COLORS[r.index % PLAYER_COLORS.length] }}>
+                        {r.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={tdLabelStyle}>Hit Score</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(hitScoreWin[i])}>
+                        {r.totalHitScore} / {legsCount * 90}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>Hit-Rate</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(hitRateWin[i])}>
+                        {r.hitRate.toFixed(1)}%
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>Ø Hit/Dart</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(avgHitWin[i])}>
+                        {r.avgHitScorePerDart.toFixed(2)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>Ø Pkt/Dart</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(avgPtsWin[i])}>
+                        {r.avgPointsPerDart.toFixed(1)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>Beste Streak</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(streakWin[i])}>
+                        {r.maxHitStreak}x
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>Bester Turn</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(bestTurnWin[i])}>
+                        {r.bestTurnScore}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>Punkte</td>
+                    {rankings.map((r) => (
+                      <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                        {r.totalScore}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={tdLabelStyle}>No Score Turns</td>
+                    {rankings.map((r, i) => (
+                      <td key={r.playerId} style={tdHighlight(noScoreWin[i])}>
+                        {r.noScoreTurns}
+                      </td>
+                    ))}
+                  </tr>
+                  {legsCount > 1 && (
+                    <tr>
+                      <td style={tdLabelStyle}>Legs gewonnen</td>
+                      {rankings.map((r) => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                          {r.legsWon}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
+                  {/* Trefferverteilung */}
+                  {isBull ? (
                     <>
-                      <span style={{ fontSize: 12, background: colors.bgMuted, padding: '2px 6px', borderRadius: 4 }}>
-                        S-Bull: {r.singleBullCount}
-                      </span>
-                      <span style={{ fontSize: 12, background: colors.bgMuted, padding: '2px 6px', borderRadius: 4 }}>
-                        D-Bull: {r.doubleBullCount}
-                      </span>
+                      <tr>
+                        <td style={tdLabelStyle}>Miss</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.noScoreCount}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>S-Bull</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.singleBullCount}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>D-Bull</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.doubleBullCount}
+                          </td>
+                        ))}
+                      </tr>
                     </>
                   ) : (
                     <>
-                      <span style={{ fontSize: 12, background: colors.bgMuted, padding: '2px 6px', borderRadius: 4 }}>
-                        S: {r.singleCount}
-                      </span>
-                      <span style={{ fontSize: 12, background: colors.bgMuted, padding: '2px 6px', borderRadius: 4 }}>
-                        D: {r.doubleCount}
-                      </span>
-                      <span style={{ fontSize: 12, background: colors.bgMuted, padding: '2px 6px', borderRadius: 4 }}>
-                        T: {r.tripleCount}
-                      </span>
+                      <tr>
+                        <td style={tdLabelStyle}>Miss</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.noScoreCount}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Single</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.singleCount}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Double</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.doubleCount}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Triple</td>
+                        {rankings.map((r) => (
+                          <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                            {r.tripleCount}
+                          </td>
+                        ))}
+                      </tr>
                     </>
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* Leg Breakdown (only if >1 leg) */}
+          {/* ============================================================ */}
+          {legsCount > 1 && (
+            <div style={{ ...styles.card, marginBottom: 12 }}>
+              {/* Leg Navigation */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 12,
+              }}>
+                <button
+                  onClick={() => setSelectedLegIndex(i => Math.max(0, i - 1))}
+                  disabled={selectedLegIndex === 0}
+                  style={{
+                    padding: isMobile ? '6px 10px' : '8px 16px',
+                    borderRadius: 6,
+                    border: `1px solid ${colors.border}`,
+                    background: selectedLegIndex === 0 ? 'transparent' : colors.bgCard,
+                    color: selectedLegIndex === 0 ? colors.fgDim : colors.fg,
+                    fontWeight: 600,
+                    cursor: selectedLegIndex === 0 ? 'not-allowed' : 'pointer',
+                    opacity: selectedLegIndex === 0 ? 0.5 : 1,
+                    fontSize: isMobile ? 12 : 14,
+                  }}
+                >
+                  ←
+                </button>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: colors.fg }}>
+                    Leg {selectedLegIndex + 1} von {legsCount}
+                  </div>
+                  {state.legs[selectedLegIndex] && (
+                    <div style={{ fontSize: 12, color: colors.fgDim }}>
+                      Ziel: {state.legs[selectedLegIndex].targetMode === 'BULL' ? 'Bull' : state.legs[selectedLegIndex].targetNumber}
+                    </div>
+                  )}
                 </div>
+
+                <button
+                  onClick={() => setSelectedLegIndex(i => Math.min(legsCount - 1, i + 1))}
+                  disabled={selectedLegIndex === legsCount - 1}
+                  style={{
+                    padding: isMobile ? '6px 10px' : '8px 16px',
+                    borderRadius: 6,
+                    border: `1px solid ${colors.border}`,
+                    background: selectedLegIndex === legsCount - 1 ? 'transparent' : colors.bgCard,
+                    color: selectedLegIndex === legsCount - 1 ? colors.fgDim : colors.fg,
+                    fontWeight: 600,
+                    cursor: selectedLegIndex === legsCount - 1 ? 'not-allowed' : 'pointer',
+                    opacity: selectedLegIndex === legsCount - 1 ? 0.5 : 1,
+                    fontSize: isMobile ? 12 : 14,
+                  }}
+                >
+                  →
+                </button>
               </div>
 
-              {/* Leg Hit Scores Sparkline */}
-              {r.legHitScores.length > 1 && (
-                <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}` }}>
-                  <div style={{ fontSize: 12, color: colors.fgDim, marginBottom: 4 }}>Hit Score pro Leg</div>
-                  <svg viewBox={`0 0 ${r.legHitScores.length * 40} 40`} style={{ width: '100%', height: 40 }}>
-                    {(() => {
-                      const max = Math.max(...r.legHitScores, 1)
-                      const points = r.legHitScores.map((s, i) => `${i * 40 + 20},${40 - (s / max) * 35}`).join(' ')
-                      return (
-                        <>
-                          <polyline
-                            points={points}
-                            fill="none"
-                            stroke={colors.accent}
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          {r.legHitScores.map((s, i) => (
-                            <circle key={i} cx={i * 40 + 20} cy={40 - (s / max) * 35} r={3} fill={colors.accent} />
+              {/* Leg Stats Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thStyle, textAlign: 'left' }}>Stat</th>
+                      {legPlayerStats.map(r => (
+                        <th key={r.playerId} style={{ ...thStyle, color: PLAYER_COLORS[r.index % PLAYER_COLORS.length] }}>
+                          {r.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={tdLabelStyle}>Hit Score</td>
+                      {legPlayerStats.map(r => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 700, color: colors.accent }}>
+                          {r.legStats?.hitScore ?? 0} / 90
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={tdLabelStyle}>Hit-Rate</td>
+                      {legPlayerStats.map(r => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                          {(r.legStats?.hitRate ?? 0).toFixed(1)}%
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={tdLabelStyle}>Ø Hit/Dart</td>
+                      {legPlayerStats.map(r => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                          {(r.legStats?.avgHitScorePerDart ?? 0).toFixed(2)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={tdLabelStyle}>Beste Streak</td>
+                      {legPlayerStats.map(r => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                          {r.legStats?.maxHitStreak ?? 0}x
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={tdLabelStyle}>Punkte</td>
+                      {legPlayerStats.map(r => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                          {r.legStats?.totalScore ?? 0}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={tdLabelStyle}>No Score Turns</td>
+                      {legPlayerStats.map(r => (
+                        <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                          {r.legStats?.noScoreTurns ?? 0}
+                        </td>
+                      ))}
+                    </tr>
+                    {/* Leg-Trefferverteilung */}
+                    {isBull ? (
+                      <>
+                        <tr>
+                          <td style={tdLabelStyle}>Miss</td>
+                          {legPlayerStats.map(r => (
+                            <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                              {r.legStats?.noScoreCount ?? 0}
+                            </td>
                           ))}
-                        </>
-                      )
-                    })()}
-                  </svg>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: colors.fgDim }}>
-                    {r.legHitScores.map((s, i) => <span key={i}>L{i + 1}: {s}/90</span>)}
-                  </div>
-                </div>
-              )}
+                        </tr>
+                        <tr>
+                          <td style={tdLabelStyle}>S-Bull</td>
+                          {legPlayerStats.map(r => (
+                            <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                              {r.legStats?.singleBullCount ?? 0}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdLabelStyle}>D-Bull</td>
+                          {legPlayerStats.map(r => (
+                            <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                              {r.legStats?.doubleBullCount ?? 0}
+                            </td>
+                          ))}
+                        </tr>
+                      </>
+                    ) : (
+                      <>
+                        <tr>
+                          <td style={tdLabelStyle}>Miss</td>
+                          {legPlayerStats.map(r => (
+                            <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                              {r.legStats?.noScoreCount ?? 0}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td style={tdLabelStyle}>S / D / T</td>
+                          {legPlayerStats.map(r => (
+                            <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
+                              {r.legStats?.singleCount ?? 0} / {r.legStats?.doubleCount ?? 0} / {r.legStats?.tripleCount ?? 0}
+                            </td>
+                          ))}
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          ))}
+          )}
 
           {/* Buttons */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, marginTop: 8 }}>

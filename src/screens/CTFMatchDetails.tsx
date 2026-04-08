@@ -2,7 +2,7 @@
 // Spielzusammenfassung fuer Capture the Field Matches
 // Mit Leg-Uebersicht und Drill-Down (analog zu ATBMatchDetails)
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { getCTFMatchById, getProfiles } from '../storage'
 import { applyCTFEvents, formatDuration, formatDart, formatTarget, calculateFieldPoints } from '../dartsCaptureTheField'
 import type { CTFTurnAddedEvent, CTFRoundFinishedEvent, CTFLegStartedEvent, CTFLegFinishedEvent, CTFEvent } from '../types/captureTheField'
@@ -298,24 +298,31 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   // Dynamische Table Styles
   const thLeft: React.CSSProperties = {
-    textAlign: 'left', fontSize: 13, fontWeight: 600,
-    color: colors.fgDim, padding: '8px 12px',
+    textAlign: 'left', fontSize: isMobile ? 11 : 13, fontWeight: 600,
+    color: colors.fgDim, padding: isMobile ? '6px 6px' : '8px 12px',
     borderBottom: `2px solid ${colors.border}`,
   }
   const thRight: React.CSSProperties = {
-    textAlign: 'right', fontSize: 13, fontWeight: 700,
-    color: colors.fg, padding: '8px 12px',
+    textAlign: 'right', fontSize: isMobile ? 11 : 13, fontWeight: 700,
+    color: colors.fg, padding: isMobile ? '6px 6px' : '8px 12px',
     borderBottom: `2px solid ${colors.border}`,
   }
   const tdLeft: React.CSSProperties = {
-    padding: '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
-    fontWeight: 500, color: colors.fg,
+    padding: isMobile ? '6px 6px' : '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
+    fontWeight: 500, color: colors.fg, fontSize: isMobile ? 11 : undefined,
   }
   const tdRight: React.CSSProperties = {
-    padding: '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
-    textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600,
+    padding: isMobile ? '6px 6px' : '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
+    textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: isMobile ? 11 : undefined,
   }
 
   const [selectedLegId, setSelectedLegId] = useState<string | null>(null)
@@ -632,7 +639,8 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
               const legHrWin = getStatWinnerColors(legStats.map(ps => ps.hitRate), pids, 'high', playerColors)
               return (
               <div style={styles.card}>
-                <div style={{ fontWeight: 700, marginBottom: 12 }}>Leg-Statistiken</div>
+                <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Leg-Statistiken</div>
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -684,6 +692,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                     </tr>
                   </tbody>
                 </table>
+                </div>
               </div>
               )
             })()}
@@ -693,7 +702,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
               <div style={styles.card}>
                 <div style={{ fontWeight: 700, marginBottom: 16 }}>Feldverteilung</div>
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <ATBCaptureFieldDistributionChart data={legChartData} size={240} />
+                  <ATBCaptureFieldDistributionChart data={legChartData} size={isMobile ? 180 : 240} />
                 </div>
               </div>
             )}
@@ -712,7 +721,8 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                   const ldStreakWin = getStatWinnerColors(streakValues, ldPids, 'high', playerColors)
                   return (
                   <div style={styles.card}>
-                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Detailstatistiken</div>
+                    <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr>
@@ -767,13 +777,14 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                         </tr>
                       </tbody>
                     </table>
+                    </div>
                   </div>
                   )
                 })()}
 
                 {/* Punkte pro Feld Chart */}
                 <div style={styles.card}>
-                  <div style={{ fontWeight: 700, marginBottom: 12 }}>Punkte pro Feld</div>
+                  <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Punkte pro Feld</div>
                   <ATBCaptureScoreChart
                     rounds={legCaptureRounds}
                     players={match.players.map((p, idx) => ({
@@ -787,7 +798,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                 {/* Feld-Effizienz Chart (horizontale Bars) */}
                 {legFieldBreakdown.length > 0 && (
                   <div style={styles.card}>
-                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Effizienz</div>
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Feld-Effizienz</div>
                     <FieldEfficiencyChart
                       rounds={legFieldBreakdown}
                       players={match.players}
@@ -799,7 +810,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                 {/* Head-to-Head Vergleich */}
                 {legHeadToHead && match.players.length >= 2 && (
                   <div style={styles.card}>
-                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Head-to-Head</div>
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Head-to-Head</div>
                     {(() => {
                       const totalFields = selectedLeg.roundFinished.length
                       const barWidth = 100
@@ -857,7 +868,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                 {/* Feld-Breakdown Tabelle */}
                 {legFieldBreakdown.length > 0 && (
                   <div style={styles.card}>
-                    <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Breakdown</div>
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Feld-Breakdown</div>
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
@@ -921,7 +932,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
 
             {/* Wurfabfolge */}
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Wurfabfolge</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Wurfabfolge</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
                 {selectedLeg.turns.length === 0 ? (
                   <div style={{ opacity: 0.6 }}>Keine Wuerfe in diesem Leg.</div>
@@ -958,19 +969,20 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 12,
-                            padding: '10px 12px',
+                            gap: isMobile ? 6 : 12,
+                            padding: isMobile ? '6px 6px' : '10px 12px',
                             background: `${color}10`,
                             borderLeft: `4px solid ${color}`,
                             borderRadius: '0 6px 6px 0',
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
+                            flexWrap: isMobile ? 'wrap' : undefined,
                           }}
                         >
-                          <span style={{ fontWeight: 700, minWidth: 80, color }}>{player?.name}</span>
-                          <span style={{ minWidth: 90, fontFamily: 'monospace', fontSize: 12 }}>
+                          <span style={{ fontWeight: 700, minWidth: isMobile ? 60 : 80, color }}>{player?.name}</span>
+                          <span style={{ minWidth: isMobile ? 70 : 90, fontFamily: 'monospace', fontSize: isMobile ? 10 : 12 }}>
                             {turn.darts.map(formatDart).join(' \u00B7 ')}
                           </span>
-                          <span style={{ minWidth: 50, color: colors.fgDim, fontSize: 12 }}>
+                          <span style={{ minWidth: isMobile ? 40 : 50, color: colors.fgDim, fontSize: isMobile ? 10 : 12 }}>
                             Ziel: {targetField !== undefined ? formatTarget(targetField) : '?'}
                           </span>
                           {turn.captureScore > 0 ? (
@@ -1099,7 +1111,8 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             const mHrWin = getStatWinnerColors(matchStats.map(ps => ps.hitRate), pids, 'high', playerColors)
             return (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Match-Statistik</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Match-Statistik</div>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
@@ -1159,6 +1172,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
             )
           })()}
@@ -1166,9 +1180,9 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
           {/* Feldverteilung */}
           {matchChartData.length > 0 && (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 16 }}>Feldverteilung</div>
+              <div style={{ fontWeight: 700, marginBottom: 16, fontSize: isMobile ? 14 : undefined }}>Feldverteilung</div>
               <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <ATBCaptureFieldDistributionChart data={matchChartData} size={240} />
+                <ATBCaptureFieldDistributionChart data={matchChartData} size={isMobile ? 180 : 240} />
               </div>
             </div>
           )}
@@ -1184,7 +1198,8 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             const mdStreakWin = getStatWinnerColors(streakValues, mdPids, 'high', playerColors)
             return (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Detailstatistiken</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Detailstatistiken</div>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
@@ -1239,6 +1254,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
             )
           })()}
@@ -1246,7 +1262,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
           {/* Head-to-Head Vergleich (Match-Ebene) */}
           {matchHeadToHead && match.players.length >= 2 && (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Head-to-Head</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Head-to-Head</div>
               {(() => {
                 const totalFields = allRoundEvents.length
                 return (
@@ -1300,7 +1316,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
           {/* Feld-Breakdown Tabelle (Match-Ebene) */}
           {matchFieldBreakdown.length > 0 && (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Breakdown</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Feld-Breakdown</div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
@@ -1363,7 +1379,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
           {/* Feld-Effizienz Chart (Match-Ebene) */}
           {matchFieldBreakdown.length > 0 && (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 12 }}>Feld-Effizienz</div>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: isMobile ? 14 : undefined }}>Feld-Effizienz</div>
               <FieldEfficiencyChart
                 rounds={matchFieldBreakdown}
                 players={match.players}
@@ -1372,9 +1388,10 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
             </div>
           )}
 
-          {/* Legs Liste */}
+          {/* Legs Liste (hide when only 1 leg) */}
+          {legs.length > 1 && (
           <div style={styles.card}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Legs</div>
+            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: isMobile ? 14 : undefined }}>Legs</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {legs.length === 0 ? (
                 <div style={{ opacity: 0.6 }}>Keine Legs vorhanden.</div>
@@ -1398,15 +1415,15 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 12,
-                          padding: '8px 12px',
+                          gap: isMobile ? 6 : 12,
+                          padding: isMobile ? '6px 8px' : '8px 12px',
                           background: colors.bgMuted,
                           borderRadius: 6,
-                          fontSize: 14,
+                          fontSize: isMobile ? 12 : 14,
                           cursor: 'pointer',
                         }}
                       >
-                        <span style={{ fontWeight: 700, minWidth: 60 }}>
+                        <span style={{ fontWeight: 700, minWidth: isMobile ? 44 : 60 }}>
                           {leg.setIndex ? `S${leg.setIndex} ` : ''}Leg {leg.legIndex}
                         </span>
                         <span style={{
@@ -1438,6 +1455,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

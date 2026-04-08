@@ -756,7 +756,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
 
   return (
     <div style={styles.page}>
-      <div style={styles.headerRow}>
+      <div style={{ ...styles.headerRow, position: 'sticky', top: 0, zIndex: 10, background: isArcade ? colors.bg : colors.bg }}>
         <h2 style={{ margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Matchhistorie</h2>
         <button style={styles.backBtn} onClick={onBack}>
           ← Zurück
@@ -766,8 +766,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
       {/* Filter + Suche */}
       <div style={styles.card}>
         <div style={{ display: 'grid', gap: 10 }}>
-          {/* Filter Buttons */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="tablist" aria-label="Spielmodus-Filter">
+          {/* Filter Buttons — fixed width, no shifting */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexWrap: 'nowrap' }} role="tablist" aria-label="Spielmodus-Filter">
             {(['all', 'x01', 'cricket', 'training', 'party'] as Filter[]).map((f) => (
               <button
                 key={f}
@@ -787,6 +787,8 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                   padding: '0 12px',
                   cursor: 'pointer',
                   fontWeight: 800,
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {FILTER_LABELS[f]}

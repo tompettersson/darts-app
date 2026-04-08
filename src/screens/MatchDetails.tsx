@@ -1,5 +1,5 @@
 // src/screens/MatchDetails.tsx
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { loadMatchById, getProfiles } from '../storage'
 import {
   applyEvents,
@@ -127,23 +127,30 @@ export default function MatchDetails({ matchId, onBack }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const thLeft: React.CSSProperties = {
-    textAlign: 'left', fontSize: 13, fontWeight: 600,
-    color: colors.fgDim, padding: '8px 12px',
+    textAlign: 'left', fontSize: isMobile ? 11 : 13, fontWeight: 600,
+    color: colors.fgDim, padding: isMobile ? '6px 6px' : '8px 12px',
     borderBottom: `2px solid ${colors.border}`,
   }
   const thRight: React.CSSProperties = {
-    textAlign: 'right', fontSize: 13, fontWeight: 700,
-    color: colors.fg, padding: '8px 12px',
+    textAlign: 'right', fontSize: isMobile ? 11 : 13, fontWeight: 700,
+    color: colors.fg, padding: isMobile ? '6px 6px' : '8px 12px',
     borderBottom: `2px solid ${colors.border}`,
   }
   const tdLeft: React.CSSProperties = {
-    padding: '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
-    fontWeight: 500, color: colors.fg,
+    padding: isMobile ? '6px 6px' : '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
+    fontWeight: 500, color: colors.fg, fontSize: isMobile ? 11 : undefined,
   }
   const tdRight: React.CSSProperties = {
-    padding: '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
-    textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600,
+    padding: isMobile ? '6px 6px' : '10px 12px', borderBottom: `1px solid ${colors.bgMuted}`,
+    textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: isMobile ? 11 : undefined,
   }
 
   const [selectedLegId, setSelectedLegId] = useState<string | null>(null)
@@ -546,7 +553,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
             {/* Set Statistik */}
             <div style={styles.card}>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: isMobile ? 8 : 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, fontSize: isMobile ? 13 : undefined }}>
                 <span>{match.players.map((p) => p.name).join(' vs ')}</span>
                 {selectedSetFinish && (
                   <span style={{ fontWeight: 600, color: colors.success }}>
@@ -555,6 +562,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 )}
               </div>
 
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
@@ -657,8 +665,9 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 </tbody>
               </table>
+              </div>
 
-              <div style={{ marginTop: 12, color: colors.fgDim, fontSize: 13 }}>
+              <div style={{ marginTop: 12, color: colors.fgDim, fontSize: isMobile ? 11 : 13 }}>
                 Modus: {format}
               </div>
               {setDuration && (
@@ -697,18 +706,18 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 12,
-                            padding: '8px 12px',
+                            gap: isMobile ? 6 : 12,
+                            padding: isMobile ? '6px 8px' : '8px 12px',
                             background: colors.bgMuted,
                             borderRadius: 6,
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             cursor: 'pointer',
                           }}
                         >
-                          <span style={{ fontWeight: 700, minWidth: 60 }}>Leg {idx + 1}</span>
+                          <span style={{ fontWeight: 700, minWidth: isMobile ? 44 : 60 }}>Leg {idx + 1}</span>
                           <span style={{
                             fontWeight: 800,
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             color: colors.fg,
                             background: colors.bgSoft,
                             padding: '2px 8px',
@@ -841,6 +850,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
             {/* Leg Statistik */}
             <div style={styles.card}>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
@@ -944,6 +954,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* 121-spezifische Stats (nur bei 121-Spielen) */}
@@ -974,6 +985,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   }}>121</span>
                   Sprint-Statistik
                 </div>
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -1176,6 +1188,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
               )})()}
 
@@ -1305,7 +1318,8 @@ export default function MatchDetails({ matchId, onBack }: Props) {
           {/* Statistik-Tabelle (nicht bei 121-Spielen, da 121 Sprint Card reicht) */}
           {!is121Game && (
             <div style={styles.card}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Match-Statistik</div>
+              <div style={{ fontWeight: 700, marginBottom: 8, fontSize: isMobile ? 14 : undefined }}>Match-Statistik</div>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
@@ -1331,6 +1345,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -1368,6 +1383,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 }}>121</span>
                 Sprint - Match-Statistik
               </div>
+              <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
@@ -1566,6 +1582,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
             )})()}
 
@@ -1625,9 +1642,10 @@ export default function MatchDetails({ matchId, onBack }: Props) {
             </div>
           )}
 
-          {/* Sets oder Legs Liste */}
+          {/* Sets oder Legs Liste (hide when only 1 leg in non-sets mode) */}
+          {(isSets || legFinished.length > 1) && (
           <div style={styles.card}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: isMobile ? 14 : undefined }}>
               {isSets ? 'Sets' : 'Legs'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1659,16 +1677,16 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 12,
-                          padding: '8px 12px',
+                          gap: isMobile ? 6 : 12,
+                          padding: isMobile ? '6px 8px' : '8px 12px',
                           background: colors.bgMuted,
                           borderRadius: 6,
-                          fontSize: 14,
+                          fontSize: isMobile ? 12 : 14,
                           cursor: 'pointer',
                         }}
                       >
-                        <span style={{ fontWeight: 700, minWidth: 60 }}>Set {sf.setIndex}</span>
-                        <span style={{ color: colors.fgDim, minWidth: 60 }}>Legs {legScore}</span>
+                        <span style={{ fontWeight: 700, minWidth: isMobile ? 44 : 60 }}>Set {sf.setIndex}</span>
+                        <span style={{ color: colors.fgDim, minWidth: isMobile ? 44 : 60 }}>Legs {legScore}</span>
                         <span style={{ flex: 1 }}>{match.players.map((p) => p.name).join(' vs ')}</span>
                         <span style={{ fontWeight: 600, color: colors.success }}>{winnerSetName}</span>
                         <span style={{ color: colors.fgMuted, fontSize: 12 }}>→</span>
@@ -1702,18 +1720,18 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 12,
-                            padding: '8px 12px',
+                            gap: isMobile ? 6 : 12,
+                            padding: isMobile ? '6px 8px' : '8px 12px',
                             background: colors.bgMuted,
                             borderRadius: 6,
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             cursor: 'pointer',
                           }}
                         >
-                          <span style={{ fontWeight: 700, minWidth: 60 }}>Leg {idx + 1}</span>
+                          <span style={{ fontWeight: 700, minWidth: isMobile ? 44 : 60 }}>Leg {idx + 1}</span>
                           <span style={{
                             fontWeight: 800,
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             color: colors.fg,
                             background: colors.bgSoft,
                             padding: '2px 8px',
@@ -1735,6 +1753,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

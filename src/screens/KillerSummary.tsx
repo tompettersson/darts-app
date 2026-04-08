@@ -6,7 +6,7 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getKillerMatchById } from '../storage'
 import { applyKillerEvents, formatDuration, formatDart } from '../dartsKiller'
-import { computeKillerMatchStats } from '../stats/computeKillerStats'
+import { computeKillerMatchStats, getKillerLegs } from '../stats/computeKillerStats'
 import type { KillerStoredMatch, KillerLogEntry, KillerTurnAddedEvent, KillerPlayerEliminatedEvent } from '../types/killer'
 import { PLAYER_COLORS } from '../playerColors'
 import PieChart from '../components/charts/PieChart'
@@ -90,6 +90,7 @@ function KillerSummaryContent({
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
   const [logExpanded, setLogExpanded] = useState(false)
+  const [selectedLegIndex, setSelectedLegIndex] = useState(0)
 
   const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
   useEffect(() => {
@@ -99,6 +100,7 @@ function KillerSummaryContent({
   }, [])
 
   const state = useMemo(() => applyKillerEvents(storedMatch.events), [storedMatch.events])
+  const killerLegs = useMemo(() => getKillerLegs(storedMatch), [storedMatch])
 
   const startEvt = storedMatch.events.find(e => e.type === 'KillerMatchStarted')
   const players = startEvt?.type === 'KillerMatchStarted' ? startEvt.players : storedMatch.players
@@ -552,6 +554,191 @@ function KillerSummaryContent({
                           ))}
                         </tr>
                       )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ============================================================ */}
+          {/* 3a. Leg Breakdown (only for multi-leg matches) */}
+          {/* ============================================================ */}
+          {killerLegs.length > 1 && (() => {
+            const leg = killerLegs[selectedLegIndex]
+            if (!leg) return null
+
+            const legThStyle: React.CSSProperties = {
+              textAlign: 'right',
+              padding: '6px 8px',
+              borderBottom: `1px solid ${colors.border}`,
+              color: colors.fgMuted,
+              fontWeight: 600,
+              fontSize: 12,
+              whiteSpace: 'nowrap',
+            }
+            const legTdStyle: React.CSSProperties = {
+              textAlign: 'right',
+              padding: '6px 8px',
+              borderBottom: `1px solid ${colors.border}`,
+              fontSize: 13,
+              fontVariantNumeric: 'tabular-nums',
+            }
+            const legTdLabelStyle: React.CSSProperties = {
+              ...legTdStyle,
+              textAlign: 'left',
+              color: colors.fgMuted,
+              fontWeight: 500,
+            }
+
+            // Map leg player stats to their colors
+            const legPlayers = leg.playerStats.map(lp => {
+              const idx = players.findIndex(p => p.playerId === lp.playerId)
+              return { ...lp, name: players[idx]?.name ?? lp.playerId, color: PLAYER_COLORS[idx % PLAYER_COLORS.length] }
+            })
+
+            return (
+              <div style={{ ...styles.card, marginBottom: 16 }}>
+                {/* Leg Navigation */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 12,
+                }}>
+                  <button
+                    onClick={() => setSelectedLegIndex(i => Math.max(0, i - 1))}
+                    disabled={selectedLegIndex === 0}
+                    style={{
+                      padding: isMobile ? '6px 10px' : '8px 16px',
+                      borderRadius: 6,
+                      border: `1px solid ${colors.border}`,
+                      background: selectedLegIndex === 0 ? 'transparent' : colors.bgCard,
+                      color: selectedLegIndex === 0 ? colors.fgDim : colors.fg,
+                      fontWeight: 600,
+                      cursor: selectedLegIndex === 0 ? 'not-allowed' : 'pointer',
+                      opacity: selectedLegIndex === 0 ? 0.5 : 1,
+                      fontSize: isMobile ? 12 : 14,
+                    }}
+                  >
+                    ←
+                  </button>
+
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: colors.fg }}>
+                      Leg {selectedLegIndex + 1} von {killerLegs.length}
+                    </div>
+                    {leg.winnerName && (
+                      <div style={{
+                        fontSize: 12,
+                        color: (() => {
+                          const idx = players.findIndex(p => p.playerId === leg.winnerId)
+                          return idx >= 0 ? PLAYER_COLORS[idx % PLAYER_COLORS.length] : colors.success
+                        })(),
+                        fontWeight: 600,
+                      }}>
+                        Gewinner: {leg.winnerName}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedLegIndex(i => Math.min(killerLegs.length - 1, i + 1))}
+                    disabled={selectedLegIndex === killerLegs.length - 1}
+                    style={{
+                      padding: isMobile ? '6px 10px' : '8px 16px',
+                      borderRadius: 6,
+                      border: `1px solid ${colors.border}`,
+                      background: selectedLegIndex === killerLegs.length - 1 ? 'transparent' : colors.bgCard,
+                      color: selectedLegIndex === killerLegs.length - 1 ? colors.fgDim : colors.fg,
+                      fontWeight: 600,
+                      cursor: selectedLegIndex === killerLegs.length - 1 ? 'not-allowed' : 'pointer',
+                      opacity: selectedLegIndex === killerLegs.length - 1 ? 0.5 : 1,
+                      fontSize: isMobile ? 12 : 14,
+                    }}
+                  >
+                    →
+                  </button>
+                </div>
+
+                {/* Leg Stats Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...legThStyle, textAlign: 'left' }}>Stat</th>
+                        {legPlayers.map(lp => (
+                          <th key={lp.playerId} style={{ ...legThStyle, color: lp.color }}>
+                            {lp.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={legTdLabelStyle}>Zielzahl</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600 }}>
+                            {lp.targetNumber ?? '?'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Qualifiziert</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600, color: lp.qualifiedInRound ? colors.success : colors.fgDim }}>
+                            {lp.qualifiedInRound ? `Runde ${lp.qualifiedInRound}` : '–'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Kills</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600 }}>
+                            {lp.totalKills}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Treffer</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600 }}>
+                            {lp.hitsDealt}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Darts</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600 }}>
+                            {lp.totalDartsThrown}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Trefferquote</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600, color: colors.accent }}>
+                            {lp.hitRate.toFixed(1)}%
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Leben verloren</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600 }}>
+                            {lp.livesLost}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={legTdLabelStyle}>Runden</td>
+                        {legPlayers.map(lp => (
+                          <td key={lp.playerId} style={{ ...legTdStyle, fontWeight: 600 }}>
+                            {lp.survivedRounds}
+                          </td>
+                        ))}
+                      </tr>
                     </tbody>
                   </table>
                 </div>
