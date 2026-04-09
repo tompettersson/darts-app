@@ -1,13 +1,27 @@
 // src/screens/Bobs27MatchDetails.tsx
 // Match-Details-Ansicht fuer abgeschlossene Bob's 27 Matches (aus StatsArea)
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import { getBobs27MatchById } from '../storage'
 import { applyBobs27Events, formatDuration } from '../dartsBobs27'
 import { computeBobs27MatchStats } from '../stats/computeBobs27Stats'
 import { PLAYER_COLORS } from '../playerColors'
+
+// Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Spalte
+function getStatWinnerColors(
+  numericValues: number[],
+  playerIds: string[],
+  better: 'high' | 'low',
+  playerColorMap: Record<string, string>
+): (string | undefined)[] {
+  if (playerIds.length < 2) return playerIds.map(() => undefined)
+  const allEqual = numericValues.every(v => v === numericValues[0])
+  if (allEqual) return playerIds.map(() => undefined)
+  const best = better === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)
+  return numericValues.map((v, i) => v === best ? playerColorMap[playerIds[i]] : undefined)
+}
 
 type Props = {
   matchId: string
@@ -17,6 +31,13 @@ type Props = {
 export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
+
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const storedMatch = getBobs27MatchById(matchId)
 
@@ -76,7 +97,6 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
         highestSingleTargetScore: stats?.highestSingleTargetScore,
         targetsWithHits: stats?.targetsWithHits ?? 0,
         targetResults: stats?.targetResults ?? [],
-        scoreHistory: stats?.scoreHistory ?? [],
         isWinner: p.playerId === storedMatch.winnerId,
       }
     }).sort((a, b) => {
@@ -219,72 +239,161 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
             </div>
           )}
 
-          {/* Detaillierte Statistik pro Spieler */}
-          {rankings.map((p) => (
-            <div key={`stats-${p.playerId}`} style={{ ...styles.card, marginBottom: 16 }}>
-              <div style={{
-                ...styles.sub, marginBottom: 8,
-                borderLeft: !isSolo ? `4px solid ${p.color}` : undefined,
-                paddingLeft: !isSolo ? 8 : undefined,
-              }}>
-                {isSolo ? 'Statistiken' : p.name}
-              </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '8px 16px',
-                fontSize: 13,
-              }}>
-                <StatItem label="Final Score" value={`${p.finalScore}`} colors={colors}
-                  valueColor={p.eliminated ? colors.error : colors.success} bold />
-                <StatItem label="Hit-Rate" value={`${p.hitRate.toFixed(1)}%`} colors={colors}
-                  valueColor={colors.accent} />
-                <StatItem label="Bestes Target"
-                  value={p.bestTarget ? `${p.bestTarget.label} (${p.bestTarget.hits}/3)` : '-'}
-                  colors={colors} valueColor={colors.success} />
-                <StatItem label="Schwachstes Target"
-                  value={p.worstTarget ? `${p.worstTarget.label} (${p.worstTarget.hits}/3)` : '-'}
-                  colors={colors} valueColor={colors.error} />
-                <StatItem label="Laengste Hit-Serie"
-                  value={`${p.longestHitStreak} Treffer`}
-                  colors={colors} />
-                <StatItem label="Hoechster Target-Score"
-                  value={p.highestSingleTargetScore ? `+${p.highestSingleTargetScore.delta} (${p.highestSingleTargetScore.label})` : '-'}
-                  colors={colors} valueColor={colors.success} />
-                <StatItem label="Targets mit Treffer"
-                  value={`${p.targetsWithHits}/${p.targetsCompleted}`}
-                  colors={colors} />
-                <StatItem label="Perfekte Targets (3/3)"
-                  value={`${p.perfectTargets}`}
-                  colors={colors} valueColor={p.perfectTargets > 0 ? colors.success : colors.fgDim} />
-              </div>
-            </div>
-          ))}
+          {/* Spieler-Statistiken (Vergleichstabelle) */}
+          {(() => {
+            const pIds = rankings.map(p => p.playerId)
+            const colorMap: Record<string, string> = {}
+            rankings.forEach(p => { colorMap[p.playerId] = p.color })
 
-          {/* Score-Verlaufs-Chart */}
-          {rankings.length > 0 && rankings[0].scoreHistory.length > 1 && (
-            <div style={{ ...styles.card, marginBottom: 16 }}>
-              <div style={{ ...styles.sub, marginBottom: 8 }}>Score-Verlauf</div>
-              <ScoreChart
-                players={rankings.map(p => ({ name: p.name, color: p.color, scores: p.scoreHistory }))}
-                colors={colors}
-              />
-              {/* Legende bei Multiplayer */}
-              {!isSolo && (
-                <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                  {rankings.map(p => (
-                    <div key={p.playerId} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                      <span style={{
-                        display: 'inline-block', width: 10, height: 10,
-                        borderRadius: '50%', background: p.color,
-                      }} />
-                      <span style={{ color: colors.fgDim }}>{p.name}</span>
-                    </div>
-                  ))}
+            const scoreWin = getStatWinnerColors(rankings.map(p => p.finalScore), pIds, 'high', colorMap)
+            const targetsWin = getStatWinnerColors(rankings.map(p => p.targetsCompleted), pIds, 'high', colorMap)
+            const hitRateWin = getStatWinnerColors(rankings.map(p => p.hitRate), pIds, 'high', colorMap)
+            const dartsWin = getStatWinnerColors(rankings.map(p => p.totalDarts), pIds, 'low', colorMap)
+            const hitsWin = getStatWinnerColors(rankings.map(p => p.totalHits), pIds, 'high', colorMap)
+            const perfectWin = getStatWinnerColors(rankings.map(p => p.perfectTargets), pIds, 'high', colorMap)
+            const streakWin = getStatWinnerColors(rankings.map(p => p.longestHitStreak), pIds, 'high', colorMap)
+            const bestDeltaWin = getStatWinnerColors(
+              rankings.map(p => p.bestTargetDelta?.delta ?? -Infinity), pIds, 'high', colorMap)
+            const worstDeltaWin = getStatWinnerColors(
+              rankings.map(p => p.worstTargetDelta?.delta ?? Infinity), pIds, 'low', colorMap)
+            const highScoreWin = getStatWinnerColors(
+              rankings.map(p => p.highestSingleTargetScore?.delta ?? 0), pIds, 'high', colorMap)
+
+            const thStyle: React.CSSProperties = {
+              textAlign: 'right',
+              padding: '6px 8px',
+              borderBottom: `1px solid ${colors.border}`,
+              color: colors.fgMuted,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }
+            const tdStyle: React.CSSProperties = {
+              textAlign: 'right',
+              padding: '6px 8px',
+              borderBottom: `1px solid ${colors.border}`,
+              fontSize: 13,
+            }
+            const tdLabelStyle: React.CSSProperties = {
+              ...tdStyle,
+              textAlign: 'left',
+              color: colors.fgMuted,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }
+
+            const cellStyle = (win: string | undefined, fallbackColor?: string): React.CSSProperties =>
+              win
+                ? { ...tdStyle, fontWeight: 700, color: win }
+                : { ...tdStyle, fontWeight: 600, ...(fallbackColor ? { color: fallbackColor } : {}) }
+
+            return (
+              <div style={{ ...styles.card, marginBottom: 16 }}>
+                <div style={{ ...styles.sub, marginBottom: 8 }}>Statistiken</div>
+                <div style={{ overflowX: isMobile ? 'auto' : undefined }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>Stat</th>
+                        {rankings.map(p => (
+                          <th key={p.playerId} style={{ ...thStyle, color: isSolo ? colors.fgMuted : (p.isWinner ? colors.success : p.color) }}>
+                            {isSolo ? '' : p.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={tdLabelStyle}>Punkte</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(scoreWin[i], p.eliminated ? colors.error : colors.success)}>
+                            {p.finalScore}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Targets</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(targetsWin[i])}>
+                            {p.targetsCompleted}/{p.totalTargets}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Trefferquote</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(hitRateWin[i], colors.accent)}>
+                            {p.hitRate.toFixed(1)}%
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Darts</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(dartsWin[i])}>
+                            {p.totalDarts}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Treffer</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(hitsWin[i])}>
+                            {p.totalHits}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Perfekte Targets</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(perfectWin[i], p.perfectTargets > 0 ? colors.success : colors.fgDim)}>
+                            {p.perfectTargets}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Beste Streak</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(streakWin[i])}>
+                            {p.longestHitStreak}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Bester Target</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(bestDeltaWin[i], colors.success)}>
+                            {p.bestTarget
+                              ? `${p.bestTarget.label} (+${p.bestTargetDelta?.delta ?? 0})`
+                              : '-'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Schlechtester Target</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(worstDeltaWin[i], colors.error)}>
+                            {p.worstTarget
+                              ? `${p.worstTarget.label} (${p.worstTargetDelta?.delta ?? 0})`
+                              : '-'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td style={tdLabelStyle}>Hoechster Target-Score</td>
+                        {rankings.map((p, i) => (
+                          <td key={p.playerId} style={cellStyle(highScoreWin[i], colors.success)}>
+                            {p.highestSingleTargetScore
+                              ? `+${p.highestSingleTargetScore.delta} (${p.highestSingleTargetScore.label})`
+                              : '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )
+          })()}
 
           {/* Target-by-target Breakdown */}
           {isSolo ? (
@@ -310,26 +419,6 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
 }
 
 // ===== Hilfskomponenten =====
-
-function StatItem({ label, value, colors, valueColor, bold }: {
-  label: string
-  value: string
-  colors: any
-  valueColor?: string
-  bold?: boolean
-}) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, color: colors.fgMuted, marginBottom: 2 }}>{label}</div>
-      <div style={{
-        fontSize: 14, fontWeight: bold ? 700 : 600,
-        color: valueColor ?? colors.fg,
-      }}>
-        {value}
-      </div>
-    </div>
-  )
-}
 
 function HitDots({ hits, total, colors }: { hits: number; total: number; colors: any }) {
   const dots: React.ReactNode[] = []
@@ -507,107 +596,3 @@ function ComparisonTable({ rankings, targets, colors }: {
   )
 }
 
-// ===== Score-Verlaufs-Chart =====
-
-function ScoreChart({ players, colors }: {
-  players: Array<{ name: string; color: string; scores: number[] }>
-  colors: any
-}) {
-  const W = 400
-  const H = 160
-  const PAD = { top: 12, bottom: 22, left: 38, right: 12 }
-  const chartW = W - PAD.left - PAD.right
-  const chartH = H - PAD.top - PAD.bottom
-
-  const allScores = players.flatMap(p => p.scores)
-  const minScore = Math.min(0, ...allScores)
-  const maxScore = Math.max(27, ...allScores)
-  const range = maxScore - minScore || 1
-
-  const scaleX = (i: number, total: number) => PAD.left + (i / Math.max(total - 1, 1)) * chartW
-  const scaleY = (v: number) => PAD.top + chartH - ((v - minScore) / range) * chartH
-
-  // Max data points across all players
-  const maxLen = Math.max(...players.map(p => p.scores.length))
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
-      {/* Grid lines */}
-      {[minScore, Math.round(minScore + range * 0.25), Math.round(minScore + range * 0.5), Math.round(minScore + range * 0.75), maxScore].map((v, i) => (
-        <line key={`grid-${i}`} x1={PAD.left} y1={scaleY(v)} x2={W - PAD.right} y2={scaleY(v)}
-          stroke={colors.border} strokeWidth={0.5} opacity={0.3} />
-      ))}
-
-      {/* Null-Linie */}
-      {minScore < 0 && (
-        <line x1={PAD.left} y1={scaleY(0)} x2={W - PAD.right} y2={scaleY(0)}
-          stroke={colors.error} strokeWidth={0.8} strokeDasharray="4,3" opacity={0.6} />
-      )}
-
-      {/* Start-Linie bei 27 */}
-      <line x1={PAD.left} y1={scaleY(27)} x2={W - PAD.right} y2={scaleY(27)}
-        stroke={colors.fgDim} strokeWidth={0.5} strokeDasharray="2,4" opacity={0.3} />
-
-      {/* Y-Achse Labels */}
-      {[minScore, Math.round((minScore + maxScore) / 2), maxScore].map((v, i) => (
-        <text key={i} x={PAD.left - 4} y={scaleY(v) + 3}
-          fill={colors.fgDim} fontSize={9} textAnchor="end">
-          {v}
-        </text>
-      ))}
-
-      {/* Area fill + Linien */}
-      {players.map((p, pi) => {
-        if (p.scores.length < 2) return null
-        const points = p.scores.map((s, i) => ({
-          x: scaleX(i, p.scores.length),
-          y: scaleY(s),
-        }))
-        const linePath = points.map((pt, i) =>
-          `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`
-        ).join(' ')
-
-        // Area fill (line down to zero-line or bottom)
-        const zeroY = scaleY(Math.max(0, minScore))
-        const areaPath = linePath +
-          ` L ${points[points.length - 1].x} ${zeroY}` +
-          ` L ${points[0].x} ${zeroY} Z`
-
-        return (
-          <g key={pi}>
-            <path d={areaPath} fill={p.color} opacity={0.08} />
-            <path d={linePath} fill="none" stroke={p.color} strokeWidth={2} opacity={0.9} />
-            {/* Data points */}
-            {points.map((pt, i) => (
-              <circle key={i} cx={pt.x} cy={pt.y} r={2} fill={p.color} opacity={0.7} />
-            ))}
-            {/* Endpunkt groesser */}
-            <circle
-              cx={points[points.length - 1].x}
-              cy={points[points.length - 1].y}
-              r={4} fill={p.color}
-            />
-            {/* Final score label */}
-            <text
-              x={points[points.length - 1].x + 6}
-              y={points[points.length - 1].y + 3}
-              fill={p.color} fontSize={10} fontWeight={700}>
-              {p.scores[p.scores.length - 1]}
-            </text>
-          </g>
-        )
-      })}
-
-      {/* X-Achse Labels */}
-      {Array.from({ length: maxLen }, (_, i) => {
-        if (maxLen > 12 && i % 2 !== 0 && i !== maxLen - 1 && i !== 0) return null
-        return (
-          <text key={i} x={scaleX(i, maxLen)} y={H - 4}
-            fill={colors.fgDim} fontSize={8} textAnchor="middle">
-            {i === 0 ? 'Start' : `D${i}`}
-          </text>
-        )
-      })}
-    </svg>
-  )
-}
