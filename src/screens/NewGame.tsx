@@ -9,7 +9,7 @@ import {
   getProfiles, getMatches, saveMatches, setLastOpenMatchId,
   type Profile, type StoredMatch
 } from '../storage'
-import { dbSaveX01Match } from '../db/storage'
+import { dbSaveX01Match, dbInsertActiveGame } from '../db/storage'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import PasswordVerifyModal from '../components/PasswordVerifyModal'
@@ -297,6 +297,16 @@ export default function NewGame({ preset, onCancel, onStarted }: Props) {
     } catch (err) {
       console.warn('[NewGame] DB save failed:', err)
     }
+
+    dbInsertActiveGame({
+      id: matchId,
+      playerId: players[0]?.playerId ?? '',
+      gameType: 'x01',
+      title,
+      config: { startingScore: score, outRule, inRule },
+      players: players.map(p => ({ id: p.playerId, name: p.name })),
+      startedAt: new Date().toISOString(),
+    }).catch(() => {})
 
     onStarted?.(matchId)
   }

@@ -1000,6 +1000,16 @@ export default function App() {
               })
             } catch (err) { console.warn('[RandomGame] DB save failed:', err) }
 
+            try {
+              const { dbInsertActiveGame } = await import('./db/storage')
+              await dbInsertActiveGame({
+                id: matchId, playerId: players[0]?.id ?? '', gameType: 'x01',
+                title: stored.title, config: { startingScore: score },
+                players: players.map(p => ({ id: p.id, name: p.name })),
+                startedAt: new Date().toISOString(),
+              })
+            } catch {}
+
             setActiveMatchId(matchId)
             setLastActivity('x01', matchId)
             setView('game')
@@ -2909,7 +2919,7 @@ export default function App() {
   }
 
   const menuItems: PickerItem[] = [
-    { id: 'continue', label: 'Spiel fortsetzen', sub: hasMpSession ? `Online-Spiel · ${multiplayerRoomCode}` : getActiveGamesCache().length > 0 ? `${getActiveGamesCache().length} offene(s) Spiel(e)` : 'Kein laufendes Spiel', icon: <MenuIconContinue /> },
+    { id: 'continue', label: 'Spiel fortsetzen', sub: hasMpSession ? `Online-Spiel · ${multiplayerRoomCode}` : getActiveGamesCache().length > 1 ? `${getActiveGamesCache().length} offene Spiele` : getActiveGamesCache().length === 1 ? getActiveGamesCache()[0].title : (continueInfo ? continueInfo.title : 'Kein laufendes Spiel'), icon: <MenuIconContinue /> },
     { id: 'new-start', label: 'Neues Spiel', sub: 'X01 oder Cricket', icon: <MenuIconNewGame /> },
     { id: 'online', label: 'Online spielen', sub: 'Match hosten oder beitreten', icon: <MenuIconOnline /> },
     { id: 'stats-area', label: 'Statistiken', sub: 'Matchhistorie, Spieler, Highscores', icon: <MenuIconStats /> },
