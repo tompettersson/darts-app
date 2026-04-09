@@ -13,7 +13,7 @@ export type VoiceLang = SpeechLang
 const VOICE_LANG_KEY = 'darts-voice-lang'
 const VOICE_NAME_KEY = 'darts-voice-name'
 
-let voiceLang: SpeechLang = (localStorage.getItem(VOICE_LANG_KEY) as SpeechLang) || 'en'
+let voiceLang: SpeechLang = (localStorage.getItem(VOICE_LANG_KEY) as SpeechLang) || 'de'
 let preferredVoiceName: string | null = localStorage.getItem(VOICE_NAME_KEY)
 
 /** Aktuellen Translation-Katalog zurückgeben */

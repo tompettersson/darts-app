@@ -986,7 +986,7 @@ export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
     const ev = match.events[seq]
     statements.push({
       sql: `INSERT INTO x01_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(ev)],
     })
   }
@@ -1012,7 +1012,7 @@ export async function dbUpdateX01Events(matchId: string, events: any[]): Promise
     const ev = events[seq]
     statements.push({
       sql: `INSERT INTO x01_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(ev)],
     })
   }
@@ -1196,7 +1196,7 @@ export async function dbSaveCricketMatch(match: DBCricketMatch): Promise<void> {
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO cricket_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1216,7 +1216,7 @@ export async function dbUpdateCricketEvents(matchId: string, events: any[]): Pro
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO cricket_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1430,7 +1430,7 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO atb_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1450,7 +1450,7 @@ export async function dbUpdateATBEvents(matchId: string, events: any[]): Promise
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO atb_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1637,7 +1637,7 @@ export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO ctf_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1658,7 +1658,7 @@ export async function dbUpdateCTFEvents(matchId: string, events: any[]): Promise
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO ctf_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1853,7 +1853,7 @@ export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO str_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -1874,7 +1874,7 @@ export async function dbUpdateStrEvents(matchId: string, events: any[]): Promise
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO str_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2062,7 +2062,7 @@ export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<voi
     const ts = ev.ts ?? (ev.timestamp ? new Date(ev.timestamp).toISOString() : nowISO())
     statements.push({
       sql: `INSERT INTO highscore_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2084,7 +2084,7 @@ export async function dbUpdateHighscoreEvents(matchId: string, events: any[]): P
     const ts = ev.ts ?? (ev.timestamp ? new Date(ev.timestamp).toISOString() : nowISO())
     statements.push({
       sql: `INSERT INTO highscore_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2338,7 +2338,7 @@ export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void>
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO shanghai_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2359,7 +2359,7 @@ export async function dbUpdateShanghaiEvents(matchId: string, events: any[]): Pr
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO shanghai_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2635,7 +2635,7 @@ export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO killer_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2656,7 +2656,7 @@ export async function dbUpdateKillerEvents(matchId: string, events: any[]): Prom
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO killer_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -2903,7 +2903,7 @@ export async function dbSaveBobs27Match(match: DBBobs27Match): Promise<void> {
     const ev = match.events[seq]
     statements.push({
       sql: `INSERT INTO bobs27_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(ev)],
     })
   }
@@ -2923,7 +2923,7 @@ export async function dbUpdateBobs27Events(matchId: string, events: any[]): Prom
     const ev = events[seq]
     statements.push({
       sql: `INSERT INTO bobs27_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(ev)],
     })
   }
@@ -3161,7 +3161,7 @@ export async function dbSaveOperationMatch(match: DBOperationMatch): Promise<voi
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO operation_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), match.id, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
@@ -3182,7 +3182,7 @@ export async function dbUpdateOperationEvents(matchId: string, events: any[]): P
     const enrichedEv = enrichEvent(ev)
     statements.push({
       sql: `INSERT INTO operation_events (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, seq, toJSON(enrichedEv)],
     })
   }
