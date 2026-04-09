@@ -299,6 +299,8 @@ function buildPerTargetTallies(
 
     if (ev.type !== 'CricketTurnAdded') continue
     const pid = ev.playerId
+    if (!marks[pid]) { marks[pid] = {}; tKeys.forEach(t => { marks[pid][t] = 0 }) }
+    if (!tally[pid]) { tally[pid] = {}; tKeys.forEach(t => { tally[pid][t] = 0 }) }
 
     for (const d of ev.darts) {
       if (d.target === 'MISS') continue
@@ -462,6 +464,7 @@ function computeMarksForLeg(
 
     const turn = ev as CricketTurnAdded
     const pid = turn.playerId
+    if (!marksByPlayer[pid]) { marksByPlayer[pid] = {}; validTargets.forEach(t => { marksByPlayer[pid][t] = 0 }) }
 
     for (const d of turn.darts) {
       if (d.target === 'MISS') continue
@@ -543,6 +546,8 @@ function computeLegStats(
 
     const turn = ev as CricketTurnAdded
     const pid = turn.playerId
+    if (!marksByPlayer[pid]) { marksByPlayer[pid] = {}; validTargets.forEach(t => { marksByPlayer[pid][t] = 0 }) }
+    if (!stats[pid]) { stats[pid] = { totalMarks: 0, totalPoints: 0, turns: 0, triplesHit: 0, doublesHit: 0, bestTurnMarks: 0, bullHits: 0, doubleBullHits: 0 } }
     const ps = stats[pid]
     ps.turns++
 
