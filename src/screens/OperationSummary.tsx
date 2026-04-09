@@ -8,6 +8,7 @@ import { getOperationMatchById } from '../storage'
 import { applyOperationEvents, formatDuration } from '../dartsOperation'
 import { computeOperationMatchStats, computeOperationLegStats } from '../stats/computeOperationStats'
 import { PLAYER_COLORS } from '../playerColors'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { generateOperationReport } from '../narratives/generateModeReports'
 
 // Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Spalte
@@ -267,7 +268,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={tdLabelStyle}>Hit Score</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Hit Score" tooltip={STAT_TOOLTIPS['Hit Score'] || 'Hit Score'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(hitScoreWin[i])}>
                         {r.totalHitScore} / {legsCount * 90}
@@ -275,7 +276,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>Hit-Rate</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Hit-Rate" tooltip={STAT_TOOLTIPS['Hit-Rate'] || 'Hit-Rate'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(hitRateWin[i])}>
                         {r.hitRate.toFixed(1)}%
@@ -283,7 +284,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>Ø Hit/Dart</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Ø Hit/Dart" tooltip={STAT_TOOLTIPS['Ø Hit/Dart'] || 'Ø Hit/Dart'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(avgHitWin[i])}>
                         {r.avgHitScorePerDart.toFixed(2)}
@@ -291,7 +292,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>Ø Pkt/Dart</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Ø Pkt/Dart" tooltip={STAT_TOOLTIPS['Ø Pkt/Dart'] || 'Ø Pkt/Dart'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(avgPtsWin[i])}>
                         {r.avgPointsPerDart.toFixed(1)}
@@ -299,7 +300,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>Beste Streak</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Beste Streak" tooltip={STAT_TOOLTIPS['Beste Streak'] || 'Beste Streak'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(streakWin[i])}>
                         {r.maxHitStreak}x
@@ -307,7 +308,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>Bester Turn</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Bester Turn" tooltip={STAT_TOOLTIPS['Bester Turn'] || 'Bester Turn'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(bestTurnWin[i])}>
                         {r.bestTurnScore}
@@ -315,7 +316,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>Punkte</td>
+                    <td style={tdLabelStyle}><StatTooltip label="Punkte" tooltip={STAT_TOOLTIPS['Punkte'] || 'Punkte'} colors={colors} /></td>
                     {rankings.map((r) => (
                       <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                         {r.totalScore}
@@ -323,7 +324,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLabelStyle}>No Score Turns</td>
+                    <td style={tdLabelStyle}><StatTooltip label="No Score Turns" tooltip={STAT_TOOLTIPS['No Score Turns'] || 'No Score Turns'} colors={colors} /></td>
                     {rankings.map((r, i) => (
                       <td key={r.playerId} style={tdHighlight(noScoreWin[i])}>
                         {r.noScoreTurns}
@@ -332,7 +333,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                   </tr>
                   {legsCount > 1 && (
                     <tr>
-                      <td style={tdLabelStyle}>Legs gewonnen</td>
+                      <td style={tdLabelStyle}><StatTooltip label="Legs gewonnen" tooltip={STAT_TOOLTIPS['Legs gewonnen'] || 'Legs gewonnen'} colors={colors} /></td>
                       {rankings.map((r) => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                           {r.legsWon}
@@ -344,7 +345,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                   {isBull ? (
                     <>
                       <tr>
-                        <td style={tdLabelStyle}>Miss</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Miss" tooltip={STAT_TOOLTIPS['Miss'] || 'Miss'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.noScoreCount}
@@ -352,7 +353,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>S-Bull</td>
+                        <td style={tdLabelStyle}><StatTooltip label="S-Bull" tooltip={STAT_TOOLTIPS['S-Bull'] || 'S-Bull'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.singleBullCount}
@@ -360,7 +361,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>D-Bull</td>
+                        <td style={tdLabelStyle}><StatTooltip label="D-Bull" tooltip={STAT_TOOLTIPS['D-Bull'] || 'D-Bull'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.doubleBullCount}
@@ -371,7 +372,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                   ) : (
                     <>
                       <tr>
-                        <td style={tdLabelStyle}>Miss</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Miss" tooltip={STAT_TOOLTIPS['Miss'] || 'Miss'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.noScoreCount}
@@ -379,7 +380,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Single</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Single" tooltip={STAT_TOOLTIPS['Single'] || 'Single'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.singleCount}
@@ -387,7 +388,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Double</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Double" tooltip={STAT_TOOLTIPS['Double'] || 'Double'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.doubleCount}
@@ -395,7 +396,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Triple</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Triple" tooltip={STAT_TOOLTIPS['Triple'] || 'Triple'} colors={colors} /></td>
                         {rankings.map((r) => (
                           <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {r.tripleCount}
@@ -484,7 +485,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={tdLabelStyle}>Hit Score</td>
+                      <td style={tdLabelStyle}><StatTooltip label="Hit Score" tooltip={STAT_TOOLTIPS['Hit Score'] || 'Hit Score'} colors={colors} /></td>
                       {legPlayerStats.map(r => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 700, color: colors.accent }}>
                           {r.legStats?.hitScore ?? 0} / 90
@@ -492,7 +493,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLabelStyle}>Hit-Rate</td>
+                      <td style={tdLabelStyle}><StatTooltip label="Hit-Rate" tooltip={STAT_TOOLTIPS['Hit-Rate'] || 'Hit-Rate'} colors={colors} /></td>
                       {legPlayerStats.map(r => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                           {(r.legStats?.hitRate ?? 0).toFixed(1)}%
@@ -500,7 +501,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLabelStyle}>Ø Hit/Dart</td>
+                      <td style={tdLabelStyle}><StatTooltip label="Ø Hit/Dart" tooltip={STAT_TOOLTIPS['Ø Hit/Dart'] || 'Ø Hit/Dart'} colors={colors} /></td>
                       {legPlayerStats.map(r => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                           {(r.legStats?.avgHitScorePerDart ?? 0).toFixed(2)}
@@ -508,7 +509,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLabelStyle}>Beste Streak</td>
+                      <td style={tdLabelStyle}><StatTooltip label="Beste Streak" tooltip={STAT_TOOLTIPS['Beste Streak'] || 'Beste Streak'} colors={colors} /></td>
                       {legPlayerStats.map(r => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                           {r.legStats?.maxHitStreak ?? 0}x
@@ -516,7 +517,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLabelStyle}>Punkte</td>
+                      <td style={tdLabelStyle}><StatTooltip label="Punkte" tooltip={STAT_TOOLTIPS['Punkte'] || 'Punkte'} colors={colors} /></td>
                       {legPlayerStats.map(r => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                           {r.legStats?.totalScore ?? 0}
@@ -524,7 +525,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLabelStyle}>No Score Turns</td>
+                      <td style={tdLabelStyle}><StatTooltip label="No Score Turns" tooltip={STAT_TOOLTIPS['No Score Turns'] || 'No Score Turns'} colors={colors} /></td>
                       {legPlayerStats.map(r => (
                         <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                           {r.legStats?.noScoreTurns ?? 0}
@@ -535,7 +536,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     {isBull ? (
                       <>
                         <tr>
-                          <td style={tdLabelStyle}>Miss</td>
+                          <td style={tdLabelStyle}><StatTooltip label="Miss" tooltip={STAT_TOOLTIPS['Miss'] || 'Miss'} colors={colors} /></td>
                           {legPlayerStats.map(r => (
                             <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                               {r.legStats?.noScoreCount ?? 0}
@@ -543,7 +544,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLabelStyle}>S-Bull</td>
+                          <td style={tdLabelStyle}><StatTooltip label="S-Bull" tooltip={STAT_TOOLTIPS['S-Bull'] || 'S-Bull'} colors={colors} /></td>
                           {legPlayerStats.map(r => (
                             <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                               {r.legStats?.singleBullCount ?? 0}
@@ -551,7 +552,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLabelStyle}>D-Bull</td>
+                          <td style={tdLabelStyle}><StatTooltip label="D-Bull" tooltip={STAT_TOOLTIPS['D-Bull'] || 'D-Bull'} colors={colors} /></td>
                           {legPlayerStats.map(r => (
                             <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                               {r.legStats?.doubleBullCount ?? 0}
@@ -562,7 +563,7 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
                     ) : (
                       <>
                         <tr>
-                          <td style={tdLabelStyle}>Miss</td>
+                          <td style={tdLabelStyle}><StatTooltip label="Miss" tooltip={STAT_TOOLTIPS['Miss'] || 'Miss'} colors={colors} /></td>
                           {legPlayerStats.map(r => (
                             <td key={r.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                               {r.legStats?.noScoreCount ?? 0}
