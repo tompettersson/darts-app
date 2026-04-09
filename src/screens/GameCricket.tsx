@@ -837,6 +837,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           if (d.target === 'MISS') continue
           const tKey = String(d.target)
           if (!validTargets.includes(tKey)) continue
+          if (!tempMarks[t.playerId]) tempMarks[t.playerId] = {}
           const before = tempMarks[t.playerId][tKey] ?? 0
           if (before >= 3) continue
           const m = d.target === 'BULL' && d.mult === 3 ? 2 : d.mult
