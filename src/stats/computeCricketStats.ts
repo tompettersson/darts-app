@@ -318,7 +318,6 @@ export function computeCricketStats(cricketMatch: {
 
       let turnMarks = 0
       let turnPointsDelta = 0
-      let turnHadScore = false
 
       const dartsInTurn = turn.darts.length
       playerAcc.totalTurns += 1
@@ -348,9 +347,6 @@ export function computeCricketStats(cricketMatch: {
             ? (dart.target === 'BULL' && dart.mult === 3 ? 2 : dart.mult)
             : 0
           turnMarks += marksFromThisDart
-          if (marksFromThisDart > 0) {
-            turnHadScore = true
-          }
 
           playerAcc.marksByField[fieldKey] = (playerAcc.marksByField[fieldKey] ?? 0) + marksFromThisDart
         }
@@ -363,7 +359,6 @@ export function computeCricketStats(cricketMatch: {
         const delta = afterPoints - beforePoints
         if (delta !== 0) {
           turnPointsDelta += delta
-          turnHadScore = true
         }
 
         ensureLegAggPlayer(pid)
@@ -387,6 +382,15 @@ export function computeCricketStats(cricketMatch: {
       if (turnPointsDelta > playerAcc.bestTurnPoints) {
         playerAcc.bestTurnPoints = turnPointsDelta
       }
+
+      // turnHadScore: check if marks or points ACTUALLY changed in the game state
+      // A dart on a fully-closed field (closed by all players) counts as no-score
+      const actualMarksChanged = cricketTargets.some(tgt => {
+        const key = String(tgt)
+        return (after.marksByPlayer[pid]?.[key] ?? 0) > (before.marksByPlayer[pid]?.[key] ?? 0)
+      })
+      const actualPointsChanged = (after.pointsByPlayer[pid] ?? 0) !== (before.pointsByPlayer[pid] ?? 0)
+      const turnHadScore = actualMarksChanged || actualPointsChanged
 
       // Streak
       if (turnHadScore) {
