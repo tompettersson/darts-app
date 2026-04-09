@@ -18,6 +18,8 @@ import {
   dbGetX01MatchById,
   dbSaveX01Match,
   dbUpdateX01Events,
+  dbAppendEvents,
+  dbDeleteEventsFrom,
   dbFinishX01Match,
   dbGetCricketMatches,
   dbGetCricketMatchById,
@@ -52,6 +54,9 @@ import {
   dbGetOperationMatches,
   dbSaveOperationMatch,
   dbUpdateOperationEvents,
+  dbFinishShanghaiMatch,
+  dbFinishBobs27Match,
+  dbFinishOperationMatch,
   type DBProfile,
   type DBX01Match,
   type DBCricketMatch,
@@ -799,6 +804,10 @@ export async function getMatchesAsync(): Promise<StoredMatch[]> {
         finished: m.finished,
       }))
       x01MatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -837,6 +846,9 @@ export function getOpenMatch(): StoredMatch | undefined {
   return undefined
 }
 
+// Track how many events have been written to DB per match (for append-only)
+const persistedEventCount = new Map<string, number>()
+
 export function persistEvents(
   matchId: string,
   events: DartsEvent[]
@@ -847,14 +859,37 @@ export function persistEvents(
   list[idx] = { ...list[idx], events }
   saveMatches(list)
 
-  // Queued + awaitable DB write — prevents race conditions
-  return new Promise<void>((resolve) => {
-    queueWrite(`x01-${matchId}`, async () => {
-      try { await dbUpdateX01Events(matchId, events) }
-      catch (err) { trackDBError('x01-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    // New events added — append only the new ones
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`x01-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('x01_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('x01-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    // Events removed (undo) — delete from DB
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`x01-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('x01_events', matchId, events.length)
+        } catch (err) { trackDBError('x01-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishMatch(matchId: string): Promise<void> {
@@ -876,13 +911,10 @@ export function finishMatch(matchId: string): Promise<void> {
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  // Queued + awaitable DB write
-  return new Promise<void>((resolve) => {
-    queueWrite(`x01-${matchId}`, async () => {
-      try { await dbFinishX01Match(matchId) }
-      catch (err) { trackDBError('x01-finish', matchId, err) }
-      resolve()
-    })
+  // Direct DB write — no queue wait (persistEvents may still be writing events,
+  // but UPDATE finished=1 doesn't conflict with concurrent event INSERTs)
+  return dbFinishX01Match(matchId).catch((err) => {
+    trackDBError('x01-finish', matchId, err)
   })
 }
 
@@ -1964,6 +1996,10 @@ export async function getCricketMatchesAsync(): Promise<CricketStoredMatch[]> {
         finished: m.finished,
       }))
       cricketMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -2103,14 +2139,35 @@ export function persistCricketEvents(
   list[idx] = { ...list[idx], events }
   saveCricketMatches(list)
 
-  // Queued DB write — prevents race condition with concurrent persist calls
-  return new Promise<void>((resolve) => {
-    queueWrite(`cricket-${matchId}`, async () => {
-      try { await dbUpdateCricketEvents(matchId, events) }
-      catch (err) { trackDBError('cricket-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`cricket-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('cricket_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('cricket-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`cricket-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('cricket_events', matchId, events.length)
+        } catch (err) { trackDBError('cricket-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 /**
@@ -2156,26 +2213,19 @@ export function finishCricketMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  // Queued DB write — serialized with event persist
+  // Direct DB write — no queue wait (UPDATE finished=1 doesn't conflict with concurrent event INSERTs)
   const matchData = list[idx]
-  return new Promise<void>((resolve) => {
-    queueWrite(`cricket-${matchId}`, async () => {
-      try {
-        await dbSaveCricketMatch({
-          id: matchData.id,
-          title: matchData.title || 'Cricket – Multiplayer',
-          matchName: matchData.matchName ?? null,
-          notes: matchData.notes ?? null,
-          createdAt: matchData.createdAt,
-          finished: true,
-          finishedAt: now(),
-          events: matchData.events,
-          playerIds: matchData.playerIds,
-        })
-      } catch (err) { trackDBError('cricket-finish', matchData.id, err) }
-      resolve()
-    })
-  })
+  return dbSaveCricketMatch({
+    id: matchData.id,
+    title: matchData.title || 'Cricket – Multiplayer',
+    matchName: matchData.matchName ?? null,
+    notes: matchData.notes ?? null,
+    createdAt: matchData.createdAt,
+    finished: true,
+    finishedAt: now(),
+    events: matchData.events,
+    playerIds: matchData.playerIds,
+  }).catch((err) => { trackDBError('cricket-finish', matchData.id, err) })
 }
 
 /** Setzt Spielname und Bemerkungen für ein Cricket-Match (nur einmal möglich). */
@@ -2957,6 +3007,10 @@ export async function getATBMatchesAsync(): Promise<ATBStoredMatch[]> {
         generatedSequence: m.generatedSequence,
       }))
       atbMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -3095,13 +3149,35 @@ export function persistATBEvents(matchId: string, events: ATBEvent[]): Promise<v
   all[idx].events = events
   atbMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`atb-${matchId}`, async () => {
-      try { await dbUpdateATBEvents(matchId, events) }
-      catch (err) { trackDBError('atb-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`atb-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('atb_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('atb-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`atb-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('atb_events', matchId, events.length)
+        } catch (err) { trackDBError('atb-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishATBMatch(
@@ -3143,12 +3219,9 @@ export function finishATBMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`atb-${matchId}`, async () => {
-      try { await dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs) }
-      catch (err) { trackDBError('atb-finish', matchId, err) }
-      resolve()
-    })
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
+  return dbFinishATBMatch(matchId, winnerId, winnerDarts, durationMs).catch((err) => {
+    trackDBError('atb-finish', matchId, err)
   })
 }
 
@@ -3597,6 +3670,10 @@ export async function getStrMatchesAsync(): Promise<StrStoredMatch[]> {
       const dbMatches = await dbGetStrMatches()
       const matches = dbMatches as any as StrStoredMatch[]
       strMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -3758,13 +3835,35 @@ export function persistStrEvents(matchId: string, events: StrEvent[]): Promise<v
   all[idx].events = events
   strMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`str-${matchId}`, async () => {
-      try { await dbUpdateStrEvents(matchId, events as any[]) }
-      catch (err) { trackDBError('str-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`str-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('str_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('str-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`str-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('str_events', matchId, events.length)
+        } catch (err) { trackDBError('str-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishStrMatch(
@@ -3792,12 +3891,9 @@ export function finishStrMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`str-${matchId}`, async () => {
-      try { await dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs) }
-      catch (err) { trackDBError('str-finish', matchId, err) }
-      resolve()
-    })
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
+  return dbFinishStrMatch(matchId, winnerId, winnerDarts, durationMs).catch((err) => {
+    trackDBError('str-finish', matchId, err)
   })
 }
 
@@ -3840,6 +3936,10 @@ export async function getCTFMatchesAsync(): Promise<CTFStoredMatch[]> {
       const dbMatches = await dbGetCTFMatches()
       const matches = dbMatches as any as CTFStoredMatch[]
       ctfMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -3965,13 +4065,35 @@ export function persistCTFEvents(matchId: string, events: CTFEvent[]): Promise<v
   all[idx].events = events
   ctfMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`ctf-${matchId}`, async () => {
-      try { await dbUpdateCTFEvents(matchId, events) }
-      catch (err) { trackDBError('ctf-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`ctf-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('ctf_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('ctf-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`ctf-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('ctf_events', matchId, events.length)
+        } catch (err) { trackDBError('ctf-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishCTFMatch(
@@ -4031,32 +4153,26 @@ export function finishCTFMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
   const match = all[idx]
-  return new Promise<void>((resolve) => {
-    queueWrite(`ctf-${matchId}`, async () => {
-      try {
-        await dbSaveCTFMatch({
-          id: match.id,
-          title: match.title || 'Capture the Field – Multiplayer',
-          createdAt: match.createdAt,
-          finished: true,
-          finishedAt: match.finishedAt ?? null,
-          durationMs,
-          winnerId,
-          winnerDarts,
-          players: match.players,
-          events: match.events,
-          structure: match.structure,
-          config: match.config,
-          generatedSequence: match.generatedSequence,
-          captureFieldWinners: match.captureFieldWinners,
-          captureTotalScores: match.captureTotalScores,
-          captureFieldPoints: match.captureFieldPoints,
-        })
-      } catch (err) { trackDBError('ctf-finish', matchId, err) }
-      resolve()
-    })
-  })
+  return dbSaveCTFMatch({
+    id: match.id,
+    title: match.title || 'Capture the Field – Multiplayer',
+    createdAt: match.createdAt,
+    finished: true,
+    finishedAt: match.finishedAt ?? null,
+    durationMs,
+    winnerId,
+    winnerDarts,
+    players: match.players,
+    events: match.events,
+    structure: match.structure,
+    config: match.config,
+    generatedSequence: match.generatedSequence,
+    captureFieldWinners: match.captureFieldWinners,
+    captureTotalScores: match.captureTotalScores,
+    captureFieldPoints: match.captureFieldPoints,
+  }).catch((err) => { trackDBError('ctf-finish', matchId, err) })
 }
 
 export function deleteCTFMatch(matchId: string) {
@@ -4099,6 +4215,10 @@ export async function getShanghaiMatchesAsync(): Promise<ShanghaiStoredMatch[]> 
       const dbMatches = await dbGetShanghaiMatches()
       const matches = dbMatches as any as ShanghaiStoredMatch[]
       shanghaiMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -4219,13 +4339,35 @@ export function persistShanghaiEvents(matchId: string, events: ShanghaiEvent[]):
   all[idx].events = events
   shanghaiMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`shanghai-${matchId}`, async () => {
-      try { await dbUpdateShanghaiEvents(matchId, events) }
-      catch (err) { trackDBError('shanghai-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`shanghai-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('shanghai_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('shanghai-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`shanghai-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('shanghai_events', matchId, events.length)
+        } catch (err) { trackDBError('shanghai-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishShanghaiMatch(
@@ -4261,30 +4403,10 @@ export function finishShanghaiMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
   const match = all[idx]
-  return new Promise<void>((resolve) => {
-    queueWrite(`shanghai-${matchId}`, async () => {
-      try {
-        await dbSaveShanghaiMatch({
-          id: match.id,
-          title: match.title || 'Shanghai – Multiplayer',
-          createdAt: match.createdAt,
-          finished: true,
-          finishedAt: match.finishedAt ?? null,
-          durationMs,
-          winnerId,
-          winnerDarts,
-          players: match.players,
-          events: match.events,
-          structure: match.structure,
-          config: match.config,
-          finalScores: match.finalScores,
-          legWins: match.legWins,
-          setWins: match.setWins,
-        })
-      } catch (err) { trackDBError('shanghai-finish', matchId, err) }
-      resolve()
-    })
+  return dbFinishShanghaiMatch(matchId, winnerId, winnerDarts, durationMs, match.finalScores, match.legWins, match.setWins).catch((err) => {
+    trackDBError('shanghai-finish', matchId, err)
   })
 }
 
@@ -4333,6 +4455,10 @@ export async function getKillerMatchesAsync(): Promise<KillerStoredMatch[]> {
       const dbMatches = await dbGetKillerMatches()
       const matches = dbMatches as any as KillerStoredMatch[]
       killerMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -4447,13 +4573,35 @@ export function persistKillerEvents(matchId: string, events: KillerEvent[]): Pro
   all[idx].events = events
   killerMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`killer-${matchId}`, async () => {
-      try { await dbUpdateKillerEvents(matchId, events) }
-      catch (err) { trackDBError('killer-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`killer-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('killer_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('killer-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`killer-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('killer_events', matchId, events.length)
+        } catch (err) { trackDBError('killer-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishKillerMatch(
@@ -4488,12 +4636,9 @@ export function finishKillerMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`killer-${matchId}`, async () => {
-      try { await dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins) }
-      catch (err) { trackDBError('killer-finish', matchId, err) }
-      resolve()
-    })
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
+  return dbFinishKillerMatch(matchId, winnerId, winnerDarts, durationMs, finalStandings, legWins, setWins).catch((err) => {
+    trackDBError('killer-finish', matchId, err)
   })
 }
 
@@ -4544,6 +4689,10 @@ export async function getBobs27MatchesAsync(): Promise<Bobs27StoredMatch[]> {
       const dbMatches = await dbGetBobs27Matches()
       const matches = dbMatches as any as Bobs27StoredMatch[]
       bobs27MatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -4647,13 +4796,35 @@ export function persistBobs27Events(matchId: string, events: Bobs27Event[]): Pro
   all[idx].events = events
   bobs27MatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`bobs27-${matchId}`, async () => {
-      try { await dbUpdateBobs27Events(matchId, events) }
-      catch (err) { trackDBError('bobs27-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`bobs27-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('bobs27_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('bobs27-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`bobs27-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('bobs27_events', matchId, events.length)
+        } catch (err) { trackDBError('bobs27-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishBobs27Match(
@@ -4686,28 +4857,10 @@ export function finishBobs27Match(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
   const match = all[idx]
-  return new Promise<void>((resolve) => {
-    queueWrite(`bobs27-${matchId}`, async () => {
-      try {
-        await dbSaveBobs27Match({
-          id: match.id,
-          title: match.title || "Bob's 27 – Multiplayer",
-          createdAt: match.createdAt,
-          finished: true,
-          finishedAt: match.finishedAt ?? null,
-          durationMs,
-          winnerId,
-          winnerDarts,
-          players: match.players,
-          events: match.events,
-          config: match.config,
-          targets: match.targets,
-          finalScores: match.finalScores,
-        })
-      } catch (err) { trackDBError('bobs27-finish', matchId, err) }
-      resolve()
-    })
+  return dbFinishBobs27Match(matchId, winnerId, winnerDarts, durationMs, match.finalScores).catch((err) => {
+    trackDBError('bobs27-finish', matchId, err)
   })
 }
 
@@ -4859,6 +5012,10 @@ export async function getOperationMatchesAsync(): Promise<OperationStoredMatch[]
       const dbMatches = await dbGetOperationMatches()
       const matches = dbMatches as any as OperationStoredMatch[]
       operationMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -4957,13 +5114,35 @@ export function persistOperationEvents(matchId: string, events: OperationEvent[]
   all[idx].events = events
   operationMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`operation-${matchId}`, async () => {
-      try { await dbUpdateOperationEvents(matchId, events) }
-      catch (err) { trackDBError('operation-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`operation-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('operation_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('operation-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`operation-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('operation_events', matchId, events.length)
+        } catch (err) { trackDBError('operation-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishOperationMatch(
@@ -4994,30 +5173,10 @@ export function finishOperationMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
   const match = all[idx]
-  return new Promise<void>((resolve) => {
-    queueWrite(`operation-${matchId}`, async () => {
-      try {
-        await dbSaveOperationMatch({
-          id: match.id,
-          title: match.title || 'Operation – Multiplayer',
-          createdAt: match.createdAt,
-          finished: true,
-          finishedAt: match.finishedAt ?? null,
-          durationMs: match.durationMs ?? null,
-          winnerId: match.winnerId ?? null,
-          winnerDarts: null,
-          legsCount: match.config.legsCount,
-          targetMode: match.config.targetMode,
-          players: match.players,
-          events: match.events,
-          config: match.config,
-          finalScores: match.finalScores,
-          legWins: match.legWins,
-        })
-      } catch (err) { trackDBError('operation-finish', matchId, err) }
-      resolve()
-    })
+  return dbFinishOperationMatch(matchId, winnerId, 0, durationMs, match.finalScores, match.legWins).catch((err) => {
+    trackDBError('operation-finish', matchId, err)
   })
 }
 
@@ -5599,6 +5758,10 @@ export async function getHighscoreMatchesAsync(): Promise<HighscoreStoredMatch[]
       const dbMatches = await dbGetHighscoreMatches()
       const matches = dbMatches as any as HighscoreStoredMatch[]
       highscoreMatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -5700,13 +5863,35 @@ export function persistHighscoreEvents(matchId: string, events: HighscoreEvent[]
   all[idx].events = events
   highscoreMatchesCache = all
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`highscore-${matchId}`, async () => {
-      try { await dbUpdateHighscoreEvents(matchId, events as any[]) }
-      catch (err) { trackDBError('highscore-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`highscore-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('highscore_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('highscore-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`highscore-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('highscore_events', matchId, events.length)
+        } catch (err) { trackDBError('highscore-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishHighscoreMatch(
@@ -5738,12 +5923,9 @@ export function finishHighscoreMatch(
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  return new Promise<void>((resolve) => {
-    queueWrite(`highscore-${matchId}`, async () => {
-      try { await dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins) }
-      catch (err) { trackDBError('highscore-finish', matchId, err) }
-      resolve()
-    })
+  // Direct DB write — no queue wait (UPDATE doesn't conflict with concurrent event INSERTs)
+  return dbFinishHighscoreMatch(matchId, winnerId, winnerDarts, durationMs, legWins, setWins).catch((err) => {
+    trackDBError('highscore-finish', matchId, err)
   })
 }
 
