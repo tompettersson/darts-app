@@ -18,6 +18,8 @@ import {
   dbGetX01MatchById,
   dbSaveX01Match,
   dbUpdateX01Events,
+  dbAppendEvents,
+  dbDeleteEventsFrom,
   dbFinishX01Match,
   dbGetCricketMatches,
   dbGetCricketMatchById,
@@ -799,6 +801,10 @@ export async function getMatchesAsync(): Promise<StoredMatch[]> {
         finished: m.finished,
       }))
       x01MatchesCache = matches
+      // Initialize persisted event counts for append-only tracking
+      for (const m of matches) {
+        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
+      }
       return matches
     }
   } catch (e) {
@@ -837,6 +843,9 @@ export function getOpenMatch(): StoredMatch | undefined {
   return undefined
 }
 
+// Track how many events have been written to DB per match (for append-only)
+const persistedEventCount = new Map<string, number>()
+
 export function persistEvents(
   matchId: string,
   events: DartsEvent[]
@@ -847,14 +856,37 @@ export function persistEvents(
   list[idx] = { ...list[idx], events }
   saveMatches(list)
 
-  // Queued + awaitable DB write — prevents race conditions
-  return new Promise<void>((resolve) => {
-    queueWrite(`x01-${matchId}`, async () => {
-      try { await dbUpdateX01Events(matchId, events) }
-      catch (err) { trackDBError('x01-events', matchId, err) }
-      resolve()
+  // Append-only: only write NEW events or delete removed events (undo)
+  const alreadyPersisted = persistedEventCount.get(matchId) ?? 0
+
+  if (events.length > alreadyPersisted) {
+    // New events added — append only the new ones
+    const newEvents = events.slice(alreadyPersisted)
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`x01-${matchId}`, async () => {
+        try {
+          await dbAppendEvents('x01_events', matchId, newEvents, alreadyPersisted)
+        } catch (err) { trackDBError('x01-events', matchId, err) }
+        resolve()
+      })
     })
-  })
+  } else if (events.length < alreadyPersisted) {
+    // Events removed (undo) — delete from DB
+    persistedEventCount.set(matchId, events.length)
+
+    return new Promise<void>((resolve) => {
+      queueWrite(`x01-${matchId}`, async () => {
+        try {
+          await dbDeleteEventsFrom('x01_events', matchId, events.length)
+        } catch (err) { trackDBError('x01-events-undo', matchId, err) }
+        resolve()
+      })
+    })
+  }
+
+  return Promise.resolve()
 }
 
 export function finishMatch(matchId: string): Promise<void> {

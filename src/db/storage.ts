@@ -818,6 +818,52 @@ export async function dbMigrateToActiveGames(): Promise<number> {
 }
 
 // ============================================================================
+// Generic Event Append / Delete (shared by all game modes)
+// ============================================================================
+
+/**
+ * Append new events to a match's event table.
+ * Only inserts events that don't already exist (ON CONFLICT DO NOTHING).
+ * This is O(1) per new event — no DELETE+INSERT ALL.
+ */
+export async function dbAppendEvents(
+  table: string,
+  matchId: string,
+  events: any[],
+  startSeq: number
+): Promise<void> {
+  if (events.length === 0) return
+  const ready = await ensureDB()
+  if (!ready) return
+
+  const statements: Array<{ sql: string; params: unknown[] }> = []
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i]
+    statements.push({
+      sql: `INSERT INTO ${table} (id, match_id, type, ts, seq, data)
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
+      params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, startSeq + i, toJSON(ev)],
+    })
+  }
+
+  await transaction(statements)
+}
+
+/**
+ * Delete events from the end of a match's event log (for undo).
+ * Removes all events with seq >= fromSeq.
+ */
+export async function dbDeleteEventsFrom(
+  table: string,
+  matchId: string,
+  fromSeq: number
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(`DELETE FROM ${table} WHERE match_id = ? AND seq >= ?`, [matchId, fromSeq])
+}
+
+// ============================================================================
 // X01 Match Functions
 // ============================================================================
 
