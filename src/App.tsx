@@ -62,6 +62,15 @@ import {
   createCheckoutTrainerMatchShell,
   getActiveGamesCache,
   removeFromActiveGamesCache,
+  getCricketMatchesAsync,
+  getATBMatchesAsync,
+  getStrMatchesAsync,
+  getCTFMatchesAsync,
+  getShanghaiMatchesAsync,
+  getKillerMatchesAsync,
+  getBobs27MatchesAsync,
+  getOperationMatchesAsync,
+  getHighscoreMatchesAsync,
   type StoredMatch,
 } from './storage'
 
@@ -2803,54 +2812,63 @@ export default function App() {
           break
         }
         case 'cricket': {
+          await getCricketMatchesAsync()
           setActiveCricketId(game.id)
           setLastActivity('cricket', game.id)
           setView('game-cricket')
           break
         }
         case 'atb': {
+          await getATBMatchesAsync()
           setActiveATBId(game.id)
           setLastActivity('atb', game.id)
           setView('game-atb')
           break
         }
         case 'str': {
+          await getStrMatchesAsync()
           setActiveStrId(game.id)
           setLastActivity('str', game.id)
           setView('game-str')
           break
         }
         case 'highscore': {
+          await getHighscoreMatchesAsync()
           setActiveHighscoreId(game.id)
           setLastActivity('highscore', game.id)
           setView('game-highscore')
           break
         }
         case 'ctf': {
+          await getCTFMatchesAsync()
           setActiveCTFId(game.id)
           setLastActivity('ctf', game.id)
           setView('game-ctf')
           break
         }
         case 'shanghai': {
+          await getShanghaiMatchesAsync()
           setActiveShanghaiId(game.id)
           setLastActivity('shanghai', game.id)
           setView('game-shanghai')
           break
         }
         case 'killer': {
+          await getKillerMatchesAsync()
           setActiveKillerId(game.id)
           setLastActivity('killer', game.id)
           setView('game-killer')
           break
         }
         case 'bobs27': {
+          await getBobs27MatchesAsync()
           setActiveBobs27Id(game.id)
           setLastActivity('bobs27', game.id)
           setView('game-bobs27')
           break
         }
         case 'operation': {
+          await getOperationMatchesAsync()
           setActiveOperationId(game.id)
           setLastActivity('operation', game.id)
           setView('game-operation')
