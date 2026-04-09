@@ -876,13 +876,10 @@ export function finishMatch(matchId: string): Promise<void> {
     queryClient.invalidateQueries({ queryKey: ['stats', pid] })
   }
 
-  // Queued + awaitable DB write
-  return new Promise<void>((resolve) => {
-    queueWrite(`x01-${matchId}`, async () => {
-      try { await dbFinishX01Match(matchId) }
-      catch (err) { trackDBError('x01-finish', matchId, err) }
-      resolve()
-    })
+  // Direct DB write — no queue wait (persistEvents may still be writing events,
+  // but UPDATE finished=1 doesn't conflict with concurrent event INSERTs)
+  return dbFinishX01Match(matchId).catch((err) => {
+    trackDBError('x01-finish', matchId, err)
   })
 }
 

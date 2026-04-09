@@ -1002,13 +1002,13 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
       // Events (including MatchFinished) were already sent via doPersist in confirmVisit
       setEvents(finalEvents)
     } else {
-      // React-State zuerst setzen, dann persist AWAIT-en (verhindert Datenverlust bei "noch mal spielen")
+      // React-State setzen + Events in background persisten (nicht awaiten —
+      // der letzte confirmVisit hat die Events bereits geschrieben,
+      // hier kommt nur das MatchFinished-Event dazu)
       setEvents(finalEvents)
-      try {
-        await persistEvents(matchStoredNonNull.id, finalEvents)
-      } catch (persistErr) {
-        console.warn('finalizeIfFinished persist failed:', persistErr)
-      }
+      persistEvents(matchStoredNonNull.id, finalEvents).catch((err) =>
+        console.warn('finalizeIfFinished persist failed:', err)
+      )
     }
     setCurrent([])
 
