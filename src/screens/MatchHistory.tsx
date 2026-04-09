@@ -573,6 +573,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: m.title?.includes('Multiplayer') ?? false,
       }
     })
 
@@ -588,6 +589,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         isCrazy: info.isCrazy,
       }
     })
@@ -604,6 +606,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
         isCapture: info.isCapture,
         isSuddenDeath: info.isSuddenDeath,
@@ -622,6 +625,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
       }
     })
 
@@ -637,6 +641,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames, // Spielernamen anzeigen (wie bei anderen Spielen)
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
       }
     })
@@ -653,6 +658,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
       }
     })
@@ -669,6 +675,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
         isDraw: info.isDraw,
       }
@@ -686,6 +693,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
       }
     })
@@ -702,6 +710,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
       }
     })
@@ -718,6 +727,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
+        isOnline: (m as any).title?.includes('Multiplayer') ?? false,
         duration: info.duration,
       }
     })
@@ -925,6 +935,9 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                 }}>
                   Abgebr.
                 </span>
+              )}
+              {(m as any).isOnline && (
+                <span style={{ fontSize: 11, flexShrink: 0 }} title="Online-Spiel">🌐</span>
               )}
               <span style={{ fontWeight: 700, flexShrink: 1, color: colors.fg, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                 {m.matchName || m.mode}
