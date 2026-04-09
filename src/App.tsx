@@ -1977,7 +1977,7 @@ export default function App() {
                 { eventId: genId(), type: 'CTFMatchStarted', ts, matchId, players,
                   structure: { kind: 'legs' as const, bestOfLegs: legs },
                   config: { rounds: config.ctfRounds || 20 },
-                  generatedSequence: Array.from({ length: 20 }, (_, i) => i + 1) },
+                  generatedSequence: Array.from({ length: config.ctfRounds || 20 }, (_, i) => ({ number: i + 1 })) },
                 { eventId: genId(), type: 'CTFLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
               break
