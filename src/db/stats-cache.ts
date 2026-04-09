@@ -126,7 +126,9 @@ export async function refreshPlayerStatsAfterMatch(
 ): Promise<void> {
   const groups = GROUPS_BY_GAME_TYPE[gameType] ?? ['core']
 
-  for (const group of groups) {
+  // Run all groups in parallel — allows DataLoader batching (5ms window)
+  // to combine queries from different groups into fewer HTTP requests
+  await Promise.all(groups.map(async (group) => {
     try {
       const partial: Record<string, unknown> = {}
       await loadGroupFn(playerId, group, partial)
@@ -134,7 +136,7 @@ export async function refreshPlayerStatsAfterMatch(
     } catch (err) {
       console.warn(`[StatsCache] Failed to refresh ${group} for ${playerId}:`, err)
     }
-  }
+  }))
 }
 
 /**
