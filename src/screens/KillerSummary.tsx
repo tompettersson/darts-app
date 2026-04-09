@@ -12,6 +12,7 @@ import { PLAYER_COLORS } from '../playerColors'
 import PieChart from '../components/charts/PieChart'
 import BarChart from '../components/charts/BarChart'
 import { generateKillerReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Medaillen fuer Top 3
 const MEDALS = ['\u{1F947}', '\u{1F948}', '\u{1F949}']
@@ -481,7 +482,7 @@ function KillerSummaryContent({
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={tdLabelStyle}>Zielzahl</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Zielzahl" tooltip={STAT_TOOLTIPS['Zielzahl'] || 'Zielzahl'} colors={colors} /></td>
                         {validPlayers.map(p => (
                           <td key={p.playerId} style={{ ...tdStyle, fontWeight: 600 }}>
                             {p.stats!.targetNumber ?? '?'}
@@ -489,7 +490,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Qualifiziert</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Qualifiziert" tooltip={STAT_TOOLTIPS['Qualifiziert'] || 'Qualifiziert'} colors={colors} /></td>
                         {validPlayers.map(p => (
                           <td key={p.playerId} style={{ ...tdStyle, fontWeight: 600, color: p.stats!.qualifiedInRound ? colors.success : colors.fgDim }}>
                             {p.stats!.qualifiedInRound ? `Runde ${p.stats!.qualifiedInRound}` : '–'}
@@ -497,7 +498,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Total Kills</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Total Kills" tooltip={STAT_TOOLTIPS['Total Kills'] || 'Total Kills'} colors={colors} /></td>
                         {validPlayers.map((p, i) => (
                           <td key={p.playerId} style={killsWin[i] ? { ...tdStyle, fontWeight: 700, color: killsWin[i] } : { ...tdStyle, fontWeight: 600 }}>
                             {p.stats!.totalKills}
@@ -505,7 +506,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Treffer</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Treffer" tooltip={STAT_TOOLTIPS['Treffer'] || 'Treffer'} colors={colors} /></td>
                         {validPlayers.map((p, i) => (
                           <td key={p.playerId} style={hitsDealtWin[i] ? { ...tdStyle, fontWeight: 700, color: hitsDealtWin[i] } : { ...tdStyle, fontWeight: 600 }}>
                             {p.stats!.hitsDealt}
@@ -513,7 +514,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Ueberlebte Runden</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Ueberlebte Runden" tooltip={STAT_TOOLTIPS['Ueberlebte Runden'] || 'Ueberlebte Runden'} colors={colors} /></td>
                         {validPlayers.map((p, i) => (
                           <td key={p.playerId} style={survivedWin[i] ? { ...tdStyle, fontWeight: 700, color: survivedWin[i] } : { ...tdStyle, fontWeight: 600 }}>
                             {p.stats!.survivedRounds}
@@ -521,7 +522,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Darts</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                         {validPlayers.map((p, i) => (
                           <td key={p.playerId} style={dartsWin[i] ? { ...tdStyle, fontWeight: 700, color: dartsWin[i] } : { ...tdStyle, fontWeight: 600 }}>
                             {p.stats!.totalDartsThrown}
@@ -529,7 +530,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Trefferquote</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                         {validPlayers.map((p, i) => (
                           <td key={p.playerId} style={hitRateWin[i] ? { ...tdStyle, fontWeight: 700, color: hitRateWin[i] } : { ...tdStyle, fontWeight: 600, color: colors.accent }}>
                             {p.stats!.hitRate.toFixed(1)}%
@@ -537,7 +538,7 @@ function KillerSummaryContent({
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Leben verloren</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Leben verloren" tooltip={STAT_TOOLTIPS['Leben verloren'] || 'Leben verloren'} colors={colors} /></td>
                         {validPlayers.map((p, i) => (
                           <td key={p.playerId} style={livesLostWin[i] ? { ...tdStyle, fontWeight: 700, color: livesLostWin[i] } : { ...tdStyle, fontWeight: 600 }}>
                             {p.stats!.livesLost}
@@ -546,7 +547,7 @@ function KillerSummaryContent({
                       </tr>
                       {hasSelfEffect && (
                         <tr>
-                          <td style={tdLabelStyle}>{isSelfHealMode ? 'Leben geheilt' : 'Selbst-Kill'}</td>
+                          <td style={tdLabelStyle}><StatTooltip label={isSelfHealMode ? 'Leben geheilt' : 'Selbst-Kill'} tooltip={STAT_TOOLTIPS[isSelfHealMode ? 'Leben geheilt' : 'Selbst-Kill'] || (isSelfHealMode ? 'Leben geheilt' : 'Selbst-Kill')} colors={colors} /></td>
                           {validPlayers.map((p, i) => (
                             <td key={p.playerId} style={selfEffectWin[i] ? { ...tdStyle, fontWeight: 700, color: selfEffectWin[i] } : { ...tdStyle, fontWeight: 600 }}>
                               {isSelfHealMode ? p.stats!.livesHealed : p.stats!.selfKills}

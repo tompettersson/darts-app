@@ -17,6 +17,7 @@ import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
 import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '../components/CricketGanttChart'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import { generateCricketMatchReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 type Props = {
   matchId: string
@@ -571,7 +572,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
                     const winColors = row.better ? getStatWinnerColors(nums, allPlayerIds, row.better, playerColors) : undefined
                     return (
                       <tr key={i}>
-                        <td style={tdLeft}>{row.label}</td>
+                        <td style={tdLeft}><StatTooltip label={row.label} tooltip={STAT_TOOLTIPS[row.label] || row.label} colors={colors} /></td>
                         {row.values.map((v, j) => (
                           <td key={j} style={{ ...tdCenter, ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
                         ))}
@@ -801,7 +802,7 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
                 const winColors = row.better ? getStatWinnerColors(nums, pids, row.better, playerColors) : undefined
                 return (
                   <tr key={i}>
-                    <td style={tdLeft}>{row.label}</td>
+                    <td style={tdLeft}><StatTooltip label={row.label} tooltip={STAT_TOOLTIPS[row.label] || row.label} colors={colors} /></td>
                     {row.values.map((v, j) => (
                       <td key={j} style={{ ...tdCenter, fontWeight: i === 0 ? 700 : 400, ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
                     ))}

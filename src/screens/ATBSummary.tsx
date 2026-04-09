@@ -14,6 +14,7 @@ import {
 import { computeATBMatchStats } from '../stats/computeATBStats'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateATBReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -255,7 +256,7 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
                       const winColors = row.better ? getStatWinnerColors(nums, pids, row.better, playerColorMap) : undefined
                       return (
                         <tr key={i}>
-                          <td style={i < statRows.length - 1 ? tdLabel : { ...tdLabel, borderBottom: 'none' }}>{row.label}</td>
+                          <td style={i < statRows.length - 1 ? tdLabel : { ...tdLabel, borderBottom: 'none' }}><StatTooltip label={row.label} tooltip={STAT_TOOLTIPS[row.label] || row.label} colors={colors} /></td>
                           {row.values.map((v, j) => (
                             <td key={j} style={{ ...tdBase, ...(i === statRows.length - 1 ? { borderBottom: 'none' } : {}), ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
                           ))}

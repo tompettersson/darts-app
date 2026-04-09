@@ -17,6 +17,7 @@ import { computeStrMatchStats, computeStrLegStats, type StrPlayerMatchStat, type
 import type { StrTurnAddedEvent, StrEvent } from '../dartsStraeusschen'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateStraeusschenReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -320,7 +321,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
               <tbody>
                 {/* Score */}
                 <tr>
-                  <td style={labelStyle}>{isMultiLeg ? 'Ø Score' : 'Score'}</td>
+                  <td style={labelStyle}><StatTooltip label={isMultiLeg ? 'Ø Score' : 'Score'} tooltip={STAT_TOOLTIPS[isMultiLeg ? 'Ø Score' : 'Score'] || (isMultiLeg ? 'Ø Score' : 'Score')} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(scoreWin[i] ?? '#0ea5e9')}>
                       {isMultiLeg ? s.avgScorePerLeg.toFixed(1) : s.totalScore.toFixed(1)}
@@ -329,12 +330,12 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
                 </tr>
                 {/* Aufnahmen */}
                 <tr>
-                  <td style={labelStyle}>Aufnahmen</td>
+                  <td style={labelStyle}><StatTooltip label="Aufnahmen" tooltip={STAT_TOOLTIPS['Aufnahmen'] || 'Aufnahmen'} colors={colors} /></td>
                   {sorted.map((s, i) => <td key={s.playerId} style={tdStyle(turnsWin[i] ?? undefined)}>{s.totalTurns}</td>)}
                 </tr>
                 {/* Darts */}
                 <tr>
-                  <td style={labelStyle}>Darts</td>
+                  <td style={labelStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                   {sorted.map((s, i) => <td key={s.playerId} style={tdStyle(dartsWin[i] ?? undefined)}>{s.totalDarts}</td>)}
                 </tr>
 
@@ -396,7 +397,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
                       ))}
                     </tr>
                     <tr>
-                      <td style={labelStyle}>Ø Darts/Leg</td>
+                      <td style={labelStyle}><StatTooltip label="Ø Darts/Leg" tooltip={STAT_TOOLTIPS['Ø Darts/Leg'] || 'Ø Darts/Leg'} colors={colors} /></td>
                       {sorted.map((s, i) => (
                         <td key={s.playerId} style={tdStyle(avgDartsPerLegWin[i] ?? undefined)}>
                           {s.avgDartsPerLeg > 0 ? s.avgDartsPerLeg.toFixed(1) : '—'}
@@ -408,7 +409,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* Hit Rate */}
                 <tr>
-                  <td style={labelStyle}>Hit Rate</td>
+                  <td style={labelStyle}><StatTooltip label="Hit Rate" tooltip={STAT_TOOLTIPS['Hit Rate'] || 'Hit Rate'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(hitRateWin[i] ?? undefined)}>
                       {s.hitRate.toFixed(1)}%
@@ -418,7 +419,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* Treffer/Fehlwürfe */}
                 <tr>
-                  <td style={labelStyle}>Treffer / Fehl</td>
+                  <td style={labelStyle}><StatTooltip label="Treffer / Fehl" tooltip={STAT_TOOLTIPS['Treffer / Fehl'] || 'Treffer / Fehl'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(undefined)}>
                       <span style={{ color: colors.success }}>{s.totalHits}</span>
@@ -430,7 +431,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* Best Round */}
                 <tr>
-                  <td style={labelStyle}>Beste Runde</td>
+                  <td style={labelStyle}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(bestRoundWin[i] ?? undefined)}>
                       {s.bestRound ? `${s.bestRound.hits}/${s.bestRound.darts}` : '—'}
@@ -440,7 +441,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* Worst Round */}
                 <tr>
-                  <td style={labelStyle}>Schlechteste Runde</td>
+                  <td style={labelStyle}><StatTooltip label="Schlechteste Runde" tooltip={STAT_TOOLTIPS['Schlechteste Runde'] || 'Schlechteste Runde'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(worstRoundWin[i] ?? undefined)}>
                       {s.worstRound ? `${s.worstRound.hits}/${s.worstRound.darts}` : '—'}
@@ -450,7 +451,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* Avg Hits per Round */}
                 <tr>
-                  <td style={labelStyle}>Ø Treffer/Runde</td>
+                  <td style={labelStyle}><StatTooltip label="Ø Treffer/Runde" tooltip={STAT_TOOLTIPS['Ø Treffer/Runde'] || 'Ø Treffer/Runde'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(avgHitsWin[i] ?? undefined)}>
                       {s.avgHitsPerRound.toFixed(2)}
@@ -460,7 +461,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* Longest Hit Streak */}
                 <tr>
-                  <td style={labelStyle}>Längste Trefferserie</td>
+                  <td style={labelStyle}><StatTooltip label="Längste Trefferserie" tooltip={STAT_TOOLTIPS['Längste Trefferserie'] || 'Längste Trefferserie'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(streakWin[i] ?? undefined)}>
                       {s.longestHitStreak}
@@ -470,7 +471,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
 
                 {/* First Dart Hit Rate */}
                 <tr>
-                  <td style={labelStyle}>1. Dart Trefferquote</td>
+                  <td style={labelStyle}><StatTooltip label="1. Dart Trefferquote" tooltip={STAT_TOOLTIPS['1. Dart Trefferquote'] || '1. Dart Trefferquote'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(firstDartWin[i] ?? undefined)}>
                       {s.firstDartHitRate.toFixed(1)}%
@@ -481,7 +482,7 @@ export default function StraeusschenSummary({ matchId, onBackToMenu, onRematch, 
                 {/* Schwerstes Feld (bei all mode) */}
                 {isMultiField && (
                   <tr>
-                    <td style={labelStyle}>Schwerstes Feld</td>
+                    <td style={labelStyle}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                     {sorted.map(s => (
                       <td key={s.playerId} style={tdStyle(colors.error)}>
                         {s.hardestField

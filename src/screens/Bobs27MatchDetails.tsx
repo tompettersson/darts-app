@@ -8,6 +8,7 @@ import { getBobs27MatchById } from '../storage'
 import { applyBobs27Events, formatDuration } from '../dartsBobs27'
 import { computeBobs27MatchStats } from '../stats/computeBobs27Stats'
 import { PLAYER_COLORS } from '../playerColors'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -303,7 +304,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={tdLabelStyle}>Punkte</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Punkte" tooltip={STAT_TOOLTIPS['Punkte'] || 'Punkte'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(scoreWin[i], p.eliminated ? colors.error : colors.success)}>
                             {p.finalScore}
@@ -311,7 +312,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Targets</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Targets" tooltip={STAT_TOOLTIPS['Targets'] || 'Targets'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(targetsWin[i])}>
                             {p.targetsCompleted}/{p.totalTargets}
@@ -319,7 +320,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Trefferquote</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(hitRateWin[i], colors.accent)}>
                             {p.hitRate.toFixed(1)}%
@@ -327,7 +328,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Darts</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(dartsWin[i])}>
                             {p.totalDarts}
@@ -335,7 +336,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Treffer</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Treffer" tooltip={STAT_TOOLTIPS['Treffer'] || 'Treffer'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(hitsWin[i])}>
                             {p.totalHits}
@@ -343,7 +344,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Perfekte Targets</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Perfekte Targets" tooltip={STAT_TOOLTIPS['Perfekte Targets'] || 'Perfekte Targets'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(perfectWin[i], p.perfectTargets > 0 ? colors.success : colors.fgDim)}>
                             {p.perfectTargets}
@@ -351,7 +352,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Beste Streak</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Beste Streak" tooltip={STAT_TOOLTIPS['Beste Streak'] || 'Beste Streak'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(streakWin[i])}>
                             {p.longestHitStreak}
@@ -359,7 +360,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Bester Target</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Bester Target" tooltip={STAT_TOOLTIPS['Bester Target'] || 'Bester Target'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(bestDeltaWin[i], colors.success)}>
                             {p.bestTarget
@@ -369,7 +370,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Schlechtester Target</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Schlechtester Target" tooltip={STAT_TOOLTIPS['Schlechtester Target'] || 'Schlechtester Target'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(worstDeltaWin[i], colors.error)}>
                             {p.worstTarget
@@ -379,7 +380,7 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLabelStyle}>Hoechster Target-Score</td>
+                        <td style={tdLabelStyle}><StatTooltip label="Hoechster Target-Score" tooltip={STAT_TOOLTIPS['Hoechster Target-Score'] || 'Hoechster Target-Score'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(highScoreWin[i], colors.success)}>
                             {p.highestSingleTargetScore

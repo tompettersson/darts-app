@@ -25,6 +25,7 @@ import ScoreProgressionChart, { PLAYER_COLORS } from '../components/ScoreProgres
 import X01StaircaseChart from '../components/X01StaircaseChart'
 import { compute121LegStats, compute121MatchStats } from '../stats/compute121LegStats'
 import type { Stats121Leg, Stats121Match } from '../types/stats121'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 type Props = { matchId: string; onBack: () => void }
 
@@ -574,55 +575,55 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={tdLeft}>Average</td>
+                    <td style={tdLeft}><StatTooltip label="Average" tooltip={STAT_TOOLTIPS['Average'] || 'Average'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(setAvgWin[i])}>{(setStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>First Nine</td>
+                    <td style={tdLeft}><StatTooltip label="First Nine" tooltip={STAT_TOOLTIPS['First Nine'] || 'First Nine'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(setF9Win[i])}>{(setStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Höchste Aufnahme</td>
+                    <td style={tdLeft}><StatTooltip label="Höchste Aufnahme" tooltip={STAT_TOOLTIPS['Höchste Aufnahme'] || 'Höchste Aufnahme'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(setHvWin[i])}>{setHighestVisit[p.playerId] || 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Meistes Feld</td>
+                    <td style={tdLeft}><StatTooltip label="Meistes Feld" tooltip={STAT_TOOLTIPS['Meistes Feld'] || 'Meistes Feld'} colors={colors} /></td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{computeMostHitFieldForLegs(events, legIds, p.playerId)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Häufigste Punktzahl</td>
+                    <td style={tdLeft}><StatTooltip label="Häufigste Punktzahl" tooltip={STAT_TOOLTIPS['Häufigste Punktzahl'] || 'Häufigste Punktzahl'} colors={colors} /></td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{computeMostCommonScoreForLegs(events, legIds, p.playerId)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>180s</td>
+                    <td style={tdLeft}><StatTooltip label="180s" tooltip={STAT_TOOLTIPS['180s'] || '180s'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(set180Win[i])}>{setStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>140+</td>
+                    <td style={tdLeft}><StatTooltip label="140+" tooltip={STAT_TOOLTIPS['140+'] || '140+'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(set140Win[i])}>{setStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>100+</td>
+                    <td style={tdLeft}><StatTooltip label="100+" tooltip={STAT_TOOLTIPS['100+'] || '100+'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(set100Win[i])}>{setStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>61+</td>
+                    <td style={tdLeft}><StatTooltip label="61+" tooltip={STAT_TOOLTIPS['61+'] || '61+'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(set61Win[i])}>{setBins61plus[p.playerId] ?? 0}</td>
                     ))}
@@ -631,7 +632,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   <tr><td colSpan={match.players.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
 
                   <tr>
-                    <td style={tdLeft}>Höchster Checkout</td>
+                    <td style={tdLeft}><StatTooltip label="Höchster Checkout" tooltip={STAT_TOOLTIPS['Höchster Checkout'] || 'Höchster Checkout'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const info = setCheckoutInfo[p.playerId]
                       return (
@@ -642,7 +643,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     })}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Checkout Versuche</td>
+                    <td style={tdLeft}><StatTooltip label="Checkout Versuche" tooltip={STAT_TOOLTIPS['Checkout Versuche'] || 'Checkout Versuche'} colors={colors} /></td>
                     {match.players.map((p) => {
                       const attempts = setStatsByPlayer?.[p.playerId]?.doubleAttemptsDart ?? 0
                       const hits = setStatsByPlayer?.[p.playerId]?.doublesHitDart ?? 0
@@ -650,13 +651,13 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     })}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Checkout Quote</td>
+                    <td style={tdLeft}><StatTooltip label="Checkout Quote" tooltip={STAT_TOOLTIPS['Checkout Quote'] || 'Checkout Quote'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(setCoQWin[i])}>{(setStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Legs gewonnen</td>
+                    <td style={tdLeft}><StatTooltip label="Legs gewonnen" tooltip={STAT_TOOLTIPS['Legs gewonnen'] || 'Legs gewonnen'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       let count = 0
                       legsInSelectedSet.forEach((lf: any) => { if (lf.winnerPlayerId === p.playerId) count++ })
@@ -863,55 +864,55 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 <tbody>
                   {/* Scoring Stats */}
                   <tr>
-                    <td style={tdLeft}>Average</td>
+                    <td style={tdLeft}><StatTooltip label="Average" tooltip={STAT_TOOLTIPS['Average'] || 'Average'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(legAvgWin[i])}>{(legStatsByPlayer?.[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>First Nine</td>
+                    <td style={tdLeft}><StatTooltip label="First Nine" tooltip={STAT_TOOLTIPS['First Nine'] || 'First Nine'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(legF9Win[i])}>{(legStatsByPlayer?.[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Höchste Aufnahme</td>
+                    <td style={tdLeft}><StatTooltip label="Höchste Aufnahme" tooltip={STAT_TOOLTIPS['Höchste Aufnahme'] || 'Höchste Aufnahme'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(legHvWin[i])}>{highestVisitInLeg[p.playerId] || 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Meistes Feld</td>
+                    <td style={tdLeft}><StatTooltip label="Meistes Feld" tooltip={STAT_TOOLTIPS['Meistes Feld'] || 'Meistes Feld'} colors={colors} /></td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{computeMostHitField(events, selectedLegId, p.playerId)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Häufigste Punktzahl</td>
+                    <td style={tdLeft}><StatTooltip label="Häufigste Punktzahl" tooltip={STAT_TOOLTIPS['Häufigste Punktzahl'] || 'Häufigste Punktzahl'} colors={colors} /></td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, selectedLegId, p.playerId)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>180s</td>
+                    <td style={tdLeft}><StatTooltip label="180s" tooltip={STAT_TOOLTIPS['180s'] || '180s'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(leg180Win[i])}>{legStatsByPlayer?.[p.playerId]?.bins?._180 ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>140+</td>
+                    <td style={tdLeft}><StatTooltip label="140+" tooltip={STAT_TOOLTIPS['140+'] || '140+'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(leg140Win[i])}>{legStatsByPlayer?.[p.playerId]?.bins?._140plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>100+</td>
+                    <td style={tdLeft}><StatTooltip label="100+" tooltip={STAT_TOOLTIPS['100+'] || '100+'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(leg100Win[i])}>{legStatsByPlayer?.[p.playerId]?.bins?._100plus ?? 0}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>61+</td>
+                    <td style={tdLeft}><StatTooltip label="61+" tooltip={STAT_TOOLTIPS['61+'] || '61+'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(leg61Win[i])}>{bins61plus[p.playerId] ?? 0}</td>
                     ))}
@@ -922,7 +923,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                   {/* Checkout Stats */}
                   <tr>
-                    <td style={tdLeft}>Checkout Höhe</td>
+                    <td style={tdLeft}><StatTooltip label="Checkout Höhe" tooltip={STAT_TOOLTIPS['Checkout Höhe'] || 'Checkout Höhe'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const info = checkoutInfo[p.playerId]
                       return (
@@ -933,7 +934,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     })}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Checkout Versuche</td>
+                    <td style={tdLeft}><StatTooltip label="Checkout Versuche" tooltip={STAT_TOOLTIPS['Checkout Versuche'] || 'Checkout Versuche'} colors={colors} /></td>
                     {match.players.map((p) => {
                       const attempts = legStatsByPlayer?.[p.playerId]?.doubleAttemptsDart ?? 0
                       const hits = legStatsByPlayer?.[p.playerId]?.doublesHitDart ?? 0
@@ -941,13 +942,13 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     })}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Checkout Quote</td>
+                    <td style={tdLeft}><StatTooltip label="Checkout Quote" tooltip={STAT_TOOLTIPS['Checkout Quote'] || 'Checkout Quote'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(legCoQWin[i])}>{(legStatsByPlayer?.[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Rest</td>
+                    <td style={tdLeft}><StatTooltip label="Rest" tooltip={STAT_TOOLTIPS['Rest'] || 'Rest'} colors={colors} /></td>
                     {match.players.map((p, i) => (
                       <td key={p.playerId} style={tdWin(legRestWin[i])}>{restByPlayer[p.playerId]}</td>
                     ))}
@@ -998,7 +999,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   <tbody>
                     {/* Darts to Finish */}
                     <tr>
-                      <td style={tdLeft}>Darts bis Finish</td>
+                      <td style={tdLeft}><StatTooltip label="Darts bis Finish" tooltip={STAT_TOOLTIPS['Darts bis Finish'] || 'Darts bis Finish'} colors={colors} /></td>
                       {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
@@ -1010,7 +1011,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Checkout-Kategorie */}
                     <tr>
-                      <td style={tdLeft}>Checkout-Kategorie</td>
+                      <td style={tdLeft}><StatTooltip label="Checkout-Kategorie" tooltip={STAT_TOOLTIPS['Checkout-Kategorie'] || 'Checkout-Kategorie'} colors={colors} /></td>
                       {match.players.map((p) => {
                         const s = stats121ByPlayer[p.playerId]
                         const cat = s?.checkoutCategory
@@ -1024,7 +1025,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* First-Turn Checkout */}
                     <tr>
-                      <td style={tdLeft}>First-Turn Checkout</td>
+                      <td style={tdLeft}><StatTooltip label="First-Turn Checkout" tooltip={STAT_TOOLTIPS['First-Turn Checkout'] || 'First-Turn Checkout'} colors={colors} /></td>
                       {match.players.map((p) => {
                         const s = stats121ByPlayer[p.playerId]
                         const success = s?.firstTurnCheckoutSuccess
@@ -1037,7 +1038,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Darts auf Double */}
                     <tr>
-                      <td style={tdLeft}>Darts auf Double</td>
+                      <td style={tdLeft}><StatTooltip label="Darts auf Double" tooltip={STAT_TOOLTIPS['Darts auf Double'] || 'Darts auf Double'} colors={colors} /></td>
                       {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
@@ -1049,7 +1050,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* First-Attempt Double Hit */}
                     <tr>
-                      <td style={tdLeft}>First-Attempt Double</td>
+                      <td style={tdLeft}><StatTooltip label="First-Attempt Double" tooltip={STAT_TOOLTIPS['First-Attempt Double'] || 'First-Attempt Double'} colors={colors} /></td>
                       {match.players.map((p) => {
                         const s = stats121ByPlayer[p.playerId]
                         const hit = s?.firstAttemptDoubleHit
@@ -1062,7 +1063,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Verpasste Double-Darts */}
                     <tr>
-                      <td style={tdLeft}>Verpasste Double-Darts</td>
+                      <td style={tdLeft}><StatTooltip label="Verpasste Double-Darts" tooltip={STAT_TOOLTIPS['Verpasste Double-Darts'] || 'Verpasste Double-Darts'} colors={colors} /></td>
                       {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         const missed = s?.missedDoubleDarts ?? 0
@@ -1076,7 +1077,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Double-Feld verwendet */}
                     <tr>
-                      <td style={tdLeft}>Finish-Double</td>
+                      <td style={tdLeft}><StatTooltip label="Finish-Double" tooltip={STAT_TOOLTIPS['Finish-Double'] || 'Finish-Double'} colors={colors} /></td>
                       {match.players.map((p) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
@@ -1092,7 +1093,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                     {/* Busts */}
                     <tr>
-                      <td style={tdLeft}>Busts</td>
+                      <td style={tdLeft}><StatTooltip label="Busts" tooltip={STAT_TOOLTIPS['Busts'] || 'Busts'} colors={colors} /></td>
                       {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         const busts = s?.bustCount ?? 0
@@ -1106,7 +1107,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Längste Serie ohne Bust */}
                     <tr>
-                      <td style={tdLeft}>Längste Serie ohne Bust</td>
+                      <td style={tdLeft}><StatTooltip label="Längste Serie ohne Bust" tooltip={STAT_TOOLTIPS['Längste Serie ohne Bust'] || 'Längste Serie ohne Bust'} colors={colors} /></td>
                       {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         return (
@@ -1118,7 +1119,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Verpasste Checkouts */}
                     <tr>
-                      <td style={tdLeft}>Verpasste Checkouts</td>
+                      <td style={tdLeft}><StatTooltip label="Verpasste Checkouts" tooltip={STAT_TOOLTIPS['Verpasste Checkouts'] || 'Verpasste Checkouts'} colors={colors} /></td>
                       {match.players.map((p, i) => {
                         const s = stats121ByPlayer[p.playerId]
                         const missed = s?.missedCheckoutsCount ?? 0
@@ -1132,7 +1133,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     </tr>
                     {/* Checkout nach Miss */}
                     <tr>
-                      <td style={tdLeft}>Checkout nach Fehlversuch</td>
+                      <td style={tdLeft}><StatTooltip label="Checkout nach Fehlversuch" tooltip={STAT_TOOLTIPS['Checkout nach Fehlversuch'] || 'Checkout nach Fehlversuch'} colors={colors} /></td>
                       {match.players.map((p) => {
                         const s = stats121ByPlayer[p.playerId]
                         const afterMiss = s?.checkoutAfterMiss
@@ -1149,7 +1150,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                     {/* Stabilität */}
                     <tr>
-                      <td style={tdLeft}>Stabilitätsindex</td>
+                      <td style={tdLeft}><StatTooltip label="Stabilitätsindex" tooltip={STAT_TOOLTIPS['Stabilitätsindex'] || 'Stabilitätsindex'} colors={colors} /></td>
                       {match.players.map((p) => {
                         const s = stats121ByPlayer[p.playerId]
                         const stability = s?.stabilityIndex ?? 0
@@ -1164,7 +1165,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                     {/* Checkout-Route (falls vorhanden) */}
                     {match.players.some(p => stats121ByPlayer[p.playerId]?.checkoutRoute) && (
                       <tr>
-                        <td style={tdLeft}>Checkout-Route</td>
+                        <td style={tdLeft}><StatTooltip label="Checkout-Route" tooltip={STAT_TOOLTIPS['Checkout-Route'] || 'Checkout-Route'} colors={colors} /></td>
                         {match.players.map((p) => {
                           const s = stats121ByPlayer[p.playerId]
                           const route = s?.checkoutRoute
@@ -1336,7 +1337,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                       : undefined
                     return (
                       <tr key={row.label}>
-                        <td style={tdLeft}>{row.label}</td>
+                        <td style={tdLeft}><StatTooltip label={row.label} tooltip={STAT_TOOLTIPS[row.label] || row.label} colors={colors} /></td>
                         {match.players.map((p, i) => (
                           <td key={p.playerId} style={tdWin(winColors?.[i])}>{row.getValue(p.playerId)}</td>
                         ))}
@@ -1396,7 +1397,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                 <tbody>
                   {/* Legs */}
                   <tr>
-                    <td style={tdLeft}>Legs gewonnen</td>
+                    <td style={tdLeft}><StatTooltip label="Legs gewonnen" tooltip={STAT_TOOLTIPS['Legs gewonnen'] || 'Legs gewonnen'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       return (
@@ -1408,7 +1409,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Durchschnitt Darts bis Finish */}
                   <tr>
-                    <td style={tdLeft}>Ø Darts bis Finish</td>
+                    <td style={tdLeft}><StatTooltip label="Ø Darts bis Finish" tooltip={STAT_TOOLTIPS['Ø Darts bis Finish'] || 'Ø Darts bis Finish'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const avg = s?.avgDartsToFinish ?? 0
@@ -1422,7 +1423,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Bestes Leg */}
                   <tr>
-                    <td style={tdLeft}>Bestes Leg</td>
+                    <td style={tdLeft}><StatTooltip label="Bestes Leg" tooltip={STAT_TOOLTIPS['Bestes Leg'] || 'Bestes Leg'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const best = s?.bestLegDarts
@@ -1436,7 +1437,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Schlechtestes Leg */}
                   <tr>
-                    <td style={tdLeft}>Schlechtestes Leg</td>
+                    <td style={tdLeft}><StatTooltip label="Schlechtestes Leg" tooltip={STAT_TOOLTIPS['Schlechtestes Leg'] || 'Schlechtestes Leg'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const worst = s?.worstLegDarts
@@ -1453,7 +1454,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                   {/* Checkout Quote */}
                   <tr>
-                    <td style={tdLeft}>Checkout-Quote</td>
+                    <td style={tdLeft}><StatTooltip label="Checkout-Quote" tooltip={STAT_TOOLTIPS['Checkout-Quote'] || 'Checkout-Quote'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const pct = s?.checkoutPct ?? 0
@@ -1466,7 +1467,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* First-Turn Checkouts */}
                   <tr>
-                    <td style={tdLeft}>First-Turn Checkouts</td>
+                    <td style={tdLeft}><StatTooltip label="First-Turn Checkouts" tooltip={STAT_TOOLTIPS['First-Turn Checkouts'] || 'First-Turn Checkouts'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const ftc = s?.firstTurnCheckouts ?? 0
@@ -1480,7 +1481,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Ø Darts auf Double */}
                   <tr>
-                    <td style={tdLeft}>Ø Darts auf Double</td>
+                    <td style={tdLeft}><StatTooltip label="Ø Darts auf Double" tooltip={STAT_TOOLTIPS['Ø Darts auf Double'] || 'Ø Darts auf Double'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const avg = s?.avgDartsOnDouble ?? 0
@@ -1494,7 +1495,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* First-Attempt Double Hits */}
                   <tr>
-                    <td style={tdLeft}>First-Attempt Double Hits</td>
+                    <td style={tdLeft}><StatTooltip label="First-Attempt Double Hits" tooltip={STAT_TOOLTIPS['First-Attempt Double Hits'] || 'First-Attempt Double Hits'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       return (
@@ -1506,7 +1507,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Bevorzugtes Double */}
                   <tr>
-                    <td style={tdLeft}>Bevorzugtes Double</td>
+                    <td style={tdLeft}><StatTooltip label="Bevorzugtes Double" tooltip={STAT_TOOLTIPS['Bevorzugtes Double'] || 'Bevorzugtes Double'} colors={colors} /></td>
                     {match.players.map((p) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       return (
@@ -1522,7 +1523,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                   {/* Busts */}
                   <tr>
-                    <td style={tdLeft}>Busts gesamt</td>
+                    <td style={tdLeft}><StatTooltip label="Busts gesamt" tooltip={STAT_TOOLTIPS['Busts gesamt'] || 'Busts gesamt'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const busts = s?.totalBusts ?? 0
@@ -1536,7 +1537,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Ø Busts pro Leg */}
                   <tr>
-                    <td style={tdLeft}>Ø Busts pro Leg</td>
+                    <td style={tdLeft}><StatTooltip label="Ø Busts pro Leg" tooltip={STAT_TOOLTIPS['Ø Busts pro Leg'] || 'Ø Busts pro Leg'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const avg = s?.avgBustsPerLeg ?? 0
@@ -1553,7 +1554,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
 
                   {/* Stabilitätsindex */}
                   <tr>
-                    <td style={tdLeft}>Ø Stabilität</td>
+                    <td style={tdLeft}><StatTooltip label="Ø Stabilität" tooltip={STAT_TOOLTIPS['Ø Stabilität'] || 'Ø Stabilität'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const stability = s?.avgStabilityIndex ?? 0
@@ -1567,7 +1568,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {/* Optimale Routen */}
                   <tr>
-                    <td style={tdLeft}>Optimale Routen</td>
+                    <td style={tdLeft}><StatTooltip label="Optimale Routen" tooltip={STAT_TOOLTIPS['Optimale Routen'] || 'Optimale Routen'} colors={colors} /></td>
                     {match.players.map((p, i) => {
                       const s = stats121MatchByPlayer[p.playerId]
                       const optimal = s?.optimalRouteCount ?? 0

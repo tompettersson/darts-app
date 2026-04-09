@@ -14,6 +14,7 @@ import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
 import { PLAYER_COLORS } from '../playerColors'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -654,40 +655,40 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ ...tdLeft, fontWeight: 700 }}>Feldpunkte</td>
+                      <td style={{ ...tdLeft, fontWeight: 700 }}><StatTooltip label="Feldpunkte" tooltip={STAT_TOOLTIPS['Feldpunkte'] || 'Feldpunkte'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={legFpWin[i] ? { ...tdRight, color: legFpWin[i], fontWeight: 800, fontSize: 16 } : { ...tdRight, color: colors.warning, fontWeight: 800, fontSize: 16 }}>{ps.fieldPoints}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Felder gewonnen</td>
+                      <td style={tdLeft}><StatTooltip label="Felder gewonnen" tooltip={STAT_TOOLTIPS['Felder gewonnen'] || 'Felder gewonnen'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legFwWin[i])}>{ps.fieldsWon}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Wurfpunkte</td>
+                      <td style={tdLeft}><StatTooltip label="Wurfpunkte" tooltip={STAT_TOOLTIPS['Wurfpunkte'] || 'Wurfpunkte'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legWpWin[i])}>{ps.totalScore}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Darts</td>
+                      <td style={tdLeft}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                       {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                     </tr>
                     <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                     <tr>
-                      <td style={tdLeft}>Triples</td>
+                      <td style={tdLeft}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legTriWin[i])}>{ps.triples}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Doubles</td>
+                      <td style={tdLeft}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legDblWin[i])}>{ps.doubles}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Singles</td>
+                      <td style={tdLeft}><StatTooltip label="Singles" tooltip={STAT_TOOLTIPS['Singles'] || 'Singles'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legSglWin[i])}>{ps.singles}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Misses</td>
+                      <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legMissWin[i])}>{ps.misses}</td>)}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Trefferquote</td>
+                      <td style={tdLeft}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                       {legStats.map((ps, i) => <td key={ps.playerId} style={tdWin(legHrWin[i])}>{ps.hitRate.toFixed(1)}%</td>)}
                     </tr>
                   </tbody>
@@ -736,7 +737,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                       </thead>
                       <tbody>
                         <tr>
-                          <td style={tdLeft}>Bestes Feld</td>
+                          <td style={tdLeft}><StatTooltip label="Bestes Feld" tooltip={STAT_TOOLTIPS['Bestes Feld'] || 'Bestes Feld'} colors={colors} /></td>
                           {legDetailedStats.map((ps) => (
                             <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>
                               {ps.bestField ? `${ps.bestField.field} (${ps.bestField.score} Pkt)` : '\u2014'}
@@ -744,7 +745,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLeft}>Schwerstes Feld</td>
+                          <td style={tdLeft}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                           {legDetailedStats.map((ps) => (
                             <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>
                               {ps.worstField ? `${ps.worstField.field} (${ps.worstField.score} Pkt)` : '\u2014'}
@@ -752,25 +753,25 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLeft}>Perfekte Runden</td>
+                          <td style={tdLeft}><StatTooltip label="Perfekte Runden" tooltip={STAT_TOOLTIPS['Perfekte Runden'] || 'Perfekte Runden'} colors={colors} /></td>
                           {legDetailedStats.map((ps, i) => (
                             <td key={ps.playerId} style={tdWin(ldPerfWin[i])}>{ps.perfectTurns}</td>
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLeft}>{'\u00D8'} Punkte/Feld</td>
+                          <td style={tdLeft}><StatTooltip label={'\u00D8 Punkte/Feld'} tooltip={STAT_TOOLTIPS['Ø Punkte/Feld'] || 'Ø Punkte/Feld'} colors={colors} /></td>
                           {legDetailedStats.map((ps, i) => (
                             <td key={ps.playerId} style={tdWin(ldAvgWin[i])}>{ps.avgScorePerField.toFixed(2)}</td>
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLeft}>Konsistenz ({'\u03C3'})</td>
+                          <td style={tdLeft}><StatTooltip label={'Konsistenz (\u03C3)'} tooltip={STAT_TOOLTIPS['Konsistenz'] || 'Konsistenz'} colors={colors} /></td>
                           {legDetailedStats.map((ps, i) => (
                             <td key={ps.playerId} style={tdWin(ldConsWin[i])}>{(legConsistency[ps.playerId] ?? 0).toFixed(2)}</td>
                           ))}
                         </tr>
                         <tr>
-                          <td style={tdLeft}>Beste Serie</td>
+                          <td style={tdLeft}><StatTooltip label="Beste Serie" tooltip={STAT_TOOLTIPS['Beste Serie'] || 'Beste Serie'} colors={colors} /></td>
                           {legDetailedStats.map((ps, i) => (
                             <td key={ps.playerId} style={tdWin(ldStreakWin[i])}>{legStreaks[ps.playerId]?.longest ?? 0} Felder</td>
                           ))}
@@ -1126,24 +1127,24 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={{ ...tdLeft, fontWeight: 700 }}>Feldpunkte</td>
+                    <td style={{ ...tdLeft, fontWeight: 700 }}><StatTooltip label="Feldpunkte" tooltip={STAT_TOOLTIPS['Feldpunkte'] || 'Feldpunkte'} colors={colors} /></td>
                     {matchStats.map((ps, i) => <td key={ps.playerId} style={mFpWin[i] ? { ...tdRight, color: mFpWin[i], fontWeight: 800, fontSize: 16 } : { ...tdRight, color: colors.warning, fontWeight: 800, fontSize: 16 }}>{ps.fieldPoints}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Felder gewonnen</td>
+                    <td style={tdLeft}><StatTooltip label="Felder gewonnen" tooltip={STAT_TOOLTIPS['Felder gewonnen'] || 'Felder gewonnen'} colors={colors} /></td>
                     {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mFwWin[i])}>{ps.fieldsWon}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Wurfpunkte</td>
+                    <td style={tdLeft}><StatTooltip label="Wurfpunkte" tooltip={STAT_TOOLTIPS['Wurfpunkte'] || 'Wurfpunkte'} colors={colors} /></td>
                     {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mWpWin[i])}>{ps.totalScore}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Darts</td>
+                    <td style={tdLeft}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                     {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                   </tr>
                   <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                   <tr>
-                    <td style={tdLeft}>Triples</td>
+                    <td style={tdLeft}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></td>
                     {matchStats.map((ps, i) => (
                       <td key={ps.playerId} style={tdWin(mTriWin[i])}>
                         {ps.triples} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.tripleRate.toFixed(1)}%)</span>
@@ -1151,7 +1152,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Doubles</td>
+                    <td style={tdLeft}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></td>
                     {matchStats.map((ps, i) => (
                       <td key={ps.playerId} style={tdWin(mDblWin[i])}>
                         {ps.doubles} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.doubleRate.toFixed(1)}%)</span>
@@ -1159,15 +1160,15 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Singles</td>
+                    <td style={tdLeft}><StatTooltip label="Singles" tooltip={STAT_TOOLTIPS['Singles'] || 'Singles'} colors={colors} /></td>
                     {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mSglWin[i])}>{ps.singles}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Misses</td>
+                    <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                     {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mMissWin[i])}>{ps.misses}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Trefferquote</td>
+                    <td style={tdLeft}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                     {matchStats.map((ps, i) => <td key={ps.playerId} style={tdWin(mHrWin[i])}>{ps.hitRate.toFixed(1)}%</td>)}
                   </tr>
                 </tbody>
@@ -1213,7 +1214,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={tdLeft}>Bestes Feld</td>
+                    <td style={tdLeft}><StatTooltip label="Bestes Feld" tooltip={STAT_TOOLTIPS['Bestes Feld'] || 'Bestes Feld'} colors={colors} /></td>
                     {detailedStats.map((ps) => (
                       <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>
                         {ps.bestField ? `${ps.bestField.field} (${ps.bestField.score} Pkt)` : '\u2014'}
@@ -1221,7 +1222,7 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Schwerstes Feld</td>
+                    <td style={tdLeft}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                     {detailedStats.map((ps) => (
                       <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>
                         {ps.worstField ? `${ps.worstField.field} (${ps.worstField.score} Pkt)` : '\u2014'}
@@ -1229,25 +1230,25 @@ export default function CTFMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Perfekte Runden</td>
+                    <td style={tdLeft}><StatTooltip label="Perfekte Runden" tooltip={STAT_TOOLTIPS['Perfekte Runden'] || 'Perfekte Runden'} colors={colors} /></td>
                     {detailedStats.map((ps, i) => (
                       <td key={ps.playerId} style={tdWin(mdPerfWin[i])}>{ps.perfectTurns}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>{'\u00D8'} Punkte/Feld</td>
+                    <td style={tdLeft}><StatTooltip label={'\u00D8 Punkte/Feld'} tooltip={STAT_TOOLTIPS['Ø Punkte/Feld'] || 'Ø Punkte/Feld'} colors={colors} /></td>
                     {detailedStats.map((ps, i) => (
                       <td key={ps.playerId} style={tdWin(mdAvgWin[i])}>{ps.avgScorePerField.toFixed(2)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Konsistenz ({'\u03C3'})</td>
+                    <td style={tdLeft}><StatTooltip label={'Konsistenz (\u03C3)'} tooltip={STAT_TOOLTIPS['Konsistenz'] || 'Konsistenz'} colors={colors} /></td>
                     {detailedStats.map((ps, i) => (
                       <td key={ps.playerId} style={tdWin(mdConsWin[i])}>{(matchConsistency[ps.playerId] ?? 0).toFixed(2)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Beste Serie</td>
+                    <td style={tdLeft}><StatTooltip label="Beste Serie" tooltip={STAT_TOOLTIPS['Beste Serie'] || 'Beste Serie'} colors={colors} /></td>
                     {detailedStats.map((ps, i) => (
                       <td key={ps.playerId} style={tdWin(mdStreakWin[i])}>{matchStreaks[ps.playerId]?.longest ?? 0} Felder</td>
                     ))}

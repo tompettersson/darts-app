@@ -14,6 +14,7 @@ import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import type { HighscoreEvent, HighscoreTurnAddedEvent } from '../types/highscore'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateHighscoreReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Zeile
 function getStatWinnerColors(
@@ -341,7 +342,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
               </thead>
               <tbody>
                 <tr>
-                  <td style={labelStyle}>Endscore</td>
+                  <td style={labelStyle}><StatTooltip label="Endscore" tooltip={STAT_TOOLTIPS['Endscore'] || 'Endscore'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(endscoreWin[i] ?? undefined)}>
                       {s.finalScore}
@@ -349,7 +350,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Darts</td>
+                  <td style={labelStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(dartsWin[i] ?? undefined)}>
                       {s.dartsThrown}
@@ -357,7 +358,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Turns</td>
+                  <td style={labelStyle}><StatTooltip label="Turns" tooltip={STAT_TOOLTIPS['Turns'] || 'Turns'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(turnsWin[i] ?? undefined)}>
                       {s.turnsPlayed}
@@ -365,7 +366,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Ø per Dart</td>
+                  <td style={labelStyle}><StatTooltip label="Ø per Dart" tooltip={STAT_TOOLTIPS['Ø per Dart'] || 'Ø per Dart'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(avgPerDartWin[i] ?? undefined)}>
                       {s.avgPointsPerDart.toFixed(1)}
@@ -373,7 +374,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>3-Dart Avg</td>
+                  <td style={labelStyle}><StatTooltip label="3-Dart Avg" tooltip={STAT_TOOLTIPS['3-Dart Avg'] || '3-Dart Avg'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(avg3DartWin[i] ?? undefined)}>
                       {s.avgPointsPerTurn.toFixed(1)}
@@ -381,7 +382,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Best Turn</td>
+                  <td style={labelStyle}><StatTooltip label="Best Turn" tooltip={STAT_TOOLTIPS['Best Turn'] || 'Best Turn'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(bestTurnWin[i] ?? undefined)}>
                       {s.bestTurn}
@@ -389,7 +390,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Speed Rating</td>
+                  <td style={labelStyle}><StatTooltip label="Speed Rating" tooltip={STAT_TOOLTIPS['Speed Rating'] || 'Speed Rating'} colors={colors} /></td>
                   {sorted.map((s, i) => (
                     <td key={s.playerId} style={tdStyle(speedWin[i] ?? undefined)}>
                       {s.speedRating.toFixed(2)}
@@ -398,7 +399,7 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                 </tr>
                 {sorted[0]?.normalized999Darts != null && (
                   <tr>
-                    <td style={labelStyle}>999-Equivalent</td>
+                    <td style={labelStyle}><StatTooltip label="999-Equivalent" tooltip={STAT_TOOLTIPS['999-Equivalent'] || '999-Equivalent'} colors={colors} /></td>
                     {sorted.map((s, i) => (
                       <td key={s.playerId} style={tdStyle(equiv999Win[i] ?? undefined)}>
                         {s.normalized999Darts?.toFixed(0) ?? '—'}

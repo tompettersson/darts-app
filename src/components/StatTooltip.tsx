@@ -154,4 +154,118 @@ export const STAT_TOOLTIPS: Record<string, string> = {
   // General
   'Darts pro Leg': 'Durchschnittliche Anzahl Darts pro gewonnenem Leg',
   'Legs gewonnen': 'Anzahl der gewonnenen Legs in diesem Match',
+
+  // Bobs 27 additional
+  'Targets bespielt': 'Anzahl der bespielten Double-Felder (von D1 bis D-Bull)',
+
+  // Cricket additional
+  'Total Marks': 'Gesamtanzahl der Marks (Treffer auf offene Felder)',
+  'Marks/Turn': 'Marks pro Aufnahme (3 Darts)',
+  'Marks/Dart': 'Marks pro einzelnem Dart',
+  'Höchste Aufnahme (Marks)': 'Höchste Anzahl Marks in einer einzelnen 3-Dart-Aufnahme',
+  'Höchste Aufnahme (Punkte)': 'Höchste Punktzahl in einer einzelnen 3-Dart-Aufnahme (Scoring)',
+  'Treffer / Misses': 'Verhältnis von Treffern auf offene Felder zu Fehlwürfen',
+  'Single Bull': 'Treffer auf das Single-Bull (25 Punkte)',
+  'Double Bull': 'Treffer auf das Double-Bull / Bullseye (50 Punkte)',
+  'No-Score Turns': 'Aufnahmen in denen keine Marks oder Punkte erzielt wurden',
+  'Bestes Leg': 'Wenigste Darts die für ein Leg benötigt wurden',
+
+  // Killer additional
+  'Qualifiziert': 'Runde in der sich der Spieler durch Treffer auf sein Double qualifiziert hat',
+  'Total Kills': 'Gesamtanzahl der Kills (andere Spieler eliminiert)',
+  'Ueberlebte Runden': 'Anzahl der Runden die der Spieler überlebt hat',
+  'Leben geheilt': 'Durch Treffer auf eigenes Double zurückgewonnene Leben',
+  'Selbst-Kill': 'Eigene Leben durch Treffer auf das eigene Double verloren',
+
+  // X01 / MatchDetails additional
+  'First Nine': 'Durchschnitt der ersten 3 Aufnahmen (9 Darts)',
+  'Höchste Aufnahme': 'Höchste Punktzahl in einer einzelnen 3-Dart-Aufnahme',
+  'Meistes Feld': 'Das am häufigsten getroffene Segment (1-20, Bull)',
+  'Häufigste Punktzahl': 'Die am häufigsten erzielte Aufnahme-Punktzahl',
+  '61+': 'Anzahl der Aufnahmen mit 61 oder mehr Punkten',
+  'Höchster Checkout': 'Höchster Checkout-Wert mit dem ein Leg beendet wurde',
+  'Checkout Versuche': 'Versuche auf das Doppelfeld / davon getroffen',
+  'Checkout Quote': 'Prozent der erfolgreichen Checkouts (Doppel-Versuche)',
+  'Rest': 'Verbleibende Punkte am Ende des Legs (0 = ausgecheckt)',
+  '3-Dart-Average': 'Durchschnittliche Punkte pro 3-Dart-Aufnahme',
+  'First-9 Average': 'Durchschnitt der ersten 3 Aufnahmen (9 Darts)',
+  'Höchstes Checkout': 'Höchster Checkout-Wert mit dem ein Leg beendet wurde',
+  'Darts geworfen': 'Gesamtanzahl der geworfenen Darts im Match',
+  'Punkte erzielt': 'Gesamtpunktzahl über alle Aufnahmen im Match',
+  '180er': 'Anzahl der perfekten 180-Punkt-Aufnahmen (3x Triple 20)',
+  'Double-Versuche': 'Anzahl der Darts die auf ein Doppelfeld geworfen wurden',
+  'Lieblingsdoppel': 'Das am häufigsten zum Checkout verwendete Doppelfeld',
+  'Busts': 'Anzahl der Überwerfer (Score über das Ziel hinaus)',
+  'Sets gewonnen': 'Anzahl der gewonnenen Sets in diesem Match',
+
+  // 121 Sprint additional
+  'Darts bis Finish': 'Gesamtanzahl der Darts um 121 auf Null zu bringen',
+  'Checkout-Kategorie': 'Bewertung: <=6 Darts = super, <=9 = gut, >9 = ausbaufähig',
+  'First-Turn Checkout': 'Leg mit der ersten Aufnahme ausgecheckt (3 Darts reichten)',
+  'Darts auf Double': 'Anzahl der Darts die auf das Doppelfeld zum Checkout geworfen wurden',
+  'First-Attempt Double': 'Erster Dart auf das Doppelfeld war gleich ein Treffer',
+  'Verpasste Double-Darts': 'Darts auf das Doppelfeld die nicht getroffen haben',
+  'Finish-Double': 'Das Doppelfeld mit dem das Leg beendet wurde',
+  'Längste Serie ohne Bust': 'Längste Serie aufeinanderfolgender Aufnahmen ohne Überwerfer',
+  'Verpasste Checkouts': 'Aufnahmen mit Checkout-Chance die nicht genutzt wurden',
+  'Checkout nach Fehlversuch': 'Checkout gelungen obwohl vorheriger Double-Versuch daneben ging',
+  'Stabilitätsindex': 'Wie konstant der Spieler seine Route gespielt hat (0-100%)',
+  'Checkout-Route': 'Die geworfene Route zum Checkout (z.B. T20 → T11 → D14)',
+  'Ø Darts bis Finish': 'Durchschnittliche Darts pro Leg um 121 auszuchecken',
+  'Schlechtestes Leg': 'Meiste Darts die für ein Leg benötigt wurden',
+  'Checkout-Quote': 'Prozent der erfolgreichen Checkouts (Double getroffen wenn möglich)',
+  'First-Turn Checkouts': 'Anzahl der Legs die mit der ersten Aufnahme ausgecheckt wurden',
+  'Ø Darts auf Double': 'Durchschnittliche Darts auf das Doppelfeld pro Leg',
+  'First-Attempt Double Hits': 'Anzahl der Legs bei denen der erste Dart auf das Double gleich traf',
+  'Bevorzugtes Double': 'Das am häufigsten zum Checkout verwendete Doppelfeld',
+  'Busts gesamt': 'Gesamtanzahl der Überwerfer über alle Legs',
+  'Ø Busts pro Leg': 'Durchschnittliche Anzahl Überwerfer pro Leg',
+  'Ø Stabilität': 'Durchschnittlicher Stabilitätsindex über alle Legs (0-100%)',
+  'Optimale Routen': 'Legs bei denen die optimale Checkout-Route gespielt wurde',
+
+  // CTF additional
+  'Feldpunkte': 'Punkte basierend auf der Wertigkeit der gewonnenen Felder',
+  'Felder gewonnen': 'Anzahl der im Duell gewonnenen Felder',
+  'Wurfpunkte': 'Gesamtpunktzahl aller geworfenen Darts',
+  'Bestes Feld': 'Feld auf dem die meisten Punkte erzielt wurden',
+  'Schwerstes Feld': 'Feld das am schwierigsten war (wenigste Punkte oder meiste Darts)',
+  'Perfekte Runden': 'Runden in denen alle 3 Darts das Zielfeld trafen',
+  'Ø Punkte/Feld': 'Durchschnittlich erzielte Punkte pro Feld',
+  'Konsistenz': 'Standardabweichung der Punkte pro Feld (niedriger = stabiler)',
+  'Beste Serie': 'Längste Serie aufeinanderfolgender Felder mit Treffern',
+
+  // ATB additional
+  'Total Darts': 'Gesamtanzahl der geworfenen Darts',
+  'Misses': 'Anzahl der Darts die komplett daneben gingen',
+  'Hit Rate': 'Anteil der Darts die das Zielfeld getroffen haben',
+  'Ø Darts/Feld': 'Durchschnittliche Darts pro Feld (weniger = besser)',
+
+  // Shanghai additional
+  'Avg/R': 'Durchschnittliche Punkte pro Runde',
+  'Beste': 'Beste Runde (höchste Punktzahl)',
+  'Schw.': 'Schwächste Runde (niedrigste Punktzahl)',
+  'T/D/S': 'Triple / Double / Single Treffer',
+  'Hit%': 'Trefferquote — Anteil der Darts die das Zielfeld trafen',
+  'Konsist.': 'Konsistenz (Standardabweichung — niedriger = stabiler)',
+  'Streak': 'Längste Serie aufeinanderfolgender Runden mit Punkten',
+
+  // Highscore additional
+  'Endscore': 'Erreichte Gesamtpunktzahl am Ende des Matches',
+  'Turns': 'Anzahl der gespielten 3-Dart-Aufnahmen',
+  'Ø per Dart': 'Durchschnittlich erzielte Punkte pro einzelnem Dart',
+  '3-Dart Avg': 'Durchschnittliche Punkte pro 3-Dart-Aufnahme',
+  'Best Turn': 'Höchste Punktzahl in einer einzelnen 3-Dart-Aufnahme',
+  'Speed Rating': 'Effizienz-Bewertung: Score geteilt durch Darts (höher = schneller)',
+  '999-Equivalent': 'Hochgerechnete Darts die für 999 Punkte nötig wären',
+
+  // Sträußchen additional
+  'Aufnahmen': 'Anzahl der gespielten 3-Dart-Aufnahmen',
+  'Treffer / Fehl': 'Verhältnis von Treffern zu Fehlwürfen',
+  'Beste Runde': 'Runde mit den meisten Treffern (Treffer/Darts)',
+  'Schlechteste Runde': 'Runde mit den wenigsten Treffern (Treffer/Darts)',
+  'Ø Treffer/Runde': 'Durchschnittliche Treffer pro Aufnahme',
+  'Längste Trefferserie': 'Längste Serie aufeinanderfolgender Treffer ohne Fehlwurf',
+  '1. Dart Trefferquote': 'Wie oft der erste Dart einer Aufnahme ein Treffer war',
+  'Ø Score': 'Durchschnittliche Punktzahl pro Leg',
+  'Ø Darts/Leg': 'Durchschnittliche Darts pro Leg',
 }

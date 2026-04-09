@@ -10,6 +10,7 @@ import type { CTFTurnAddedEvent, CTFRoundFinishedEvent } from '../types/captureT
 import ATBDartboard from '../components/ATBDartboard'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateCTFReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 type Props = {
   matchId: string
@@ -352,57 +353,57 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToL
                           <div style={{ fontSize: 14, fontWeight: 700, color: colors.accent }}>
                             {p.avgScorePerField.toFixed(1)}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>{'\u00D8'} Pkt/Feld</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label={'\u00D8 Pkt/Feld'} tooltip={STAT_TOOLTIPS['Ø Punkte/Feld'] || 'Ø Punkte/Feld'} colors={colors} /></div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: colors.success }}>
                             {p.hitRate.toFixed(0)}%
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Trefferquote</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: colors.warning }}>
                             {p.bestTurn}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Bester Turn</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label="Bester Turn" tooltip={STAT_TOOLTIPS['Bester Turn'] || 'Bester Turn'} colors={colors} /></div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg }}>
                             {p.triples}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Triples</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg }}>
                             {p.doubles}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Doubles</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: colors.fg }}>
                             {p.singles}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Singles</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label="Singles" tooltip={STAT_TOOLTIPS['Singles'] || 'Singles'} colors={colors} /></div>
                         </div>
                         {p.bestField && (
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: colors.success }}>
                               {p.bestField.field}
                             </div>
-                            <div style={{ fontSize: 10, color: colors.fgMuted }}>Bestes Feld ({p.bestField.score})</div>
+                            <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label={`Bestes Feld (${p.bestField.score})`} tooltip={STAT_TOOLTIPS['Bestes Feld'] || 'Bestes Feld'} colors={colors} /></div>
                           </div>
                         )}
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: colors.fgDim }}>
                             {p.stdDev.toFixed(2)}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Konsistenz ({'\u03C3'})</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label={'Konsistenz (\u03C3)'} tooltip={STAT_TOOLTIPS['Konsistenz'] || 'Konsistenz'} colors={colors} /></div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: colors.error }}>
                             {p.misses}
                           </div>
-                          <div style={{ fontSize: 10, color: colors.fgMuted }}>Misses</div>
+                          <div style={{ fontSize: 10, color: colors.fgMuted }}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></div>
                         </div>
                       </div>
                     </div>

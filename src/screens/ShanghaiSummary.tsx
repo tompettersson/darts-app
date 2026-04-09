@@ -9,6 +9,7 @@ import { applyShanghaiEvents, formatDuration } from '../dartsShanghai'
 import { computeShanghaiMatchStats } from '../stats/computeShanghaiStats'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateShanghaiReport } from '../narratives/generateModeReports'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -382,17 +383,17 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBa
                     <thead>
                       <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
                         <th style={{ ...thStyle, textAlign: 'left' }}>Spieler</th>
-                        <th style={thStyle}>Punkte</th>
-                        <th style={thStyle}>Darts</th>
-                        <th style={thStyle}>Avg/R</th>
-                        <th style={thStyle}>Beste</th>
-                        <th style={thStyle}>Schw.</th>
-                        <th style={thStyle}>Shanghai</th>
-                        <th style={thStyle}>T/D/S</th>
-                        <th style={thStyle}>Miss</th>
-                        <th style={thStyle}>Hit%</th>
-                        <th style={thStyle} title="Konsistenz (niedrigere Standardabweichung = stabiler)">Konsist.</th>
-                        <th style={thStyle} title="Laengste Serie aufeinanderfolgender Runden mit Punkten">Streak</th>
+                        <th style={thStyle}><StatTooltip label="Punkte" tooltip={STAT_TOOLTIPS['Punkte'] || 'Punkte'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Avg/R" tooltip={STAT_TOOLTIPS['Avg/R'] || 'Avg/R'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Beste" tooltip={STAT_TOOLTIPS['Beste'] || 'Beste'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Schw." tooltip={STAT_TOOLTIPS['Schw.'] || 'Schw.'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Shanghai" tooltip={STAT_TOOLTIPS['Shanghai'] || 'Shanghai'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="T/D/S" tooltip={STAT_TOOLTIPS['T/D/S'] || 'T/D/S'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Miss" tooltip={STAT_TOOLTIPS['Miss'] || 'Miss'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Hit%" tooltip={STAT_TOOLTIPS['Hit%'] || 'Hit%'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Konsist." tooltip={STAT_TOOLTIPS['Konsist.'] || 'Konsist.'} colors={colors} /></th>
+                        <th style={thStyle}><StatTooltip label="Streak" tooltip={STAT_TOOLTIPS['Streak'] || 'Streak'} colors={colors} /></th>
                       </tr>
                     </thead>
                     <tbody>
