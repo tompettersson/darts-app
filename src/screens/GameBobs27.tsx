@@ -56,6 +56,17 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  const [isLandscape, setIsLandscape] = useState(() => window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const check = () => {
+      setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const [storedMatch, setStoredMatch] = useState(() => getBobs27MatchById(matchId))
   const [events, setEvents] = useState<Bobs27Event[]>(storedMatch?.events ?? [])
 
@@ -513,6 +524,418 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     )
   }
 
+  // --- Mini Dartboard SVG (visual only) ---
+  const BOARD_SEGS = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5] as const
+  const targetFieldNumber = currentTarget?.fieldNumber ?? 0
+  const renderMiniDartboard = (size: number) => {
+    const cx = 120, cy = 120
+    return (
+      <svg viewBox="0 0 240 240" style={{ width: size, height: size, flexShrink: 0, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))' }}>
+        {/* Board background */}
+        <circle cx={cx} cy={cy} r={115} fill={isArcade ? '#111' : '#1a1a2e'} />
+        <circle cx={cx} cy={cy} r={110} fill={isArcade ? '#0a0a0a' : '#111827'} />
+        {/* Main segments */}
+        {BOARD_SEGS.map((num, i) => {
+          const a1 = (i * 18 - 99) * Math.PI / 180
+          const a2 = ((i + 1) * 18 - 99) * Math.PI / 180
+          const r1 = 28, r2 = 88
+          return (
+            <path key={`seg-${num}`}
+              d={`M${cx+r1*Math.cos(a1)},${cy+r1*Math.sin(a1)} L${cx+r2*Math.cos(a1)},${cy+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${cx+r2*Math.cos(a2)},${cy+r2*Math.sin(a2)} L${cx+r1*Math.cos(a2)},${cy+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${cx+r1*Math.cos(a1)},${cy+r1*Math.sin(a1)} Z`}
+              fill={i % 2 === 0 ? '#1f2937' : '#111827'}
+              stroke="#374151" strokeWidth="0.5" opacity={0.7}
+            />
+          )
+        })}
+        {/* Double ring segments (outer thin ring) */}
+        {BOARD_SEGS.map((num, i) => {
+          const a1 = (i * 18 - 99) * Math.PI / 180
+          const a2 = ((i + 1) * 18 - 99) * Math.PI / 180
+          const r1 = 88, r2 = 100
+          const isTarget = num === targetFieldNumber
+          return (
+            <path key={`dbl-${num}`}
+              d={`M${cx+r1*Math.cos(a1)},${cy+r1*Math.sin(a1)} L${cx+r2*Math.cos(a1)},${cy+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${cx+r2*Math.cos(a2)},${cy+r2*Math.sin(a2)} L${cx+r1*Math.cos(a2)},${cy+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${cx+r1*Math.cos(a1)},${cy+r1*Math.sin(a1)} Z`}
+              fill={isTarget ? '#22c55e' : (i % 2 === 0 ? '#dc262640' : '#14532d40')}
+              stroke="#374151" strokeWidth="0.5"
+              opacity={isTarget ? 1 : 0.5}
+              style={isTarget ? { filter: 'drop-shadow(0 0 8px #22c55e90)' } : undefined}
+            />
+          )
+        })}
+        {/* Wire circle at double ring boundary */}
+        <circle cx={cx} cy={cy} r={88} fill="none" stroke="#4b5563" strokeWidth="0.5" />
+        <circle cx={cx} cy={cy} r={100} fill="none" stroke="#4b5563" strokeWidth="0.5" />
+        {/* Bull rings */}
+        <circle cx={cx} cy={cy} r={16} fill="#14532d" stroke="#374151" strokeWidth="0.5" />
+        <circle cx={cx} cy={cy} r={7} fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
+        {/* Wire lines between segments */}
+        {BOARD_SEGS.map((_, i) => {
+          const angle = (i * 18 - 99) * Math.PI / 180
+          return (
+            <line key={`wire-${i}`}
+              x1={cx + 16 * Math.cos(angle)} y1={cy + 16 * Math.sin(angle)}
+              x2={cx + 100 * Math.cos(angle)} y2={cy + 100 * Math.sin(angle)}
+              stroke="#374151" strokeWidth="0.3"
+            />
+          )
+        })}
+        {/* Number labels */}
+        {BOARD_SEGS.map((num, i) => {
+          const angle = (i * 18 - 90) * Math.PI / 180
+          const r = 109
+          const isTarget = num === targetFieldNumber
+          return (
+            <text key={`lbl-${num}`}
+              x={cx + r * Math.cos(angle)} y={cy + r * Math.sin(angle) + 3.5}
+              textAnchor="middle" fontSize={isTarget ? 11 : 8} fontWeight={isTarget ? 900 : 500}
+              fill={isTarget ? '#22c55e' : '#9ca3af'}
+              style={isTarget ? { filter: 'drop-shadow(0 0 4px #22c55e)' } : undefined}
+            >{num}</text>
+          )
+        })}
+      </svg>
+    )
+  }
+
+  // --- Hit/Miss button styles ---
+  const hitBtnStyle: React.CSSProperties = {
+    flex: 1, height: 60, borderRadius: 12, border: 'none', cursor: 'pointer',
+    fontSize: 18, fontWeight: 700, touchAction: 'manipulation',
+    background: isArcade ? '#14532d' : '#dcfce7',
+    color: isArcade ? '#22c55e' : '#15803d',
+    boxShadow: isArcade ? 'inset 0 0 0 2px #22c55e' : 'inset 0 0 0 2px #16a34a40',
+  }
+  const missBtnStyle: React.CSSProperties = {
+    flex: 1, height: 60, borderRadius: 12, border: 'none', cursor: 'pointer',
+    fontSize: 18, fontWeight: 700, touchAction: 'manipulation',
+    background: isArcade ? '#7f1d1d' : '#fee2e2',
+    color: isArcade ? '#ef4444' : '#b91c1c',
+    boxShadow: isArcade ? 'inset 0 0 0 2px #ef4444' : 'inset 0 0 0 2px #dc262640',
+  }
+
+  // --- Mobile Layout ---
+  if (isMobile) {
+    const showButtons = !state.finished && !matchEndDelay && !state.legFinished && currentTarget
+
+    if (isLandscape) {
+      // ==================== LANDSCAPE ====================
+      return (
+        <div style={{ background: c.bg, minHeight: '100dvh', maxHeight: '100dvh', color: c.textBright, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {gamePaused && <PauseOverlay onResume={handleResume} />}
+          {/* Compact Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', borderBottom: `1px solid ${c.border}`, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: c.textDim }}>Bob's 27</span>
+              {(state.match?.config.legsCount ?? 1) > 1 && (
+                <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
+              )}
+              <span style={{ fontSize: 11, fontFamily: 'monospace', color: c.textDim }}>{formatDuration(elapsedMs)}</span>
+            </div>
+            <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch}
+              title={`Bob's 27${multiplayer?.enabled && multiplayer.roomCode ? ` \u00b7 ${multiplayer.roomCode}` : ''}`} />
+          </div>
+          {/* Main landscape content */}
+          <div style={{ flex: 1, display: 'flex', minHeight: 0, padding: '6px 8px', gap: 10 }}>
+            {/* LEFT: Dartboard + dart count */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0 }}>
+              {renderMiniDartboard(150)}
+              {currentTarget && !state.finished && (
+                <div style={{ fontSize: 11, color: c.textDim }}>
+                  Dart {activePlayerState?.currentDartNumber ?? 1}/{state.match?.config.dartsPerTarget ?? 3}
+                  {(activePlayerState?.hitsOnCurrentTarget ?? 0) > 0 && (
+                    <span style={{ color: c.green, marginLeft: 6 }}>{activePlayerState?.hitsOnCurrentTarget} Treffer</span>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* CENTER: Target + buttons */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: 0 }}>
+              {activePlayer && isMulti && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: playerColor }} />
+                  <span style={{ fontSize: 16, fontWeight: 700, color: playerColor }}>{activePlayer.name}</span>
+                </div>
+              )}
+              {/* Score + Target */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ fontSize: 48, fontWeight: 800, color: c.textBright, lineHeight: 1, position: 'relative' }}>
+                  {activePlayerState?.score ?? state.match?.config.startScore ?? 27}
+                  {deltaFlash && (
+                    <div key={deltaFlash.key} style={{ position: 'absolute', top: -6, right: -40, fontSize: 20, fontWeight: 700, color: deltaFlash.value >= 0 ? c.green : c.red, animation: 'fadeUp 1.5s forwards' }}>
+                      {deltaFlash.value >= 0 ? `+${deltaFlash.value}` : deltaFlash.value}
+                    </div>
+                  )}
+                </div>
+                {currentTarget && !state.finished && (
+                  <div style={{ background: c.cardBg, border: `2px solid ${c.accent}`, borderRadius: 10, padding: '6px 16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: c.textDim }}>Ziel {(activePlayerState?.currentTargetIndex ?? 0) + 1}/{state.match?.targets.length ?? 20}</div>
+                    <div style={{ fontSize: 30, fontWeight: 800, color: c.accent }}>{currentTarget.label}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Leg Summary overlay */}
+              {state.legFinished && !state.finished && !matchEndDelay && (
+                <div style={{ background: c.cardBg, border: `2px solid ${c.accent}`, borderRadius: 12, padding: '12px 16px', textAlign: 'center', width: '100%', maxWidth: 300 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: c.accent, marginBottom: 6 }}>Leg {state.currentLegIndex + 1} beendet</div>
+                  {state.legWinnerId && <div style={{ fontSize: 14, fontWeight: 600, color: c.green, marginBottom: 4 }}>{players.find(p => p.playerId === state.legWinnerId)?.name ?? 'Unbekannt'} gewinnt!</div>}
+                  {!state.legWinnerId && <div style={{ fontSize: 14, color: c.textDim, marginBottom: 4 }}>Unentschieden</div>}
+                  {state.legFinalScores && <div style={{ marginBottom: 6 }}>{players.map((p, i) => (
+                    <div key={p.playerId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: p.playerId === state.legWinnerId ? c.green : c.textBright, fontWeight: p.playerId === state.legWinnerId ? 700 : 400, padding: '2px 6px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: PLAYER_COLORS[i % PLAYER_COLORS.length] }} />{p.name}</span>
+                      <span>{state.legFinalScores![p.playerId] ?? 0}</span>
+                    </div>
+                  ))}</div>}
+                  <div style={{ fontSize: 11, color: c.textDim, marginBottom: 8 }}>Stand: {players.map(p => `${p.name} ${state.legWins[p.playerId] ?? 0}`).join(' \u2013 ')}</div>
+                  <button onClick={handleNextLeg} style={{ padding: '8px 16px', fontSize: 14, fontWeight: 700, background: c.accent, border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', touchAction: 'manipulation' }}>Naechstes Leg &rarr;</button>
+                </div>
+              )}
+
+              {/* Match finished */}
+              {(state.finished || matchEndDelay) && (
+                <div style={{ background: c.cardBg, border: `2px solid ${c.green}`, borderRadius: 12, padding: '12px 16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: c.green }}>{activePlayerState?.eliminated ? 'Game Over!' : 'Geschafft!'}</div>
+                  {(state.match?.config.legsCount ?? 1) > 1 && state.finished?.winnerId && (
+                    <div style={{ fontSize: 12, color: c.textDim, marginTop: 2 }}>{players.find(p => p.playerId === state.finished?.winnerId)?.name ?? ''} gewinnt {players.map(p => `${state.legWins[p.playerId] ?? 0}`).join('\u2013')}</div>
+                  )}
+                  {saving ? (
+                    <div style={{ fontSize: 12, color: c.textDim, marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Speichern...
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: c.textDim, marginTop: 4 }}>Ergebnis wird geladen...</div>
+                  )}
+                </div>
+              )}
+
+              {/* Hit/Miss Buttons */}
+              {showButtons && (
+                <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 300 }}>
+                  <button onClick={() => doThrow(false)} style={missBtnStyle}>{'\u2715'} Daneben</button>
+                  <button onClick={() => doThrow(true)} style={hitBtnStyle}>{'\u2713'} Treffer!</button>
+                </div>
+              )}
+              {/* Undo */}
+              {!state.finished && !matchEndDelay && !state.legFinished && events.length > 1 && (
+                <button onClick={undoLast} style={{ padding: '4px 12px', fontSize: 11, background: 'transparent', border: `1px solid ${c.border}`, color: c.textDim, borderRadius: 6, cursor: 'pointer' }}>Undo</button>
+              )}
+            </div>
+            {/* RIGHT: Player list */}
+            <div style={{ width: 130, flexShrink: 0, overflowY: 'auto', borderLeft: `1px solid ${c.border}`, paddingLeft: 8 }}>
+              {players.map((p, i) => {
+                const ps = state.playerStates[p.playerId]
+                const color = PLAYER_COLORS[i % PLAYER_COLORS.length]
+                const isActive = p.playerId === activePlayerId
+                const isEliminated = ps?.eliminated ?? false
+                const isFinished = ps?.finished ?? false
+                const targetIdx = ps?.currentTargetIndex ?? 0
+                const totalTargets = state.match?.targets.length ?? 20
+                return (
+                  <div key={p.playerId} style={{ padding: '5px 6px', borderBottom: `1px solid ${c.border}`, opacity: isEliminated ? 0.4 : 1, background: isActive ? (isArcade ? '#1a1a1a' : `${color}10`) : 'transparent', borderRadius: isActive ? 6 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 1 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: c.textBright, paddingLeft: 10 }}>{ps?.score ?? 27}</div>
+                    <div style={{ fontSize: 9, color: c.textDim, paddingLeft: 10 }}>
+                      {isEliminated ? '\u2620 Eliminiert' : isFinished ? '\u2714 Fertig' : `D${state.match?.targets[targetIdx]?.fieldNumber ?? '?'} (${targetIdx + 1}/${totalTargets})`}
+                    </div>
+                    {(state.match?.config.legsCount ?? 1) > 1 && (
+                      <div style={{ fontSize: 9, color: c.accent, fontWeight: 600, paddingLeft: 10, marginTop: 1 }}>Legs: {state.legWins[p.playerId] ?? 0}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <style>{`
+            @keyframes fadeUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
+            @keyframes spin { to { transform: rotate(360deg); } }
+          `}</style>
+        </div>
+      )
+    }
+
+    // ==================== PORTRAIT ====================
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, display: 'flex', flexDirection: 'column' }}>
+        {gamePaused && <PauseOverlay onResume={handleResume} />}
+        {/* Compact Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', borderBottom: `1px solid ${c.border}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: c.textDim }}>Bob's 27</span>
+            {(state.match?.config.legsCount ?? 1) > 1 && (
+              <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
+            )}
+            <span style={{ fontSize: 11, fontFamily: 'monospace', color: c.textDim }}>{formatDuration(elapsedMs)}</span>
+          </div>
+          <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch}
+            title={`Bob's 27${multiplayer?.enabled && multiplayer.roomCode ? ` \u00b7 ${multiplayer.roomCode}` : ''}`} />
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 12px', gap: 8 }}>
+          {/* Mini Dartboard */}
+          {!state.finished && !matchEndDelay && (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              {renderMiniDartboard(120)}
+            </div>
+          )}
+
+          {/* Target Info */}
+          {currentTarget && !state.finished && !matchEndDelay && (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 36, fontWeight: 800, color: c.accent, lineHeight: 1 }}>{currentTarget.label}</div>
+              <div style={{ fontSize: 12, color: c.textDim, marginTop: 2 }}>
+                Dart {activePlayerState?.currentDartNumber ?? 1}/{state.match?.config.dartsPerTarget ?? 3}
+                {' \u00b7 '}Ziel {(activePlayerState?.currentTargetIndex ?? 0) + 1}/{state.match?.targets.length ?? 20}
+                {(activePlayerState?.hitsOnCurrentTarget ?? 0) > 0 && (
+                  <span style={{ color: c.green, marginLeft: 6 }}>{activePlayerState?.hitsOnCurrentTarget} Treffer</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Player name + Score */}
+          <div style={{ textAlign: 'center' }}>
+            {activePlayer && isMulti && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 2 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: playerColor }} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: playerColor }}>{activePlayer.name}</span>
+              </div>
+            )}
+            <div style={{ fontSize: 52, fontWeight: 800, color: c.textBright, lineHeight: 1, position: 'relative', display: 'inline-block' }}>
+              {activePlayerState?.score ?? state.match?.config.startScore ?? 27}
+              {deltaFlash && (
+                <div key={deltaFlash.key} style={{ position: 'absolute', top: -6, right: -40, fontSize: 22, fontWeight: 700, color: deltaFlash.value >= 0 ? c.green : c.red, animation: 'fadeUp 1.5s forwards' }}>
+                  {deltaFlash.value >= 0 ? `+${deltaFlash.value}` : deltaFlash.value}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Leg Summary overlay */}
+          {state.legFinished && !state.finished && !matchEndDelay && (
+            <div style={{ background: c.cardBg, border: `2px solid ${c.accent}`, borderRadius: 12, padding: '14px 18px', textAlign: 'center', width: '100%', maxWidth: 340 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: c.accent, marginBottom: 8 }}>Leg {state.currentLegIndex + 1} beendet</div>
+              {state.legWinnerId && <div style={{ fontSize: 14, fontWeight: 600, color: c.green, marginBottom: 6 }}>{players.find(p => p.playerId === state.legWinnerId)?.name ?? 'Unbekannt'} gewinnt!</div>}
+              {!state.legWinnerId && <div style={{ fontSize: 14, color: c.textDim, marginBottom: 6 }}>Unentschieden</div>}
+              {state.legFinalScores && <div style={{ marginBottom: 8 }}>{players.map((p, i) => (
+                <div key={p.playerId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: p.playerId === state.legWinnerId ? c.green : c.textBright, fontWeight: p.playerId === state.legWinnerId ? 700 : 400, padding: '2px 8px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: PLAYER_COLORS[i % PLAYER_COLORS.length] }} />{p.name}</span>
+                  <span>{state.legFinalScores![p.playerId] ?? 0}</span>
+                </div>
+              ))}</div>}
+              <div style={{ fontSize: 12, color: c.textDim, marginBottom: 10 }}>Stand: {players.map(p => `${p.name} ${state.legWins[p.playerId] ?? 0}`).join(' \u2013 ')}</div>
+              <button onClick={handleNextLeg} style={{ padding: '10px 20px', fontSize: 15, fontWeight: 700, background: c.accent, border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', touchAction: 'manipulation' }}>Naechstes Leg &rarr;</button>
+            </div>
+          )}
+
+          {/* Match finished */}
+          {(state.finished || matchEndDelay) && (
+            <div style={{ background: c.cardBg, border: `2px solid ${c.green}`, borderRadius: 12, padding: '14px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: c.green }}>{activePlayerState?.eliminated ? 'Game Over!' : 'Geschafft!'}</div>
+              {(state.match?.config.legsCount ?? 1) > 1 && state.finished?.winnerId && (
+                <div style={{ fontSize: 13, color: c.textDim, marginTop: 3 }}>{players.find(p => p.playerId === state.finished?.winnerId)?.name ?? ''} gewinnt {players.map(p => `${state.legWins[p.playerId] ?? 0}`).join('\u2013')}</div>
+              )}
+              {saving ? (
+                <div style={{ fontSize: 12, color: c.textDim, marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Speichern...
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: c.textDim, marginTop: 4 }}>Ergebnis wird geladen...</div>
+              )}
+            </div>
+          )}
+
+          {/* HIT / MISS Buttons */}
+          {showButtons && (
+            <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 340 }}>
+              <button onClick={() => doThrow(false)} style={missBtnStyle}>{'\u2715'} Daneben</button>
+              <button onClick={() => doThrow(true)} style={hitBtnStyle}>{'\u2713'} Treffer!</button>
+            </div>
+          )}
+
+          {/* Undo */}
+          {!state.finished && !matchEndDelay && !state.legFinished && events.length > 1 && (
+            <button onClick={undoLast} style={{ padding: '4px 14px', fontSize: 11, background: 'transparent', border: `1px solid ${c.border}`, color: c.textDim, borderRadius: 6, cursor: 'pointer' }}>Undo</button>
+          )}
+
+          {/* Player scores (compact list) */}
+          {isMulti && (
+            <div style={{ width: '100%', maxWidth: 340, background: c.cardBg, borderRadius: 8, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
+              {players.map((p, i) => {
+                const ps = state.playerStates[p.playerId]
+                const color = PLAYER_COLORS[i % PLAYER_COLORS.length]
+                const isActive = p.playerId === activePlayerId
+                const isEliminated = ps?.eliminated ?? false
+                const isPlayerFinished = ps?.finished ?? false
+                const targetIdx = ps?.currentTargetIndex ?? 0
+                const totalTargets = state.match?.targets.length ?? 20
+                return (
+                  <div key={p.playerId} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', borderBottom: `1px solid ${c.border}`,
+                    opacity: isEliminated ? 0.4 : 1,
+                    background: isActive ? (isArcade ? '#1a1a1a' : `${color}10`) : 'transparent',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? color : c.textBright }}>{p.name}</div>
+                        <div style={{ fontSize: 10, color: c.textDim }}>
+                          {isEliminated ? '\u2620 Eliminiert' : isPlayerFinished ? '\u2714 Fertig' : `D${state.match?.targets[targetIdx]?.fieldNumber ?? '?'} (${targetIdx + 1}/${totalTargets})`}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {(state.match?.config.legsCount ?? 1) > 1 && (
+                        <span style={{ fontSize: 10, color: c.accent, fontWeight: 600 }}>L:{state.legWins[p.playerId] ?? 0}</span>
+                      )}
+                      <span style={{ fontSize: 20, fontWeight: 800, color: c.textBright }}>{ps?.score ?? 27}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Single-player: compact history */}
+          {!isMulti && activePlayerState && activePlayerState.targetResults.length > 0 && (
+            <div style={{ width: '100%', maxWidth: 340, background: c.cardBg, borderRadius: 8, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
+              <div style={{ padding: '4px 8px', fontSize: 10, fontWeight: 600, color: c.textDim, borderBottom: `1px solid ${c.border}` }}>Verlauf</div>
+              <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <tbody>
+                    {[...activePlayerState.targetResults].reverse().map((r, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${c.border}` }}>
+                        <td style={{ padding: '3px 8px', fontWeight: 500 }}>{r.target.label}</td>
+                        <td style={{ textAlign: 'center', padding: '3px 6px' }}>
+                          {r.hits > 0 ? <span style={{ color: c.green }}>{r.hits}/{r.dartsThrown}</span> : <span style={{ color: c.red }}>0/{r.dartsThrown}</span>}
+                        </td>
+                        <td style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 600, color: r.delta >= 0 ? c.green : c.red }}>
+                          {r.delta >= 0 ? `+${r.delta}` : r.delta}
+                        </td>
+                        <td style={{ textAlign: 'right', padding: '3px 8px', fontWeight: 600 }}>{r.scoreAfter}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes fadeUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    )
+  }
+
+  // ==================== DESKTOP (unchanged) ====================
   return (
     <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright }}>
       {/* Pause Overlay */}
