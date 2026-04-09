@@ -79,6 +79,14 @@ function fmtDate(s?: string) {
   return new Date(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+function fmtDateTime(s?: string) {
+  if (!s) return '—'
+  const d = new Date(s)
+  const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
+  const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+  return `${date} ${time}`
+}
+
 function safeTsFromMatch(m: { createdAt?: string; events?: any[] }) {
   const ts = m.createdAt
   if (ts) return ts
@@ -504,6 +512,13 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  useEffect(() => {
+    const check = () => setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [showUnfinished, setShowUnfinished] = useState(false)
@@ -909,65 +924,49 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                padding: '8px 10px',
+                gap: isMobile ? 6 : 8,
+                padding: isMobile ? '6px 8px' : '8px 12px',
                 background: m.finished ? colors.bgCard : (isArcade ? 'rgba(251,191,36,0.15)' : '#fefce8'),
-                borderRadius: 6,
+                borderRadius: 8,
                 cursor: 'pointer',
-                fontSize: 13,
                 boxShadow: isArcade ? 'none' : '0 1px 2px rgba(0,0,0,0.05)',
                 border: m.finished
-                  ? (isArcade ? `1px solid ${colors.border}` : 'none')
+                  ? (isArcade ? `1px solid ${colors.border}` : `1px solid ${colors.border}40`)
                   : `1px solid ${isArcade ? '#fbbf24' : '#fcd34d'}`,
                 opacity: m.finished ? 1 : 0.85,
                 overflow: 'hidden',
               }}
             >
-              {!m.finished && (
-                <span style={{
-                  background: isArcade ? '#fbbf24' : '#fbbf24',
-                  color: '#78350f',
-                  fontSize: 10,
-                  fontWeight: 800,
-                  padding: '2px 6px',
-                  borderRadius: 4,
-                  textTransform: 'uppercase',
-                }}>
-                  Abgebr.
+              {/* Left: Status badges + Mode */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                {!m.finished && (
+                  <span style={{ background: '#fbbf24', color: '#78350f', fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, textTransform: 'uppercase', lineHeight: 1.2 }}>
+                    offen
+                  </span>
+                )}
+                {(m as any).isOnline && <span style={{ fontSize: 10 }} title="Online">🌐</span>}
+                <span style={{ fontWeight: 700, color: colors.fg, fontSize: isMobile ? 11 : 12, whiteSpace: 'nowrap' }}>
+                  {m.matchName || m.mode}{(m as any).isCrazy ? ' 🤪' : ''}{(m as any).isCapture ? ' 🚩' : ''}
                 </span>
-              )}
-              {(m as any).isOnline && (
-                <span style={{ fontSize: 11, flexShrink: 0 }} title="Online-Spiel">🌐</span>
-              )}
-              <span style={{ fontWeight: 700, flexShrink: 1, color: colors.fg, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                {m.matchName || m.mode}
-                {(m as any).isCrazy && ' 🤪'}
-                {(m as any).isCapture && ' 🚩'}
-                {(m as any).isSuddenDeath && ' ☠️'}
-              </span>
-              <span style={{ flex: 1, fontSize: 11, color: colors.fgMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+              </div>
+              {/* Center: Players */}
+              <span style={{ flex: 1, fontSize: isMobile ? 10 : 11, color: colors.fgMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                 {m.playerNames.join(', ')}
               </span>
-              {m.result && (
-                <span style={{
-                  fontWeight: 800,
-                  fontSize: 13,
-                  color: colors.fg,
-                  background: colors.bgMuted,
-                  padding: '2px 6px',
-                  borderRadius: 4,
-                  flexShrink: 0,
-                  textAlign: 'center',
-                }}>
-                  {m.result}
+              {/* Right: Result + Winner + Date */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
+                {m.result && (
+                  <span style={{ fontWeight: 800, fontSize: isMobile ? 11 : 12, color: colors.fg, background: colors.bgMuted, padding: '1px 5px', borderRadius: 4 }}>
+                    {m.result}
+                  </span>
+                )}
+                {m.winnerName ? (
+                  <span style={{ fontWeight: 600, color: colors.success, fontSize: isMobile ? 10 : 12, maxWidth: isMobile ? 50 : 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.winnerName}</span>
+                ) : !m.finished ? null : null}
+                <span style={{ color: colors.fgDim, fontSize: isMobile ? 10 : 11, whiteSpace: 'nowrap' }}>
+                  {isMobile ? fmtDate(m.createdAt) : fmtDateTime(m.createdAt)}
                 </span>
-              )}
-              {m.winnerName ? (
-                <span style={{ fontWeight: 600, color: colors.success, flexShrink: 0, fontSize: 12 }}>{m.winnerName}</span>
-              ) : !m.finished ? (
-                <span style={{ color: colors.warning, fontWeight: 500, flexShrink: 0, fontSize: 12 }}>offen</span>
-              ) : null}
-              <span style={{ color: colors.fgDim, fontSize: 11, flexShrink: 0 }}>{fmtDate(m.createdAt)}</span>
+              </div>
             </div>
           ))
         )}
