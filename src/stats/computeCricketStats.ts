@@ -339,18 +339,19 @@ export function computeCricketStats(cricketMatch: {
         if (dart.mult === 3) playerAcc.triplesHit += 1
         else if (dart.mult === 2) playerAcc.doublesHit += 1
 
-        // Marks aus dem Dart
+        // Marks aus dem Dart (nur auf Cricket-relevante Felder)
         if (dart.target !== 'MISS') {
-          const marksFromThisDart =
-            dart.target === 'BULL' && dart.mult === 3
-              ? 2
-              : dart.mult
+          const fieldKey = (dart.target === 'BULL' ? 'BULL' : dart.target) as CricketTarget
+          const isRelevantField = cricketTargets.includes(fieldKey)
+
+          const marksFromThisDart = isRelevantField
+            ? (dart.target === 'BULL' && dart.mult === 3 ? 2 : dart.mult)
+            : 0
           turnMarks += marksFromThisDart
           if (marksFromThisDart > 0) {
             turnHadScore = true
           }
 
-          const fieldKey = (dart.target === 'BULL' ? 'BULL' : dart.target) as CricketTarget
           playerAcc.marksByField[fieldKey] = (playerAcc.marksByField[fieldKey] ?? 0) + marksFromThisDart
         }
       }
