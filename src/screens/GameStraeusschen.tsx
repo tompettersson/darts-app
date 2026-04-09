@@ -399,7 +399,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
 
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {
-    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
+    if (!multiplayer?.enabled || isMyTurn) { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() }
   }, [activePlayerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard Handler

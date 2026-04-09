@@ -1135,11 +1135,14 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }, [activeId, multiplayer?.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== Keyboard Shortcuts =====
-  // Ensure document has focus so keydown events are captured immediately
-  // Ensure keyboard focus when a local player's turn starts
+  // Ensure keyboard focus — blur any focused button/input so keydown reaches window
+  const cricketContainerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!multiplayer?.enabled || isMyTurn) document.body.focus()
-  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!multiplayer?.enabled || isMyTurn) {
+      // Remove focus from any button/input that might be capturing keystrokes
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    }
+  }, [activeId, matchNotReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentActiveTargetRef = useRef(currentActiveTarget)
   currentActiveTargetRef.current = currentActiveTarget
