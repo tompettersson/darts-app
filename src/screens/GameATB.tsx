@@ -214,9 +214,12 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
 
+      // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+      const isLocalPlayer = !multiplayer?.enabled || atbLocalIds.includes(activePlayerId)
+
       const extSeq = state.match.extendedSequence
 
-      announceGameStart(activePlayer.name)
+      if (isLocalPlayer) announceGameStart(activePlayer.name)
 
       // Erstes Ziel direkt nach Game-On ansagen (mit Verzögerung)
       const startIndex = state.currentIndexByPlayer[activePlayerId] ?? 0
@@ -228,9 +231,11 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
       if (firstTarget) {
         lastAnnouncedPlayerRef.current = activePlayerId
         lastAnnouncedTargetRef.current = firstTarget
-        setTimeout(() => {
-          announceATBPlayerTurn(activePlayer.name, firstTarget)
-        }, 1200)
+        if (isLocalPlayer) {
+          setTimeout(() => {
+            announceATBPlayerTurn(activePlayer.name, firstTarget)
+          }, 1200)
+        }
       }
     }
   }, [state.match, activePlayerId, activePlayer, state.currentIndexByPlayer])
@@ -263,10 +268,14 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
       lastAnnouncedPlayerRef.current = activePlayerId
       lastAnnouncedTargetRef.current = currentTarget
 
-      // Debounced für natürlichen Fluss (verhindert Stacking bei schnellem Undo)
-      debouncedAnnounce(() => {
-        announceATBPlayerTurn(activePlayer.name, currentTarget)
-      })
+      // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+      const isLocalPlayer = !multiplayer?.enabled || atbLocalIds.includes(activePlayerId)
+      if (isLocalPlayer) {
+        // Debounced für natürlichen Fluss (verhindert Stacking bei schnellem Undo)
+        debouncedAnnounce(() => {
+          announceATBPlayerTurn(activePlayer.name, currentTarget)
+        })
+      }
     }
   }, [activePlayerId, activePlayer, state.finished, state.match?.sequence, state.match?.extendedSequence, state.currentIndexByPlayer])
 

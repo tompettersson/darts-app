@@ -305,25 +305,33 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     const mustScore = state.match && !state.match.config.allowNegative &&
       activePlayerState.score < currentTarget.doubleValue
 
+    // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+    const localIds = bobsLocalIds
+    const isLocalPlayer = !multiplayer?.enabled || localIds.includes(activePlayer.playerId)
+
     // Beim allerersten Mal "Game On!" ansagen, danach den Turn
     if (!gameOnAnnouncedRef.current) {
       gameOnAnnouncedRef.current = true
-      announceGameStart(activePlayer.name)
+      if (isLocalPlayer) {
+        announceGameStart(activePlayer.name)
+        // Kurz danach den Turn ansagen
+        scheduleSpeech(() => {
+          announceBobs27PlayerTurn(activePlayer.name, activePlayerState.score, currentTarget.label)
+          if (mustScore) announceBobs27MustScore()
+        }, 1500)
+      }
       lastAnnouncedKeyRef.current = key
-      // Kurz danach den Turn ansagen
-      scheduleSpeech(() => {
-        announceBobs27PlayerTurn(activePlayer.name, activePlayerState.score, currentTarget.label)
-        if (mustScore) announceBobs27MustScore()
-      }, 1500)
       return
     }
 
     if (key !== lastAnnouncedKeyRef.current) {
       lastAnnouncedKeyRef.current = key
-      debouncedAnnounce(() => {
-        announceBobs27PlayerTurn(activePlayer.name, activePlayerState.score, currentTarget.label)
-        if (mustScore) announceBobs27MustScore()
-      })
+      if (isLocalPlayer) {
+        debouncedAnnounce(() => {
+          announceBobs27PlayerTurn(activePlayer.name, activePlayerState.score, currentTarget.label)
+          if (mustScore) announceBobs27MustScore()
+        })
+      }
     }
   }, [activePlayer, activePlayerState, currentTarget, state.finished, gamePaused, matchEndDelay, state.match])
 

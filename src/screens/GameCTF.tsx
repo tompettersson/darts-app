@@ -218,16 +218,21 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
 
-      announceGameStart(activePlayer.name)
+      // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+      const isLocalPlayer = !multiplayer?.enabled || ctfLocalIds.includes(activePlayerId)
+
+      if (isLocalPlayer) announceGameStart(activePlayer.name)
 
       // Erstes Ziel direkt nach Game-On ansagen (mit Verzoegerung)
       const firstTarget = currentTarget?.number
       if (firstTarget) {
         lastAnnouncedPlayerRef.current = activePlayerId
         lastAnnouncedTargetRef.current = firstTarget
-        scheduleSpeech(() => {
-          announceCTFNewRound(activePlayer.name, firstTarget, 1)
-        }, 1200)
+        if (isLocalPlayer) {
+          scheduleSpeech(() => {
+            announceCTFNewRound(activePlayer.name, firstTarget, 1)
+          }, 1200)
+        }
       }
     }
   }, [state.match, activePlayerId, activePlayer, currentTarget])
@@ -247,10 +252,14 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     if (lastAnnouncedPlayerRef.current !== activePlayerId) {
       lastAnnouncedPlayerRef.current = activePlayerId
 
-      // Debounced fuer natuerlichen Fluss (verhindert Stacking bei schnellem Undo)
-      debouncedAnnounce(() => {
-        announceCTFPlayerTurn(activePlayer.name)
-      })
+      // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+      const isLocalPlayer = !multiplayer?.enabled || ctfLocalIds.includes(activePlayerId)
+      if (isLocalPlayer) {
+        // Debounced fuer natuerlichen Fluss (verhindert Stacking bei schnellem Undo)
+        debouncedAnnounce(() => {
+          announceCTFPlayerTurn(activePlayer.name)
+        })
+      }
     }
   }, [activePlayerId, activePlayer, state.finished])
 

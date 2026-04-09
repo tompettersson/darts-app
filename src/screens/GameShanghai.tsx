@@ -206,7 +206,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
   useEffect(() => {
     if (!gameOnAnnouncedRef.current && state.match && activePlayerId && activePlayer) {
       gameOnAnnouncedRef.current = true
-      announceGameStart(activePlayer.name)
+      const isLocalPlayer = !multiplayer?.enabled || shanghaiLocalIds.includes(activePlayerId)
+      if (isLocalPlayer) announceGameStart(activePlayer.name)
       lastAnnouncedPlayerRef.current = activePlayerId
       lastAnnouncedRoundRef.current = currentRound
     }
@@ -228,17 +229,21 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     if (lastAnnouncedPlayerRef.current !== activePlayerId) {
       lastAnnouncedPlayerRef.current = activePlayerId
 
-      // Debounced (verhindert Stacking bei schnellem Undo)
-      debouncedAnnounce(() => {
-        // Neue Runde? -> Zielzahl + Name ansagen
-        if (currentRound !== lastAnnouncedRoundRef.current) {
-          lastAnnouncedRoundRef.current = currentRound
-          announceShanghaiRoundAndPlayer(targetNumber, activePlayer.name)
-        } else {
-          // Gleiche Runde, nur Spielerwechsel -> nur Name
-          announceShanghaiPlayerTurn(activePlayer.name)
-        }
-      })
+      // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+      const isLocalPlayer = !multiplayer?.enabled || shanghaiLocalIds.includes(activePlayerId)
+      if (isLocalPlayer) {
+        // Debounced (verhindert Stacking bei schnellem Undo)
+        debouncedAnnounce(() => {
+          // Neue Runde? -> Zielzahl + Name ansagen
+          if (currentRound !== lastAnnouncedRoundRef.current) {
+            lastAnnouncedRoundRef.current = currentRound
+            announceShanghaiRoundAndPlayer(targetNumber, activePlayer.name)
+          } else {
+            // Gleiche Runde, nur Spielerwechsel -> nur Name
+            announceShanghaiPlayerTurn(activePlayer.name)
+          }
+        })
+      }
     }
   }, [activePlayerId, activePlayer, state.finished, gamePaused, intermission, currentRound, targetNumber])
 

@@ -269,12 +269,16 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     }
   }, [state.log.length])
 
-  // Speech: Announce active player
+  // Speech: Announce active player (only for local players in multiplayer)
   const prevActiveRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activePlayerId || muted || gamePaused || intermission) return
     if (prevActiveRef.current === activePlayerId) return
     prevActiveRef.current = activePlayerId
+
+    // Multiplayer: nur ansagen wenn der aktive Spieler lokal ist
+    const isLocalPlayer = !multiplayer?.enabled || killerLocalIds.includes(activePlayerId)
+    if (!isLocalPlayer) return
 
     const ps = players.find(p => p.playerId === activePlayerId)
     if (!ps) return
