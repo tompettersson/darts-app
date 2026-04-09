@@ -69,7 +69,7 @@ export async function getBobs27FullStats(playerId: string): Promise<Bobs27FullSt
       SELECT
         e.match_id,
         COUNT(*) as throws,
-        SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) as hits
+        SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as hits
       FROM bobs27_events e
       WHERE e.match_id IN (SELECT id FROM player_matches)
         AND e.type = 'Bobs27Throw'
@@ -170,7 +170,7 @@ export async function getBobs27MonthlyHitRate(playerId: string): Promise<TrendPo
     SELECT
       to_char(m.created_at::timestamp, 'YYYY-MM') as month,
       COUNT(*) as total_throws,
-      SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) as total_hits,
+      SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as total_hits,
       COUNT(DISTINCT m.id) as match_count
     FROM bobs27_matches m
     JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
@@ -226,7 +226,7 @@ export async function getBobs27Progression(playerId: string): Promise<Bobs27Prog
         (m.final_scores::jsonb->>?)::integer as final_score,
         COALESCE(
           (SELECT
-            ROUND(CAST(SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) AS numeric) /
+            ROUND(CAST(SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) AS numeric) /
             NULLIF(COUNT(*), 0) * 100, 1)
           FROM bobs27_events e
           WHERE e.match_id = m.id AND e.type = 'Bobs27Throw'
@@ -267,7 +267,7 @@ export async function getBobs27DoubleWeakness(playerId: string): Promise<Bobs27D
       SELECT
         (e.data::jsonb->>'targetIndex')::integer as target_index,
         COUNT(*) as attempts,
-        SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END) as hits
+        SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as hits
       FROM bobs27_events e
       JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1

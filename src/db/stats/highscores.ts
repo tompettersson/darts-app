@@ -735,7 +735,7 @@ export async function getHighscoreBobs27BestHitRate(limit: number = 10): Promise
       mp.player_id,
       p.name as player_name,
       p.color as player_color,
-      SUM(CASE WHEN (e.data::jsonb->>'hit')::integer = 1 THEN 1 ELSE 0 END)::real /
+      SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END)::real /
         NULLIF(COUNT(*), 0) * 100 as hit_rate,
       COUNT(DISTINCT m.id) as match_count
     FROM bobs27_matches m
