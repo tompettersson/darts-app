@@ -266,6 +266,18 @@ export function removeFromActiveGamesCache(matchId: string): void {
   activeGamesCache = activeGamesCache.filter(g => g.id !== matchId)
 }
 
+export function addToActiveGamesCache(game: ActiveGame): void {
+  if (!activeGamesCache.find(g => g.id === game.id)) {
+    activeGamesCache.unshift(game)
+  }
+}
+
+/** Insert active game into DB AND update local cache */
+export function registerActiveGame(game: ActiveGame): void {
+  addToActiveGamesCache(game)
+  dbInsertActiveGame(game).catch(() => {})
+}
+
 /** Internal helper: find an active (unfinished) game by game type — replaces old getOpenMatchSummary. */
 function getOpenMatchSummary(gameType: string): { id: string; title: string } | undefined {
   return activeGamesCache.find(g => g.gameType === gameType)
@@ -954,7 +966,7 @@ export async function createMatchShell(args: { // Cache wird beim finishMatch in
     trackDBError('x01-create', stored.id, err)
   }
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.playerIds[0] ?? '',
     gameType: 'x01',
@@ -962,7 +974,7 @@ export async function createMatchShell(args: { // Cache wird beim finishMatch in
     config: null,
     players: null,
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -1062,7 +1074,7 @@ export async function createNewMatch(cfg: NewGameConfig): Promise<StoredMatch> {
     trackDBError('x01-create', stored.id, err)
   }
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: cfg.players[0]?.id ?? '',
     gameType: 'x01',
@@ -1070,7 +1082,7 @@ export async function createNewMatch(cfg: NewGameConfig): Promise<StoredMatch> {
     config: { startingScore: 501 },
     players: cfg.players.map(p => ({ id: p.id, name: p.name, color: p.color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -2068,7 +2080,7 @@ export function createCricketMatchShell(args: {
     playerIds: stored.playerIds,
   }).catch(err => trackDBError('cricket-create', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players.find(p => !p.isGuest)?.id ?? args.players[0]?.id ?? '',
     gameType: 'cricket',
@@ -2076,7 +2088,7 @@ export function createCricketMatchShell(args: {
     config: { range: args.range, style: args.style, bestOfGames: args.bestOfGames },
     players: args.players.map(p => ({ id: p.id, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -3062,7 +3074,7 @@ export function createATBMatchShell(args: {
     generatedSequence: stored.generatedSequence,
   }).catch(err => trackDBError('atb-create', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players[0]?.playerId ?? '',
     gameType: 'atb',
@@ -3070,7 +3082,7 @@ export function createATBMatchShell(args: {
     config: { mode: args.mode, direction: args.direction },
     players: args.players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -3725,7 +3737,7 @@ export function createStrMatchShell(args: {
   }
   dbSaveStrMatch(dbMatch).catch(err => trackDBError('str-create', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players[0]?.playerId ?? '',
     gameType: 'str',
@@ -3733,7 +3745,7 @@ export function createStrMatchShell(args: {
     config: { mode: args.mode, ringMode },
     players: args.players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -3932,7 +3944,7 @@ export function createCTFMatchShell(args: {
     generatedSequence: stored.generatedSequence,
   }).catch(err => trackDBError('ctf-save', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players[0]?.playerId ?? '',
     gameType: 'ctf',
@@ -3940,7 +3952,7 @@ export function createCTFMatchShell(args: {
     config: { sequenceMode: args.config.sequenceMode },
     players: args.players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -4186,7 +4198,7 @@ export function createShanghaiMatchShell(args: {
     config: stored.config,
   }).catch(err => trackDBError('shanghai-save', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players[0]?.playerId ?? '',
     gameType: 'shanghai',
@@ -4194,7 +4206,7 @@ export function createShanghaiMatchShell(args: {
     config: config,
     players: args.players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -4414,7 +4426,7 @@ export function createKillerMatchShell(
     structure: resolvedStructure,
   }).catch(err => trackDBError('killer-save', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: players[0]?.playerId ?? '',
     gameType: 'killer',
@@ -4422,7 +4434,7 @@ export function createKillerMatchShell(
     config: config,
     players: players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -4614,7 +4626,7 @@ export function createBobs27MatchShell(args: {
     targets: stored.targets,
   }).catch(err => trackDBError('bobs27-save', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players[0]?.playerId ?? '',
     gameType: 'bobs27',
@@ -4622,7 +4634,7 @@ export function createBobs27MatchShell(args: {
     config: config,
     players: args.players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -4924,7 +4936,7 @@ export function createOperationMatchShell(args: {
     config: stored.config,
   }).catch(err => trackDBError('operation-save', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: matchId,
     playerId: args.players[0]?.playerId ?? '',
     gameType: 'operation',
@@ -4932,7 +4944,7 @@ export function createOperationMatchShell(args: {
     config: config,
     players: args.players.map(p => ({ id: p.playerId, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }
@@ -5667,7 +5679,7 @@ export function createHighscoreMatchShell(args: {
   }
   dbSaveHighscoreMatch(dbMatch).catch(err => trackDBError('highscore-create', stored.id, err))
 
-  dbInsertActiveGame({
+  registerActiveGame({
     id: stored.id,
     playerId: args.players[0]?.id ?? '',
     gameType: 'highscore',
@@ -5675,7 +5687,7 @@ export function createHighscoreMatchShell(args: {
     config: { targetScore: args.targetScore },
     players: args.players.map(p => ({ id: p.id, name: p.name, color: (p as any).color })),
     startedAt: new Date().toISOString(),
-  }).catch(() => {})
+  })
 
   return stored
 }

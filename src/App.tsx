@@ -62,6 +62,7 @@ import {
   createCheckoutTrainerMatchShell,
   getActiveGamesCache,
   removeFromActiveGamesCache,
+  registerActiveGame,
   getCricketMatchesAsync,
   getATBMatchesAsync,
   getStrMatchesAsync,
@@ -1000,15 +1001,12 @@ export default function App() {
               })
             } catch (err) { console.warn('[RandomGame] DB save failed:', err) }
 
-            try {
-              const { dbInsertActiveGame } = await import('./db/storage')
-              await dbInsertActiveGame({
-                id: matchId, playerId: players[0]?.id ?? '', gameType: 'x01',
-                title: stored.title, config: { startingScore: score },
-                players: players.map(p => ({ id: p.id, name: p.name })),
-                startedAt: new Date().toISOString(),
-              })
-            } catch {}
+            registerActiveGame({
+              id: matchId, playerId: players[0]?.id ?? '', gameType: 'x01',
+              title: stored.title, config: { startingScore: score },
+              players: players.map(p => ({ id: p.id, name: p.name })),
+              startedAt: new Date().toISOString(),
+            })
 
             setActiveMatchId(matchId)
             setLastActivity('x01', matchId)
