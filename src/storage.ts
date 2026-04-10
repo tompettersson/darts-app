@@ -632,19 +632,15 @@ export function ensureMultiplayerMatchExists<T extends { id: string; events?: an
 
 /** Ensure X01 match exists for multiplayer guest (cache + SQLite) */
 export function ensureX01MatchExists(matchId: string, events: any[], playerIds: string[], title: string) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
+  // DB persistence happens at match end via ensureX01MatchExistsAsync.
   ensureMultiplayerMatchExists(
     matchId,
     events,
     () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, title, finished: false } as StoredMatch),
     getMatches,
     saveMatches,
-    (stub) => {
-      dbSaveX01Match({
-        id: stub.id, title: (stub as any).title ?? 'Multiplayer', matchName: null, notes: null,
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        events, playerIds,
-      }).catch(err => trackDBError('x01-mp-ensure', matchId, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 
@@ -657,134 +653,268 @@ export async function ensureX01MatchExistsAsync(matchId: string, events: any[], 
     list.unshift(stub)
     saveMatches(list)
   } else {
-    // Update events in memory cache
     const idx = list.findIndex(m => m.id === matchId)
     if (idx >= 0) { list[idx] = { ...list[idx], events }; saveMatches(list) }
   }
-  // Await DB write
+  // Write match record + players (idempotent upsert), then append events
   await dbSaveX01Match({
     id: matchId, title, matchName: null, notes: null,
     createdAt: events[0]?.ts ?? now(), finished: false, finishedAt: null,
-    events, playerIds,
+    events: [], // Don't write events here — use append-only below
+    playerIds,
   })
+  // Append all events via append-only (ON CONFLICT DO NOTHING prevents duplicates)
+  await dbAppendEvents('x01_events', matchId, events, 0)
+  // Set persisted count so subsequent persistEvents calls don't re-write
+  persistedEventCount.set(matchId, events.length)
 }
 
 /** Ensure Cricket match exists for multiplayer guest */
 export function ensureCricketMatchExists(matchId: string, events: any[], playerIds: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
+  // DB persistence happens at match end via ensureCricketMatchExistsAsync.
   ensureMultiplayerMatchExists(
     matchId,
     events,
     () => ({ id: matchId, createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false } as CricketStoredMatch),
     getCricketMatches,
     saveCricketMatches,
-    (stub) => {
-      dbSaveCricketMatch({
-        id: stub.id, title: 'Cricket – Multiplayer', matchName: null, notes: null,
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        events, playerIds,
-      }).catch(err => trackDBError('cricket-mp-ensure', matchId, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 
 export function ensureATBMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getATBMatches, saveATBMatches,
-    (stub) => {
-      dbSaveATBMatch({
-        id: stub.id, title: 'Around the Board – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        mode: '', direction: '', players: [], events: e,
-      }).catch(err => trackDBError('atb-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureStrMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getStrMatches, saveStrMatches,
-    (stub) => {
-      dbSaveStrMatch({
-        id: stub.id, title: 'Sträußchen – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        mode: '', targetNumber: null, numberOrder: null, turnOrder: null,
-        ringMode: null, bullMode: null, bullPosition: null,
-        players: [], events: e,
-      }).catch(err => trackDBError('str-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureHighscoreMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getHighscoreMatches, saveHighscoreMatches,
-    (stub) => {
-      dbSaveHighscoreMatch({
-        id: stub.id, title: 'Highscore – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        targetScore: 0, players: [], events: e,
-      }).catch(err => trackDBError('highscore-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureCTFMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getCTFMatches, saveCTFMatches,
-    (stub) => {
-      dbSaveCTFMatch({
-        id: stub.id, title: 'Capture the Field – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        players: [], events: e,
-      }).catch(err => trackDBError('ctf-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureShanghaiMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getShanghaiMatches, saveShanghaiMatches,
-    (stub) => {
-      dbSaveShanghaiMatch({
-        id: stub.id, title: 'Shanghai – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        players: [], events: e,
-      }).catch(err => trackDBError('shanghai-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureKillerMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getKillerMatches, saveKillerMatches,
-    (stub) => {
-      dbSaveKillerMatch({
-        id: stub.id, title: 'Killer – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        players: [], events: e,
-      }).catch(err => trackDBError('killer-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureBobs27MatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getBobs27Matches, saveBobs27Matches,
-    (stub) => {
-      dbSaveBobs27Match({
-        id: stub.id, title: "Bob's 27 – Multiplayer",
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        players: [], events: e,
-      }).catch(err => trackDBError('bobs27-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
 }
 export function ensureOperationMatchExists(m: string, e: any[], p: string[]) {
+  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
   ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getOperationMatches, saveOperationMatches,
-    (stub) => {
-      dbSaveOperationMatch({
-        id: stub.id, title: 'Operation – Multiplayer',
-        createdAt: (stub as any).createdAt, finished: false, finishedAt: null,
-        durationMs: null, winnerId: null, winnerDarts: null,
-        legsCount: 1, targetMode: 'random',
-        players: [], events: e, config: {},
-      }).catch(err => trackDBError('operation-mp-ensure', m, err))
-    },
+    undefined, // No DB write during gameplay — saves DB calls
   )
+}
+
+/** Async versions — use when match needs to be saved reliably (e.g., match end) */
+
+export async function ensureCricketMatchExistsAsync(matchId: string, events: any[], playerIds: string[]) {
+  const list = getCricketMatches()
+  const exists = list.some(m => m.id === matchId)
+  if (!exists) {
+    const stub: CricketStoredMatch = { id: matchId, title: 'Cricket – Multiplayer', createdAt: events[0]?.ts ?? now(), events, playerIds, finished: false }
+    list.unshift(stub)
+    saveCricketMatches(list)
+  } else {
+    const idx = list.findIndex(m => m.id === matchId)
+    if (idx >= 0) { list[idx] = { ...list[idx], events }; saveCricketMatches(list) }
+  }
+  await dbSaveCricketMatch({
+    id: matchId, title: 'Cricket – Multiplayer', matchName: null, notes: null,
+    createdAt: events[0]?.ts ?? now(), finished: false, finishedAt: null,
+    events: [], playerIds,
+  })
+  await dbAppendEvents('cricket_events', matchId, events, 0)
+  persistedEventCount.set(matchId, events.length)
+}
+
+export async function ensureATBMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getATBMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveATBMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveATBMatches(list) }
+  }
+  await dbSaveATBMatch({
+    id: m, title: 'Around the Board – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    mode: '', direction: '', players: [], events: [],
+  })
+  await dbAppendEvents('atb_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getStrMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveStrMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveStrMatches(list) }
+  }
+  await dbSaveStrMatch({
+    id: m, title: 'Sträußchen – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    mode: '', targetNumber: null, numberOrder: null, turnOrder: null,
+    ringMode: null, bullMode: null, bullPosition: null,
+    players: [], events: [],
+  })
+  await dbAppendEvents('str_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getHighscoreMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveHighscoreMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveHighscoreMatches(list) }
+  }
+  await dbSaveHighscoreMatch({
+    id: m, title: 'Highscore – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    targetScore: 0, players: [], events: [],
+  })
+  await dbAppendEvents('highscore_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getCTFMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveCTFMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveCTFMatches(list) }
+  }
+  await dbSaveCTFMatch({
+    id: m, title: 'Capture the Field – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    players: [], events: [],
+  })
+  await dbAppendEvents('ctf_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getShanghaiMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveShanghaiMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveShanghaiMatches(list) }
+  }
+  await dbSaveShanghaiMatch({
+    id: m, title: 'Shanghai – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    players: [], events: [],
+  })
+  await dbAppendEvents('shanghai_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getKillerMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveKillerMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveKillerMatches(list) }
+  }
+  await dbSaveKillerMatch({
+    id: m, title: 'Killer – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    players: [], events: [],
+  })
+  await dbAppendEvents('killer_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getBobs27Matches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveBobs27Matches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveBobs27Matches(list) }
+  }
+  await dbSaveBobs27Match({
+    id: m, title: "Bob's 27 – Multiplayer",
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    players: [], events: [],
+  })
+  await dbAppendEvents('bobs27_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
+}
+
+export async function ensureOperationMatchExistsAsync(m: string, e: any[], p: string[]) {
+  const list = getOperationMatches()
+  const exists = list.some(x => x.id === m)
+  if (!exists) {
+    list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any)
+    saveOperationMatches(list)
+  } else {
+    const idx = list.findIndex(x => x.id === m)
+    if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveOperationMatches(list) }
+  }
+  await dbSaveOperationMatch({
+    id: m, title: 'Operation – Multiplayer',
+    createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null,
+    durationMs: null, winnerId: null, winnerDarts: null,
+    legsCount: 1, targetMode: 'random',
+    players: [], events: [], config: {},
+  })
+  await dbAppendEvents('operation_events', m, e, 0)
+  persistedEventCount.set(m, e.length)
 }
 
 // SQLite-aware Matches laden

@@ -19,6 +19,7 @@ import {
   getPlayerColorBackgroundEnabled,
   getProfiles,
   ensureOperationMatchExists,
+  ensureOperationMatchExistsAsync,
 } from '../storage'
 import {
   applyOperationEvents,
@@ -413,9 +414,12 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'OperationMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
       setMatchEndDelay(true)
+      const startEvtForFinish = remote.find((e: any) => e.type === 'OperationMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureOperationMatchExistsAsync(matchId, remote, playerIds)
           try { await persistOperationEvents(matchId, remote) } catch {}
           await finishOperationMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores, matchFinishedEvt.legWins)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -426,6 +430,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('operation_matches', matchId)) return
+            await ensureOperationMatchExistsAsync(matchId, remote, playerIds)
             await persistOperationEvents(matchId, remote)
             await finishOperationMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores, matchFinishedEvt.legWins)
           } catch {}

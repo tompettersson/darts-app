@@ -13,6 +13,7 @@ import {
   deleteHighscoreMatch,
   getProfiles,
   ensureHighscoreMatchExists,
+  ensureHighscoreMatchExistsAsync,
 } from '../storage'
 import {
   applyHighscoreEvents,
@@ -106,9 +107,12 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     const matchFinishedEvt = remote.find((e: any) => e.type === 'HighscoreMatchFinished') as any
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'HighscoreMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
+      const startEvtForFinish = remote.find((e: any) => e.type === 'HighscoreMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureHighscoreMatchExistsAsync(matchId, remote, playerIds)
           try { await persistHighscoreEvents(matchId, remote) } catch {}
           await finishHighscoreMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -119,6 +123,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('highscore_matches', matchId)) return
+            await ensureHighscoreMatchExistsAsync(matchId, remote, playerIds)
             await persistHighscoreEvents(matchId, remote)
             await finishHighscoreMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

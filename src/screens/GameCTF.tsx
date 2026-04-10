@@ -16,6 +16,7 @@ import {
   getPlayerColorBackgroundEnabled,
   getProfiles,
   ensureCTFMatchExists,
+  ensureCTFMatchExistsAsync,
 } from '../storage'
 import {
   applyCTFEvents,
@@ -138,9 +139,12 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     const matchFinishedEvt = remote.find((e: any) => e.type === 'CTFMatchFinished') as any
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'CTFMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
+      const startEvtForFinish = remote.find((e: any) => e.type === 'CTFMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureCTFMatchExistsAsync(matchId, remote, playerIds)
           try { await persistCTFEvents(matchId, remote) } catch {}
           await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -151,6 +155,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('ctf_matches', matchId)) return
+            await ensureCTFMatchExistsAsync(matchId, remote, playerIds)
             await persistCTFEvents(matchId, remote)
             await finishCTFMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

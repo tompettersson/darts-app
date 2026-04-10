@@ -16,6 +16,7 @@ import {
   setMatchElapsedTime,
   getProfiles,
   ensureKillerMatchExists,
+  ensureKillerMatchExistsAsync,
 } from '../storage'
 import {
   applyKillerEvents,
@@ -165,9 +166,12 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'KillerMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
       const finalState = applyKillerEvents(remote)
+      const startEvtForFinish = remote.find((e: any) => e.type === 'KillerMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureKillerMatchExistsAsync(matchId, remote, playerIds)
           try { await persistKillerEvents(matchId, remote) } catch {}
           await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
           if (onFinish) setTimeout(() => onFinish(matchId), 2000)
@@ -178,6 +182,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('killer_matches', matchId)) return
+            await ensureKillerMatchExistsAsync(matchId, remote, playerIds)
             await persistKillerEvents(matchId, remote)
             await finishKillerMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.finalStandings, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, finalState.legWinsByPlayer, finalState.setWinsByPlayer)
           } catch {}

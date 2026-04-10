@@ -17,6 +17,7 @@ import {
   getPlayerColorBackgroundEnabled,
   getProfiles,
   ensureShanghaiMatchExists,
+  ensureShanghaiMatchExistsAsync,
 } from '../storage'
 import {
   applyShanghaiEvents,
@@ -152,9 +153,12 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     const matchFinishedEvt = remote.find((e: any) => e.type === 'ShanghaiMatchFinished') as any
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'ShanghaiMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
+      const startEvtForFinish = remote.find((e: any) => e.type === 'ShanghaiMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureShanghaiMatchExistsAsync(matchId, remote, playerIds)
           try { await persistShanghaiEvents(matchId, remote) } catch {}
           await finishShanghaiMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -165,6 +169,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('shanghai_matches', matchId)) return
+            await ensureShanghaiMatchExistsAsync(matchId, remote, playerIds)
             await persistShanghaiEvents(matchId, remote)
             await finishShanghaiMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

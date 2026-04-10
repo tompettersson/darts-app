@@ -25,6 +25,7 @@ import {
   getProfiles,
   getPlayerColorBackgroundEnabled,
   ensureCricketMatchExists,
+  ensureCricketMatchExistsAsync,
 } from '../storage'
 import { ui } from '../ui'
 import CricketArcadeView from '../components/CricketArcadeView'
@@ -706,9 +707,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       ? prevEvents.some((e: any) => e.type === 'CricketMatchFinished')
       : false
     if (cricketMatchFinishedEvt && !prevHadCricketFinished) {
+      const startEvtForFinish = remote.find((e: any) => e.type === 'CricketMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureCricketMatchExistsAsync(matchId, remote, playerIds)
           try { await persistCricketEvents(matchId, remote) } catch {}
           await finishCricketMatch(matchId)
           if (onShowCricketSummary) setTimeout(() => onShowCricketSummary(matchId), 2000)
@@ -719,6 +723,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('cricket_matches', matchId)) return
+            await ensureCricketMatchExistsAsync(matchId, remote, playerIds)
             await persistCricketEvents(matchId, remote)
             await finishCricketMatch(matchId)
           } catch {}
