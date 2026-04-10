@@ -12,6 +12,7 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
@@ -346,41 +347,41 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={tdLeft}>Darts</td>
+                    <td style={tdLeft}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Felder</td>
+                    <td style={tdLeft}><StatTooltip label="Felder" tooltip={STAT_TOOLTIPS['Felder'] || 'Felder'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.fieldsCompleted} / {sequence.length}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Ø Darts/Feld</td>
+                    <td style={tdLeft}><StatTooltip label="Ø Darts/Feld" tooltip={STAT_TOOLTIPS['Ø Darts/Feld'] || 'Ø Darts/Feld'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgDartsPerField.toFixed(2)}</td>)}
                   </tr>
                   <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                   <tr>
-                    <td style={tdLeft}>Triples</td>
+                    <td style={tdLeft}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.triples}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Doubles</td>
+                    <td style={tdLeft}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.doubles}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Misses</td>
+                    <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.misses}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Trefferquote</td>
+                    <td style={tdLeft}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
                   </tr>
                   <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                   <tr>
-                    <td style={tdLeft}>Beste Runde</td>
+                    <td style={tdLeft}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.bestTurn} Felder</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Perfekte Runden</td>
+                    <td style={tdLeft}><StatTooltip label="Perfekte Runden" tooltip={STAT_TOOLTIPS['Perfekte Runden'] || 'Perfekte Runden'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.perfectTurns}</td>)}
                   </tr>
                 </tbody>
@@ -406,25 +407,25 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={tdLeft}>First-Dart-Hit-Rate</td>
+                        <td style={tdLeft}><StatTooltip label="First-Dart-Hit-Rate" tooltip={STAT_TOOLTIPS['First-Dart-Hit-Rate'] || 'First-Dart-Hit-Rate'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>{ps.firstDartHitRate.toFixed(1)}%</td>
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Längste First-Dart-Serie</td>
+                        <td style={tdLeft}><StatTooltip label="Längste First-Dart-Serie" tooltip={STAT_TOOLTIPS['Längste First-Dart-Serie'] || 'Längste First-Dart-Serie'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>{ps.firstDartStreak} Felder</td>
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Bull-Trefferquote</td>
+                        <td style={tdLeft}><StatTooltip label="Bull-Trefferquote" tooltip={STAT_TOOLTIPS['Bull-Trefferquote'] || 'Bull-Trefferquote'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>{ps.bullHitRate.toFixed(1)}%</td>
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Bestes Feld</td>
+                        <td style={tdLeft}><StatTooltip label="Bestes Feld" tooltip={STAT_TOOLTIPS['Bestes Feld'] || 'Bestes Feld'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>
                             {ps.bestField ? `${ps.bestField.field} (${ps.bestField.darts} Darts)` : '—'}
@@ -432,7 +433,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Schwerstes Feld</td>
+                        <td style={tdLeft}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>
                             {ps.worstField ? `${ps.worstField.field} (${ps.worstField.darts} Darts)` : '—'}
@@ -459,19 +460,19 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={tdLeft}>Misses</td>
+                        <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>{ps.misses}</td>
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Längste Miss-Serie</td>
+                        <td style={tdLeft}><StatTooltip label="Längste Miss-Serie" tooltip={STAT_TOOLTIPS['Längste Miss-Serie'] || 'Längste Miss-Serie'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>{ps.longestMissSeries}</td>
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Problemfelder</td>
+                        <td style={tdLeft}><StatTooltip label="Problemfelder" tooltip={STAT_TOOLTIPS['Problemfelder'] || 'Problemfelder'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={{ ...tdRight, fontSize: 12 }}>
                             {ps.problematicFields.length > 0 ? ps.problematicFields.join(', ') : '—'}
@@ -498,7 +499,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={tdLeft}>Ø Darts (1-10)</td>
+                        <td style={tdLeft}><StatTooltip label="Ø Darts (1-10)" tooltip={STAT_TOOLTIPS['Ø Darts (1-10)'] || 'Ø Darts (1-10)'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>
                             {ps.comparison1to10 > 0 ? ps.comparison1to10.toFixed(2) : '—'}
@@ -506,7 +507,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Ø Darts (11-Bull)</td>
+                        <td style={tdLeft}><StatTooltip label="Ø Darts (11-Bull)" tooltip={STAT_TOOLTIPS['Ø Darts (11-Bull)'] || 'Ø Darts (11-Bull)'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => (
                           <td key={ps.playerId} style={tdRight}>
                             {ps.comparison11toBull > 0 ? ps.comparison11toBull.toFixed(2) : '—'}
@@ -514,7 +515,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                         ))}
                       </tr>
                       <tr>
-                        <td style={tdLeft}>Fazit</td>
+                        <td style={tdLeft}><StatTooltip label="Fazit" tooltip={STAT_TOOLTIPS['Fazit'] || 'Fazit'} colors={colors} /></td>
                         {legDetailedStats.map((ps) => {
                           const diff = ps.comparison11toBull - ps.comparison1to10
                           const label = Math.abs(diff) < 0.2 ? 'Konstant'
@@ -706,23 +707,23 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
               <tbody>
                 {legs.length > 1 && (
                   <tr>
-                    <td style={tdLeft}>Legs gewonnen</td>
+                    <td style={tdLeft}><StatTooltip label="Legs gewonnen" tooltip={STAT_TOOLTIPS['Legs gewonnen'] || 'Legs gewonnen'} colors={colors} /></td>
                     {match.players.map((p) => (
                       <td key={p.playerId} style={tdRight}>{legWinsPerPlayer[p.playerId]}</td>
                     ))}
                   </tr>
                 )}
                 <tr>
-                  <td style={tdLeft}>Darts gesamt</td>
+                  <td style={tdLeft}><StatTooltip label="Darts gesamt" tooltip={STAT_TOOLTIPS['Darts gesamt'] || 'Darts gesamt'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Ø Darts pro Feld</td>
+                  <td style={tdLeft}><StatTooltip label="Ø Darts pro Feld" tooltip={STAT_TOOLTIPS['Ø Darts pro Feld'] || 'Ø Darts pro Feld'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgDartsPerField.toFixed(2)}</td>)}
                 </tr>
                 <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                 <tr>
-                  <td style={tdLeft}>Triples</td>
+                  <td style={tdLeft}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></td>
                   {matchStats.map((ps) => (
                     <td key={ps.playerId} style={tdRight}>
                       {ps.triples} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.tripleRate.toFixed(1)}%)</span>
@@ -730,7 +731,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Doubles</td>
+                  <td style={tdLeft}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></td>
                   {matchStats.map((ps) => (
                     <td key={ps.playerId} style={tdRight}>
                       {ps.doubles} <span style={{ color: colors.fgMuted, fontSize: 11 }}>({ps.doubleRate.toFixed(1)}%)</span>
@@ -738,24 +739,24 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Singles</td>
+                  <td style={tdLeft}><StatTooltip label="Singles" tooltip={STAT_TOOLTIPS['Singles'] || 'Singles'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.singles}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Misses</td>
+                  <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.misses}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Trefferquote</td>
+                  <td style={tdLeft}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
                 </tr>
                 <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                 <tr>
-                  <td style={tdLeft}>Beste Runde</td>
+                  <td style={tdLeft}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.bestTurn} Felder</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Perfekte Runden</td>
+                  <td style={tdLeft}><StatTooltip label="Perfekte Runden" tooltip={STAT_TOOLTIPS['Perfekte Runden'] || 'Perfekte Runden'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.perfectTurns}</td>)}
                 </tr>
               </tbody>
@@ -781,31 +782,31 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={tdLeft}>First-Dart-Hit-Rate</td>
+                      <td style={tdLeft}><StatTooltip label="First-Dart-Hit-Rate" tooltip={STAT_TOOLTIPS['First-Dart-Hit-Rate'] || 'First-Dart-Hit-Rate'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>{ps.firstDartHitRate.toFixed(1)}%</td>
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Längste First-Dart-Serie</td>
+                      <td style={tdLeft}><StatTooltip label="Längste First-Dart-Serie" tooltip={STAT_TOOLTIPS['Längste First-Dart-Serie'] || 'Längste First-Dart-Serie'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>{ps.firstDartStreak} Felder</td>
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Perfekte Runden</td>
+                      <td style={tdLeft}><StatTooltip label="Perfekte Runden" tooltip={STAT_TOOLTIPS['Perfekte Runden'] || 'Perfekte Runden'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>{ps.perfectTurns}</td>
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Bull-Trefferquote</td>
+                      <td style={tdLeft}><StatTooltip label="Bull-Trefferquote" tooltip={STAT_TOOLTIPS['Bull-Trefferquote'] || 'Bull-Trefferquote'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>{ps.bullHitRate.toFixed(1)}%</td>
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Bestes Feld</td>
+                      <td style={tdLeft}><StatTooltip label="Bestes Feld" tooltip={STAT_TOOLTIPS['Bestes Feld'] || 'Bestes Feld'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>
                           {ps.bestField ? `${ps.bestField.field} (${ps.bestField.darts} Darts)` : '—'}
@@ -813,7 +814,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Schwerstes Feld</td>
+                      <td style={tdLeft}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>
                           {ps.worstField ? `${ps.worstField.field} (${ps.worstField.darts} Darts)` : '—'}
@@ -840,19 +841,19 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={tdLeft}>Misses gesamt</td>
+                      <td style={tdLeft}><StatTooltip label="Misses gesamt" tooltip={STAT_TOOLTIPS['Misses gesamt'] || 'Misses gesamt'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>{ps.misses}</td>
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Längste Miss-Serie</td>
+                      <td style={tdLeft}><StatTooltip label="Längste Miss-Serie" tooltip={STAT_TOOLTIPS['Längste Miss-Serie'] || 'Längste Miss-Serie'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>{ps.longestMissSeries}</td>
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Problematische Felder</td>
+                      <td style={tdLeft}><StatTooltip label="Problematische Felder" tooltip={STAT_TOOLTIPS['Problematische Felder'] || 'Problematische Felder'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={{ ...tdRight, fontSize: 12 }}>
                           {ps.problematicFields.length > 0 ? ps.problematicFields.join(', ') : '—'}
@@ -879,7 +880,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={tdLeft}>Ø Darts (1-10)</td>
+                      <td style={tdLeft}><StatTooltip label="Ø Darts (1-10)" tooltip={STAT_TOOLTIPS['Ø Darts (1-10)'] || 'Ø Darts (1-10)'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>
                           {ps.comparison1to10 > 0 ? ps.comparison1to10.toFixed(2) : '—'}
@@ -887,7 +888,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Ø Darts (11-Bull)</td>
+                      <td style={tdLeft}><StatTooltip label="Ø Darts (11-Bull)" tooltip={STAT_TOOLTIPS['Ø Darts (11-Bull)'] || 'Ø Darts (11-Bull)'} colors={colors} /></td>
                       {detailedStats.map((ps) => (
                         <td key={ps.playerId} style={tdRight}>
                           {ps.comparison11toBull > 0 ? ps.comparison11toBull.toFixed(2) : '—'}
@@ -895,7 +896,7 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
                       ))}
                     </tr>
                     <tr>
-                      <td style={tdLeft}>Fazit</td>
+                      <td style={tdLeft}><StatTooltip label="Fazit" tooltip={STAT_TOOLTIPS['Fazit'] || 'Fazit'} colors={colors} /></td>
                       {detailedStats.map((ps) => {
                         const diff = ps.comparison11toBull - ps.comparison1to10
                         const label = Math.abs(diff) < 0.2 ? 'Konstant'

@@ -24,6 +24,7 @@ import CricketProgressChart, {
   CRICKET_TARGETS,
 } from '../components/CricketProgressChart'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
 type Props = {
   matchId: string
@@ -585,7 +586,7 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
                       const winColors = row.better ? getStatWinnerColors(nums, allPlayerIds, row.better, playerColors) : undefined
                       return (
                         <tr key={i}>
-                          <td style={tdLeft}>{row.label}</td>
+                          <td style={tdLeft}><StatTooltip label={row.label} tooltip={STAT_TOOLTIPS[row.label] || row.label} colors={colors} /></td>
                           {row.values.map((v, j) => (
                             <td key={j} style={{ ...tdCenter, ...(winColors?.[j] ? { color: winColors[j], fontWeight: 700 } : {}) }}>{v}</td>
                           ))}
@@ -852,7 +853,7 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
                   const winColors = row.better ? getStatWinnerColors(nums, pids, row.better, playerColors) : undefined
                   return (
                     <tr key={i}>
-                      <td style={tdLeft}>{row.label}</td>
+                      <td style={tdLeft}><StatTooltip label={row.label} tooltip={STAT_TOOLTIPS[row.label] || row.label} colors={colors} /></td>
                       {row.values.map((v, j) => (
                         <td key={j} style={{
                           ...tdCenter,

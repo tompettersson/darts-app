@@ -27,6 +27,7 @@ import { getAllNumbers, getTargetLabel } from '../dartsStraeusschen'
 import type { StrRingMode } from '../types/straeusschen'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
@@ -270,17 +271,17 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={labelStyle}>Score</td>
+                    <td style={labelStyle}><StatTooltip label="Score" tooltip={STAT_TOOLTIPS['Score'] || 'Score'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle('#0ea5e9')}>{s.totalScore.toFixed(1)}</td>
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Darts</td>
+                    <td style={labelStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                     {sortedLeg.map(s => <td key={s.playerId} style={tdStyle(undefined)}>{s.totalDarts}</td>)}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Aufnahmen</td>
+                    <td style={labelStyle}><StatTooltip label="Aufnahmen" tooltip={STAT_TOOLTIPS['Aufnahmen'] || 'Aufnahmen'} colors={colors} /></td>
                     {sortedLeg.map(s => <td key={s.playerId} style={tdStyle(undefined)}>{s.totalTurns}</td>)}
                   </tr>
                   {/* Darts to Triple */}
@@ -313,7 +314,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     </>
                   )}
                   <tr>
-                    <td style={labelStyle}>Hit Rate</td>
+                    <td style={labelStyle}><StatTooltip label="Hit Rate" tooltip={STAT_TOOLTIPS['Hit Rate'] || 'Hit Rate'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(colors.success)}>
                         {s.hitRate.toFixed(1)}%
@@ -321,7 +322,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Treffer / Fehl</td>
+                    <td style={labelStyle}><StatTooltip label="Treffer / Fehl" tooltip={STAT_TOOLTIPS['Treffer / Fehl'] || 'Treffer / Fehl'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(undefined)}>
                         <span style={{ color: colors.success }}>{s.totalHits}</span>
@@ -331,7 +332,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Beste Runde</td>
+                    <td style={labelStyle}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(colors.accent)}>
                         {s.bestRound ? `${s.bestRound.hits}/${s.bestRound.darts}` : '—'}
@@ -339,7 +340,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Schlechteste Runde</td>
+                    <td style={labelStyle}><StatTooltip label="Schlechteste Runde" tooltip={STAT_TOOLTIPS['Schlechteste Runde'] || 'Schlechteste Runde'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(undefined)}>
                         {s.worstRound ? `${s.worstRound.hits}/${s.worstRound.darts}` : '—'}
@@ -347,7 +348,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Ø Treffer/Runde</td>
+                    <td style={labelStyle}><StatTooltip label="Ø Treffer/Runde" tooltip={STAT_TOOLTIPS['Ø Treffer/Runde'] || 'Ø Treffer/Runde'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(undefined)}>
                         {s.avgHitsPerRound.toFixed(2)}
@@ -355,7 +356,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>Längste Serie</td>
+                    <td style={labelStyle}><StatTooltip label="Längste Serie" tooltip={STAT_TOOLTIPS['Längste Serie'] || 'Längste Serie'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(colors.accent)}>
                         {s.longestHitStreak}
@@ -363,7 +364,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                     ))}
                   </tr>
                   <tr>
-                    <td style={labelStyle}>1. Dart Trefferquote</td>
+                    <td style={labelStyle}><StatTooltip label="1. Dart Trefferquote" tooltip={STAT_TOOLTIPS['1. Dart Trefferquote'] || '1. Dart Trefferquote'} colors={colors} /></td>
                     {sortedLeg.map(s => (
                       <td key={s.playerId} style={tdStyle(undefined)}>
                         {s.firstDartHitRate.toFixed(1)}%
@@ -372,7 +373,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   </tr>
                   {isMultiField && (
                     <tr>
-                      <td style={labelStyle}>Schwerstes Feld</td>
+                      <td style={labelStyle}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                       {sortedLeg.map(s => (
                         <td key={s.playerId} style={tdStyle(colors.error)}>
                           {s.hardestField ? `${formatTarget(s.hardestField.number)} (${s.hardestField.darts}D)` : '—'}
@@ -703,7 +704,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
               </thead>
               <tbody>
                 <tr>
-                  <td style={labelStyle}>{isMultiLeg ? 'Ø Score' : 'Score'}</td>
+                  <td style={labelStyle}><StatTooltip label={isMultiLeg ? 'Ø Score' : 'Score'} tooltip={STAT_TOOLTIPS[isMultiLeg ? 'Ø Score' : 'Score'] || (isMultiLeg ? 'Ø Score' : 'Score')} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle('#0ea5e9')}>
                       {isMultiLeg ? s.avgScorePerLeg.toFixed(1) : s.totalScore.toFixed(1)}
@@ -711,18 +712,18 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Aufnahmen</td>
+                  <td style={labelStyle}><StatTooltip label="Aufnahmen" tooltip={STAT_TOOLTIPS['Aufnahmen'] || 'Aufnahmen'} colors={colors} /></td>
                   {sorted.map(s => <td key={s.playerId} style={tdStyle(undefined)}>{s.totalTurns}</td>)}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Darts</td>
+                  <td style={labelStyle}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                   {sorted.map(s => <td key={s.playerId} style={tdStyle(undefined)}>{s.totalDarts}</td>)}
                 </tr>
                 {/* Ø Darts to Triple */}
                 {!isMultiField && (
                   <>
                     <tr>
-                      <td style={labelStyle}>{isMultiLeg ? 'Ø 1. Triple' : '1. Triple'}</td>
+                      <td style={labelStyle}><StatTooltip label={isMultiLeg ? 'Ø 1. Triple' : '1. Triple'} tooltip="Darts bis zum ersten Triple-Treffer" colors={colors} /></td>
                       {sorted.map(s => (
                         <td key={s.playerId} style={tdStyle(colors.accent)}>
                           {isMultiLeg
@@ -732,7 +733,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                       ))}
                     </tr>
                     <tr>
-                      <td style={labelStyle}>{isMultiLeg ? 'Ø 2. Triple' : '2. Triple'}</td>
+                      <td style={labelStyle}><StatTooltip label={isMultiLeg ? 'Ø 2. Triple' : '2. Triple'} tooltip="Darts bis zum zweiten Triple-Treffer" colors={colors} /></td>
                       {sorted.map(s => (
                         <td key={s.playerId} style={tdStyle(colors.accent)}>
                           {isMultiLeg
@@ -742,7 +743,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                       ))}
                     </tr>
                     <tr>
-                      <td style={labelStyle}>{isMultiLeg ? 'Ø 3. Triple' : '3. Triple'}</td>
+                      <td style={labelStyle}><StatTooltip label={isMultiLeg ? 'Ø 3. Triple' : '3. Triple'} tooltip="Darts bis zum dritten Triple-Treffer" colors={colors} /></td>
                       {sorted.map(s => (
                         <td key={s.playerId} style={tdStyle(colors.accent)}>
                           {isMultiLeg
@@ -755,7 +756,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                 )}
                 {isMultiLeg && (
                   <tr>
-                    <td style={labelStyle}>Ø Darts/Leg</td>
+                    <td style={labelStyle}><StatTooltip label="Ø Darts/Leg" tooltip={STAT_TOOLTIPS['Ø Darts/Leg'] || 'Ø Darts/Leg'} colors={colors} /></td>
                     {sorted.map(s => (
                       <td key={s.playerId} style={tdStyle(undefined)}>
                         {s.avgDartsPerLeg > 0 ? s.avgDartsPerLeg.toFixed(1) : '—'}
@@ -764,7 +765,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   </tr>
                 )}
                 <tr>
-                  <td style={labelStyle}>Hit Rate</td>
+                  <td style={labelStyle}><StatTooltip label="Hit Rate" tooltip={STAT_TOOLTIPS['Hit Rate'] || 'Hit Rate'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(colors.success)}>
                       {s.hitRate.toFixed(1)}%
@@ -772,7 +773,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Treffer / Fehl</td>
+                  <td style={labelStyle}><StatTooltip label="Treffer / Fehl" tooltip={STAT_TOOLTIPS['Treffer / Fehl'] || 'Treffer / Fehl'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(undefined)}>
                       <span style={{ color: colors.success }}>{s.totalHits}</span>
@@ -782,7 +783,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Beste Runde</td>
+                  <td style={labelStyle}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(colors.accent)}>
                       {s.bestRound ? `${s.bestRound.hits}/${s.bestRound.darts}` : '—'}
@@ -790,7 +791,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Schlechteste Runde</td>
+                  <td style={labelStyle}><StatTooltip label="Schlechteste Runde" tooltip={STAT_TOOLTIPS['Schlechteste Runde'] || 'Schlechteste Runde'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(undefined)}>
                       {s.worstRound ? `${s.worstRound.hits}/${s.worstRound.darts}` : '—'}
@@ -798,7 +799,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Ø Treffer/Runde</td>
+                  <td style={labelStyle}><StatTooltip label="Ø Treffer/Runde" tooltip={STAT_TOOLTIPS['Ø Treffer/Runde'] || 'Ø Treffer/Runde'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(undefined)}>
                       {s.avgHitsPerRound.toFixed(2)}
@@ -806,7 +807,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>Längste Serie</td>
+                  <td style={labelStyle}><StatTooltip label="Längste Serie" tooltip={STAT_TOOLTIPS['Längste Serie'] || 'Längste Serie'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(colors.accent)}>
                       {s.longestHitStreak}
@@ -814,7 +815,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                   ))}
                 </tr>
                 <tr>
-                  <td style={labelStyle}>1. Dart Trefferquote</td>
+                  <td style={labelStyle}><StatTooltip label="1. Dart Trefferquote" tooltip={STAT_TOOLTIPS['1. Dart Trefferquote'] || '1. Dart Trefferquote'} colors={colors} /></td>
                   {sorted.map(s => (
                     <td key={s.playerId} style={tdStyle(undefined)}>
                       {s.firstDartHitRate.toFixed(1)}%
@@ -823,7 +824,7 @@ export default function StrMatchDetails({ matchId, onBack }: Props) {
                 </tr>
                 {isMultiField && (
                   <tr>
-                    <td style={labelStyle}>Schwerstes Feld</td>
+                    <td style={labelStyle}><StatTooltip label="Schwerstes Feld" tooltip={STAT_TOOLTIPS['Schwerstes Feld'] || 'Schwerstes Feld'} colors={colors} /></td>
                     {sorted.map(s => (
                       <td key={s.playerId} style={tdStyle(colors.error)}>
                         {s.hardestField

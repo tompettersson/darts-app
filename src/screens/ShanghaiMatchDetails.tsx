@@ -16,6 +16,7 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader from '../components/LegHeader'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { PLAYER_COLORS } from '../playerColors'
 
 type Props = {
@@ -554,57 +555,57 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={{ ...tdLeft, fontWeight: 700 }}>Gesamt</td>
+                    <td style={{ ...tdLeft, fontWeight: 700 }}><StatTooltip label="Gesamt" tooltip={STAT_TOOLTIPS['Gesamt'] || 'Gesamt'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.accent, fontWeight: 800, fontSize: 16 }}>{ps.totalScore}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Darts</td>
+                    <td style={tdLeft}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>{'\u00D8'} pro Runde</td>
+                    <td style={tdLeft}><StatTooltip label="Ø pro Runde" tooltip={STAT_TOOLTIPS['Ø pro Runde'] || 'Ø pro Runde'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerRound.toFixed(1)}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Beste Runde</td>
+                    <td style={tdLeft}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>{ps.bestRound.score > 0 ? `${ps.bestRound.score} (R${ps.bestRound.round})` : '-'}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Schlechteste</td>
+                    <td style={tdLeft}><StatTooltip label="Schlechteste" tooltip={STAT_TOOLTIPS['Schlechteste'] || 'Schlechteste'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>{ps.worstRound.round > 0 ? `${ps.worstRound.score} (R${ps.worstRound.round})` : '-'}</td>)}
                   </tr>
                   <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                   <tr>
-                    <td style={tdLeft}>Triples</td>
+                    <td style={tdLeft}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.triples}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Doubles</td>
+                    <td style={tdLeft}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.doubles}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Singles</td>
+                    <td style={tdLeft}><StatTooltip label="Singles" tooltip={STAT_TOOLTIPS['Singles'] || 'Singles'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.singles}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Misses</td>
+                    <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.misses}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Trefferquote</td>
+                    <td style={tdLeft}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Konsistenz</td>
+                    <td style={tdLeft}><StatTooltip label="Konsistenz" tooltip={STAT_TOOLTIPS['Konsist.'] || 'Konsistenz'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.consistencyScore.toFixed(1)}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Scoring-Streak</td>
+                    <td style={tdLeft}><StatTooltip label="Scoring-Streak" tooltip={STAT_TOOLTIPS['Scoring-Streak'] || 'Scoring-Streak'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.longestScoringStreak}</td>)}
                   </tr>
                   {legStats.some(ps => ps.shanghaiCount > 0) && (
                     <tr>
-                      <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}>Shanghai</td>
+                      <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}><StatTooltip label="Shanghai" tooltip={STAT_TOOLTIPS['Shanghai'] || 'Shanghai'} colors={colors} /></td>
                       {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: ps.shanghaiCount > 0 ? colors.warning : colors.fgDim, fontWeight: ps.shanghaiCount > 0 ? 700 : 400 }}>{ps.shanghaiCount}x</td>)}
                     </tr>
                   )}
@@ -955,58 +956,58 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
               </thead>
               <tbody>
                 <tr>
-                  <td style={{ ...tdLeft, fontWeight: 700 }}>Gesamt</td>
+                  <td style={{ ...tdLeft, fontWeight: 700 }}><StatTooltip label="Gesamt" tooltip={STAT_TOOLTIPS['Gesamt'] || 'Gesamt'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.accent, fontWeight: 800, fontSize: 16 }}>{ps.totalScore}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Darts</td>
+                  <td style={tdLeft}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>{'\u00D8'} pro Runde</td>
+                  <td style={tdLeft}><StatTooltip label="Ø pro Runde" tooltip={STAT_TOOLTIPS['Ø pro Runde'] || 'Ø pro Runde'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerRound.toFixed(1)}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Beste Runde</td>
+                  <td style={tdLeft}><StatTooltip label="Beste Runde" tooltip={STAT_TOOLTIPS['Beste Runde'] || 'Beste Runde'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.success }}>{ps.bestRound.score > 0 ? `${ps.bestRound.score} (R${ps.bestRound.round})` : '-'}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Schlechteste</td>
+                  <td style={tdLeft}><StatTooltip label="Schlechteste" tooltip={STAT_TOOLTIPS['Schlechteste'] || 'Schlechteste'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: colors.error }}>{ps.worstRound.round > 0 ? `${ps.worstRound.score} (R${ps.worstRound.round})` : '-'}</td>)}
                 </tr>
                 <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                 {matchStats.some(ps => ps.shanghaiCount > 0) && (
                   <tr>
-                    <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}>Shanghai</td>
+                    <td style={{ ...tdLeft, color: colors.warning, fontWeight: 600 }}><StatTooltip label="Shanghai" tooltip={STAT_TOOLTIPS['Shanghai'] || 'Shanghai'} colors={colors} /></td>
                     {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: ps.shanghaiCount > 0 ? colors.warning : colors.fgDim, fontWeight: ps.shanghaiCount > 0 ? 700 : 400 }}>{ps.shanghaiCount}x</td>)}
                   </tr>
                 )}
                 <tr>
-                  <td style={tdLeft}>Triples</td>
+                  <td style={tdLeft}><StatTooltip label="Triples" tooltip={STAT_TOOLTIPS['Triples'] || 'Triples'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.triples}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Doubles</td>
+                  <td style={tdLeft}><StatTooltip label="Doubles" tooltip={STAT_TOOLTIPS['Doubles'] || 'Doubles'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.doubles}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Singles</td>
+                  <td style={tdLeft}><StatTooltip label="Singles" tooltip={STAT_TOOLTIPS['Singles'] || 'Singles'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.singles}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Misses</td>
+                  <td style={tdLeft}><StatTooltip label="Misses" tooltip={STAT_TOOLTIPS['Misses'] || 'Misses'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.misses}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Trefferquote</td>
+                  <td style={tdLeft}><StatTooltip label="Trefferquote" tooltip={STAT_TOOLTIPS['Trefferquote'] || 'Trefferquote'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.hitRate.toFixed(1)}%</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft} title="Standardabweichung der Rundenscores (niedriger = konsistenter)">Konsistenz</td>
+                  <td style={tdLeft}><StatTooltip label="Konsistenz" tooltip={STAT_TOOLTIPS['Konsist.'] || 'Konsistenz'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.consistencyScore.toFixed(1)}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft} title="Laengste Serie aufeinanderfolgender Runden mit Punkten">Scoring-Streak</td>
+                  <td style={tdLeft}><StatTooltip label="Scoring-Streak" tooltip={STAT_TOOLTIPS['Scoring-Streak'] || 'Scoring-Streak'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.longestScoringStreak}</td>)}
                 </tr>
               </tbody>

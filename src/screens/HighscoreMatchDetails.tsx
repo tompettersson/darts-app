@@ -9,6 +9,7 @@ import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
 import MatchHeader from '../components/MatchHeader'
 import LegHeader from '../components/LegHeader'
+import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import { PLAYER_COLORS } from '../playerColors'
@@ -328,36 +329,36 @@ export default function HighscoreMatchDetails({ matchId, onBack }: Props) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={tdLeft}>Endstand</td>
+                    <td style={tdLeft}><StatTooltip label="Endstand" tooltip={STAT_TOOLTIPS['Endstand'] || 'Endstand'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalScore}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Darts</td>
+                    <td style={tdLeft}><StatTooltip label="Darts" tooltip={STAT_TOOLTIPS['Darts'] || 'Darts'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Ø pro Dart</td>
+                    <td style={tdLeft}><StatTooltip label="Ø pro Dart" tooltip={STAT_TOOLTIPS['Ø pro Dart'] || 'Ø pro Dart'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerDart.toFixed(2)}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Ø pro Turn</td>
+                    <td style={tdLeft}><StatTooltip label="Ø pro Turn" tooltip={STAT_TOOLTIPS['Ø pro Turn'] || 'Ø pro Turn'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerTurn.toFixed(1)}</td>)}
                   </tr>
                   <tr><td colSpan={legStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                   <tr>
-                    <td style={tdLeft}>180er</td>
+                    <td style={tdLeft}><StatTooltip label="180er" tooltip={STAT_TOOLTIPS['180er'] || '180er'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: ps.turns180 > 0 ? '#fbbf24' : colors.fgDim }}>{ps.turns180}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>140+</td>
+                    <td style={tdLeft}><StatTooltip label="140+" tooltip={STAT_TOOLTIPS['140+'] || '140+'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.turns140plus}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>100+</td>
+                    <td style={tdLeft}><StatTooltip label="100+" tooltip={STAT_TOOLTIPS['100+'] || '100+'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.turns100plus}</td>)}
                   </tr>
                   <tr>
-                    <td style={tdLeft}>Bester Turn</td>
+                    <td style={tdLeft}><StatTooltip label="Bester Turn" tooltip={STAT_TOOLTIPS['Bester Turn'] || 'Bester Turn'} colors={colors} /></td>
                     {legStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.bestTurn}</td>)}
                   </tr>
                 </tbody>
@@ -479,43 +480,43 @@ export default function HighscoreMatchDetails({ matchId, onBack }: Props) {
               <tbody>
                 {legs.length > 1 && (
                   <tr>
-                    <td style={tdLeft}>Legs gewonnen</td>
+                    <td style={tdLeft}><StatTooltip label="Legs gewonnen" tooltip={STAT_TOOLTIPS['Legs gewonnen'] || 'Legs gewonnen'} colors={colors} /></td>
                     {match.players.map((p) => (
                       <td key={p.id} style={tdRight}>{legWinsPerPlayer[p.id]}</td>
                     ))}
                   </tr>
                 )}
                 <tr>
-                  <td style={tdLeft}>Punkte gesamt</td>
+                  <td style={tdLeft}><StatTooltip label="Punkte gesamt" tooltip={STAT_TOOLTIPS['Punkte gesamt'] || 'Punkte gesamt'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalScore}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Darts gesamt</td>
+                  <td style={tdLeft}><StatTooltip label="Darts gesamt" tooltip={STAT_TOOLTIPS['Darts gesamt'] || 'Darts gesamt'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.totalDarts}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Ø pro Dart</td>
+                  <td style={tdLeft}><StatTooltip label="Ø pro Dart" tooltip={STAT_TOOLTIPS['Ø pro Dart'] || 'Ø pro Dart'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerDart.toFixed(2)}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Ø pro Turn</td>
+                  <td style={tdLeft}><StatTooltip label="Ø pro Turn" tooltip={STAT_TOOLTIPS['Ø pro Turn'] || 'Ø pro Turn'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.avgPerTurn.toFixed(1)}</td>)}
                 </tr>
                 <tr><td colSpan={matchStats.length + 1} style={{ borderBottom: `2px solid ${colors.border}`, padding: '4px 0' }}></td></tr>
                 <tr>
-                  <td style={tdLeft}>180er</td>
+                  <td style={tdLeft}><StatTooltip label="180er" tooltip={STAT_TOOLTIPS['180er'] || '180er'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={{ ...tdRight, color: ps.turns180 > 0 ? '#fbbf24' : colors.fgDim }}>{ps.turns180}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>140+</td>
+                  <td style={tdLeft}><StatTooltip label="140+" tooltip={STAT_TOOLTIPS['140+'] || '140+'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.turns140plus}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>100+</td>
+                  <td style={tdLeft}><StatTooltip label="100+" tooltip={STAT_TOOLTIPS['100+'] || '100+'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.turns100plus}</td>)}
                 </tr>
                 <tr>
-                  <td style={tdLeft}>Bester Turn</td>
+                  <td style={tdLeft}><StatTooltip label="Bester Turn" tooltip={STAT_TOOLTIPS['Bester Turn'] || 'Bester Turn'} colors={colors} /></td>
                   {matchStats.map((ps) => <td key={ps.playerId} style={tdRight}>{ps.bestTurn}</td>)}
                 </tr>
               </tbody>

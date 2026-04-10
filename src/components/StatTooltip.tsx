@@ -268,4 +268,40 @@ export const STAT_TOOLTIPS: Record<string, string> = {
   '1. Dart Trefferquote': 'Wie oft der erste Dart einer Aufnahme ein Treffer war',
   'Ø Score': 'Durchschnittliche Punktzahl pro Leg',
   'Ø Darts/Leg': 'Durchschnittliche Darts pro Leg',
+  'Längste Serie': 'Längste Serie aufeinanderfolgender Treffer ohne Fehlwurf',
+
+  // ATB MatchDetails additional
+  'Felder': 'Anzahl der abgeschlossenen Felder in der Sequenz',
+  'Ø Darts pro Feld': 'Durchschnittliche Darts die pro Feld benötigt wurden',
+  'First-Dart-Hit-Rate': 'Wie oft der erste Dart einer Aufnahme das Zielfeld traf',
+  'Längste First-Dart-Serie': 'Längste Serie aufeinanderfolgender Felder bei denen der erste Dart traf',
+  'Bull-Trefferquote': 'Trefferquote auf das Bull-Feld',
+  'Misses gesamt': 'Gesamtanzahl der Darts die komplett daneben gingen',
+  'Längste Miss-Serie': 'Längste Serie aufeinanderfolgender Fehlwürfe',
+  'Problemfelder': 'Felder die überdurchschnittlich viele Darts benötigten',
+  'Problematische Felder': 'Felder die überdurchschnittlich viele Darts benötigten',
+  'Ø Darts (1-10)': 'Durchschnittliche Darts pro Feld für die Felder 1-10',
+  'Ø Darts (11-Bull)': 'Durchschnittliche Darts pro Feld für die Felder 11-Bull',
+  'Fazit': 'Vergleich der Leistung in der ersten vs. zweiten Hälfte',
+
+  // Shanghai MatchDetails additional
+  'Gesamt': 'Gesamtpunktzahl über alle Runden',
+  'Ø pro Runde': 'Durchschnittliche Punkte pro Runde',
+  'Schlechteste': 'Schwächste Runde (niedrigste Punktzahl)',
+  'Scoring-Streak': 'Längste Serie aufeinanderfolgender Runden mit Punkten',
+
+  // Highscore MatchDetails additional
+  'Punkte gesamt': 'Gesamtpunktzahl über alle Aufnahmen',
+  'Ø pro Dart': 'Durchschnittlich erzielte Punkte pro einzelnem Dart',
+  'Ø pro Turn': 'Durchschnittliche Punkte pro 3-Dart-Aufnahme',
+  'Endstand': 'Erreichte Gesamtpunktzahl am Ende des Legs',
+
+  // Cricket MatchDetails additional
+  'Felder geschlossen': 'Anzahl der Felder die auf 3 Marks geschlossen wurden',
+  'Marks/Turn (MPR)': 'Marks Per Round — durchschnittliche Marks pro 3-Dart-Aufnahme',
+  'Marks/Dart (MPD)': 'Marks Pro Dart — durchschnittliche Marks pro einzelnem Dart',
+  'Staerkstes Feld': 'Feld auf dem die meisten Marks erzielt wurden',
+  'Schwaechstes Feld': 'Feld auf dem die wenigsten Marks erzielt wurden',
+  'Beste Aufnahme (Marks)': 'Höchste Anzahl Marks in einer einzelnen 3-Dart-Aufnahme',
+  'Beste Aufnahme (Punkte)': 'Höchste Punktzahl in einer einzelnen 3-Dart-Aufnahme',
 }
