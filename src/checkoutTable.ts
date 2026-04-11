@@ -2,6 +2,8 @@
 // Standard-Checkout-Tabelle für Double-Out
 // Format: Rest -> { route: Checkout-Weg, darts: Anzahl benötigter Darts }
 
+import type { OutRule } from './darts501'
+
 type CheckoutEntry = { route: string; darts: 1 | 2 | 3 }
 
 export const CHECKOUT_TABLE: Record<number, CheckoutEntry> = {
@@ -174,15 +176,99 @@ export const CHECKOUT_TABLE: Record<number, CheckoutEntry> = {
   170: { route: 'T20 T20 BULL', darts: 3 },
 }
 
+// ============================================================================
+// MASTER-OUT Checkout-Tabelle (programmatisch generiert)
+// Triples + Doubles + Bull sind gültige Finish-Darts
+// ============================================================================
+
+function buildMasterOutTable(): Record<number, CheckoutEntry> {
+  // Start with a copy of the double-out table
+  const table: Record<number, CheckoutEntry> = { ...CHECKOUT_TABLE }
+
+  // 1-dart: all triples are valid finishes — prefer triple over double for master-out
+  for (let i = 1; i <= 20; i++) {
+    table[i * 3] = { route: `T${i}`, darts: 1 }
+  }
+  // Single bull is also a valid 1-dart finish in master-out
+  table[25] = { route: 'S-BULL', darts: 1 }
+  // BULL (D25/50) already in double-out table
+
+  // 2-dart: fill gaps for numbers reachable with single/double/triple + triple/double/bull finish
+  // All valid finish values (1-dart checkouts in master-out)
+  const finishes: { value: number; label: string }[] = []
+  for (let i = 1; i <= 20; i++) {
+    finishes.push({ value: i * 2, label: `D${i}` })
+    finishes.push({ value: i * 3, label: `T${i}` })
+  }
+  finishes.push({ value: 25, label: 'S-BULL' })
+  finishes.push({ value: 50, label: 'BULL' })
+
+  // All valid setup values (first dart: single, double, triple)
+  const setups: { value: number; label: string }[] = []
+  for (let i = 1; i <= 20; i++) {
+    setups.push({ value: i, label: `S${i}` })
+    setups.push({ value: i * 2, label: `D${i}` })
+    setups.push({ value: i * 3, label: `T${i}` })
+  }
+  setups.push({ value: 25, label: 'S-BULL' })
+  setups.push({ value: 50, label: 'BULL' })
+
+  // For each possible total 2-170, find best 2-dart combo if not already a 1-dart finish
+  for (let total = 2; total <= 170; total++) {
+    if (table[total]?.darts === 1) continue // already a 1-dart finish
+    // Try to find a 2-dart route: setup + finish
+    // Prefer triples as finish dart (master-out style)
+    let best: CheckoutEntry | null = null
+    for (const f of finishes) {
+      const need = total - f.value
+      if (need <= 0) continue
+      const s = setups.find(s => s.value === need)
+      if (s) {
+        const candidate: CheckoutEntry = { route: `${s.label} ${f.label}`, darts: 2 }
+        if (!best) {
+          best = candidate
+        }
+        // No need to keep searching — first valid combo is fine
+        break
+      }
+    }
+    if (best && (!table[total] || table[total].darts > 2)) {
+      table[total] = best
+    }
+  }
+
+  // 3-dart: fill remaining gaps (setup + setup + finish)
+  for (let total = 2; total <= 170; total++) {
+    if (table[total]?.darts && table[total].darts <= 2) continue
+    // Already have a 3-dart from double-out table? Keep it if present
+    if (table[total]?.darts === 3) continue
+    // Try to find: for each setup dart, check if remaining is in table as 2-dart
+    for (const s of setups) {
+      const rem = total - s.value
+      if (rem <= 0) continue
+      if (table[rem]?.darts && table[rem].darts <= 2) {
+        table[total] = { route: `${s.label} ${table[rem].route}`, darts: 3 }
+        break
+      }
+    }
+  }
+
+  return table
+}
+
+const MASTER_OUT_CHECKOUT_TABLE = buildMasterOutTable()
+
 /**
  * Gibt den Standard-Checkout-Weg für einen Rest zurück,
  * wenn er mit den verfügbaren Darts machbar ist.
  * @param remaining Der aktuelle Restpunktestand
  * @param dartsRemaining Wie viele Darts noch übrig sind (1, 2 oder 3)
+ * @param outRule Die Checkout-Regel (default: 'double-out')
  * @returns Der Checkout-Weg als String oder null wenn kein Checkout möglich
  */
-export function getCheckoutRoute(remaining: number, dartsRemaining: number = 3): string | null {
-  const entry = CHECKOUT_TABLE[remaining]
+export function getCheckoutRoute(remaining: number, dartsRemaining: number = 3, outRule: OutRule = 'double-out'): string | null {
+  const t = outRule === 'master-out' ? MASTER_OUT_CHECKOUT_TABLE : CHECKOUT_TABLE
+  const entry = t[remaining]
   if (!entry) return null
   // Nur anzeigen wenn genug Darts übrig sind
   if (entry.darts > dartsRemaining) return null
@@ -192,8 +278,9 @@ export function getCheckoutRoute(remaining: number, dartsRemaining: number = 3):
 /**
  * Prüft ob ein Rest ein möglicher Checkout ist (2-170, keine Bogey-Zahlen)
  */
-export function isCheckout(remaining: number): boolean {
-  return remaining >= 2 && remaining <= 170 && CHECKOUT_TABLE[remaining] !== undefined
+export function isCheckout(remaining: number, outRule: OutRule = 'double-out'): boolean {
+  const t = outRule === 'master-out' ? MASTER_OUT_CHECKOUT_TABLE : CHECKOUT_TABLE
+  return remaining >= 2 && remaining <= 170 && t[remaining] !== undefined
 }
 
 // ============================================================================
@@ -273,12 +360,13 @@ export const SETUP_SHOTS: Record<number, string> = {
  * @param dartsRemaining Wie viele Darts noch übrig sind (default: 3)
  * @returns Setup-Wurf als String oder null
  */
-export function getSetupShot(remaining: number, dartsRemaining: number = 3): string | null {
+export function getSetupShot(remaining: number, dartsRemaining: number = 3, outRule: OutRule = 'double-out'): string | null {
   // Nur beim letzten Dart anzeigen
   if (dartsRemaining !== 1) return null
 
   // Nur im Checkout-Bereich relevant
-  const entry = CHECKOUT_TABLE[remaining]
+  const t = outRule === 'master-out' ? MASTER_OUT_CHECKOUT_TABLE : CHECKOUT_TABLE
+  const entry = t[remaining]
   if (!entry) return null
 
   // Wenn 1-Dart Checkout möglich → kein Setup nötig (zeige Checkout stattdessen)

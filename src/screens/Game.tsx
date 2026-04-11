@@ -41,6 +41,7 @@ import {
   type SetFinished,
   now,
   id,
+  getOutRule,
   // Type Guards
   isMatchStarted,
   isLegStarted,
@@ -222,6 +223,7 @@ function PlayerTurnCard({
   showSets,
   threeDartAvg,
   recentScores,
+  outRule = 'double-out',
 }: {
   name: string
   color?: string
@@ -237,6 +239,7 @@ function PlayerTurnCard({
   showSets: boolean
   threeDartAvg: number
   recentScores?: number[]
+  outRule?: import('../darts501').OutRule
 }) {
   const isBustFlash = flashLabel === 'BUST'
 
@@ -371,7 +374,7 @@ function PlayerTurnCard({
           {isMyPlayer ? (
             // Eigener Spieler: Checkout-Route anzeigen
             (() => {
-              const route = getCheckoutRoute(remaining, dartsRemaining)
+              const route = getCheckoutRoute(remaining, dartsRemaining, outRule)
               if (route) {
                 return (
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', marginTop: 4 }}>
@@ -379,7 +382,7 @@ function PlayerTurnCard({
                   </div>
                 )
               }
-              const setup = getSetupShot(remaining, dartsRemaining)
+              const setup = getSetupShot(remaining, dartsRemaining, outRule)
               if (setup) {
                 return (
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#eab308', marginTop: 4 }}>
@@ -2201,6 +2204,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
                       showSets={isSets}
                       threeDartAvg={fd.avg}
                       recentScores={fd.recentScores}
+                      outRule={match ? getOutRule(match) : 'double-out'}
                     />
                   </div>
 
@@ -2249,6 +2253,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
                       showSets={isSets}
                       threeDartAvg={d.avg}
                       recentScores={d.recentScores}
+                      outRule={match ? getOutRule(match) : 'double-out'}
                     />
                   )
                 })}
@@ -2318,8 +2323,9 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
 
               // Checkout-Route nur wenn mit verbleibenden Darts möglich
               const dartsLeft = isActive ? 3 - current.length : 3
-              const playerCheckout = getCheckoutRoute(remaining, dartsLeft)
-              const playerSetupShot = getSetupShot(remaining, dartsLeft)
+              const matchOutRule = getOutRule(match)
+              const playerCheckout = getCheckoutRoute(remaining, dartsLeft, matchOutRule)
+              const playerSetupShot = getSetupShot(remaining, dartsLeft, matchOutRule)
 
               return {
                 id: p.playerId,
@@ -2341,8 +2347,8 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
             const activePlayerName = activePlayer?.name ?? activePlayerId
             const activeAvg = statsByPlayer[activePlayerId]?.threeDartAvg ?? 0
             const currentScoreSum = current.reduce((sum, d) => sum + dartScore(d), 0)
-            const checkoutRoute = getCheckoutRoute(live.remaining, 3 - current.length)
-            const setupShot = getSetupShot(live.remaining, 3 - current.length)
+            const checkoutRoute = getCheckoutRoute(live.remaining, 3 - current.length, getOutRule(match))
+            const setupShot = getSetupShot(live.remaining, 3 - current.length, getOutRule(match))
 
             // Aufnahmen-Liste: Letzte 8 Visits + Live (neuster oben)
             const recentVisits: VisitEntry[] = []
