@@ -15,6 +15,7 @@ import {
   getPlayerColorBackgroundEnabled,
   getProfiles,
   ensureATBMatchExists,
+  ensureATBMatchExistsAsync,
 } from '../storage'
 import {
   applyATBEvents,
@@ -155,9 +156,12 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     const matchFinishedEvt = remote.find((e: any) => e.type === 'ATBMatchFinished') as any
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'ATBMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
+      const startEvtForFinish = remote.find((e: any) => e.type === 'ATBMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureATBMatchExistsAsync(matchId, remote, playerIds)
           try { await persistATBEvents(matchId, remote) } catch {}
           await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -168,6 +172,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('atb_matches', matchId)) return
+            await ensureATBMatchExistsAsync(matchId, remote, playerIds)
             await persistATBEvents(matchId, remote)
             await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

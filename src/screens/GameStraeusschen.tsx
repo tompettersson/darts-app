@@ -14,6 +14,7 @@ import {
   deleteStrMatch,
   getProfiles,
   ensureStrMatchExists,
+  ensureStrMatchExistsAsync,
 } from '../storage'
 import {
   applyStrEvents,
@@ -124,9 +125,12 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
     const matchFinishedEvt = remote.find((e: any) => e.type === 'StrMatchFinished') as any
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'StrMatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
+      const startEvtForFinish = remote.find((e: any) => e.type === 'StrMatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureStrMatchExistsAsync(matchId, remote, playerIds)
           try { await persistStrEvents(matchId, remote) } catch {}
           await finishStrMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -137,6 +141,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('str_matches', matchId)) return
+            await ensureStrMatchExistsAsync(matchId, remote, playerIds)
             await persistStrEvents(matchId, remote)
             await finishStrMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
           } catch {}

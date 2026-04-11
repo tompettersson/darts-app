@@ -14,6 +14,7 @@ import {
   setMatchElapsedTime,
   deleteBobs27Match,
   ensureBobs27MatchExists,
+  ensureBobs27MatchExistsAsync,
 } from '../storage'
 import {
   applyBobs27Events,
@@ -250,9 +251,12 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'Bobs27MatchFinished') : false
     if (matchFinishedEvt && !prevHadFinished) {
       setMatchEndDelay(true)
+      const startEvtForFinish = remote.find((e: any) => e.type === 'Bobs27MatchStarted') as any
+      const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []
       if (multiplayer?.isHost) {
         // Host persists immediately
         ;(async () => {
+          await ensureBobs27MatchExistsAsync(matchId, remote, playerIds)
           try { await persistBobs27Events(matchId, remote) } catch {}
           await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -263,6 +267,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
           try {
             // Skip if host already saved
             if (await isMatchFinishedInDB('bobs27_matches', matchId)) return
+            await ensureBobs27MatchExistsAsync(matchId, remote, playerIds)
             await persistBobs27Events(matchId, remote)
             await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
           } catch {}
