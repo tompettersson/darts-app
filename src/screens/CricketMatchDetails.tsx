@@ -17,12 +17,6 @@ import {
 } from '../dartsCricket'
 import MatchHeader from '../components/MatchHeader'
 import LegHeader from '../components/LegHeader'
-import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '../components/CricketGanttChart'
-import CricketProgressChart, {
-  type CricketChartPlayer,
-  type CricketPlayerTurn,
-  CRICKET_TARGETS,
-} from '../components/CricketProgressChart'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
@@ -216,72 +210,6 @@ function getLegTurns(events: CricketEvent[], legIdx: number): CricketTurnAdded[]
     if (ev.type === 'CricketTurnAdded' && currentLeg === legIdx) turns.push(ev)
   }
   return turns
-}
-
-// Progress-Chart Daten fuer ein Leg berechnen
-function computeProgressDataForLeg(
-  events: CricketEvent[],
-  legIndex: number,
-  allPlayerIds: string[],
-  range: 'short' | 'long',
-  playerColorMap: Record<string, string>,
-  playerNames: Record<string, string>
-): CricketChartPlayer[] {
-  const tKeys = targetsFor(range).map(String)
-  const marksByPlayer: Record<string, Record<string, number>> = {}
-  const totalMarksByPlayer: Record<string, number> = {}
-  const totalPointsByPlayer: Record<string, number> = {}
-  const turnsByPlayer: Record<string, CricketPlayerTurn[]> = {}
-
-  allPlayerIds.forEach(pid => {
-    marksByPlayer[pid] = {}
-    tKeys.forEach(t => { marksByPlayer[pid][t] = 0 })
-    totalMarksByPlayer[pid] = 0
-    totalPointsByPlayer[pid] = 0
-    turnsByPlayer[pid] = []
-  })
-
-  const legTurns = getLegTurns(events, legIndex)
-  let turnIndex = 0
-
-  for (const turn of legTurns) {
-    const pid = turn.playerId
-    let marksThisTurn = 0
-
-    for (const d of turn.darts) {
-      if (d.target === 'MISS') continue
-      const tKey = String(d.target)
-      if (!tKeys.includes(tKey)) continue
-      const before = marksByPlayer[pid][tKey] ?? 0
-      if (before >= 3) continue
-      const mult = d.target === 'BULL' && d.mult === 3 ? 2 : d.mult
-      const added = Math.min(mult, 3 - before)
-      marksByPlayer[pid][tKey] = before + added
-      marksThisTurn += added
-    }
-
-    totalMarksByPlayer[pid] += marksThisTurn
-    const playerTurnIdx = turnsByPlayer[pid].length
-
-    turnsByPlayer[pid].push({
-      turnIndex: playerTurnIdx,
-      totalMarks: totalMarksByPlayer[pid],
-      totalPoints: totalPointsByPlayer[pid],
-      marksThisTurn,
-    })
-    turnIndex++
-  }
-
-  return allPlayerIds.map((pid, i) => ({
-    id: pid,
-    name: playerNames[pid] ?? pid,
-    color: playerColorMap[pid] ?? PLAYER_COLORS[i % PLAYER_COLORS.length],
-    turns: turnsByPlayer[pid],
-    fields: Object.fromEntries(
-      CRICKET_TARGETS.map(t => [t, marksByPlayer[pid][t] ?? 0])
-    ) as Record<typeof CRICKET_TARGETS[number], number>,
-    totalPoints: totalPointsByPlayer[pid],
-  }))
 }
 
 export default function CricketMatchDetails({ matchId, onBack }: Props) {
@@ -510,17 +438,6 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
 
     const legDurationMs = computeLegDuration(events, selectedLegIndex)
 
-    // Progress-Chart Daten
-    const progressPlayers = computeProgressDataForLeg(
-      events, selectedLegIndex, allPlayerIds, startEvt.range,
-      playerColors, playerNames
-    )
-
-    // Scoring-Mode fuer Chart
-    const scoringMode = startEvt.style === 'cutthroat' ? 'cutthroat'
-      : startEvt.style === 'simple' ? 'simple'
-      : 'standard'
-
     return (
       <div style={styles.page}>
         <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 10px' }}>
@@ -634,45 +551,6 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
                   })}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          {/* Progress Chart */}
-          {progressPlayers.some(p => p.turns.length > 0) && (
-            <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Marks-Verlauf</div>
-              <div style={{ height: 280 }}>
-                <CricketProgressChart
-                  players={progressPlayers}
-                  scoringMode={scoringMode}
-                  winnerPlayerId={legFinish?.winnerPlayerId}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Gantt Chart */}
-          <div style={card}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Feldfortschritt</div>
-            <div style={{ height: 300, background: colors.bgMuted, borderRadius: 8 }}>
-              {(() => {
-                const legEvents = getEventsForLeg(events, selectedLegIndex)
-                const chartColors = allPlayerIds.map((pid, i) => playerColors[pid] ?? PLAYER_COLORS[i % PLAYER_COLORS.length])
-                const { fieldClosures, maxTurns } = computeFieldClosures(legEvents, allPlayerIds, startEvt.range)
-                const ganttPlayers: GanttChartPlayer[] = allPlayerIds.map((pid, i) => ({
-                  id: pid,
-                  name: playerNames[pid] ?? pid,
-                  color: chartColors[i],
-                  fieldClosures: fieldClosures[pid],
-                }))
-                return (
-                  <CricketGanttChart
-                    players={ganttPlayers}
-                    maxTurns={maxTurns}
-                    winnerPlayerId={legFinish?.winnerPlayerId}
-                  />
-                )
-              })()}
             </div>
           </div>
 
@@ -803,15 +681,7 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
     { label: 'Schwaechstes Feld', values: players.map(p => p.weakestField ? `${p.weakestField === 'BULL' ? 'Bull' : p.weakestField}` : '\u2014') },
   ]
 
-  // Progress-Chart Daten fuer letztes (oder einziges) Leg
   const lastLegIndex = legFinished.length > 0 ? legFinished.length - 1 : 0
-  const overviewProgressPlayers = computeProgressDataForLeg(
-    events, lastLegIndex, allPlayerIds, startEvt.range,
-    playerColors, playerNames
-  )
-  const overviewScoringMode = startEvt.style === 'cutthroat' ? 'cutthroat'
-    : startEvt.style === 'simple' ? 'simple'
-    : 'standard'
 
   return (
     <div style={styles.page}>
@@ -902,50 +772,6 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
             </table>
           </div>
         </div>
-
-        {/* Progress Chart (letztes Leg) */}
-        {overviewProgressPlayers.some(p => p.turns.length > 0) && (
-          <div style={card}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-              Marks-Verlauf {legFinished.length > 1 ? `(Leg ${lastLegIndex + 1})` : ''}
-            </div>
-            <div style={{ height: 280 }}>
-              <CricketProgressChart
-                players={overviewProgressPlayers}
-                scoringMode={overviewScoringMode}
-                winnerPlayerId={legFinished[lastLegIndex]?.winnerPlayerId}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Gantt Chart (letztes Leg) */}
-        {(() => {
-          const legEvents = getEventsForLeg(events, lastLegIndex)
-          if (legEvents.length === 0) return null
-          const chartColors = allPlayerIds.map((pid, i) => playerColors[pid] ?? PLAYER_COLORS[i % PLAYER_COLORS.length])
-          const { fieldClosures, maxTurns } = computeFieldClosures(legEvents, allPlayerIds, startEvt.range)
-          const ganttPlayers: GanttChartPlayer[] = allPlayerIds.map((pid, i) => ({
-            id: pid,
-            name: playerNames[pid] ?? pid,
-            color: chartColors[i],
-            fieldClosures: fieldClosures[pid],
-          }))
-          return (
-            <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-                Feldfortschritt {legFinished.length > 1 ? `(Leg ${lastLegIndex + 1})` : ''}
-              </div>
-              <div style={{ height: 300, background: colors.bgMuted, borderRadius: 8 }}>
-                <CricketGanttChart
-                  players={ganttPlayers}
-                  maxTurns={maxTurns}
-                  winnerPlayerId={legFinished[lastLegIndex]?.winnerPlayerId}
-                />
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Legs Liste */}
         {legFinished.length > 1 && (

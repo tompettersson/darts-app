@@ -4,6 +4,7 @@ import { loadMatchById, getProfiles } from '../storage'
 import {
   applyEvents,
   computeStats,
+  getOutRule,
   type DartsEvent,
   type MatchStarted,
   type LegFinished,
@@ -316,8 +317,8 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     { label: '100+', getValue: (pid) => String(statsByPlayer[pid]?.bins._100plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._100plus ?? 0, better: 'high' },
     { label: '61+', getValue: (pid) => String(statsByPlayer[pid]?.bins._61plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._61plus ?? 0, better: 'high' },
     // === Checkout-Details ===
-    { label: 'Double-Versuche', getValue: (pid) => String(statsByPlayer[pid]?.doubleAttemptsDart ?? 0) },
-    { label: 'Lieblingsdoppel', getValue: (pid) => {
+    { label: getOutRule(match) === 'master-out' ? 'Checkout-Versuche' : 'Double-Versuche', getValue: (pid) => String(statsByPlayer[pid]?.doubleAttemptsDart ?? 0) },
+    { label: getOutRule(match) === 'master-out' ? 'Lieblings-Checkout' : 'Lieblingsdoppel', getValue: (pid) => {
       const doubles = statsByPlayer[pid]?.finishingDoubles ?? {}
       const sorted = Object.entries(doubles).sort(([, a], [, b]) => b - a)
       return sorted.length > 0 ? sorted[0][0] : '–'

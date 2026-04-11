@@ -13,6 +13,8 @@ import {
   computeStats,
   isDouble,
   isTriple,
+  getOutRule,
+  type OutRule,
 } from '../darts501'
 
 // ---- Typen für den Output Richtung Storage ----
@@ -74,9 +76,10 @@ function isGuest(playerId: string, startEvt: MatchStarted | undefined): boolean 
 
 // extrahiere Finishing-Dart pro Leg
 function collectFinishingDoublesByPlayer(
-  events: DartsEvent[]
+  events: DartsEvent[],
+  outRule: OutRule
 ): Record<string, Record<string, number>> {
-  // result[playerId][doubleBedNumber] = count
+  // result[playerId][checkoutKey] = count
   const out: Record<string, Record<string, number>> = {}
 
   // Wir brauchen LegFinished (da wissen wir Gewinner + finishingVisitId)
@@ -99,13 +102,20 @@ function collectFinishingDoublesByPlayer(
     const last = v.darts[idx]
     if (!last) continue
 
-    // wir zählen NUR echte Doppelfinishes (also Doppel oder DBULL),
-    // weil wir "Lieblingsdouble" visualisieren wollen.
+    // Doppelfinishes zählen (Doppel oder DBULL)
     if (isDouble(last)) {
       const bedNum =
         last.bed === 'DBULL'
           ? 'BULL' // 50er Doppel -> nennen wir "BULL"
           : String(last.bed) // z. B. "16" für D16
+
+      if (!out[lf.winnerPlayerId]) out[lf.winnerPlayerId] = {}
+      out[lf.winnerPlayerId][bedNum] =
+        (out[lf.winnerPlayerId][bedNum] ?? 0) + 1
+    }
+    // Master-Out: auch Triple-Finishes zählen
+    else if (outRule === 'master-out' && isTriple(last)) {
+      const bedNum = `T${last.bed}`
 
       if (!out[lf.winnerPlayerId]) out[lf.winnerPlayerId] = {}
       out[lf.winnerPlayerId][bedNum] =
@@ -224,8 +234,9 @@ export function computeX01PlayerMatchStats(
   const finishEvt = events.find(e => e.type === 'MatchFinished') as MatchFinished | undefined
 
   const statsBasic = computeStats(events)
+  const outRule = startEvt ? getOutRule(startEvt) : 'double-out'
   const { doublesHitCount, triplesHitCount, segmentsHitCount } = collectSegmentHeatmaps(events)
-  const finishingDoublesAll = collectFinishingDoublesByPlayer(events)
+  const finishingDoublesAll = collectFinishingDoublesByPlayer(events, outRule)
   const { legsWonByPlayer, setsWonByPlayer } = countLegsAndSetsWon(events, startEvt)
 
   const players: X01PerMatchPlayerStats[] = []

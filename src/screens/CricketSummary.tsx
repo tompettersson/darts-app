@@ -14,8 +14,6 @@ import {
 } from '../dartsCricket'
 import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
-import CricketGanttChart, { computeFieldClosures, type GanttChartPlayer } from '../components/CricketGanttChart'
-import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import { generateCricketMatchReport } from '../narratives/generateModeReports'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 
@@ -582,36 +580,6 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
                 })()}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Feldfortschritt (Gantt-Chart) */}
-        <div style={card}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Feldfortschritt</div>
-          <div style={{ height: 300, background: colors.bgMuted, borderRadius: 8 }}>
-            {(() => {
-              const legEvents = getEventsForLeg(events, selectedLegIndex)
-
-              // Spielerfarben aus PLAYER_COLORS oder Profilen
-              const chartColors = allPlayerIds.map((pid, i) => playerColors[pid] ?? PLAYER_COLORS[i % PLAYER_COLORS.length])
-
-              const { fieldClosures, maxTurns } = computeFieldClosures(legEvents, allPlayerIds, startEvt.range)
-
-              const ganttPlayers: GanttChartPlayer[] = allPlayerIds.map((pid, i) => ({
-                id: pid,
-                name: matchData.players.find(p => p.id === pid)?.name ?? pid,
-                color: chartColors[i],
-                fieldClosures: fieldClosures[pid],
-              }))
-
-              return (
-                <CricketGanttChart
-                  players={ganttPlayers}
-                  maxTurns={maxTurns}
-                  winnerPlayerId={legFinish?.winnerPlayerId}
-                />
-              )
-            })()}
           </div>
         </div>
 

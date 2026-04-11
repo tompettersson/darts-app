@@ -160,6 +160,12 @@ export function isDouble(d: Dart) {
 export function isTriple(d: Dart) {
   return typeof d.bed === 'number' && d.mult === 3
 }
+/** Prüft ob ein Dart als gültiger Checkout-Wurf zählt (abhängig von OutRule) */
+export function isCheckoutAttemptDart(dart: Dart, outRule: OutRule): boolean {
+  if (outRule === 'master-out') return dart.mult === 2 || dart.mult === 3 || dart.bed === 'DBULL'
+  if (outRule === 'single-out') return true
+  return isDouble(dart) // double-out (default)
+}
 
 /* ----------------- Event Type Guards ----------------- */
 // Diese Type Guards ermöglichen type-safe Event-Filterung ohne `as any`
@@ -236,19 +242,24 @@ function isCheckoutNumber(rem: number, outRule: OutRule): boolean {
 }
 
 /**
- * Prüft, ob der Rest ein DIREKTER Double-Checkout ist.
- * Das heißt: Mit einem einzigen Wurf auf ein Doppelfeld kann man auschecken.
+ * Prüft, ob der Rest ein DIREKTER Checkout mit einem einzigen Wurf ist.
  *
  * Bei Double-Out / Master-Out:
  * - 50 (D25/Bull)
  * - Gerade Zahlen 2-40 (D1 bis D20)
  *
- * Ungerade Reste (z.B. 35) erfordern erst ein "Stellen" → kein Doppelversuch.
+ * Bei Master-Out zusätzlich:
+ * - Dreier-Vielfache 3-60 (T1 bis T20)
+ *
+ * Ungerade Reste (z.B. 35) erfordern erst ein "Stellen" → kein Checkout-Versuch
+ * (es sei denn Master-Out und Rest ist Dreier-Vielfach).
  */
-function isDirectDoubleCheckout(rem: number, outRule: OutRule): boolean {
+function isDirectCheckout(rem: number, outRule: OutRule): boolean {
   if (outRule === 'single-out') return false
   if (rem === 50) return true
   if (rem >= 2 && rem <= 40 && rem % 2 === 0) return true
+  // Master-Out: Triple-Checkout (T1-T20 = 3-60)
+  if (outRule === 'master-out' && rem >= 3 && rem <= 60 && rem % 3 === 0) return true
   return false
 }
 
@@ -716,7 +727,7 @@ export function computeStats(events: DartsEvent[]): Record<string, PlayerStats> 
       const d = e.darts[i]
 
       // Doppelversuch = Rest ist direkter Double-Checkout
-      if (isDirectDoubleCheckout(liveRem, outRule)) {
+      if (isDirectCheckout(liveRem, outRule)) {
         s.doubleAttemptsDart += 1
       }
 
@@ -726,10 +737,12 @@ export function computeStats(events: DartsEvent[]): Record<string, PlayerStats> 
       if (after === 0 && finishAllowed(outRule, d)) {
         s.doublesHitDart += 1
 
-        // Finishing Double tracken
-        const doubleKey = d.mult === 2
-          ? (d.bed === 'BULL' ? 'DBULL' : `D${d.bed}`)
-          : (d.bed === 'BULL' ? 'BULL' : String(d.bed))  // Single-Out
+        // Finishing Checkout tracken
+        const doubleKey = d.mult === 3
+          ? `T${d.bed}`  // Triple-Finish (Master-Out)
+          : d.mult === 2
+            ? (d.bed === 'BULL' ? 'DBULL' : `D${d.bed}`)
+            : (d.bed === 'BULL' ? 'BULL' : String(d.bed))  // Single-Out
         s.finishingDoubles[doubleKey] = (s.finishingDoubles[doubleKey] ?? 0) + 1
 
         liveRem = after
