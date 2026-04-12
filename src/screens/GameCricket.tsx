@@ -1285,9 +1285,24 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   const PLAYER_CARD_WIDTH = isMobileScreen
     ? Math.max(40, Math.floor((screenWidth - mobileCricketWidth - mobileGaps - 16) / mobilePlayersOnScreen))
     : 140
+  const useCompactWidth = isMobileScreen && playerCount <= 4
 
   function playerCardStyle(active: boolean, playerColor?: string): React.CSSProperties {
     const color = playerColor || '#f97316'
+    // ≤4 Spieler Mobile: minimaler Rahmen, kein Padding
+    if (useCompactWidth) {
+      return {
+        border: active ? `2px solid ${color}` : 'none',
+        background: active ? `${color}08` : 'transparent',
+        borderRadius: 4,
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0,
+        boxSizing: 'border-box',
+      }
+    }
     return {
       border: active ? `2px solid ${color}` : '1px solid #e5e7eb',
       background: active ? `${color}10` : '#fff',
@@ -1308,8 +1323,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }
 
   const cricketCardStyle: React.CSSProperties = {
-    border: '1px solid #e5e7eb',
-    background: '#fff',
+    border: useCompactWidth ? 'none' : '1px solid #e5e7eb',
+    background: useCompactWidth ? 'transparent' : '#fff',
     borderRadius: isMobileScreen ? 8 : 12,
     position: 'relative',
     overflow: 'hidden',
@@ -1318,7 +1333,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     width: isMobileScreen ? '100%' : CRICKET_CARD_WIDTH_MAX,
     display: 'flex',
     flexDirection: 'column',
-    padding: isMobileScreen ? 1 : 10,
+    padding: useCompactWidth ? 0 : (isMobileScreen ? 1 : 10),
     paddingTop: isMobileScreen ? 1 : 10,
   }
 
@@ -1338,6 +1353,21 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
 
     // Mobile: vertical name, fixed height, aligned to bottom
     if (isMobileScreen) {
+      // ≤4 Spieler: horizontaler Name über den Marks
+      if (playerCount <= 4) {
+        return (
+          <div style={{
+            textAlign: 'center', marginBottom: 2, height: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{
+              fontSize: 7, fontWeight: 700,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{name}</span>
+          </div>
+        )
+      }
+      // 5+ Spieler: vertikaler Name
       const nameHeight = isLongRange ? 35 : 45
       return (
         <div style={{
@@ -1569,7 +1599,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 key={tKey}
                 type="button"
                 style={{
-                  border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen ? 'none' : '1px solid #e5e7eb'),
+                  border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen && playerCount > 4 ? 'none' : '1px solid #e5e7eb'),
                   borderRadius: isMobileScreen ? 2 : 12,
                   padding: isMobileScreen ? '0' : '6px 10px',
                   background: isCrazyTarget ? '#fef3c7' : (isMobileScreen ? 'transparent' : '#fff'),
@@ -1676,8 +1706,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     ...rightIds.map(pid => ({ kind: 'player' as const, pid, side: 'right' as const })),
   ]
 
+  const mobilePlayerCol = useCompactWidth ? 'auto' : '1fr'
   const gridTemplateColumns = isMobileScreen
-    ? [...leftIds.map(() => '1fr'), `${mobileCricketWidth}px`, ...rightIds.map(() => '1fr')].join(' ')
+    ? [...leftIds.map(() => mobilePlayerCol), `${mobileCricketWidth}px`, ...rightIds.map(() => mobilePlayerCol)].join(' ')
     : [...leftIds.map(() => `${PLAYER_CARD_WIDTH}px`), `${CRICKET_CARD_WIDTH_MAX}px`, ...rightIds.map(() => `${PLAYER_CARD_WIDTH}px`)].join(' ')
 
   // Sticky Header
@@ -2133,7 +2164,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                   return (
                     <div key={`c-${idx}`} style={{ ...cricketCardStyle, padding: 0, display: 'flex', flexDirection: 'column' }}>
                       {/* Spacer: gleiche Höhe wie PlayerHeader (45px + 2px margin) */}
-                      <div style={{ height: isLongRange ? 37 : 47, flexShrink: 0 }} />
+                      {/* Spacer: gleiche Höhe wie PlayerHeader */}
+                      <div style={{ height: useCompactWidth ? 16 : (isLongRange ? 37 : 47), flexShrink: 0 }} />
                       <div style={{
                         display: 'grid',
                         gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
@@ -2239,16 +2271,17 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 // Cricket-Column: Nur Marks, keine Buttons mehr
                 return (
                   <div key={`c-${idx}`} style={cricketCardStyle}>
-                    {/* Cricket Header */}
+                    {/* Cricket Header — gleiche Höhe wie PlayerHeader */}
                     <div
                       style={{
-                        minHeight: headerBarHeight,
+                        minHeight: useCompactWidth ? 14 : headerBarHeight,
+                        height: useCompactWidth ? 14 : undefined,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 700,
                         fontSize: isMobileScreen ? 11 : 14,
-                        lineHeight: `${headerBarHeight}px`,
+                        lineHeight: useCompactWidth ? '14px' : `${headerBarHeight}px`,
                         marginBottom: isMobileScreen ? 2 : 6,
                         textAlign: 'center',
                         width: '100%',
@@ -2282,10 +2315,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                             key={tKey}
                             onClick={() => t === 'MISS' ? addTarget('MISS') : addTarget(typeof t === 'number' ? t : t as 'BULL')}
                             style={{
-                              borderRadius: isMobileScreen ? 2 : 8,
-                              padding: isMobileScreen ? '0' : '4px 10px',
-                              background: t === 'MISS' ? '#f8fafc' : (isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : (isMobileScreen ? 'transparent' : '#fff'))),
-                              border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen ? 'none' : '1px solid #e5e7eb'),
+                              borderRadius: useCompactWidth ? 4 : (isMobileScreen ? 2 : 8),
+                              padding: isMobileScreen ? (useCompactWidth ? '1px 2px' : '0') : '4px 10px',
+                              background: t === 'MISS' ? '#f8fafc' : (isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : (useCompactWidth ? '#fff' : (isMobileScreen ? 'transparent' : '#fff')))),
+                              border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen && playerCount > 4 ? 'none' : '1px solid #d1d5db'),
                               display: 'flex',
                               justifyContent: 'center',
                               alignItems: 'center',
