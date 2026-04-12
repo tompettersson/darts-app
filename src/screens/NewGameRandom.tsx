@@ -1,6 +1,7 @@
 // src/screens/NewGameRandom.tsx
 // Spieler-Auswahl und Legs/Sets Konfiguration für Zufallsspiel
 
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useMemo, useState } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
@@ -97,7 +98,9 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder((o) => {
       const list = dedupeIds(o)
       const shuffled = [...list]
@@ -107,6 +110,7 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -170,6 +174,8 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
 
   return (
     <div style={styles.page}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
+
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0, color: colors.fg }}>Zufallsspiel</h2>
         {onCancel && (
@@ -233,7 +239,7 @@ export default function NewGameRandom({ onCancel, onStart }: Props) {
                     style={{ ...styles.pill, padding: '2px 8px', fontSize: 11, marginLeft: 6 }}
                     onClick={shuffleOrder}
                   >
-                    Mischen
+                    🎲 Zufällig
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

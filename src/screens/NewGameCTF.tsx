@@ -1,6 +1,7 @@
 // src/screens/NewGameCTF.tsx
 // Spieler-Auswahl und Konfiguration für Capture the Field
 
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useMemo, useState } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
@@ -101,7 +102,9 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder((o) => {
       const list = dedupeIds(o)
       const shuffled = [...list]
@@ -111,6 +114,7 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -181,6 +185,8 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
 
   return (
     <div style={styles.page}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
+
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0, color: colors.fg }}>Capture the Field</h2>
         {onCancel && (
@@ -235,7 +241,7 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
                     style={{ ...styles.pill, padding: '2px 8px', fontSize: 11, marginLeft: 6 }}
                     onClick={shuffleOrder}
                   >
-                    Mischen
+                    🎲 Zufällig
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -281,85 +287,51 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
             )}
           </div>
 
-          {/* Feldfolge-Modus */}
+          {/* Alle Einstellungen in einer Card */}
           <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Feldfolge</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button style={pill(sequenceMode === 'ascending')} onClick={() => setSequenceMode('ascending')}>
-                Zahlenfolge
-              </button>
-              <button style={pill(sequenceMode === 'descending')} onClick={() => setSequenceMode('descending')}>
-                Countdown
-              </button>
-              <button style={pill(sequenceMode === 'clockwise')} onClick={() => setSequenceMode('clockwise')}>
-                Im Uhrzeigersinn
-              </button>
-              <button style={pill(sequenceMode === 'counterclockwise')} onClick={() => setSequenceMode('counterclockwise')}>
-                Gegenlauf
-              </button>
-              <button style={pill(sequenceMode === 'random')} onClick={() => setSequenceMode('random')}>
-                Random
-              </button>
+            {/* Feldfolge */}
+            <div style={{ ...styles.title, marginBottom: 6 }}>Feldfolge</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+              <button style={pill(sequenceMode === 'ascending')} onClick={() => setSequenceMode('ascending')}>1→20</button>
+              <button style={pill(sequenceMode === 'descending')} onClick={() => setSequenceMode('descending')}>20→1</button>
+              <button style={pill(sequenceMode === 'clockwise')} onClick={() => setSequenceMode('clockwise')}>Uhrzeiger</button>
+              <button style={pill(sequenceMode === 'counterclockwise')} onClick={() => setSequenceMode('counterclockwise')}>Gegen</button>
+              <button style={pill(sequenceMode === 'random')} onClick={() => setSequenceMode('random')}>Random</button>
             </div>
-            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
+            <div style={{ ...styles.sub, fontSize: 11, marginBottom: 4 }}>
               {sequenceMode === 'ascending' && '1 → 2 → 3 → ... → 20'}
               {sequenceMode === 'descending' && '20 → 19 → 18 → ... → 1'}
               {sequenceMode === 'clockwise' && '1 → 18 → 4 → 13 → 6 → 10 → ...'}
               {sequenceMode === 'counterclockwise' && '20 → 5 → 12 → 9 → 14 → 11 → ...'}
-              {sequenceMode === 'random' && 'Zufällige Reihenfolge (bei jedem Leg neu gemischt)'}
+              {sequenceMode === 'random' && 'Zufällige Reihenfolge'}
             </div>
-          </div>
 
-          {/* Multiplier-Modus */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Multiplier-Modus</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button style={pill(multiplierMode === 'standard')} onClick={() => setMultiplierMode('standard')}>
-                Standard (S=1, D=2, T=3)
-              </button>
-              <button style={pill(multiplierMode === 'standard2')} onClick={() => setMultiplierMode('standard2')}>
-                Standard2 (S=1, D/T=2)
-              </button>
-              <button style={pill(multiplierMode === 'single')} onClick={() => setMultiplierMode('single')}>
-                Single (alle=1)
-              </button>
+            {/* Multiplier */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Multiplier</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+              <button style={pill(multiplierMode === 'standard')} onClick={() => setMultiplierMode('standard')}>Normal</button>
+              <button style={pill(multiplierMode === 'standard2')} onClick={() => setMultiplierMode('standard2')}>Spezial</button>
+              <button style={pill(multiplierMode === 'single')} onClick={() => setMultiplierMode('single')}>Single</button>
             </div>
-            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
-              {multiplierMode === 'standard' && 'Single=1, Double=2, Triple=3 Punkte pro Treffer'}
-              {multiplierMode === 'standard2' && 'Single=1, Double/Triple=2 Punkte pro Treffer'}
+            <div style={{ ...styles.sub, fontSize: 11, marginBottom: 4 }}>
+              {multiplierMode === 'standard' && 'S=1, D=2, T=3 Punkte pro Treffer'}
+              {multiplierMode === 'standard2' && 'S=1, D/T=2 Punkte pro Treffer'}
               {multiplierMode === 'single' && 'Jeder Treffer zählt 1 Punkt'}
             </div>
-          </div>
 
-          {/* Optionen */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Optionen</div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={rotateOrder}
-                onChange={(e) => setRotateOrder(e.target.checked)}
-              />
-              <span style={{ fontSize: 12 }}>Wurfreihenfolge pro Feld rotieren</span>
+            {/* Optionen */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Optionen</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 6 }}>
+              <input type="checkbox" checked={rotateOrder} onChange={(e) => setRotateOrder(e.target.checked)} />
+              <span style={{ fontSize: 12 }}>Wurfreihenfolge rotieren</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={retryZeroDrawFields}
-                onChange={(e) => setRetryZeroDrawFields(e.target.checked)}
-              />
-              <div>
-                <span style={{ fontSize: 12 }}>0-Draw Felder wiederholen</span>
-                <div style={{ fontSize: 10, color: colors.fgMuted, marginTop: 2 }}>
-                  Wenn keiner trifft, wird das Feld vor dem Bull nochmal gespielt
-                </div>
-              </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 4 }}>
+              <input type="checkbox" checked={retryZeroDrawFields} onChange={(e) => setRetryZeroDrawFields(e.target.checked)} />
+              <span style={{ fontSize: 12 }}>0-Draw Felder wiederholen</span>
             </label>
-          </div>
 
-          {/* Legs / Sets Auswahl */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Spielformat</div>
+            {/* Spielformat */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Spielformat</div>
 
             {/* Format-Auswahl */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>

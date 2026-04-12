@@ -2,6 +2,7 @@
 // Eigenständiger Konfigurationsscreen für 121 Sprint
 // Nur Spieler + Leganzahl (kein Regelblock, keine Sets)
 
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   id, now,
@@ -95,9 +96,11 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder((o) => {
-      const list = dedupeIds(o).filter((pid) => selected.includes(pid))
+      const list = dedupeIds(o)
       const shuffled = [...list]
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
@@ -105,6 +108,7 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -243,6 +247,8 @@ export default function NewGame121({ onCancel, onStarted }: Props) {
 
   return (
     <div style={styles.page}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
+
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0, color: colors.fg }}>121 Sprint konfigurieren</h2>
         {onCancel && <button style={styles.backBtn} onClick={onCancel}>← Zurück</button>}

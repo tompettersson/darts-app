@@ -349,6 +349,9 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   // Spezialregel-Status des aktiven Spielers
   const activeSpecialState = activePlayerId ? state.specialStateByPlayer[activePlayerId] : undefined
 
+  // Bull Heavy Auto-Confirm Ref
+  const bullAutoConfirmRef = useRef(false)
+
   // Dart hinzufügen (Treffer auf aktuelles Ziel)
   const addHit = useCallback(() => {
     if (gamePaused) return
@@ -402,7 +405,13 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
 
     // Nach jedem Wurf zurück auf Single
     setMult(1)
-  }, [activePlayerId, current, state, multiplayer, isMyTurn])
+
+    // Bull Heavy Auto-Confirm: Wenn Bull getroffen wurde, sofort bestätigen
+    // damit der Spieler direkt zum nächsten Ziel springt
+    if (config.specialRule === 'bullHeavy' && targetNum === 'BULL') {
+      bullAutoConfirmRef.current = true
+    }
+  }, [activePlayerId, current, state, multiplayer, isMyTurn, config.specialRule])
 
   // Miss hinzufügen
   const addMiss = useCallback(() => {
@@ -606,6 +615,14 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     }
   }, [current.length, confirmTurn])
 
+  // Bull Heavy Auto-Confirm: wenn Bull getroffen, sofort bestätigen
+  useEffect(() => {
+    if (bullAutoConfirmRef.current && current.length > 0) {
+      bullAutoConfirmRef.current = false
+      setTimeout(() => confirmTurn(), 50)
+    }
+  }, [current.length, confirmTurn])
+
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {
     if (!multiplayer?.enabled || isMyTurn) { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() }
@@ -767,15 +784,31 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     )
   }
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const isMobile = Math.min(screenWidth, typeof window !== 'undefined' ? window.innerHeight : 800) < 600
+
   return (
     <div
+      className={isMobile ? 'game-fullscreen' : undefined}
       style={{
         background: playerColorBgEnabled && activePlayerColor
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
           : c.bg,
-        minHeight: '100dvh',
+        height: isMobile ? '100dvh' : undefined,
+        minHeight: isMobile ? '100dvh' : '100dvh',
         display: 'flex',
         flexDirection: 'column',
+        overflow: isMobile ? 'hidden' : undefined,
         color: c.textBright,
         fontFamily: 'system-ui, -apple-system, sans-serif',
         transition: 'background 0.5s ease',
@@ -920,6 +953,270 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
       </div>
 
       {/* Main Content */}
+      {isMobile && isLandscape ? (
+        /* ===== MOBILE LANDSCAPE: Spieler links, Dartboard Mitte, Eingabe rechts ===== */
+        <div style={{ flex: 1, display: 'flex', gap: 6, minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+          {/* Links: Spieler — flex 1, max Höhe wie bei 8 Spielern */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, overflow: 'hidden', justifyContent: 'center' }}>
+            {(state.match?.players ?? []).map((p, index) => {
+              const isAct = p.playerId === activePlayerId
+              const progress = getPreviewIndex(p.playerId)
+              const targetLbl = getPreviewTargetLabel(p.playerId)
+              const color = playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length]
+              const percent = (progress / totalFields) * 100
+              const playerSpecial = state.specialStateByPlayer[p.playerId]
+              const pLen = (state.match?.players ?? []).length
+              const cardFontName = pLen <= 3 ? 13 : pLen <= 5 ? 11 : 9
+              const cardFontTarget = pLen <= 3 ? 14 : pLen <= 5 ? 12 : 9
+              const cardDot = pLen <= 3 ? 7 : 5
+              const cardBar = pLen <= 3 ? 3 : 2
+              return (
+                <div key={p.playerId} style={{
+                  flex: `0 0 calc(${100 / Math.max(pLen, 4)}% - 3px)`, minHeight: 0, padding: pLen <= 3 ? '5px 8px' : '3px 5px', borderRadius: 5,
+                  background: isAct ? `${color}20` : '#1a1a1a',
+                  border: isAct ? `2px solid ${color}` : '1px solid #333',
+                  opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: pLen <= 3 ? 5 : 3 }}>
+                    <span style={{ width: cardDot, height: cardDot, borderRadius: 99, background: color, flexShrink: 0 }} />
+                    <span style={{ fontSize: cardFontName, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <span style={{ fontSize: cardFontTarget, fontWeight: 700, color, marginLeft: 'auto', minWidth: 20, textAlign: 'right' }}>
+                      {playerSpecial?.eliminated ? '✗' : targetLbl ?? '✓'}
+                    </span>
+                  </div>
+                  <div style={{ height: cardBar, background: '#333', borderRadius: 1, overflow: 'hidden', marginTop: pLen <= 3 ? 4 : 2 }}>
+                    <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Mitte: Dartboard */}
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+            <ATBDartboard
+              currentTarget={nextTargetNumber}
+              players={dartboardPlayers}
+              size={Math.min(typeof window !== 'undefined' ? window.innerHeight - 60 : 300, 320)}
+              activePlayerColor={activePlayerColor}
+              pendingMultipliers={pendingMultipliers}
+            />
+          </div>
+
+          {/* Rechts: Ziel oben groß, Buttons unten */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            {/* Ziel — oben, groß */}
+            {activePlayer && nextTargetLabel && (
+              <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
+                <div style={{ fontSize: 11, color: activePlayerColor, fontWeight: 700 }}>{activePlayer.name}</div>
+                <div style={{ fontSize: 72, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 18px ${activePlayerColor}60`, lineHeight: 1 }}>{nextTargetLabel}</div>
+                {activeSpecialState?.needsBull && <div style={{ fontSize: 9, color: c.yellow }}>🎯 Bull!</div>}
+                {activeSpecialState?.mustUseDouble && <div style={{ fontSize: 9, color: c.yellow }}>🎯 Double!</div>}
+              </div>
+            )}
+            {/* Darts */}
+            <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+              {[0, 1, 2].map(i => {
+                const dart = current[i]
+                return (
+                  <div key={i} style={{
+                    flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
+                    borderRadius: 3, fontWeight: 700, fontSize: 9, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                  }}>
+                    {dart ? formatDart(dart) : `${i + 1}.`}
+                  </div>
+                )
+              })}
+            </div>
+            {/* Treffer / Miss */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '12px 0', borderRadius: 5, border: '2px solid #22c55e',
+                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>✓ Treffer</button>
+              <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '12px 0', borderRadius: 5, border: '2px solid #ef4444',
+                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>✕ Miss</button>
+            </div>
+            {/* S/D/T */}
+            <div style={{ display: 'flex', gap: 3 }}>
+              {([1, 2, 3] as const).map(m => (
+                <button key={m} onClick={() => setMult(m)} style={{
+                  flex: 1, height: 34, borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  border: `1px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
+                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
+                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
+                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+              ))}
+            </div>
+            {/* Undo */}
+            <div style={{ display: 'flex', gap: 3 }}>
+              <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
+                flex: 1, height: 32, borderRadius: 4, border: '1px solid #555', background: '#222',
+                color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 11, cursor: 'pointer',
+              }}>← Dart</button>
+              <button onClick={undoLastTurn} disabled={!canUndo} style={{
+                flex: 1, height: 32, borderRadius: 4, border: canUndo ? '1px solid #666' : '1px solid #444', background: '#222',
+                color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 11, fontWeight: 600,
+              }}>↶ Aufn.</button>
+            </div>
+          </div>
+        </div>
+      ) : isMobile ? (
+        /* ===== MOBILE PORTRAIT ===== */
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+          {/* Spieler kompakt oben — 1-4: eine Zeile, 5+: zwei Zeilen */}
+          {(() => {
+            const players = state.match?.players ?? []
+            const pCount = players.length
+            // 1-4: eigene Zeile, 5+: max 2 pro Zeile
+            const rows: typeof players[] = []
+            if (pCount <= 4) {
+              players.forEach(p => rows.push([p]))
+            } else {
+              for (let i = 0; i < pCount; i += 2) {
+                rows.push(players.slice(i, Math.min(i + 2, pCount)))
+              }
+            }
+            const topCount = 0 // unused now
+            const renderRow = (row: typeof players) => (
+              <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                {row.map((p, index) => {
+                  const realIdx = players.indexOf(p)
+                  const isAct = p.playerId === activePlayerId
+                  const progress = getPreviewIndex(p.playerId)
+                  const targetLbl = getPreviewTargetLabel(p.playerId)
+                  const color = playerColors[p.playerId] ?? PLAYER_COLORS[realIdx % PLAYER_COLORS.length]
+                  const percent = (progress / totalFields) * 100
+                  const playerSpecial = state.specialStateByPlayer[p.playerId]
+                  return (
+                    <div key={p.playerId} style={{
+                      flex: row.length === 1 && pCount > 1 ? '0 0 calc(50% - 2px)' : '1 1 0',
+                      minWidth: 0, padding: '5px 6px', borderRadius: 6,
+                      background: isAct ? `${color}20` : '#1a1a1a',
+                      border: isAct ? `2px solid ${color}` : '1px solid #333',
+                      opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: 99, background: color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 8, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                        <span style={{ fontSize: 8, fontWeight: 700, color, marginLeft: 'auto', minWidth: 24, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {playerSpecial?.eliminated ? '✗' : targetLbl ?? '✓'}
+                        </span>
+                        <span style={{ fontSize: 7, color: c.textDim, whiteSpace: 'nowrap', minWidth: 22, textAlign: 'right' }}>{progress}/{totalFields}</span>
+                      </div>
+                      <div style={{ height: 2, background: '#333', borderRadius: 1, overflow: 'hidden', marginTop: 2 }}>
+                        <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.3s' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0, marginBottom: 2 }}>
+                {rows.map((row, ri) => <React.Fragment key={ri}>{renderRow(row)}</React.Fragment>)}
+              </div>
+            )
+          })()}
+
+          {/* Spieler-Ziel — Name + Ziel in Spielerfarbe */}
+          {activePlayer && nextTargetLabel && (
+            <div style={{ textAlign: 'center', flexShrink: 0, margin: '6px 0' }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
+              <span style={{ fontSize: 14, color: c.textDim, margin: '0 6px' }}>→</span>
+              <span style={{ fontSize: 34, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 14px ${activePlayerColor}60` }}>{nextTargetLabel}</span>
+              {activeSpecialState?.needsBull && <span style={{ fontSize: 10, color: c.yellow, marginLeft: 6 }}>🎯 Bull!</span>}
+              {activeSpecialState?.mustUseDouble && <span style={{ fontSize: 10, color: c.yellow, marginLeft: 6 }}>🎯 Double!</span>}
+              {activeSpecialState?.consecutiveMisses !== undefined && activeSpecialState.consecutiveMisses > 0 && (
+                <span style={{ fontSize: 9, color: c.red, marginLeft: 6 }}>⚠️ {activeSpecialState.consecutiveMisses}/3</span>
+              )}
+            </div>
+          )}
+
+          {/* Dartboard-Block: Darts + Scheibe + Buttons eng zusammen */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+            {/* Darts direkt über der Scheibe */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+              {[0, 1, 2].map(i => {
+                const dart = current[i]
+                return (
+                  <div key={i} style={{
+                    width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${c.ledOn}` : '1px solid #444',
+                    borderRadius: 6, fontWeight: 700, fontSize: 14, color: dart ? c.ledOn : '#666',
+                  }}>
+                    {dart ? formatDart(dart) : `${i + 1}.`}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Dartboard — volle Breite, Zahlen sichtbar durch erweiterte viewBox */}
+            <ATBDartboard
+              currentTarget={nextTargetNumber}
+              players={dartboardPlayers}
+              size={Math.min(screenWidth, 380)}
+              activePlayerColor={activePlayerColor}
+              pendingMultipliers={pendingMultipliers}
+            />
+
+            {/* Treffer / Miss — direkt unter der Scheibe */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 2, width: '100%', maxWidth: 340 }}>
+              <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #22c55e',
+                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>✓ Treffer</button>
+              <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #ef4444',
+                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>✕ Miss</button>
+            </div>
+            {/* S/D/T + Dart zurück + Aufnahme zurück — direkt unter Treffer/Miss */}
+            <div style={{ display: 'flex', gap: 3, marginTop: 3, width: '100%', maxWidth: 340 }}>
+              {([1, 2, 3] as const).map(m => (
+                <button key={m} onClick={() => setMult(m)} style={{
+                  flex: 1, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                  border: `1px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
+                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
+                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
+                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+              ))}
+              <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
+                flex: 1, height: 28, borderRadius: 4, border: '1px solid #555', background: '#222',
+                color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 9, cursor: current.length > 0 ? 'pointer' : 'not-allowed',
+              }}>← Dart</button>
+              <button onClick={undoLastTurn} disabled={!canUndo} style={{
+                flex: 1, height: 28, borderRadius: 4, border: canUndo ? '1px solid #666' : '1px solid #444', background: '#222',
+                color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
+              }}>↶ Aufn.</button>
+            </div>
+            {/* Wurfabfolge — letzte Aufnahmen */}
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', fontSize: 10, color: c.textDim, marginTop: 6, width: '100%', maxWidth: 360 }}>
+              {state.match?.players && (() => {
+                // Letzte Turns aus Events extrahieren
+                const turnEvents = events.filter((e: any) => e.type === 'ATBTurnAdded').slice(-6) as any[]
+                return turnEvents.map((t: any, i: number) => {
+                  const pName = state.match!.players.find(p => p.playerId === t.playerId)?.name ?? '?'
+                  const pIdx = state.match!.players.findIndex(p => p.playerId === t.playerId)
+                  const pColor = playerColors[t.playerId] ?? PLAYER_COLORS[pIdx % PLAYER_COLORS.length]
+                  const darts = t.darts?.map((d: any) => d.hit ? (d.mult > 1 ? `${d.mult === 2 ? 'D' : 'T'}${d.target}` : `${d.target}`) : 'X').join(' ') ?? '—'
+                  return (
+                    <span key={i} style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ width: 4, height: 4, borderRadius: 99, background: pColor, display: 'inline-block', marginRight: 2 }} />
+                      <span style={{ color: '#777' }}>{pName.slice(0, 4)}</span> <span style={{ color: '#ccc' }}>{darts}</span>
+                    </span>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* ===== DESKTOP ===== */
       <div
         style={{
           flex: 1,
@@ -1157,6 +1454,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           </div>
         </div>
       </div>
+      )}
 
       {/* Speichern-Indikator */}
       {saving && (

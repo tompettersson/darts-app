@@ -1,6 +1,7 @@
 // src/screens/NewGameATB.tsx
 // Spieler-Auswahl und Konfiguration für Around the Block
 
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useEffect, useMemo, useState } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
@@ -120,7 +121,9 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder((o) => {
       const list = dedupeIds(o)
       const shuffled = [...list]
@@ -130,6 +133,7 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -222,6 +226,8 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
 
   return (
     <div style={styles.page}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
+
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0, color: colors.fg }}>Around the Block</h2>
         {onCancel && (
@@ -233,88 +239,37 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
 
       <div style={styles.centerPage}>
         <div style={styles.centerInner}>
-          {/* Reihenfolge */}
+          {/* Alle Einstellungen in einer Card */}
           <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Reihenfolge</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-              <button style={pill(sequenceMode === 'ascending')} onClick={() => setSequenceMode('ascending')}>
-                Zählend (1-20)
-              </button>
-              <button style={pill(sequenceMode === 'board')} onClick={() => setSequenceMode('board')}>
-                Ums Board
-              </button>
-              <button style={pill(sequenceMode === 'random')} onClick={() => setSequenceMode('random')}>
-                Random
-              </button>
+            {/* Reihenfolge + Richtung */}
+            <div style={{ ...styles.title, marginBottom: 6 }}>Reihenfolge</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+              <button style={pill(sequenceMode === 'ascending')} onClick={() => setSequenceMode('ascending')}>1-20</button>
+              <button style={pill(sequenceMode === 'board')} onClick={() => setSequenceMode('board')}>Board</button>
+              <button style={pill(sequenceMode === 'random')} onClick={() => setSequenceMode('random')}>Random</button>
+              <button style={pill(direction === 'forward', directionDisabled)} onClick={() => !directionDisabled && setDirection('forward')} disabled={directionDisabled}>→</button>
+              <button style={pill(direction === 'backward', directionDisabled)} onClick={() => !directionDisabled && setDirection('backward')} disabled={directionDisabled}>←</button>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                style={pill(direction === 'forward', directionDisabled)}
-                onClick={() => !directionDisabled && setDirection('forward')}
-                disabled={directionDisabled}
-              >
-                Vorwärts
-              </button>
-              <button
-                style={pill(direction === 'backward', directionDisabled)}
-                onClick={() => !directionDisabled && setDirection('backward')}
-                disabled={directionDisabled}
-              >
-                Rückwärts
-              </button>
-            </div>
-            {directionDisabled && (
-              <div style={{ ...styles.sub, marginTop: 6, fontSize: 11, color: colors.fgDim }}>
-                Bei Random ist die Richtung irrelevant
-              </div>
-            )}
-          </div>
 
-          {/* Bull-Position */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Bull-Position</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button style={pill(bullPosition === 'start')} onClick={() => setBullPosition('start')}>
-                Bull am Anfang
-              </button>
-              <button style={pill(bullPosition === 'end')} onClick={() => setBullPosition('end')}>
-                Bull am Ende
-              </button>
-              <button style={pill(bullPosition === 'random')} onClick={() => setBullPosition('random')}>
-                Bull Random
-              </button>
+            {/* Bull-Position */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Bull-Position</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+              <button style={pill(bullPosition === 'start')} onClick={() => setBullPosition('start')}>Anfang</button>
+              <button style={pill(bullPosition === 'end')} onClick={() => setBullPosition('end')}>Ende</button>
+              <button style={pill(bullPosition === 'random')} onClick={() => setBullPosition('random')}>Random</button>
             </div>
-            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
-              {bullPosition === 'start' && 'Bull muss zuerst getroffen werden'}
-              {bullPosition === 'end' && 'Bull muss zuletzt getroffen werden'}
-              {bullPosition === 'random' && 'Bull ist an zufälliger Position - kann nicht übersprungen werden!'}
-            </div>
-          </div>
 
-          {/* Ziele */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Ziele</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button style={pill(targetMode === 'any')} onClick={() => setTargetMode('any')}>
-                Alle (S/D/T)
-              </button>
-              <button style={pill(targetMode === 'single')} onClick={() => setTargetMode('single')}>
-                Nur Single
-              </button>
-              <button style={pill(targetMode === 'double')} onClick={() => setTargetMode('double')}>
-                Nur Double
-              </button>
-              <button style={pill(targetMode === 'triple')} onClick={() => setTargetMode('triple')}>
-                Nur Triple
-              </button>
-              <button style={pill(targetMode === 'mixed')} onClick={() => setTargetMode('mixed')}>
-                Mixed (S→D→T)
-              </button>
-              <button style={pill(targetMode === 'mixedRandom')} onClick={() => setTargetMode('mixedRandom')}>
-                Mixed Zufall
-              </button>
+            {/* Ziele + Multiplier in einer Sektion */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Ziele</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+              <button style={pill(targetMode === 'any')} onClick={() => setTargetMode('any')}>Alle</button>
+              <button style={pill(targetMode === 'single')} onClick={() => setTargetMode('single')}>Single</button>
+              <button style={pill(targetMode === 'double')} onClick={() => setTargetMode('double')}>Double</button>
+              <button style={pill(targetMode === 'triple')} onClick={() => setTargetMode('triple')}>Triple</button>
+              <button style={pill(targetMode === 'mixed')} onClick={() => setTargetMode('mixed')}>S→D→T</button>
+              <button style={pill(targetMode === 'mixedRandom')} onClick={() => setTargetMode('mixedRandom')}>Mix Zufall</button>
             </div>
-            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
+            <div style={{ ...styles.sub, fontSize: 11, marginBottom: 4 }}>
               {targetMode === 'any' && 'Jeder Treffer auf die Zahl zählt'}
               {targetMode === 'single' && 'Nur Single-Felder zählen'}
               {targetMode === 'double' && 'Nur Double-Felder zählen'}
@@ -322,88 +277,50 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
               {targetMode === 'mixed' && 'Für jede Zahl: erst Single, dann Double, dann Triple'}
               {targetMode === 'mixedRandom' && 'Zufälliger Multiplier pro Zahl'}
             </div>
-          </div>
 
-          {/* Multiplier/Punkteberechnung (bei 'any') */}
-          {targetMode === 'any' && (
-            <div style={styles.card}>
-              <div style={{ ...styles.title, marginBottom: 8 }}>Multiplier</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button style={pill(multiplierMode === 'standard')} onClick={() => setMultiplierMode('standard')}>
-                  Standard (S=1, D=2, T=3)
-                </button>
-                <button style={pill(multiplierMode === 'standard2')} onClick={() => setMultiplierMode('standard2')}>
-                  Standard2 (S=1, D/T=2)
-                </button>
-                <button style={pill(multiplierMode === 'single')} onClick={() => setMultiplierMode('single')}>
-                  Single (alle=1)
-                </button>
-              </div>
-              <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
-                {multiplierMode === 'standard' && 'Double springt 2 Felder, Triple springt 3 Felder'}
-                {multiplierMode === 'standard2' && 'Double und Triple springen beide 2 Felder'}
-                {multiplierMode === 'single' && 'Jeder Treffer springt nur 1 Feld'}
-              </div>
-            </div>
-          )}
+            {/* Multiplier (nur bei 'any') */}
+            {targetMode === 'any' && (
+              <>
+                <div style={{ ...styles.title, marginBottom: 6, marginTop: 6 }}>Multiplier</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+                  <button style={pill(multiplierMode === 'standard')} onClick={() => setMultiplierMode('standard')}>Normal</button>
+                  <button style={pill(multiplierMode === 'standard2')} onClick={() => setMultiplierMode('standard2')}>Spezial</button>
+                  <button style={pill(multiplierMode === 'single')} onClick={() => setMultiplierMode('single')}>Single</button>
+                </div>
+                <div style={{ ...styles.sub, fontSize: 11, marginBottom: 4 }}>
+                  {multiplierMode === 'standard' && 'Double springt 2 Felder, Triple springt 3 Felder'}
+                  {multiplierMode === 'standard2' && 'Double und Triple springen beide 2 Felder'}
+                  {multiplierMode === 'single' && 'Jeder Treffer springt nur 1 Feld'}
+                </div>
+              </>
+            )}
 
-          {/* Spezialregeln */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Spezialregeln</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button style={pill(specialRule === 'none')} onClick={() => setSpecialRule('none')}>
-                Keine
-              </button>
-              <button
-                style={pill(specialRule === 'bullHeavy', bullHeavyDisabled)}
-                onClick={() => !bullHeavyDisabled && setSpecialRule('bullHeavy')}
-                disabled={bullHeavyDisabled}
-                title={bullHeavyDisabled ? 'Nicht verfügbar bei Mixed-Modi' : undefined}
-              >
-                Bull Heavy
-              </button>
-              <button style={pill(specialRule === 'suddenDeath')} onClick={() => setSpecialRule('suddenDeath')}>
-                Sudden Death
-              </button>
-              <button
-                style={pill(specialRule === 'noDoubleEscape', noDoubleEscapeDisabled)}
-                onClick={() => !noDoubleEscapeDisabled && setSpecialRule('noDoubleEscape')}
-                disabled={noDoubleEscapeDisabled}
-                title={noDoubleEscapeDisabled ? 'Nur bei "Alle (S/D/T)" verfügbar' : undefined}
-              >
-                No Double Escape
-              </button>
-              <button style={pill(specialRule === 'miss3Back')} onClick={() => setSpecialRule('miss3Back')}>
-                Miss (3 Fehl)
-              </button>
+            {/* Spezialregeln */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Spezialregeln</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+              <button style={pill(specialRule === 'none')} onClick={() => setSpecialRule('none')}>Keine</button>
+              <button style={pill(specialRule === 'bullHeavy', bullHeavyDisabled)} onClick={() => !bullHeavyDisabled && setSpecialRule('bullHeavy')} disabled={bullHeavyDisabled}>Bull Heavy</button>
+              <button style={pill(specialRule === 'suddenDeath')} onClick={() => setSpecialRule('suddenDeath')}>Sudden Death</button>
+              <button style={pill(specialRule === 'noDoubleEscape', noDoubleEscapeDisabled)} onClick={() => !noDoubleEscapeDisabled && setSpecialRule('noDoubleEscape')} disabled={noDoubleEscapeDisabled}>No Dbl Escape</button>
+              <button style={pill(specialRule === 'miss3Back')} onClick={() => setSpecialRule('miss3Back')}>3× Miss</button>
             </div>
-            <div style={{ ...styles.sub, marginTop: 6, fontSize: 11 }}>
+            <div style={{ ...styles.sub, fontSize: 11, marginBottom: 4 }}>
               {specialRule === 'none' && 'Keine besonderen Regeln'}
               {specialRule === 'bullHeavy' && 'Nach jedem Zahlenabschluss muss Bull getroffen werden'}
               {specialRule === 'suddenDeath' && 'Wer in einer Aufnahme nichts trifft, verliert sofort'}
               {specialRule === 'noDoubleEscape' && 'Mit Double abgeschlossen = nächste Zahl muss auch Double sein'}
               {specialRule === 'miss3Back' && '3 Fehldarts = zurück zur vorherigen Zahl'}
             </div>
-
-            {/* Miss 3 Back Variante */}
             {specialRule === 'miss3Back' && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}` }}>
-                <div style={{ ...styles.sub, marginBottom: 4 }}>Bei 3 Fehlwürfen:</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button style={pill(miss3BackVariant === 'previous')} onClick={() => setMiss3BackVariant('previous')}>
-                    Vorherige Zahl
-                  </button>
-                  <button style={pill(miss3BackVariant === 'start')} onClick={() => setMiss3BackVariant('start')}>
-                    Auf Anfang
-                  </button>
-                </div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                <span style={{ ...styles.sub, fontSize: 11, alignSelf: 'center' }}>Bei 3 Fehl:</span>
+                <button style={pill(miss3BackVariant === 'previous')} onClick={() => setMiss3BackVariant('previous')}>Vorherige</button>
+                <button style={pill(miss3BackVariant === 'start')} onClick={() => setMiss3BackVariant('start')}>Anfang</button>
               </div>
             )}
-          </div>
 
-          {/* Legs / Sets Auswahl */}
-          <div style={styles.card}>
-            <div style={{ ...styles.title, marginBottom: 8 }}>Spielformat</div>
+            {/* Spielformat */}
+            <div style={{ ...styles.title, marginBottom: 6, marginTop: 10 }}>Spielformat</div>
 
             {/* Format-Auswahl */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -487,7 +404,7 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
             )}
           </div>
 
-          {/* Spieler-Auswahl */}
+          {/* Spieler-Auswahl — eigene Card */}
           <div style={styles.card}>
             <div style={{ ...styles.title, marginBottom: 8 }}>Spieler auswählen</div>
 
@@ -525,7 +442,7 @@ export default function NewGameATB({ onCancel, onStart }: Props) {
                     style={{ ...styles.pill, padding: '2px 8px', fontSize: 11, marginLeft: 6 }}
                     onClick={shuffleOrder}
                   >
-                    🎲 Mischen
+                    🎲 Zufällig
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

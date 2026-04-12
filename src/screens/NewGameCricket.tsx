@@ -1,4 +1,5 @@
 // src/screens/NewGameCricket.tsx
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useMemo, useState } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
@@ -90,10 +91,11 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder((o) => {
       const list = dedupeIds(o)
-      // Fisher-Yates Shuffle
       const shuffled = [...list]
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
@@ -101,6 +103,7 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -158,6 +161,8 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
 
   return (
     <div style={styles.page}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
+
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0, color: colors.fg }}>Cricket konfigurieren</h2>
         {onCancel ? <button style={styles.backBtn} onClick={onCancel}>← Zurück</button> : null}

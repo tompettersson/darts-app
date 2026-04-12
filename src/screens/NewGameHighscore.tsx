@@ -1,6 +1,7 @@
 // src/screens/NewGameHighscore.tsx
 // Spieler-Auswahl und Konfiguration für Highscore Trainingsspiel
 
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useMemo, useState } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
@@ -102,7 +103,9 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder((o) => {
       const list = dedupeIds(o)
       const shuffled = [...list]
@@ -112,6 +115,7 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -195,6 +199,7 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
       padding: '16px 20px',
       overflowY: 'auto',
     }}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -448,7 +453,7 @@ export default function NewGameHighscore({ onCancel, onStart }: Props) {
           }}>
             <div style={styles.label}>Reihenfolge</div>
             <button onClick={shuffleOrder} style={{ ...styles.pill, fontSize: 11, padding: '4px 10px' }}>
-              Mischen
+              🎲 Zufällig
             </button>
           </div>
 

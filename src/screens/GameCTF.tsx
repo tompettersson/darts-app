@@ -756,8 +756,27 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     )
   }
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const isMobile = Math.min(screenWidth, typeof window !== 'undefined' ? window.innerHeight : 800) < 600
+
+  // Mobile: Treffer auf aktuelles Feld
+  const addHitOnTarget = useCallback(() => {
+    if (currentTargetNumber) addDart(currentTargetNumber)
+  }, [currentTargetNumber, addDart])
+
   return (
     <div
+      className={isMobile ? 'game-fullscreen' : undefined}
       style={{
         background: playerColorBgEnabled && activePlayerColor
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
@@ -928,6 +947,213 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
       </div>
 
       {/* Main Content */}
+      {isMobile && !isLandscape ? (
+        /* ===== MOBILE PORTRAIT ===== */
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+          {/* Spieler kompakt oben */}
+          {(() => {
+            const pList = state.match?.players ?? []
+            const pCount = pList.length
+            const rows: typeof pList[] = []
+            if (pCount <= 4) { pList.forEach(p => rows.push([p])) }
+            else { for (let i = 0; i < pCount; i += 2) rows.push(pList.slice(i, Math.min(i + 2, pCount))) }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0, marginBottom: 2 }}>
+                {rows.map((row, ri) => (
+                  <div key={ri} style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                    {row.map((p, pi) => {
+                      const idx = pList.indexOf(p)
+                      const isAct = p.playerId === activePlayerId
+                      const color = playerColors[p.playerId] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+                      const pts = captureState.totalScoreByPlayer[p.playerId] ?? 0
+                      const fields = Object.values(captureState.fieldWinners).filter(w => w === p.playerId).length
+                      const nameFz = pCount <= 2 ? 14 : pCount <= 4 ? 12 : pCount <= 6 ? 11 : 10
+                      const ptsFz = pCount <= 2 ? 14 : pCount <= 4 ? 12 : pCount <= 6 ? 11 : 10
+                      const fieldFz = pCount <= 2 ? 11 : pCount <= 4 ? 10 : pCount <= 6 ? 9 : 8
+                      const dotSz = pCount <= 4 ? 7 : 5
+                      return (
+                        <div key={p.playerId} style={{
+                          flex: row.length === 1 && pCount > 1 ? '0 0 calc(50% - 2px)' : '1 1 0',
+                          minWidth: 0, padding: pCount <= 4 ? '6px 8px' : '5px 6px', borderRadius: 6,
+                          background: isAct ? `${color}20` : '#1a1a1a',
+                          border: isAct ? `2px solid ${color}` : '1px solid #333', overflow: 'hidden',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: pCount <= 4 ? 5 : 3 }}>
+                            <span style={{ width: dotSz, height: dotSz, borderRadius: 99, background: color, flexShrink: 0 }} />
+                            <span style={{ fontSize: nameFz, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                            <span style={{ fontSize: ptsFz, fontWeight: 700, color, marginLeft: 'auto' }}>{pts}P</span>
+                            <span style={{ fontSize: fieldFz, color: c.textDim }}>{fields}F</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Ziel: zwischen Player Cards und Darts */}
+          {activePlayer && currentTargetLabel && (
+            <div style={{ textAlign: 'center', flexShrink: 0, margin: '6px 0' }}>
+              <div style={{ fontSize: 10, color: c.textDim }}>Runde {currentFieldIndex + 1}/{seqLen}</div>
+              <span style={{ fontSize: 16, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
+              <span style={{ fontSize: 14, color: c.textDim, margin: '0 6px' }}>→</span>
+              <span style={{ fontSize: 46, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 16px ${activePlayerColor}60` }}>{currentTargetLabel}</span>
+            </div>
+          )}
+
+          {/* Dartboard-Block: Darts direkt über Scheibe */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+            {/* Darts direkt über der Scheibe */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
+              {[0, 1, 2].map(i => {
+                const dart = current[i]
+                return (
+                  <div key={i} style={{
+                    width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
+                    borderRadius: 6, fontWeight: 700, fontSize: 14, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                  }}>
+                    {dart ? formatDart(dart) : `${i + 1}.`}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Dartboard */}
+            <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
+              size={Math.min(screenWidth, 380)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
+          </div>
+
+          {/* Treffer / Miss */}
+          <div style={{ flexShrink: 0, padding: '2px 0' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+              <button onClick={addHitOnTarget} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #22c55e',
+                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>✓ Treffer</button>
+              <button onClick={addMiss} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #ef4444',
+                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}>✕ Miss</button>
+            </div>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {([1, 2, 3] as const).map(m => (
+                <button key={m} onClick={() => setMult(m)} style={{
+                  flex: 1, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                  border: `1px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
+                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
+                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
+                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+              ))}
+              <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
+                flex: 1, height: 28, borderRadius: 4, border: '1px solid #555', background: '#222',
+                color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 9, cursor: 'pointer',
+              }}>← Dart</button>
+              <button onClick={undoLastTurn} disabled={!canUndo} style={{
+                flex: 1, height: 28, borderRadius: 4, border: canUndo ? '1px solid #666' : '1px solid #444', background: '#222',
+                color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
+              }}>↶ Aufn.</button>
+            </div>
+          </div>
+        </div>
+      ) : isMobile && isLandscape ? (
+        /* ===== MOBILE LANDSCAPE ===== */
+        <div style={{ flex: 1, display: 'flex', gap: 6, minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+          {/* Links: Spieler */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflow: 'hidden', justifyContent: 'center' }}>
+            {(state.match?.players ?? []).map((p, index) => {
+              const isAct = p.playerId === activePlayerId
+              const color = playerColors[p.playerId] ?? PLAYER_COLORS[index % PLAYER_COLORS.length]
+              const pts = captureState.totalScoreByPlayer[p.playerId] ?? 0
+              const fields = Object.values(captureState.fieldWinners).filter(w => w === p.playerId).length
+              const pLen = (state.match?.players ?? []).length
+              const cNameFz = pLen <= 3 ? 16 : pLen <= 5 ? 13 : 11
+              const cPtsFz = pLen <= 3 ? 16 : pLen <= 5 ? 14 : 12
+              const cFieldFz = pLen <= 3 ? 12 : pLen <= 5 ? 11 : 9
+              const cDot = pLen <= 3 ? 8 : 6
+              return (
+                <div key={p.playerId} style={{
+                  flex: `0 0 calc(${100 / Math.max(pLen, 4)}% - 4px)`, minHeight: 0,
+                  padding: pLen <= 3 ? '6px 10px' : pLen <= 5 ? '5px 8px' : '4px 6px', borderRadius: 6,
+                  background: isAct ? `${color}20` : '#1a1a1a',
+                  border: isAct ? `2px solid ${color}` : '1px solid #333', overflow: 'hidden',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: pLen <= 3 ? 6 : 4 }}>
+                    <span style={{ width: cDot, height: cDot, borderRadius: 99, background: color, flexShrink: 0 }} />
+                    <span style={{ fontSize: cNameFz, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <span style={{ fontSize: cPtsFz, fontWeight: 700, color, marginLeft: 'auto' }}>{pts}P</span>
+                    <span style={{ fontSize: cFieldFz, color: c.textDim }}>{fields}F</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {/* Mitte: Dartboard */}
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+            <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
+              size={Math.min(typeof window !== 'undefined' ? window.innerHeight - 60 : 300, 320)}
+              activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
+          </div>
+          {/* Rechts: Ziel + Darts + Buttons */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            {activePlayer && currentTargetLabel && (
+              <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
+                <div style={{ fontSize: 12, color: c.textDim }}>Runde {currentFieldIndex + 1}/{seqLen}</div>
+                <div style={{ fontSize: 14, color: activePlayerColor, fontWeight: 700 }}>{activePlayer.name}</div>
+                <div style={{ fontSize: 80, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 20px ${activePlayerColor}60`, lineHeight: 1 }}>{currentTargetLabel}</div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+              {[0, 1, 2].map(i => {
+                const dart = current[i]
+                return (
+                  <div key={i} style={{
+                    flex: 1, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
+                    borderRadius: 4, fontWeight: 700, fontSize: 13, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                  }}>
+                    {dart ? formatDart(dart) : `${i + 1}.`}
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={addHitOnTarget} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '14px 0', borderRadius: 6, border: '2px solid #22c55e',
+                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 16, cursor: 'pointer',
+              }}>✓ Treffer</button>
+              <button onClick={addMiss} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, padding: '14px 0', borderRadius: 6, border: '2px solid #ef4444',
+                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 16, cursor: 'pointer',
+              }}>✕ Miss</button>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {([1, 2, 3] as const).map(m => (
+                <button key={m} onClick={() => setMult(m)} style={{
+                  flex: 1, height: 38, borderRadius: 5, fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                  border: `2px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
+                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
+                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
+                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
+                flex: 1, height: 36, borderRadius: 5, border: '1px solid #555', background: '#222',
+                color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              }}>← Dart</button>
+              <button onClick={undoLastTurn} disabled={!canUndo} style={{
+                flex: 1, height: 36, borderRadius: 5, border: canUndo ? '1px solid #666' : '1px solid #444', background: '#222',
+                color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 600,
+              }}>↶ Aufn.</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* ===== DESKTOP ===== */
       <div
         style={{
           flex: 1,
@@ -1292,6 +1518,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           </div>
         </div>
       </div>
+      )}
 
       {/* Leg-Verlauf Chart (volle Breite) */}
       {captureRounds.length > 0 && (

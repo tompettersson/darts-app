@@ -2,6 +2,7 @@
 // Konfigurationsscreen für Sträußchen
 // Modus (Eine Zahl / Alle Zahlen), Zahl-Picker, Reihenfolge, Spieler, Legs/Sets
 
+import DiceAnimation from '../components/DiceAnimation'
 import React, { useEffect, useMemo, useState } from 'react'
 import { id } from '../darts501'
 import { getProfiles, type Profile } from '../storage'
@@ -112,7 +113,9 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
     })
   }
 
-  const shuffleOrder = () => {
+  const [showDice, setShowDice] = useState(false)
+  const shuffleOrder = () => { setShowDice(true) }
+  const handleDiceDone = () => {
     setOrder(o => {
       const list = dedupeIds(o).filter(pid => selected.includes(pid))
       const shuffled = [...list]
@@ -122,6 +125,7 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
       }
       return shuffled
     })
+    setShowDice(false)
   }
 
   const addGuest = () => {
@@ -193,6 +197,8 @@ export default function NewGameStraeusschen({ onCancel, onStart }: Props) {
 
   return (
     <div style={styles.page}>
+      {showDice && <DiceAnimation onDone={handleDiceDone} />}
+
       <div style={styles.headerRow}>
         <h2 style={{ margin: 0, color: colors.fg }}>Sträußchen konfigurieren</h2>
         {onCancel && <button style={styles.backBtn} onClick={onCancel}>← Zurück</button>}

@@ -174,7 +174,7 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
   const activePlayerDisplayColor = activePlayer ? activePlayer.color : '#f97316'
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Dartscheibe mit Spielerpositionen">
+    <svg width={size} height={size} viewBox={`${-size * 0.06} ${-size * 0.06} ${size * 1.12} ${size * 1.12}`} style={{ overflow: 'visible' }} role="img" aria-label="Dartscheibe mit Spielerpositionen">
       <defs>
         {/* Pulsierender Glow-Filter für aktives Ziel */}
         <filter id="target-glow" x="-150%" y="-150%" width="400%" height="400%">
@@ -334,24 +334,36 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
             {/* Bei Ring-Highlight: Keine Overlays für aktiven Spieler (sonst überdeckt es das Highlight) */}
             {hasPlayers && !showRingHighlight && playersHere.map((player, pIdx) => {
               const numPlayers = playersHere.length
-              // Segment aufteilen: jeder Spieler bekommt einen Teil
-              const sliceAngle = segmentAngle / numPlayers
-              const playerStartAngle = startAngle + pIdx * sliceAngle
-              const playerEndAngle = startAngle + (pIdx + 1) * sliceAngle
               const playerColor = getPlayerDisplayColor(player)
-              const playerOpacity = getPlayerOpacity(player)
+              // Punkte im Segment verteilen — verschiedene Radien und Winkel
+              const dotPatterns = [
+                { rFrac: 0.55, aFrac: 0.5 },   // 1 Spieler: Mitte
+                { rFrac: 0.45, aFrac: 0.35 },  // 2
+                { rFrac: 0.65, aFrac: 0.65 },
+                { rFrac: 0.35, aFrac: 0.5 },   // 3
+                { rFrac: 0.75, aFrac: 0.3 },   // 4
+                { rFrac: 0.55, aFrac: 0.7 },   // 5
+                { rFrac: 0.4, aFrac: 0.2 },    // 6
+                { rFrac: 0.7, aFrac: 0.8 },    // 7
+                { rFrac: 0.5, aFrac: 0.15 },   // 8
+              ]
+              const pat = dotPatterns[pIdx] ?? { rFrac: 0.5, aFrac: 0.5 }
+              const dotR = singleInner3Radius + (singleOuterRadius - singleInner3Radius) * pat.rFrac
+              const dotAngle = startAngle + segmentAngle * pat.aFrac
+              const rad = (dotAngle - 90) * (Math.PI / 180)
+              const dx = cx + dotR * Math.cos(rad)
+              const dy = cy + dotR * Math.sin(rad)
+              const dotSize = player.isActive ? size * 0.025 : size * 0.018
 
               return (
-                <g key={player.playerId}>
-                  {/* Spieler-Highlight über dem gesamten Segment-Slice */}
-                  <path
-                    d={createArcPath(singleInner3Radius, doubleOuter, playerStartAngle, playerEndAngle)}
-                    fill={playerColor}
-                    opacity={playerOpacity}
-                    stroke={player.isActive ? playerColor : 'none'}
-                    strokeWidth={player.isActive ? 2 : 0}
-                  />
-                </g>
+                <circle
+                  key={player.playerId}
+                  cx={dx} cy={dy} r={dotSize}
+                  fill={playerColor}
+                  stroke={player.isActive ? '#fff' : '#000'}
+                  strokeWidth={player.isActive ? 1.5 : 0.5}
+                  opacity={player.isActive ? 1 : 0.85}
+                />
               )
             })}
 
@@ -567,39 +579,7 @@ export default function ATBDartboard({ currentTarget, players, size = 300, activ
         )
       })()}
 
-      {/* Spieler-Marker */}
-      {players.map((player, playerIdx) => {
-        if (!player.target) return null // Spieler hat fertig
-
-        const playersOnSameField = players.filter(p => p.target === player.target)
-        const indexOnField = playersOnSameField.findIndex(p => p.playerId === player.playerId)
-        const pos = getMarkerPosition(player.target, indexOnField, playersOnSameField.length)
-        const playerColor = player.color
-
-        return (
-          <g key={player.playerId}>
-            {/* Glow-Kreis */}
-            <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={player.isActive ? 10 : 7}
-              fill={playerColor}
-              opacity={0.3}
-              filter="url(#segment-glow)"
-            />
-
-            {/* Spieler-Punkt */}
-            <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={player.isActive ? 6 : 4}
-              fill={playerColor}
-              stroke={player.isActive ? '#fff' : '#000'}
-              strokeWidth={player.isActive ? 2 : 1}
-            />
-          </g>
-        )
-      })}
+      {/* Spieler-Marker: entfernt — Punkte werden jetzt im Segment verteilt */}
     </svg>
   )
 }
