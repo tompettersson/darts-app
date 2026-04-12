@@ -674,7 +674,21 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     const remote = multiplayer.remoteEvents as CricketEvent[]
     setEvents(remote)
 
-    // Ensure match exists locally for guest
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    const isInitialSync = !prevEvents
+    const isSameLength = prevLen === remote.length
+    if (isInitialSync || isSameLength) {
+      // Still ensure match exists on initial sync
+      if (isInitialSync && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'CricketMatchStarted') as any
+        if (startEvt) {
+          ensureCricketMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        }
+      }
+      return
+    }
+
+    // Ensure match exists locally for guest (incremental update from 0 events)
     if (prevLen === 0 && remote.length > 0) {
       const startEvt = remote.find((e: any) => e.type === 'CricketMatchStarted') as any
       if (startEvt) {

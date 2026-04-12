@@ -145,13 +145,24 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteShanghaiRef.current) return
     const prevEvents = prevRemoteShanghaiRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteShanghaiRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as ShanghaiEvent[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'ShanghaiMatchStarted') as any
+        if (startEvt) ensureShanghaiMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistShanghaiEvents(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'ShanghaiMatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'ShanghaiMatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'ShanghaiMatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       const startEvtForFinish = remote.find((e: any) => e.type === 'ShanghaiMatchStarted') as any
       const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []

@@ -148,13 +148,25 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteATBRef.current) return
     const prevEvents = prevRemoteATBRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteATBRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as ATBEvent[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    // This prevents intermission from being cleared on page reload or screen rotation
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'ATBMatchStarted') as any
+        if (startEvt) ensureATBMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistATBEvents(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'ATBMatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'ATBMatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'ATBMatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       const startEvtForFinish = remote.find((e: any) => e.type === 'ATBMatchStarted') as any
       const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []

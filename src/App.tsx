@@ -397,6 +397,14 @@ export default function App() {
     if (savedView === 'multiplayer-game' && isRecent && sessionStorage.getItem('mp-room')) {
       return 'multiplayer-game' as View
     }
+
+    // Restore local game view after rotation/reload (10s window — only for page reloads, not stale sessions)
+    const localView = sessionStorage.getItem('local-game-view')
+    const localTs = sessionStorage.getItem('local-game-ts')
+    if (localView && localTs && (Date.now() - parseInt(localTs, 10)) < 10_000) {
+      return localView as View
+    }
+
     // Stale session — clean up
     sessionStorage.removeItem('mp-view')
     sessionStorage.removeItem('mp-room')
@@ -404,6 +412,8 @@ export default function App() {
     sessionStorage.removeItem('mp-player')
     sessionStorage.removeItem('mp-gametype')
     sessionStorage.removeItem('mp-ts')
+    sessionStorage.removeItem('local-game-view')
+    sessionStorage.removeItem('local-game-ts')
     return 'menu'
   })
   const [startOnlineStep, setStartOnlineStep] = useState(false)
@@ -552,6 +562,18 @@ export default function App() {
     if (multiplayerGameType) sessionStorage.setItem('mp-gametype', multiplayerGameType)
     if (view === 'multiplayer-game') sessionStorage.setItem('mp-ts', String(Date.now()))
   }, [view, multiplayerRoomCode, multiplayerMatchId, multiplayerMyPlayerId, multiplayerGameType])
+
+  // Persist local game view to sessionStorage for rotation/reload recovery
+  const LOCAL_GAME_VIEWS = ['game', 'game-cricket', 'game-atb', 'game-str', 'game-highscore', 'game-ctf', 'game-shanghai', 'game-killer', 'game-bobs27', 'game-operation', 'game-checkout-trainer'] as const
+  useEffect(() => {
+    if ((LOCAL_GAME_VIEWS as readonly string[]).includes(view)) {
+      sessionStorage.setItem('local-game-view', view)
+      sessionStorage.setItem('local-game-ts', String(Date.now()))
+    } else {
+      sessionStorage.removeItem('local-game-view')
+      sessionStorage.removeItem('local-game-ts')
+    }
+  }, [view])
 
   const [mpState, mpActions] = useMultiplayerRoom(
     multiplayerRoomCode,

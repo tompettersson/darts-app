@@ -405,13 +405,24 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteOpRef.current) return
     const prevEvents = prevRemoteOpRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteOpRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as OperationEvent[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'OperationMatchStarted') as any
+        if (startEvt) ensureOperationMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistOperationEvents(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'OperationMatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'OperationMatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'OperationMatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       setMatchEndDelay(true)
       const startEvtForFinish = remote.find((e: any) => e.type === 'OperationMatchStarted') as any

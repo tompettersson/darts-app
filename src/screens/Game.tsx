@@ -829,10 +829,14 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 
-  // Mobile detection for multiplayer layout
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 600)
+  // Mobile detection for multiplayer layout (Math.min keeps it mobile in landscape)
+  const [isMobile, setIsMobile] = useState(() => Math.min(window.innerWidth, window.innerHeight) < 600)
+  const [isLandscape, setIsLandscape] = useState(() => window.innerWidth > window.innerHeight)
   useEffect(() => {
-    const update = () => setIsMobile(window.innerWidth < 600)
+    const update = () => {
+      setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 600)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
@@ -1142,8 +1146,28 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
     prevRemoteEventsRef.current = multiplayer.remoteEvents // Update ref AFTER reading prev
     setEvents(multiplayer.remoteEvents)
 
+    // Skip diff logic on initial load (prevEvents null) or reconnect sync (same length = no new events)
+    // This prevents intermission from being cleared on page reload or screen rotation
+    const isInitialSync = !prevEvents
+    const isSameLength = prevLen === multiplayer.remoteEvents.length
+    if (isInitialSync || isSameLength) {
+      // Still ensure match exists on initial sync
+      if (isInitialSync) {
+        const startEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchStarted') as any
+        if (startEvt) {
+          ensureX01MatchExists(
+            matchId,
+            multiplayer.remoteEvents,
+            startEvt.players?.map((p: any) => p.playerId) ?? [],
+            `${startEvt.mode ?? 'X01'} – Multiplayer`,
+          )
+        }
+      }
+      return
+    }
+
     // Auto-close intermission when new LegStarted arrives from host
-    const prevLegStartedCount = prevEvents ? prevEvents.filter((e: any) => e.type === 'LegStarted').length : 0
+    const prevLegStartedCount = prevEvents.filter((e: any) => e.type === 'LegStarted').length
     const newLegStartedCount = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegStarted').length
     const newLegStartedArrived = newLegStartedCount > prevLegStartedCount
     if (newLegStartedArrived) {
@@ -1186,9 +1210,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
       const matchFinishedEvt = multiplayer.remoteEvents.find((e: any) => e.type === 'MatchFinished') as any
       const legFinishedEvts = multiplayer.remoteEvents.filter((e: any) => e.type === 'LegFinished')
       const lastLegFinished = legFinishedEvts[legFinishedEvts.length - 1] as any
-      const prevLegCount = prevEvents
-        ? prevEvents.filter((e: any) => e.type === 'LegFinished').length
-        : 0
+      const prevLegCount = prevEvents.filter((e: any) => e.type === 'LegFinished').length
 
       // Leg finished — only trigger when a NEW LegFinished appears AND no new LegStarted
       // (If LegStarted arrived in the same update, the leg transition is already handled by auto-close above)
@@ -1207,7 +1229,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
       }
 
       // Match finished — check if MatchFinished exists (may arrive in same or later batch)
-      const prevHadMatchFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'MatchFinished') : false
+      const prevHadMatchFinished = prevEvents.some((e: any) => e.type === 'MatchFinished')
       if (matchFinishedEvt && !prevHadMatchFinished) {
         // Close any open Leg Summary — Match End takes priority
         setIntermission(null)
@@ -2055,7 +2077,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
       )}
 
       {/* Score Popup (nur Classic-Modus, Arcade nutzt CenterScore) */}
-      {scorePopup && !isArcade && (
+      {scorePopup && (!isArcade || isMobile) && (
         <div key={scorePopup.key} className={`g-scorePopup${scorePopup.bust ? ' bust' : ''}`}>
           {scorePopup.label}
         </div>
@@ -2437,6 +2459,147 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
               opacity: disabled ? 0.5 : 1,
             })
 
+            // Mobile Arcade layout
+            if (isMobile) {
+              // Compact player card renderer
+              const renderPlayerCards = (vertical = false) => (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexDirection: vertical ? 'column' : 'row' }}>
+                  {arcadePlayers.map(p => {
+                    const activeColor = p.color || '#f97316'
+                    return (
+                      <div key={p.id} style={{
+                        flex: vertical ? undefined : (arcadePlayers.length <= 4 ? '1 1 0' : '1 1 calc(25% - 3px)'),
+                        minWidth: 0,
+                        background: p.isActive ? `${activeColor}20` : '#1a1a1a',
+                        border: p.isActive ? `2px solid ${activeColor}` : '1px solid #333',
+                        borderRadius: 8,
+                        padding: vertical ? '4px 8px' : '6px 8px',
+                        display: 'flex',
+                        flexDirection: vertical ? 'row' : 'column',
+                        alignItems: 'center',
+                        gap: vertical ? 8 : 2,
+                        boxShadow: p.isActive ? `0 0 12px ${activeColor}30` : 'none',
+                      }}>
+                        <div style={{
+                          fontSize: arcadePlayers.length > 4 ? 8 : 9,
+                          fontWeight: 700,
+                          color: p.isActive ? activeColor : '#9ca3af',
+                          textTransform: 'uppercase',
+                          letterSpacing: 1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: vertical ? 60 : '100%',
+                          textAlign: 'center',
+                        }}>{p.name}</div>
+                        <div style={{
+                          fontSize: vertical ? 18 : (arcadePlayers.length > 4 ? 20 : 24),
+                          fontWeight: 900,
+                          fontFamily: '"Orbitron", monospace',
+                          color: p.isActive ? '#eab308' : '#f97316',
+                          lineHeight: 1,
+                          textShadow: p.isActive ? '0 0 8px rgba(234,179,8,0.5)' : 'none',
+                        }}>{p.remaining}</div>
+                        <div style={{ display: 'flex', gap: 4, fontSize: 8, color: '#6b7280' }}>
+                          <span>L:<b style={{ color: '#e5e7eb', marginLeft: 1 }}>{p.legs}</b></span>
+                          {isSets && <span>S:<b style={{ color: '#e5e7eb', marginLeft: 1 }}>{p.sets}</b></span>}
+                          <span style={{ color: '#9ca3af' }}>{p.threeDartAvg.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+
+              // Landscape mobile: players left, scoreboard right
+              if (isLandscape) {
+                return (
+                  <div style={{
+                    background: '#0f0f0f',
+                    padding: '4px 8px',
+                    display: 'flex',
+                    gap: 8,
+                    flex: 1,
+                    minHeight: 0,
+                  }}>
+                    {/* Left: player cards stacked vertically */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140, maxWidth: 180, overflow: 'auto' }}>
+                      {renderPlayerCards(true)}
+                      {/* Checkout route */}
+                      {(checkoutRoute || setupShot) && (
+                        <div style={{
+                          textAlign: 'center', fontSize: 14, fontWeight: 700,
+                          color: checkoutRoute ? '#22c55e' : '#eab308',
+                          textShadow: checkoutRoute ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(234,179,8,0.5)',
+                        }}>
+                          {checkoutRoute ?? setupShot}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: scoreboard */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                      {multiplayer?.enabled && !isMyTurn && (
+                        <div style={{
+                          textAlign: 'center', padding: '4px 8px', marginBottom: 4,
+                          background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6,
+                          color: '#92400e', fontWeight: 700, fontSize: 11,
+                        }}>
+                          {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                        </div>
+                      )}
+                      <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                    </div>
+                  </div>
+                )
+              }
+
+              // Portrait mobile: players top, scoreboard bottom
+              return (
+                <div style={{
+                  background: '#0f0f0f',
+                  padding: '6px 8px 8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  flex: 1,
+                  minHeight: 0,
+                }}>
+                  {renderPlayerCards(false)}
+
+                  {/* Checkout route / Setup shot for active player */}
+                  {(checkoutRoute || setupShot) && (
+                    <div style={{
+                      textAlign: 'center',
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: checkoutRoute ? '#22c55e' : '#eab308',
+                      textShadow: checkoutRoute ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(234,179,8,0.5)',
+                    }}>
+                      {checkoutRoute ?? setupShot}
+                    </div>
+                  )}
+
+                  {/* Multiplayer: opponent's turn hint */}
+                  {multiplayer?.enabled && !isMyTurn && (
+                    <div style={{
+                      textAlign: 'center', padding: '6px 12px',
+                      background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8,
+                      color: '#92400e', fontWeight: 700, fontSize: 12,
+                    }}>
+                      {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                    </div>
+                  )}
+
+                  {/* Scoreboard (MobileScoreInput) — fills remaining space */}
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                  </div>
+                </div>
+              )
+            }
+
+            // Desktop Arcade: side-by-side layout (chart | buttons | scoreboard)
             return (
               <div style={{
                 background: '#0f0f0f',

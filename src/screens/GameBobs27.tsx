@@ -242,13 +242,24 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteBobs27Ref.current) return
     const prevEvents = prevRemoteBobs27Ref.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteBobs27Ref.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as Bobs27Event[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'Bobs27MatchStarted') as any
+        if (startEvt) ensureBobs27MatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistBobs27Events(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'Bobs27MatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'Bobs27MatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'Bobs27MatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       setMatchEndDelay(true)
       const startEvtForFinish = remote.find((e: any) => e.type === 'Bobs27MatchStarted') as any

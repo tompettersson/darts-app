@@ -131,13 +131,24 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteCTFRef.current) return
     const prevEvents = prevRemoteCTFRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteCTFRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as CTFEvent[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'CTFMatchStarted') as any
+        if (startEvt) ensureCTFMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistCTFEvents(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'CTFMatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'CTFMatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'CTFMatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       const startEvtForFinish = remote.find((e: any) => e.type === 'CTFMatchStarted') as any
       const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []

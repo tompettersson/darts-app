@@ -99,13 +99,24 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteHsRef.current) return
     const prevEvents = prevRemoteHsRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteHsRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as HighscoreEvent[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'HighscoreMatchStarted') as any
+        if (startEvt) ensureHighscoreMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistHighscoreEvents(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'HighscoreMatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'HighscoreMatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'HighscoreMatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       const startEvtForFinish = remote.find((e: any) => e.type === 'HighscoreMatchStarted') as any
       const playerIds = startEvtForFinish?.players?.map((p: any) => p.playerId) ?? []

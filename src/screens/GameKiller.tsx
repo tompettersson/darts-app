@@ -157,13 +157,24 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     if (!multiplayer?.remoteEvents) return
     if (multiplayer.remoteEvents === prevRemoteKillerRef.current) return
     const prevEvents = prevRemoteKillerRef.current as any[] | null
+    const prevLen = prevEvents?.length ?? 0
     prevRemoteKillerRef.current = multiplayer.remoteEvents
     const remote = multiplayer.remoteEvents as KillerEvent[]
     setEvents(remote)
+
+    // Skip diff logic on initial load or reconnect sync (same length = no new events)
+    if (!prevEvents || prevLen === remote.length) {
+      if (!prevEvents && remote.length > 0) {
+        const startEvt = remote.find((e: any) => e.type === 'KillerMatchStarted') as any
+        if (startEvt) ensureKillerMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+      }
+      return
+    }
+
     persistKillerEvents(matchId, remote)
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'KillerMatchFinished') as any
-    const prevHadFinished = prevEvents ? prevEvents.some((e: any) => e.type === 'KillerMatchFinished') : false
+    const prevHadFinished = prevEvents.some((e: any) => e.type === 'KillerMatchFinished')
     if (matchFinishedEvt && !prevHadFinished) {
       const finalState = applyKillerEvents(remote)
       const startEvtForFinish = remote.find((e: any) => e.type === 'KillerMatchStarted') as any
