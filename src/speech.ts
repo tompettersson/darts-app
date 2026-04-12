@@ -580,65 +580,24 @@ function getShanghaiAudioCtx(): AudioContext {
   return shanghaiAudioCtx
 }
 
+let shanghaiDrumRollAudio: HTMLAudioElement | null = null
+
 export function playShanghaiDrumRoll() {
   if (!enabled) return
   try {
-    const ctx = getShanghaiAudioCtx()
-    if (ctx.state === 'suspended') ctx.resume()
-    const time = ctx.currentTime
-    const duration = 1.2
-    const beats = 24
-
-    const bufLen = Math.floor(ctx.sampleRate * 0.03)
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < bufLen; i++) {
-      data[i] = (Math.random() * 2 - 1)
-    }
-
-    for (let i = 0; i < beats; i++) {
-      const progress = i / beats
-      const actualTime = time + progress * progress * duration
-
-      const source = ctx.createBufferSource()
-      source.buffer = buf
-
-      const filter = ctx.createBiquadFilter()
-      filter.type = 'lowpass'
-      filter.frequency.setValueAtTime(800 + progress * 1200, actualTime)
-
-      const gain = ctx.createGain()
-      const vol = 0.08 + progress * 0.27
-      gain.gain.setValueAtTime(vol, actualTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, actualTime + 0.04)
-
-      source.connect(filter)
-      filter.connect(gain)
-      gain.connect(ctx.destination)
-      source.start(actualTime)
-      source.stop(actualTime + 0.05)
-    }
-
-    const finalTime = time + duration
-    const finalSource = ctx.createBufferSource()
-    const finalBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.06), ctx.sampleRate)
-    const finalData = finalBuf.getChannelData(0)
-    for (let i = 0; i < finalData.length; i++) {
-      finalData[i] = (Math.random() * 2 - 1)
-    }
-    finalSource.buffer = finalBuf
-    const finalFilter = ctx.createBiquadFilter()
-    finalFilter.type = 'lowpass'
-    finalFilter.frequency.setValueAtTime(2000, finalTime)
-    const finalGain = ctx.createGain()
-    finalGain.gain.setValueAtTime(0.4, finalTime)
-    finalGain.gain.exponentialRampToValueAtTime(0.001, finalTime + 0.15)
-    finalSource.connect(finalFilter)
-    finalFilter.connect(finalGain)
-    finalGain.connect(ctx.destination)
-    finalSource.start(finalTime)
-    finalSource.stop(finalTime + 0.2)
+    stopShanghaiDrumRoll()
+    shanghaiDrumRollAudio = new Audio('/sounds/drum-roll.mp3')
+    shanghaiDrumRollAudio.volume = 0.6
+    shanghaiDrumRollAudio.play().catch(() => {})
   } catch { /* ignore */ }
+}
+
+export function stopShanghaiDrumRoll() {
+  if (shanghaiDrumRollAudio) {
+    shanghaiDrumRollAudio.pause()
+    shanghaiDrumRollAudio.currentTime = 0
+    shanghaiDrumRollAudio = null
+  }
 }
 
 // ===== Sträußchen Ansagen =====
