@@ -26,6 +26,12 @@ html, body, #root {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
 
+/* Fullscreen game screens: no extra padding, no scroll */
+#root > .game-fullscreen {
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+}
+
 /* Design Tokens - mapped to global theme variables */
 :root {
   /* Map to theme variables from ThemeProvider */
@@ -269,7 +275,8 @@ html, body, #root {
 .g-modal {
   width: min(760px, 96vw);
   max-height: 90vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
@@ -847,7 +854,7 @@ html, body, #root {
 /* ===== MOBILE (<600px) ===== */
 @media (max-width: 599px) {
   .g-grid {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: 1fr;
     gap: 6px;
   }
   .g-card {
@@ -887,18 +894,36 @@ html, body, #root {
     gap: 4px !important;
   }
   .g-page {
-    gap: 8px;
-    padding: 8px;
+    gap: 6px;
+    padding: 6px;
   }
   .g-overlay {
     padding: 4px;
   }
   .g-modal {
     padding: 6px;
-    width: 100%;
+    width: calc(100vw - 8px);
     max-width: calc(100vw - 8px);
     gap: 6px;
     box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  .g-modal .g-table {
+    min-width: 0;
+  }
+  .g-modal .g-tableWrap,
+  .g-modal .g-miniTableWrap {
+    overflow-x: hidden;
+  }
+  .g-modal .g-miniTable {
+    min-width: 0;
+  }
+  .g-modal * {
+    max-width: 100%;
+  }
+  .g-modal svg {
+    max-width: 100%;
+    height: auto;
   }
   .g-modalHeader {
     gap: 6px;

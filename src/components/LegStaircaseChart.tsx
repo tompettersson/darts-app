@@ -46,7 +46,8 @@ export default function LegStaircaseChart({
   showHeader = true,
 }: Props) {
   // Berechne maximale Breite für Balken (proportional zum Startwert)
-  const maxBarWidth = compact ? 120 : 180
+  const isMobileChart = typeof window !== 'undefined' && window.innerWidth < 500
+  const maxBarWidth = compact ? 120 : isMobileChart ? 80 : 180
 
   // Spezielle Achievements erkennen
   const is180 = (v: LegVisit) => v.visitScore === 180
@@ -127,7 +128,7 @@ export default function LegStaircaseChart({
       )}
 
       {/* Staircase Container */}
-      <div style={{ position: 'relative', paddingLeft: 50 }}>
+      <div style={{ position: 'relative', paddingLeft: isMobileChart ? 35 : 50 }}>
         {/* Y-Achse (Score-Skala) */}
         <div
           style={{
@@ -135,7 +136,7 @@ export default function LegStaircaseChart({
             left: 0,
             top: 0,
             bottom: 0,
-            width: 45,
+            width: isMobileChart ? 30 : 45,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -248,11 +249,11 @@ export default function LegStaircaseChart({
                 <div
                   style={{
                     display: 'flex',
-                    gap: 4,
-                    fontSize: compact ? 10 : 11,
+                    gap: isMobileChart ? 2 : 4,
+                    fontSize: compact ? 10 : isMobileChart ? 10 : 11,
                     fontWeight: 600,
                     color: '#64748b',
-                    minWidth: compact ? 80 : 100,
+                    minWidth: 0,
                   }}
                 >
                   {visit.darts.map((d, i) => (

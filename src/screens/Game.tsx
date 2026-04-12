@@ -224,6 +224,8 @@ function PlayerTurnCard({
   threeDartAvg,
   recentScores,
   outRule = 'double-out',
+  compact = false,
+  lastDartLabels,
 }: {
   name: string
   color?: string
@@ -240,6 +242,8 @@ function PlayerTurnCard({
   threeDartAvg: number
   recentScores?: number[]
   outRule?: import('../darts501').OutRule
+  compact?: boolean
+  lastDartLabels?: string[] | null
 }) {
   const isBustFlash = flashLabel === 'BUST'
 
@@ -251,8 +255,8 @@ function PlayerTurnCard({
       position: 'relative',
       border: isBustFlash ? '2px solid #dc2626' : isActive ? `2px solid ${activeColor}` : '2px solid #e5e7eb',
       background: isActive ? `linear-gradient(135deg, ${activeColor}15 0%, transparent 60%)` : '#fff',
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: compact ? 10 : 14,
+      padding: compact ? 8 : 14,
       boxShadow: isBustFlash
         ? '0 0 20px rgba(220, 38, 38, 0.4)'
         : isActive
@@ -261,7 +265,7 @@ function PlayerTurnCard({
       animation: isBustFlash ? 'bustShake 420ms ease-in-out' : undefined,
       transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
     },
-    header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
+    header: { display: 'flex', alignItems: 'center', gap: compact ? 4 : 8, marginBottom: compact ? 4 : 8 },
     name: { fontWeight: 800 },
     dot: {
       width: 10,
@@ -292,9 +296,9 @@ function PlayerTurnCard({
       fontWeight: 800,
       background: '#fff',
     },
-    remainingWrap: { display: 'grid', justifyItems: 'center', alignContent: 'center', gap: 4, padding: '0 6px' },
-    remainingLabel: { fontSize: 12, opacity: 0.7 },
-    remainingValue: { fontSize: 28, fontWeight: 900 },
+    remainingWrap: { display: 'grid', justifyItems: 'center', alignContent: 'center', gap: compact ? 2 : 4, padding: '0 6px' },
+    remainingLabel: { fontSize: compact ? 10 : 12, opacity: 0.7 },
+    remainingValue: { fontSize: compact ? 22 : 28, fontWeight: 900 },
     lastMeta: { fontSize: 12, opacity: 0.7 },
     bustTag: { fontSize: 13, fontWeight: 800, color: '#b91c1c' },
     flashWrap: { position: 'absolute', inset: 0, pointerEvents: 'none', display: 'grid', placeItems: 'center' },
@@ -369,7 +373,15 @@ function PlayerTurnCard({
         </div>
 
         <div style={s.remainingWrap}>
-          <div style={s.remainingLabel}>Verbleibend</div>
+          {compact && lastDartLabels ? (
+            <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+              {lastDartLabels.slice(0, 3).map((lbl, i) => (
+                <span key={i} style={{ fontSize: 10, fontWeight: 700, padding: '2px 5px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#f8fafc', textAlign: 'center' }}>{lbl}</span>
+              ))}
+            </div>
+          ) : (
+            <div style={s.remainingLabel}>Verbleibend</div>
+          )}
           <div style={s.remainingValue}>{remaining}</div>
           {isMyPlayer ? (
             // Eigener Spieler: Checkout-Route anzeigen
@@ -2065,7 +2077,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
     : {}
 
   return (
-    <div className="g-page" style={{ ...backgroundStyle, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="g-page game-fullscreen" style={{ ...backgroundStyle, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Celebration Effect (Confetti) */}
       {celebration && (
         <CelebrationEffect
@@ -2192,7 +2204,13 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
                     ? multiplayer.livePreview.remaining
                     : remaining
               const isMyPlayer = !multiplayer?.enabled || pLocalIds.includes(p.playerId)
-              return { isActive, avg, playerLegs, playerSets, remaining, currentDarts, dartsRemaining, derivedVisit, lastVisit, flashLabel, recentScores, resolvedRemaining, isMyPlayer }
+              // Dart labels for last visit (e.g. ['T20', 'T20', 'D18'])
+              const lastDartLabels: string[] | null = lastVisit?.dartLabels
+                ?? (derivedLast ? derivedLast.darts.map((d) => dartLabelShort(d)) : null)
+              // Checkout/setup for this player
+              const playerCheckout = getCheckoutRoute(resolvedRemaining, dartsRemaining, getOutRule(match))
+              const playerSetup = getSetupShot(resolvedRemaining, dartsRemaining, getOutRule(match))
+              return { isActive, avg, playerLegs, playerSets, remaining, currentDarts, dartsRemaining, derivedVisit, lastVisit, flashLabel, recentScores, resolvedRemaining, isMyPlayer, lastDartLabels, playerCheckout, playerSetup }
             }
 
             // Mobile multiplayer split layout
@@ -2253,7 +2271,173 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
               )
             }
 
-            // Default layout: all players in a grid
+            // Default layout
+            const manyPlayers = match.players.length >= 5
+            const fewPlayersClassic = match.players.length <= 4
+
+            // --- MOBILE LANDSCAPE: players left (each = 100%/n height), scoreboard right (half width) ---
+            if (isMobile && isLandscape) {
+              const playerCount = match.players.length
+              return (
+                <>
+                  <div style={{ display: 'flex', gap: 6, flex: 1, minHeight: 0 }}>
+                    {/* Left: player cards — each takes equal share of height */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {match.players.map((p) => {
+                        const d = getPlayerData(p)
+                        const activeColor = p.color || '#0ea5e9'
+                        return (
+                          <div key={p.playerId} style={{
+                            flex: `1 1 ${100 / playerCount}%`,
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '3px 10px', borderRadius: 8,
+                            border: d.isActive ? `2px solid ${activeColor}` : '1px solid #e5e7eb',
+                            background: d.isActive ? `${activeColor}10` : '#fff',
+                            boxShadow: d.isActive ? `0 0 10px ${activeColor}30` : 'none',
+                            minHeight: 0, overflow: 'hidden',
+                          }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 99, background: p.color || '#777', flexShrink: 0 }} />
+                            <span style={{ fontWeight: 700, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name ?? p.playerId}</span>
+                            <span style={{ fontWeight: 900, fontSize: 18, fontVariantNumeric: 'tabular-nums', minWidth: 40, textAlign: 'center' }}>{d.resolvedRemaining}</span>
+                            <span style={{ fontSize: 9, color: '#6b7280' }}>L:{d.playerLegs}</span>
+                            <span style={{ fontSize: 9, color: '#9ca3af' }}>{d.avg.toFixed(1)}</span>
+                            {/* Last 3 darts */}
+                            {d.lastDartLabels && (
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                {d.lastDartLabels.slice(0, 3).map((lbl, i) => (
+                                  <span key={i} style={{ fontSize: 9, fontWeight: 600, padding: '1px 3px', borderRadius: 3, border: '1px solid #e5e7eb', background: '#f8fafc' }}>{lbl}</span>
+                                ))}
+                              </div>
+                            )}
+                            {/* Checkout / Setup */}
+                            {d.playerCheckout ? (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{d.playerCheckout}</span>
+                            ) : d.playerSetup ? (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#eab308', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{d.playerSetup}</span>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {/* Right: scoreboard — half width, full height */}
+                    <div style={{ width: '40%', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
+                      {multiplayer?.enabled && !isMyTurn && (
+                        <div className="game-hint-banner warning" style={{ fontSize: 11, padding: '4px 8px', fontWeight: 600 }}>
+                          {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                        </div>
+                      )}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )
+            }
+
+            // --- MOBILE PORTRAIT ---
+            if (isMobile) {
+              return (
+                <>
+                  {/* Player cards */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: manyPlayers ? 'repeat(2, 1fr)' : '1fr',
+                    gridTemplateRows: `repeat(${manyPlayers ? Math.ceil(match.players.length / 2) : match.players.length}, 1fr)`,
+                    gap: manyPlayers ? 4 : 6,
+                    flex: 1, minHeight: 0, overflow: 'hidden',
+                  }}>
+                    {match.players.map((p) => {
+                      const d = getPlayerData(p)
+                      const activeColor = p.color || '#0ea5e9'
+                      // 1-4 players: horizontal row with checkout + score + last darts
+                      if (fewPlayersClassic) {
+                        return (
+                          <div key={p.playerId} style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '8px 12px', borderRadius: 12,
+                            border: d.isActive ? `2px solid ${activeColor}` : '1px solid #e5e7eb',
+                            background: d.isActive ? `linear-gradient(135deg, ${activeColor}10 0%, transparent 60%)` : '#fff',
+                            boxShadow: d.isActive ? `0 0 16px ${activeColor}40` : '0 1px 3px rgba(0,0,0,0.04)',
+                          }}>
+                            {/* Checkout / Setup left */}
+                            <div style={{ width: 70, flexShrink: 0, textAlign: 'center' }}>
+                              {d.playerCheckout ? (
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>{d.playerCheckout}</div>
+                              ) : d.playerSetup ? (
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#eab308' }}>{d.playerSetup}</div>
+                              ) : (
+                                <div style={{ fontSize: 10, color: '#9ca3af' }}>Avg {d.avg.toFixed(1)}</div>
+                              )}
+                            </div>
+                            {/* Center: dot + name + remaining */}
+                            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: 99, background: p.color || '#777', flexShrink: 0 }} />
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name ?? p.playerId}</div>
+                                <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                  Legs: <b>{d.playerLegs}</b>{isSets && <> · Sets: <b>{d.playerSets}</b></>}
+                                </div>
+                              </div>
+                            </div>
+                            {/* Remaining */}
+                            <div style={{ fontWeight: 900, fontSize: 26, fontVariantNumeric: 'tabular-nums', minWidth: 50, textAlign: 'center' }}>
+                              {d.resolvedRemaining}
+                            </div>
+                            {/* Last 3 darts right */}
+                            <div style={{ width: 75, flexShrink: 0, display: 'flex', gap: 3, justifyContent: 'flex-end' }}>
+                              {d.lastDartLabels ? d.lastDartLabels.slice(0, 3).map((lbl, i) => (
+                                <div key={i} style={{
+                                  fontSize: 10, fontWeight: 700, padding: '2px 4px',
+                                  borderRadius: 4, border: '1px solid #e5e7eb', background: '#f8fafc',
+                                  textAlign: 'center', minWidth: 22,
+                                }}>{lbl}</div>
+                              )) : (
+                                <div style={{ fontSize: 10, color: '#d1d5db' }}>—</div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      }
+                      // 5+ players: compact card
+                      return (
+                        <PlayerTurnCard
+                          key={`${p.playerId}-${d.isActive ? 'active' : 'idle'}`}
+                          name={p.name ?? p.playerId}
+                          color={p.color}
+                          remaining={d.resolvedRemaining}
+                          currentDarts={d.currentDarts}
+                          dartsRemaining={d.dartsRemaining}
+                          lastVisit={d.lastVisit}
+                          flashLabel={d.flashLabel}
+                          isActive={d.isActive}
+                          isMyPlayer={d.isMyPlayer}
+                          legs={d.playerLegs}
+                          sets={d.playerSets}
+                          showSets={isSets}
+                          threeDartAvg={d.avg}
+                          recentScores={d.recentScores}
+                          outRule={match ? getOutRule(match) : 'double-out'}
+                          compact={true}
+                          lastDartLabels={d.lastDartLabels}
+                        />
+                      )
+                    })}
+                  </div>
+                  {/* Scoreboard below */}
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    {multiplayer?.enabled && !isMyTurn && (
+                      <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
+                        {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                      </div>
+                    )}
+                    <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                  </div>
+                </>
+              )
+            }
+
+            // --- DESKTOP: original layout ---
             return (
               <div className="g-grid">
                 {match.players.map((p) => {
@@ -2283,7 +2467,8 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
             )
           })()}
 
-          {/* Chart + Scoreboard: side-by-side on desktop, stacked on mobile */}
+          {/* Chart + Scoreboard: side-by-side on desktop (hidden on mobile — mobile has inline scoreboard above) */}
+          {!isMobile && (
           <div className="g-classic-bottom-row" style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0, overflow: 'hidden' }}>
             {/* Score Progression Chart — fills remaining space on the left */}
             {chartData && (
@@ -2315,6 +2500,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
               <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
             </div>
           </div>
+          )}
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
@@ -2461,84 +2647,168 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
 
             // Mobile Arcade layout
             if (isMobile) {
+              const fewPlayers = arcadePlayers.length <= 4
               // Compact player card renderer
-              const renderPlayerCards = (vertical = false) => (
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexDirection: vertical ? 'column' : 'row' }}>
+              const renderPlayerCards = (vertical = false) => {
+                const rows = fewPlayers ? arcadePlayers.length : Math.ceil(arcadePlayers.length / 2)
+                return (
+                <div style={{
+                  display: 'grid',
+                  gap: 4,
+                  gridTemplateColumns: vertical ? '1fr' : (fewPlayers ? '1fr' : 'repeat(2, 1fr)'),
+                  gridTemplateRows: !vertical ? `repeat(${rows}, 1fr)` : undefined,
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                }}>
                   {arcadePlayers.map(p => {
                     const activeColor = p.color || '#f97316'
+                    // 1-4 players: horizontal row layout per player
+                    // 5+: compact vertical card in 2-col grid
+                    if (fewPlayers && !vertical) {
+                      return (
+                        <div key={p.id} style={{
+                          background: p.isActive ? `${activeColor}20` : '#1a1a1a',
+                          border: p.isActive ? `2px solid ${activeColor}` : '1px solid #333',
+                          borderRadius: 10,
+                          padding: '8px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          boxShadow: p.isActive ? `0 0 12px ${activeColor}30` : 'none',
+                        }}>
+                          <div style={{
+                            fontSize: 10, fontWeight: 700, color: p.isActive ? activeColor : '#9ca3af',
+                            textTransform: 'uppercase', letterSpacing: 1,
+                            minWidth: 50, maxWidth: 80,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>{p.name}</div>
+                          <div style={{
+                            fontSize: 28, fontWeight: 900, fontFamily: '"Orbitron", monospace',
+                            color: p.isActive ? '#eab308' : '#f97316', lineHeight: 1,
+                            textShadow: p.isActive ? '0 0 8px rgba(234,179,8,0.5)' : 'none',
+                            minWidth: 70, textAlign: 'center',
+                          }}>{p.remaining}</div>
+                          <div style={{ display: 'flex', gap: 6, fontSize: 9, color: '#6b7280', flex: 1 }}>
+                            <span>L:<b style={{ color: '#e5e7eb', marginLeft: 1 }}>{p.legs}</b></span>
+                            {isSets && <span>S:<b style={{ color: '#e5e7eb', marginLeft: 1 }}>{p.sets}</b></span>}
+                            <span style={{ color: '#9ca3af' }}>Avg {p.threeDartAvg.toFixed(1)}</span>
+                          </div>
+                          {p.checkoutRoute && (
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e', textShadow: '0 0 6px rgba(34,197,94,0.5)' }}>
+                              {p.checkoutRoute}
+                            </div>
+                          )}
+                          {!p.checkoutRoute && p.setupShot && (
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#eab308', textShadow: '0 0 6px rgba(234,179,8,0.5)' }}>
+                              {p.setupShot}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
                     return (
                       <div key={p.id} style={{
-                        flex: vertical ? undefined : (arcadePlayers.length <= 4 ? '1 1 0' : '1 1 calc(25% - 3px)'),
                         minWidth: 0,
                         background: p.isActive ? `${activeColor}20` : '#1a1a1a',
                         border: p.isActive ? `2px solid ${activeColor}` : '1px solid #333',
                         borderRadius: 8,
-                        padding: vertical ? '4px 8px' : '6px 8px',
+                        padding: vertical ? '3px 8px' : '4px 8px',
                         display: 'flex',
-                        flexDirection: vertical ? 'row' : 'column',
+                        flexDirection: 'row',
                         alignItems: 'center',
-                        gap: vertical ? 8 : 2,
+                        gap: 6,
                         boxShadow: p.isActive ? `0 0 12px ${activeColor}30` : 'none',
+                        overflow: 'hidden',
                       }}>
                         <div style={{
-                          fontSize: arcadePlayers.length > 4 ? 8 : 9,
-                          fontWeight: 700,
+                          fontSize: 8, fontWeight: 700,
                           color: p.isActive ? activeColor : '#9ca3af',
-                          textTransform: 'uppercase',
-                          letterSpacing: 1,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          maxWidth: vertical ? 60 : '100%',
-                          textAlign: 'center',
+                          textTransform: 'uppercase', letterSpacing: 1,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          maxWidth: 55,
                         }}>{p.name}</div>
                         <div style={{
-                          fontSize: vertical ? 18 : (arcadePlayers.length > 4 ? 20 : 24),
-                          fontWeight: 900,
-                          fontFamily: '"Orbitron", monospace',
-                          color: p.isActive ? '#eab308' : '#f97316',
-                          lineHeight: 1,
-                          textShadow: p.isActive ? '0 0 8px rgba(234,179,8,0.5)' : 'none',
+                          fontSize: 16,
+                          fontWeight: 900, fontFamily: '"Orbitron", monospace',
+                          color: p.isActive ? '#eab308' : '#f97316', lineHeight: 1,
+                          textShadow: p.isActive ? '0 0 6px rgba(234,179,8,0.5)' : 'none',
                         }}>{p.remaining}</div>
-                        <div style={{ display: 'flex', gap: 4, fontSize: 8, color: '#6b7280' }}>
-                          <span>L:<b style={{ color: '#e5e7eb', marginLeft: 1 }}>{p.legs}</b></span>
-                          {isSets && <span>S:<b style={{ color: '#e5e7eb', marginLeft: 1 }}>{p.sets}</b></span>}
-                          <span style={{ color: '#9ca3af' }}>{p.threeDartAvg.toFixed(1)}</span>
-                        </div>
+                        <div style={{ fontSize: 8, color: '#6b7280' }}>L:<b style={{ color: '#e5e7eb' }}>{p.legs}</b></div>
+                        {/* Last 3 darts */}
+                        {p.lastVisitDarts && (
+                          <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
+                            {p.lastVisitDarts.slice(0, 3).map((lbl, i) => (
+                              <span key={i} style={{ fontSize: 7, fontWeight: 600, padding: '1px 2px', borderRadius: 2, border: '1px solid #444', background: '#222', color: '#ccc' }}>{lbl}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
                 </div>
-              )
+              )}
 
-              // Landscape mobile: players left, scoreboard right
+              // Landscape mobile: players left (each = 100%/n height), scoreboard right (half width)
               if (isLandscape) {
+                const playerCount = arcadePlayers.length
                 return (
                   <div style={{
                     background: '#0f0f0f',
-                    padding: '4px 8px',
+                    padding: '4px 6px',
                     display: 'flex',
-                    gap: 8,
+                    gap: 6,
                     flex: 1,
                     minHeight: 0,
                   }}>
-                    {/* Left: player cards stacked vertically */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140, maxWidth: 180, overflow: 'auto' }}>
-                      {renderPlayerCards(true)}
-                      {/* Checkout route */}
-                      {(checkoutRoute || setupShot) && (
-                        <div style={{
-                          textAlign: 'center', fontSize: 14, fontWeight: 700,
-                          color: checkoutRoute ? '#22c55e' : '#eab308',
-                          textShadow: checkoutRoute ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(234,179,8,0.5)',
-                        }}>
-                          {checkoutRoute ?? setupShot}
-                        </div>
-                      )}
+                    {/* Left: player cards — each takes equal share of height */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {arcadePlayers.map(p => {
+                        const activeColor = p.color || '#f97316'
+                        return (
+                          <div key={p.id} style={{
+                            flex: `1 1 ${100 / playerCount}%`,
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '3px 10px', borderRadius: 8,
+                            background: p.isActive ? `${activeColor}20` : '#1a1a1a',
+                            border: p.isActive ? `2px solid ${activeColor}` : '1px solid #333',
+                            boxShadow: p.isActive ? `0 0 10px ${activeColor}30` : 'none',
+                            minHeight: 0, overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              fontSize: 9, fontWeight: 700, color: p.isActive ? activeColor : '#9ca3af',
+                              textTransform: 'uppercase', letterSpacing: 1,
+                              minWidth: 0, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>{p.name}</div>
+                            <div style={{
+                              fontSize: 18, fontWeight: 900, fontFamily: '"Orbitron", monospace',
+                              color: p.isActive ? '#eab308' : '#f97316', lineHeight: 1,
+                              minWidth: 50, textAlign: 'center',
+                              textShadow: p.isActive ? '0 0 6px rgba(234,179,8,0.5)' : 'none',
+                            }}>{p.remaining}</div>
+                            <div style={{ fontSize: 8, color: '#6b7280' }}>L:<b style={{ color: '#e5e7eb' }}>{p.legs}</b></div>
+                            <div style={{ fontSize: 9, color: '#9ca3af' }}>{p.threeDartAvg.toFixed(1)}</div>
+                            {/* Last 3 darts */}
+                            {p.lastVisitDarts && (
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                {p.lastVisitDarts.slice(0, 3).map((lbl, i) => (
+                                  <span key={i} style={{ fontSize: 8, fontWeight: 600, padding: '1px 3px', borderRadius: 3, border: '1px solid #444', background: '#222', color: '#ccc' }}>{lbl}</span>
+                                ))}
+                              </div>
+                            )}
+                            {/* Checkout / Setup */}
+                            {p.checkoutRoute ? (
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', marginLeft: 'auto', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(34,197,94,0.5)' }}>{p.checkoutRoute}</div>
+                            ) : p.setupShot ? (
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#eab308', marginLeft: 'auto', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(234,179,8,0.5)' }}>{p.setupShot}</div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
                     </div>
 
-                    {/* Right: scoreboard */}
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    {/* Right: scoreboard — half width, full height */}
+                    <div style={{ width: '40%', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
                       {multiplayer?.enabled && !isMyTurn && (
                         <div style={{
                           textAlign: 'center', padding: '4px 8px', marginBottom: 4,
@@ -2548,27 +2818,33 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
                           {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
                         </div>
                       )}
-                      <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                      </div>
                     </div>
                   </div>
                 )
               }
 
-              // Portrait mobile: players top, scoreboard bottom
+              // Portrait mobile: players top (flex 1), scoreboard bottom (flex 1)
+              // Both share space equally — players get bigger
               return (
                 <div style={{
                   background: '#0f0f0f',
                   padding: '6px 8px 8px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 6,
+                  gap: 4,
                   flex: 1,
                   minHeight: 0,
                 }}>
-                  {renderPlayerCards(false)}
+                  {/* Player cards — take equal share of space */}
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    {renderPlayerCards(false)}
+                  </div>
 
-                  {/* Checkout route / Setup shot for active player */}
-                  {(checkoutRoute || setupShot) && (
+                  {/* Checkout route / Setup shot — only shown separately for 5+ players (1-4 have it inline) */}
+                  {!fewPlayers && (checkoutRoute || setupShot) && (
                     <div style={{
                       textAlign: 'center',
                       fontSize: 16,
@@ -2591,7 +2867,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
                     </div>
                   )}
 
-                  {/* Scoreboard (MobileScoreInput) — fills remaining space */}
+                  {/* Scoreboard (MobileScoreInput) — equal share of space */}
                   <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                     <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} theme="arcade" onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
                   </div>

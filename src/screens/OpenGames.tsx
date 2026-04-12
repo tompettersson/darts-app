@@ -156,21 +156,18 @@ export default function OpenGames({ games, onSelect, onDiscard, onBack }: Props)
                 </div>
 
                 <div style={{
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: 600,
                   color: colors.fg,
-                  marginBottom: 4,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap' as const,
+                  marginBottom: configSummary ? 4 : 0,
+                  lineHeight: 1.3,
+                  wordBreak: 'break-word' as const,
                 }}>
                   {game.title}
                 </div>
 
-                {(playerNames || configSummary) && (
-                  <div style={{ fontSize: 13, color: colors.fgMuted }}>
-                    {playerNames}
-                    {playerNames && configSummary && ' · '}
+                {configSummary && (
+                  <div style={{ fontSize: 12, color: colors.fgMuted, lineHeight: 1.3 }}>
                     {configSummary}
                   </div>
                 )}

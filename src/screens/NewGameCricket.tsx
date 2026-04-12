@@ -184,7 +184,7 @@ export default function NewGameCricket({ cfg, onCancel, onStart }: Props) {
             {selected.length >= 2 && (
               <button style={styles.pill} onClick={shuffleOrder}>🎲 Zufällig</button>
             )}
-            <button style={styles.pill} onClick={addGuest}>Gast hinzufügen</button>
+            <button style={{ ...styles.pill, ...(selected.length >= maxPlayers ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }} onClick={addGuest} disabled={selected.length >= maxPlayers}>{selected.length >= maxPlayers ? `Max ${maxPlayers}` : 'Gast hinzufügen'}</button>
           </div>
         </div>
 

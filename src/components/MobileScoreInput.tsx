@@ -103,12 +103,15 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
+    gridTemplateRows: 'repeat(4, 1fr)',
     gap: 4,
     padding: 4,
+    flex: 1,
+    minHeight: 0,
   }
 
   const btnBase: React.CSSProperties = {
-    height: effectiveLarge ? 52 : 38,
+    minHeight: effectiveLarge ? 52 : 38,
     borderRadius: effectiveLarge ? 10 : 8,
     border: `1.5px solid ${btnBorder}`,
     background: btnBg,
@@ -148,7 +151,7 @@ export default function MobileScoreInput({ onThrow, dartsThrown = 0, thrownDarts
   const visitScore = thrownDarts?.reduce((sum, d) => sum + dartScore(d), 0) ?? 0
 
   return (
-    <div style={{ background: bg, borderRadius: effectiveLarge ? 14 : 12, padding: effectiveLarge ? 10 : 6, width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ background: bg, borderRadius: effectiveLarge ? 14 : 12, padding: effectiveLarge ? 10 : 6, width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Dart slots + score */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: effectiveLarge ? '6px 12px 8px' : '4px 8px 6px', gap: 8 }}>
         <div style={{ display: 'flex', gap: effectiveLarge ? 6 : 4, flex: 1 }}>

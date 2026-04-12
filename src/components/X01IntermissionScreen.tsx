@@ -471,9 +471,9 @@ export default function X01IntermissionScreen({
                   <div style={{ fontSize: isMobileSummary ? 24 : 32, fontWeight: 900, color: '#0f172a', letterSpacing: 2 }}>
                     {scoreAfterLeg}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: isMobileSummary ? 8 : 24, marginTop: 4, flexWrap: 'wrap' }}>
                     {match.players.map((p) => (
-                      <span key={p.playerId} style={{ fontSize: 13, color: '#6b7280' }}>{p.name}</span>
+                      <span key={p.playerId} style={{ fontSize: isMobileSummary ? 11 : 13, color: '#6b7280' }}>{p.name}</span>
                     ))}
                   </div>
                 </div>
@@ -513,53 +513,69 @@ export default function X01IntermissionScreen({
                   </div>
                 ) : (
                 <>
-                {/* Statistik: Mobile = Cards, Desktop = Tabelle */}
-                {isMobileSummary ? (
-                  // MOBILE: Vertical stat cards per player
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {match.players.map((p, i) => {
-                      const ls = legStats[p.playerId]
-                      const bp = sum.byPlayer.find(b => b.playerId === p.playerId)
-                      const co = checkoutInfo[p.playerId]
-                      const isWinner = p.playerId === sum.winnerPlayerId
-                      return (
-                        <div key={p.playerId} style={{
-                          padding: '8px 10px', borderRadius: 8,
-                          border: isWinner ? '2px solid #16a34a' : '1px solid #e5e7eb',
-                          background: isWinner ? '#f0fdf4' : '#fafafa',
-                        }}>
-                          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6, color: isWinner ? '#16a34a' : '#0f172a' }}>
-                            {p.name} {isWinner && '✓'}
+                {/* Statistik: 5+ Spieler Mobile = Cards, sonst = Tabelle */}
+                {isMobileSummary && match.players.length >= 5 ? (
+                  // MOBILE 5+: Vertical stat cards per player (best values highlighted)
+                  <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(2, 1fr)', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+                    {(() => {
+                      // Pre-compute best values across all players
+                      const allAvg = match.players.map(p => legStats[p.playerId]?.threeDartAvg ?? 0)
+                      const bestAvg = Math.max(...allAvg)
+                      const allF9 = match.players.map(p => legStats[p.playerId]?.first9OverallAvg ?? 0)
+                      const bestF9 = Math.max(...allF9)
+                      const allDarts = sum.byPlayer.map(bp => bp.darts)
+                      const bestDarts = Math.min(...allDarts)
+                      const allHV = match.players.map(p => highestVisit[p.playerId] ?? 0)
+                      const bestHV = Math.max(...allHV)
+                      const hiColor = '#16a34a'
+                      const valStyle = (val: number, best: number, mode: 'high' | 'low' = 'high'): React.CSSProperties => ({
+                        fontWeight: 700, textAlign: 'right',
+                        color: (mode === 'high' ? val === best && val > 0 : val === best && val > 0) ? hiColor : undefined,
+                      })
+                      return match.players.map((p) => {
+                        const ls = legStats[p.playerId]
+                        const bp = sum.byPlayer.find(b => b.playerId === p.playerId)
+                        const co = checkoutInfo[p.playerId]
+                        const isWinner = p.playerId === sum.winnerPlayerId
+                        const pAvg = ls?.threeDartAvg ?? 0
+                        const pF9 = ls?.first9OverallAvg ?? 0
+                        const pDarts = bp?.darts ?? 0
+                        const pHV = highestVisit[p.playerId] ?? 0
+                        return (
+                          <div key={p.playerId} style={{
+                            padding: '4px 6px', borderRadius: 8, minWidth: 0, overflow: 'hidden',
+                            border: isWinner ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                            background: isWinner ? '#f0fdf4' : '#fafafa',
+                          }}>
+                            <div style={{ fontWeight: 800, fontSize: 11, marginBottom: 3, color: isWinner ? '#16a34a' : '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {p.name} {isWinner && '✓'}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0px 4px', fontSize: 10 }}>
+                              <span style={{ color: '#6b7280' }}>Avg</span>
+                              <span style={valStyle(pAvg, bestAvg)}>{pAvg.toFixed(1)}</span>
+                              <span style={{ color: '#6b7280' }}>F9</span>
+                              <span style={valStyle(pF9, bestF9)}>{pF9.toFixed(1)}</span>
+                              <span style={{ color: '#6b7280' }}>Darts</span>
+                              <span style={valStyle(pDarts, bestDarts, 'low')}>{pDarts}</span>
+                              <span style={{ color: '#6b7280' }}>Höchste</span>
+                              <span style={valStyle(pHV, bestHV)}>{pHV}</span>
+                              {co && <>
+                                <span style={{ color: '#6b7280' }}>CO</span>
+                                <span style={{ fontWeight: 700, textAlign: 'right' }}>{co.height}</span>
+                              </>}
+                              <span style={{ color: '#6b7280' }}>Rest</span>
+                              <span style={{ fontWeight: 700, textAlign: 'right' }}>{restByPlayer[p.playerId]}</span>
+                            </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', fontSize: 12 }}>
-                            <span style={{ color: '#6b7280' }}>Average</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{(ls?.threeDartAvg ?? 0).toFixed(1)}</span>
-                            <span style={{ color: '#6b7280' }}>First 9</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{(ls?.first9OverallAvg ?? 0).toFixed(1)}</span>
-                            <span style={{ color: '#6b7280' }}>Darts</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{bp?.darts ?? 0}</span>
-                            <span style={{ color: '#6b7280' }}>180s / 140+ / 100+</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{ls?.bins?._180 ?? 0} / {ls?.bins?._140plus ?? 0} / {ls?.bins?._100plus ?? 0}</span>
-                            <span style={{ color: '#6b7280' }}>Höchste</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{highestVisit[p.playerId] ?? 0}</span>
-                            {co && <>
-                              <span style={{ color: '#6b7280' }}>Checkout</span>
-                              <span style={{ fontWeight: 700, textAlign: 'right' }}>{co.height} ({co.lastDart})</span>
-                            </>}
-                            <span style={{ color: '#6b7280' }}>CO-Quote</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{(ls?.doublePctDart ?? 0).toFixed(0)}%</span>
-                            <span style={{ color: '#6b7280' }}>Rest</span>
-                            <span style={{ fontWeight: 700, textAlign: 'right' }}>{restByPlayer[p.playerId]}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                    {legDuration && <div style={{ textAlign: 'center', fontSize: 11, color: '#6b7280' }}>Spielzeit: {legDuration}</div>}
+                        )
+                      })
+                    })()}
+                    {legDuration && <div style={{ textAlign: 'center', fontSize: 11, color: '#6b7280', gridColumn: '1 / -1' }}>Spielzeit: {legDuration}</div>}
                   </div>
                 ) : (
-                  // DESKTOP: Table layout
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  // TABLE: Comparison layout (desktop + mobile ≤4 players)
+                  <div style={{ overflowX: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                       <thead>
                         <tr>
                           <th style={thLeft}></th>
@@ -569,20 +585,20 @@ export default function X01IntermissionScreen({
                         </tr>
                       </thead>
                       <tbody>
-                        <tr><td style={tdLeft}>Average</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(avgWin[i])}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>)}</tr>
-                        <tr><td style={tdLeft}>First Nine</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(f9Win[i])}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>)}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'Avg' : 'Average'}</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(avgWin[i])}>{(legStats[p.playerId]?.threeDartAvg ?? 0).toFixed(1)}</td>)}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'F9' : 'First Nine'}</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(f9Win[i])}>{(legStats[p.playerId]?.first9OverallAvg ?? 0).toFixed(1)}</td>)}</tr>
                         <tr><td style={tdLeft}>180s</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w180[i])}>{legStats[p.playerId]?.bins?._180 ?? 0}</td>)}</tr>
                         <tr><td style={tdLeft}>140+</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w140[i])}>{legStats[p.playerId]?.bins?._140plus ?? 0}</td>)}</tr>
                         <tr><td style={tdLeft}>100+</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w100[i])}>{legStats[p.playerId]?.bins?._100plus ?? 0}</td>)}</tr>
                         <tr><td style={tdLeft}>61+</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(w61[i])}>{bins61plus[p.playerId] ?? 0}</td>)}</tr>
-                        <tr><td style={tdLeft}>Höchste Aufnahme</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>)}</tr>
-                        <tr><td style={tdLeft}>Darts geworfen</td>{match.players.map((p, i) => { const bp = sum.byPlayer.find(b => b.playerId === p.playerId); return <td key={p.playerId} style={tdWin(dartsWin[i])}>{bp?.darts ?? 0}</td> })}</tr>
-                        <tr><td style={tdLeft}>Meistes Feld</td>{match.players.map((p) => <td key={p.playerId} style={tdRight}>{computeMostHitField(events, intermission.legId, p.playerId)}</td>)}</tr>
-                        <tr><td style={tdLeft}>Häufigste Punktzahl</td>{match.players.map((p) => <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, intermission.legId, p.playerId)}</td>)}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'Höchste' : 'Höchste Aufnahme'}</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(hvWin[i])}>{highestVisit[p.playerId] ?? 0}</td>)}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'Darts' : 'Darts geworfen'}</td>{match.players.map((p, i) => { const bp = sum.byPlayer.find(b => b.playerId === p.playerId); return <td key={p.playerId} style={tdWin(dartsWin[i])}>{bp?.darts ?? 0}</td> })}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'Feld' : 'Meistes Feld'}</td>{match.players.map((p) => <td key={p.playerId} style={tdRight}>{computeMostHitField(events, intermission.legId, p.playerId)}</td>)}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'Häufigste' : 'Häufigste Punktzahl'}</td>{match.players.map((p) => <td key={p.playerId} style={tdRight}>{computeMostCommonScore(events, intermission.legId, p.playerId)}</td>)}</tr>
                         <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
-                        <tr><td style={tdLeft}>Checkout Höhe</td>{match.players.map((p) => { const info = checkoutInfo[p.playerId]; return <td key={p.playerId} style={tdRight}>{info ? `${info.height} (${info.lastDart})` : '–'}</td> })}</tr>
-                        <tr><td style={tdLeft}>Checkout Versuche</td>{match.players.map((p) => { const a = legStats[p.playerId]?.doubleAttemptsDart ?? 0, h = legStats[p.playerId]?.doublesHitDart ?? 0; return <td key={p.playerId} style={tdRight}>{a} / {h}</td> })}</tr>
-                        <tr><td style={tdLeft}>Checkout Quote</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(coWin[i])}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>)}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'CO Höhe' : 'Checkout Höhe'}</td>{match.players.map((p) => { const info = checkoutInfo[p.playerId]; return <td key={p.playerId} style={tdRight}>{info ? `${info.height} (${info.lastDart})` : '–'}</td> })}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'CO Vers.' : 'Checkout Versuche'}</td>{match.players.map((p) => { const a = legStats[p.playerId]?.doubleAttemptsDart ?? 0, h = legStats[p.playerId]?.doublesHitDart ?? 0; return <td key={p.playerId} style={tdRight}>{a} / {h}</td> })}</tr>
+                        <tr><td style={tdLeft}>{isMobileSummary ? 'CO %' : 'Checkout Quote'}</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(coWin[i])}>{(legStats[p.playerId]?.doublePctDart ?? 0).toFixed(0)} %</td>)}</tr>
                         <tr><td style={tdLeft}>Rest</td>{match.players.map((p, i) => <td key={p.playerId} style={tdWin(restWin[i])}>{restByPlayer[p.playerId]}</td>)}</tr>
                         <tr><td colSpan={match.players.length + 1} style={{ borderBottom: '2px solid #e5e7eb', padding: '4px 0' }}></td></tr>
                         <tr><td style={tdLeft}>Spielzeit</td><td colSpan={match.players.length} style={{ ...tdRight, textAlign: 'center' }}>{legDuration || '–'}</td></tr>

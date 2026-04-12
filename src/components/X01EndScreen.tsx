@@ -339,39 +339,86 @@ export default function X01EndScreen({
         </div>
       )}
 
-      <div className="g-tableWrap" style={{ overflowX: 'auto' }}>
-        <table className="g-table" style={isMobile ? { fontSize: 12 } : undefined}>
-          <thead>
-            <tr>
-              <th className="g-th"></th>
-              {headerCells.map((h, i) => (
-                <th key={i} className="g-th">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, ri) => {
-              const winColors = r.better && r.compareValues
-                ? getStatWinnerColors(r.compareValues, pids, r.better, playerColors)
-                : undefined
-              return (
-                <tr key={ri}>
-                  <td className="g-tdh" style={{ fontWeight: 700 }}>
-                    {r.label}
-                  </td>
-                  {r.values.map((v, ci) => (
-                    <td key={ci} className="g-td" style={winColors?.[ci] ? { color: winColors[ci], fontWeight: 700 } : undefined}>
-                      {v}
+      {/* Stats: Mobile 5+ = Cards per player, otherwise comparison table */}
+      {isMobile && players.length >= 5 ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+          {players.map((p) => {
+            const isWinner = p.playerId === state.finished?.winnerPlayerId
+            return (
+              <div key={p.playerId} style={{
+                padding: '4px 6px', borderRadius: 8, minWidth: 0, overflow: 'hidden',
+                border: isWinner ? '2px solid #16a34a' : '1px solid #e5e7eb',
+                background: isWinner ? '#f0fdf4' : '#fafafa',
+              }}>
+                <div style={{ fontWeight: 800, fontSize: 11, marginBottom: 3, color: isWinner ? '#16a34a' : '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {getMedal(p.playerId, scoreForRank, sortedByScore)} {p.name}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0px 4px', fontSize: 10 }}>
+                  {rows.filter(r => r.label !== 'Platz').map((r, ri) => {
+                    const ci = players.indexOf(p)
+                    const winColors = r.better && r.compareValues
+                      ? getStatWinnerColors(r.compareValues, pids, r.better, playerColors)
+                      : undefined
+                    const isHighlight = winColors?.[ci]
+                    // Shorter labels for cards
+                    const shortLabel = r.label
+                      .replace('Checkout-Quote (Darts)', 'CO %')
+                      .replace('3-Dart Average (Ø)', 'Avg')
+                      .replace('First-9 Average (Ø)', 'F9')
+                      .replace('Punkte pro Leg (Ø)', 'Pkt/Leg')
+                      .replace(/Legs gewonnen.*/, 'Legs')
+                      .replace('Sets gewonnen', 'Sets')
+                      .replace('Höchste Aufnahme', 'Höchste')
+                      .replace('Bestes Leg', 'Best Leg')
+                      .replace('Meistes Feld', 'Feld')
+                      .replace('Häufigste Punktzahl', 'Häufigste')
+                    return (
+                      <React.Fragment key={ri}>
+                        <span style={{ color: '#6b7280' }}>{shortLabel}</span>
+                        <span style={{ fontWeight: 700, textAlign: 'right', color: isHighlight || undefined }}>{r.values[ci]}</span>
+                      </React.Fragment>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="g-tableWrap" style={{ overflowX: 'hidden' }}>
+          <table className="g-table" style={{ ...(isMobile ? { fontSize: 11 } : {}), tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th className="g-th"></th>
+                {headerCells.map((h, i) => (
+                  <th key={i} className="g-th" style={isMobile ? { fontSize: 10, padding: '4px 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => {
+                const winColors = r.better && r.compareValues
+                  ? getStatWinnerColors(r.compareValues, pids, r.better, playerColors)
+                  : undefined
+                return (
+                  <tr key={ri}>
+                    <td className="g-tdh" style={{ fontWeight: 700, ...(isMobile ? { fontSize: 10, padding: '4px 3px', whiteSpace: 'nowrap' } : {}) }}>
+                      {isMobile ? r.label.replace('Checkout-Quote (Darts)', 'CO %').replace('3-Dart Average (Ø)', 'Avg').replace('First-9 Average (Ø)', 'F9').replace('Punkte pro Leg (Ø)', 'Pkt/Leg').replace('Legs gewonnen (aktuelles/letztes Set)', 'Legs').replace('Sets gewonnen', 'Sets').replace('Höchste Aufnahme', 'Höchste').replace('Bestes Leg', 'Best Leg').replace('Meistes Feld', 'Feld').replace('Häufigste Punktzahl', 'Häufigste') : r.label}
                     </td>
-                  ))}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+                    {r.values.map((v, ci) => (
+                      <td key={ci} className="g-td" style={{ ...(winColors?.[ci] ? { color: winColors[ci], fontWeight: 700 } : {}), ...(isMobile ? { fontSize: 11, padding: '4px 3px' } : {}) }}>
+                        {v}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Spielbericht */}
       {(() => {

@@ -50,6 +50,11 @@ type Props = {
   // Turn History für Leg-Verlauf
   turnHistory?: CricketTurnEntry[]
   turnListRef?: React.RefObject<HTMLDivElement | null>
+
+  // View toggle
+  onToggleView?: () => void
+  viewLabel?: string
+  forceLandscape?: boolean
 }
 
 // Farben
@@ -137,12 +142,13 @@ function PlayerRow({
   const playerColor = player.color || colors.ledOn
   const playerGlow = `${playerColor}50`
 
-  const pad = compact ? '6px 8px' : '12px 14px'
-  const nameSize = compact ? 13 : 18
-  const markGap = compact ? 6 : 14
-  const markMin = compact ? 20 : 30
-  const markFontSize = compact ? 11 : 14
-  const ledSize = compact ? 10 : 14
+  const isLong = targets.length > 8
+  const pad = compact ? (isLong ? '4px 4px' : '6px 8px') : '12px 14px'
+  const nameSize = compact ? (isLong ? 10 : 13) : 18
+  const markGap = compact ? (isLong ? 3 : 6) : 14
+  const markMin = compact ? (isLong ? 14 : 20) : 30
+  const markFontSize = compact ? (isLong ? 8 : 11) : 14
+  const ledSize = compact ? (isLong ? 7 : 10) : 14
 
   return (
     <div
@@ -153,6 +159,8 @@ function PlayerRow({
         border: isActive ? `2px solid ${playerColor}` : '2px solid transparent',
         boxShadow: isActive ? `0 0 15px ${playerGlow}, 0 0 30px ${playerColor}20` : 'none',
         transition: 'all 0.3s ease',
+        flex: 1, minHeight: 0, overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
       }}
     >
       {/* Spielername */}
@@ -177,44 +185,39 @@ function PlayerRow({
         )}
       </div>
 
-      {/* Marks + Score */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: compact ? 4 : 10 }}>
-        {/* Mark LEDs */}
-        <div style={{ display: 'flex', gap: markGap, flex: 1, justifyContent: 'center' }}>
-          {targets.map(t => {
-            const key = t === 'BULL' ? 'BULL' : t
-            const marks = player.marks[key] ?? 0
-            const baseMarks = player.baseMarks[key] ?? 0
-            const isClosed = closedTargets.includes(t)
-            return (
-              <div key={t} style={{ textAlign: 'center', minWidth: markMin, opacity: isClosed ? 0.5 : 1 }}>
-                <div style={{
-                  fontSize: markFontSize,
-                  color: isClosed ? colors.statusGreen : (marks >= 3 ? colors.ledOn : colors.textDim),
-                  marginBottom: compact ? 2 : 5,
-                  fontWeight: marks >= 3 ? 700 : 500,
-                  textDecoration: isClosed ? 'line-through' : 'none',
-                  letterSpacing: 1,
-                }}>
-                  {t === 'BULL' ? 'B' : t}
-                </div>
-                <MarkLEDs marks={marks} baseMarks={baseMarks} closed={isClosed} size={ledSize} />
+      {/* Marks */}
+      <div style={{ display: 'flex', gap: markGap, justifyContent: 'center', flex: 1, minHeight: 0 }}>
+        {targets.map(t => {
+          const key = t === 'BULL' ? 'BULL' : t
+          const marks = player.marks[key] ?? 0
+          const baseMarks = player.baseMarks[key] ?? 0
+          const isClosed = closedTargets.includes(t)
+          return (
+            <div key={t} style={{ textAlign: 'center', minWidth: markMin, opacity: isClosed ? 0.5 : 1 }}>
+              <div style={{
+                fontSize: markFontSize,
+                color: isClosed ? colors.statusGreen : (marks >= 3 ? colors.ledOn : colors.textDim),
+                marginBottom: compact ? 2 : 5,
+                fontWeight: marks >= 3 ? 700 : 500,
+                textDecoration: isClosed ? 'line-through' : 'none',
+                letterSpacing: 1,
+              }}>
+                {t === 'BULL' ? 'B' : t}
               </div>
-            )
-          })}
-        </div>
-
-        {/* Score */}
-        {!hideScore && (
-          <div style={{
-            padding: compact ? '4px 6px' : '10px 14px',
-            background: '#111', borderRadius: compact ? 6 : 10,
-            border: '1px solid #222', flexShrink: 0,
-          }}>
-            <SegmentNumber value={player.score} digits={compact ? 3 : 4} size={compact ? 'small' : 'large'} />
-          </div>
-        )}
+              <MarkLEDs marks={marks} baseMarks={baseMarks} closed={isClosed} size={ledSize} />
+            </div>
+          )
+        })}
       </div>
+
+      {/* Score unter den Marks */}
+      {!hideScore && (
+        <div style={{
+          marginTop: compact ? 0 : 6, textAlign: 'center',
+        }}>
+          <SegmentNumber value={player.score} digits={compact ? 3 : 4} size={compact ? 'small' : 'large'} />
+        </div>
+      )}
     </div>
   )
 }
@@ -417,6 +420,9 @@ export default function CricketArcadeView({
   crazyProTargets,
   turnHistory,
   turnListRef,
+  onToggleView,
+  viewLabel,
+  forceLandscape,
 }: Props) {
   const hasControls = !!onAddTarget
   const darts = turn ?? []
@@ -428,9 +434,11 @@ export default function CricketArcadeView({
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
-  const isMobile = screenWidth < 500
-  const isTablet = screenWidth >= 500 && screenWidth <= 1200
+  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 600
+  const isMobile = Math.min(screenWidth, screenHeight) < 600
+  const isTablet = !isMobile && screenWidth <= 1200
   const compact = isMobile && players.length >= 2
+  const isLandscapeMode = forceLandscape ?? (typeof window !== 'undefined' && screenWidth > screenHeight && isMobile)
 
   // On mobile: split players into top/bottom halves with input in middle
   // 2 players: 1 top, 1 bottom
@@ -464,7 +472,12 @@ export default function CricketArcadeView({
     <div
       style={{
         background: colors.background,
-        padding: isMobile ? '4px 2px 8px' : '8px 8px 12px',
+        padding: isMobile ? '4px 2px 4px' : '8px 8px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
       }}
     >
       {/* CSS für Animationen */}
@@ -475,8 +488,282 @@ export default function CricketArcadeView({
         }
       `}</style>
 
-      {/* Mobile Header: Ansage-Button */}
-      {isMobile && onAnnounceStatus && (
+      {/* LANDSCAPE MOBILE: top players, input middle, bottom players */}
+      {isLandscapeMode && isMobile && hasControls ? (
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 2, overflow: 'hidden' }}>
+          {/* Top players — nebeneinander */}
+          <div style={{ display: 'flex', gap: 2, flex: topRows.length, minHeight: 0, overflow: 'hidden' }}>
+            {topRows.map((row, ri) => (
+              <div key={ri} style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+                {row.map(p => (
+                  <div key={p.id} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          {/* Input + Wurffolge horizontal */}
+          <div style={{ flexShrink: isShort ? 0 : undefined, flex: isShort ? undefined : 0, display: 'flex', gap: 4 }}>
+            {/* Links: Buttons */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+              {/* Aktuelle Darts + (Long: ↩ ← links, 🔊 ⊞ rechts) */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 4, alignItems: 'center' }}>
+                {/* Long: Undo-Buttons links */}
+                {!isShort && (
+                  <>
+                    <button onClick={(e) => { e.currentTarget.blur(); onUndo?.() }}
+                      style={{ padding: '4px 8px', borderRadius: 3, border: '1px solid #555',
+                        background: '#1a1a1a', color: '#aaa', fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>↩</button>
+                    <button onClick={(e) => { e.currentTarget.blur(); onUndoDart?.() }} disabled={darts.length === 0}
+                      style={{ padding: '4px 8px', borderRadius: 3,
+                        border: `1px solid ${darts.length > 0 ? '#f59e0b' : '#555'}`,
+                        background: darts.length > 0 ? '#1a1a0a' : '#1a1a1a',
+                        color: darts.length > 0 ? '#f59e0b' : '#555', fontWeight: 700, fontSize: 9, cursor: 'pointer', marginRight: 12 }}>←</button>
+                  </>
+                )}
+                <span style={{ fontSize: 9, color: colors.textDim }}>Darts:</span>
+                {[0, 1, 2].map(i => {
+                  const d = darts[i]
+                  return (
+                    <span key={i} style={{
+                      fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, minWidth: 20, textAlign: 'center',
+                      background: d ? '#222' : '#111', border: d ? `1px solid ${colors.ledOn}` : '1px solid #333',
+                      color: d ? colors.ledOn : '#555',
+                    }}>
+                      {d ? dartLabel(d) : '—'}
+                    </span>
+                  )
+                })}
+                {/* Long: Ansage + Toggle rechts */}
+                {!isShort && onAnnounceStatus && (
+                  <button onClick={(e) => { e.currentTarget.blur(); onAnnounceStatus() }}
+                    style={{ padding: '4px 10px', borderRadius: 3, border: `1px solid ${colors.statusGreen}`,
+                      background: colors.statusGreenDim, color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', marginLeft: 8 }}>🔊</button>
+                )}
+                {!isShort && onToggleView && (
+                  <button onClick={(e) => { e.currentTarget.blur(); onToggleView() }}
+                    style={{ padding: '4px 10px', borderRadius: 3, border: '1px solid #555',
+                      background: '#1a1a1a', color: '#aaa', fontWeight: 600, fontSize: 11, cursor: 'pointer', marginLeft: 6 }}>⊞</button>
+                )}
+              </div>
+              {/* Targets: Short = 1 Zeile, Long = 2 Zeilen (20-15+B / 14-10+X) */}
+              {isShort ? (
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {[...inputNumbers, 'B', 'X'].map(item => {
+                    const isBull = item === 'B'
+                    const isMiss = item === 'X'
+                    return (
+                      <button key={String(item)} onClick={(e) => {
+                        e.currentTarget.blur()
+                        if (isBull) onAddTarget!('BULL')
+                        else if (isMiss) onAddTarget!('MISS')
+                        else onAddTarget!(item as number)
+                      }} style={{
+                        flex: 1, padding: '5px 0', borderRadius: 3,
+                        border: `1px solid ${isMiss ? '#555' : colors.ledOn}`,
+                        background: isMiss ? '#2a2a2a' : '#1a1a1a',
+                        color: isMiss ? colors.textBright : colors.ledOn,
+                        fontWeight: 800, fontSize: 10, cursor: 'pointer', minWidth: 0,
+                      }}>
+                        {isBull ? 'B' : isMiss ? '✕' : item}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {[20, 19, 18, 17, 16, 15, 'B'].map(item => {
+                      const isBull = item === 'B'
+                      return (
+                        <button key={String(item)} onClick={(e) => {
+                          e.currentTarget.blur()
+                          if (isBull) onAddTarget!('BULL')
+                          else onAddTarget!(item as number)
+                        }} style={{
+                          flex: 1, padding: '6px 0', borderRadius: 3,
+                          border: `1px solid ${colors.ledOn}`,
+                          background: '#1a1a1a', color: colors.ledOn,
+                          fontWeight: 800, fontSize: 10, cursor: 'pointer', minWidth: 0,
+                        }}>
+                          {isBull ? 'B' : item}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {[14, 13, 12, 11, 10].map(n => (
+                      <button key={n} onClick={(e) => { e.currentTarget.blur(); onAddTarget!(n) }}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 3,
+                          border: `1px solid ${colors.ledOn}`,
+                          background: '#1a1a1a', color: colors.ledOn,
+                          fontWeight: 800, fontSize: 10, cursor: 'pointer', minWidth: 0 }}>{n}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {/* Long Landscape: S/D/T + X + Undo (kein Confirm/Ansage/Toggle — die sind in der Darts-Zeile) */}
+              {!isShort ? (
+              <div style={{ display: 'flex', gap: 2 }}>
+                {[1, 2, 3].map(m => (
+                  <button key={m} onClick={(e) => { e.currentTarget.blur(); onSetMult!(m as 1 | 2 | 3) }}
+                    style={{ flex: 2, padding: '6px 0', borderRadius: 3,
+                      border: `1px solid ${mult === m ? colors.statusGreen : '#555'}`,
+                      background: mult === m ? colors.statusGreenDim : '#1a1a1a',
+                      color: mult === m ? '#fff' : '#777', fontWeight: 700, fontSize: 10, cursor: 'pointer', minWidth: 0 }}>
+                    {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
+                  </button>
+                ))}
+                <button onClick={(e) => { e.currentTarget.blur(); onAddTarget!('MISS') }}
+                  style={{ flex: 2, padding: '6px 0', borderRadius: 3, border: '1px solid #555',
+                    background: '#2a2a2a', color: colors.textBright, fontWeight: 800, fontSize: 10, cursor: 'pointer', minWidth: 0 }}>✕</button>
+              </div>
+              ) : (
+              <div style={{ display: 'flex', gap: 2 }}>
+                {[1, 2, 3].map(m => (
+                  <button key={m} onClick={(e) => { e.currentTarget.blur(); onSetMult!(m as 1 | 2 | 3) }}
+                    style={{ flex: 1, padding: '5px 0', borderRadius: 3,
+                      border: `1px solid ${mult === m ? colors.statusGreen : '#555'}`,
+                      background: mult === m ? colors.statusGreenDim : '#1a1a1a',
+                      color: mult === m ? '#fff' : '#777', fontWeight: 700, fontSize: 11, cursor: 'pointer', minWidth: 0 }}>
+                    {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
+                  </button>
+                ))}
+                <button onClick={(e) => { e.currentTarget.blur(); onUndo?.() }}
+                  style={{ flex: 1, padding: '5px 0', borderRadius: 3, border: '1px solid #555',
+                    background: '#1a1a1a', color: '#aaa', fontWeight: 700, fontSize: 9, cursor: 'pointer', minWidth: 0 }}>↩</button>
+                <button onClick={(e) => { e.currentTarget.blur(); onUndoDart?.() }} disabled={darts.length === 0}
+                  style={{ flex: 1, padding: '5px 0', borderRadius: 3,
+                    border: `1px solid ${darts.length > 0 ? '#f59e0b' : '#555'}`,
+                    background: darts.length > 0 ? '#1a1a0a' : '#1a1a1a',
+                    color: darts.length > 0 ? '#f59e0b' : '#555', fontWeight: 700, fontSize: 9, cursor: 'pointer', minWidth: 0 }}>←</button>
+                {onAnnounceStatus && (
+                  <button onClick={(e) => { e.currentTarget.blur(); onAnnounceStatus() }}
+                    style={{ padding: '5px 0', borderRadius: 3, border: `1px solid ${colors.statusGreen}`,
+                      background: colors.statusGreenDim, color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', minWidth: 0, width: 48 }}>🔊</button>
+                )}
+                {onToggleView && (
+                  <button onClick={(e) => { e.currentTarget.blur(); onToggleView() }}
+                    style={{ padding: '5px 0', borderRadius: 3, border: '1px solid #555',
+                      background: '#1a1a1a', color: '#aaa', fontWeight: 600, fontSize: 10, cursor: 'pointer', minWidth: 0, width: 48 }}>⊞</button>
+                )}
+                <button onClick={(e) => { e.currentTarget.blur(); onConfirm?.() }}
+                  style={{ flex: 2, padding: '5px 0', borderRadius: 3, border: 'none',
+                    background: colors.statusGreen, color: '#fff', fontWeight: 800, fontSize: 11, cursor: 'pointer', minWidth: 0 }}>
+                  {darts.length === 0 ? '3×X' : 'OK'}
+                </button>
+              </div>
+              )}
+            </div>
+            {/* Wurffolge — scrollbar */}
+            {turnHistory && turnHistory.length > 0 && (
+              <div style={{ width: 80, flexShrink: 0, overflowY: 'scroll', overflowX: 'hidden', maxHeight: 8 * 14, borderLeft: '1px solid #333', paddingLeft: 3, WebkitOverflowScrolling: 'touch' }}>
+                {turnHistory.map((t, i) => {
+                  const pColor = t.playerColor ?? '#999'
+                  const shortName = (t.playerName ?? '').slice(0, 3)
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap', fontSize: 8, lineHeight: '14px', flexShrink: 0 }}>
+                      <span style={{ width: 4, height: 4, borderRadius: 99, background: pColor, flexShrink: 0 }} />
+                      <span style={{ color: '#777', fontWeight: 600 }}>{shortName}</span>
+                      <span style={{ color: '#ccc', fontWeight: 700 }}>{t.darts?.join(' ') ?? '—'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          {/* Bottom players — nebeneinander */}
+          {bottomRows.length > 0 && (
+            <div style={{ display: 'flex', gap: 2, flex: bottomRows.length, minHeight: 0, overflow: 'hidden' }}>
+              {bottomRows.map((row, ri) => (
+                <div key={ri} style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+                  {row.map(p => (
+                    <div key={p.id} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : isMobile && !isShort && hasControls ? (
+      /* Portrait LED Long: Buttons links + Spieler Mitte + Buttons rechts */
+      <div style={{ display: 'flex', gap: 3, flex: 1, minHeight: 0 }}>
+        {/* Links: 20-15 + S/D/T + 🔊 + ⊞ vertikal */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0, width: 34 }}>
+          {[20, 19, 18, 17, 16, 15].map(n => (
+            <button key={n} onClick={(e) => { e.currentTarget.blur(); onAddTarget!(n) }}
+              style={{ flex: 1, padding: 0, borderRadius: 3, border: `1px solid ${colors.ledOn}`,
+                background: '#1a1a1a', color: colors.ledOn, fontWeight: 800, fontSize: 10, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>{n}</button>
+          ))}
+          {[1, 2, 3].map(m => (
+            <button key={`m${m}`} onClick={(e) => { e.currentTarget.blur(); onSetMult!(m as 1 | 2 | 3) }}
+              style={{ flex: 1, padding: 0, borderRadius: 3, minHeight: 0,
+                border: `1px solid ${mult === m ? colors.statusGreen : '#555'}`,
+                background: mult === m ? colors.statusGreenDim : '#1a1a1a',
+                color: mult === m ? '#fff' : '#777', fontWeight: 700, fontSize: 10, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
+            </button>
+          ))}
+        </div>
+
+        {/* Mitte: Spieler untereinander */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
+          {players.map(p => (
+            <div key={p.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} />
+            </div>
+          ))}
+        </div>
+
+        {/* Rechts: 14-10 + B + X + ↩ + ← + OK vertikal */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0, width: 34 }}>
+          {[14, 13, 12, 11, 10].map(n => (
+            <button key={n} onClick={(e) => { e.currentTarget.blur(); onAddTarget!(n) }}
+              style={{ flex: 1, padding: 0, borderRadius: 3, border: `1px solid ${colors.ledOn}`,
+                background: '#1a1a1a', color: colors.ledOn, fontWeight: 800, fontSize: 10, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>{n}</button>
+          ))}
+          <button onClick={(e) => { e.currentTarget.blur(); onAddTarget!('BULL') }}
+            style={{ flex: 1, padding: 0, borderRadius: 3, border: `1px solid ${colors.ledOn}`,
+              background: '#1a1a1a', color: colors.ledOn, fontWeight: 800, fontSize: 10, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>B</button>
+          <button onClick={(e) => { e.currentTarget.blur(); onAddTarget!('MISS') }}
+            style={{ flex: 1, padding: 0, borderRadius: 3, border: '1px solid #555',
+              background: '#2a2a2a', color: colors.textBright, fontWeight: 800, fontSize: 10, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>✕</button>
+          <button onClick={(e) => { e.currentTarget.blur(); onUndo?.() }}
+            style={{ flex: 1, padding: 0, borderRadius: 3, border: '1px solid #555',
+              background: '#1a1a1a', color: '#aaa', fontWeight: 700, fontSize: 8, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>↩</button>
+          <button onClick={(e) => { e.currentTarget.blur(); onUndoDart?.() }} disabled={darts.length === 0}
+            style={{ flex: 1, padding: 0, borderRadius: 3, minHeight: 0,
+              border: `1px solid ${darts.length > 0 ? '#f59e0b' : '#555'}`,
+              background: darts.length > 0 ? '#1a1a0a' : '#1a1a1a',
+              color: darts.length > 0 ? '#f59e0b' : '#555', fontWeight: 700, fontSize: 8, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+          {onAnnounceStatus && (
+            <button onClick={(e) => { e.currentTarget.blur(); onAnnounceStatus() }}
+              style={{ flex: 1, padding: 0, borderRadius: 3, minHeight: 0, border: `1px solid ${colors.statusGreen}`,
+                background: colors.statusGreenDim, color: '#fff', fontWeight: 700, fontSize: 9, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🔊</button>
+          )}
+          {onToggleView && (
+            <button onClick={(e) => { e.currentTarget.blur(); onToggleView() }}
+              style={{ flex: 1, padding: 0, borderRadius: 3, minHeight: 0, border: '1px solid #555',
+                background: '#1a1a1a', color: '#aaa', fontWeight: 600, fontSize: 9, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⊞</button>
+          )}
+        </div>
+      </div>
+      ) : (
+      <>
+      {/* Ansage + View-Toggle: nur Desktop (nicht Mobile/Landscape — dort in S/D/T-Zeile) */}
+      {!isMobile && !isLandscapeMode && onAnnounceStatus && (
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
           <button onClick={onAnnounceStatus} style={{
             padding: '4px 12px', borderRadius: 4, border: `1px solid ${colors.statusGreen}`,
@@ -488,12 +775,12 @@ export default function CricketArcadeView({
         </div>
       )}
 
-      {/* Obere Spieler */}
-      <div style={{ marginBottom: compact ? 4 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
+      {/* Obere Spieler — flex proportional zur Anzahl */}
+      <div style={{ marginBottom: compact ? 2 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 2 : 6, flex: topRows.length, minHeight: 0, overflow: 'hidden' }}>
         {topRows.map((row, rowIndex) => (
-          <div key={rowIndex} style={{ display: 'flex', gap: compact ? 4 : 8 }}>
+          <div key={rowIndex} style={{ display: 'flex', gap: compact ? 2 : 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
             {row.map(p => (
-              <div key={p.id} style={{ flex: row.length === 1 ? '1' : '0 0 calc(50% - 2px)' }}>
+              <div key={p.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} />
               </div>
             ))}
@@ -503,8 +790,9 @@ export default function CricketArcadeView({
 
       {/* Mobile: Inline Input between players */}
       {isMobile && hasControls && (
-        <div style={{ margin: '4px 0' }}>
-          {/* Row 1: Target numbers in one line */}
+        <div style={{ margin: '2px 0', flexShrink: 0 }}>
+          {/* Targets: Short = 1 Zeile, Long = 2 Zeilen */}
+          {isShort ? (
           <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
             {[...inputNumbers, 'B', 'X'].map(item => {
               const isBull = item === 'B'
@@ -527,6 +815,51 @@ export default function CricketArcadeView({
               )
             })}
           </div>
+          ) : (
+          <>
+            {/* Long Zeile 1: 20-15 + B */}
+            <div style={{ display: 'flex', gap: 2, marginBottom: 2 }}>
+              {[20, 19, 18, 17, 16, 15, 'B'].map(item => {
+                const isBull = item === 'B'
+                return (
+                  <button key={String(item)} onClick={(e) => {
+                    e.currentTarget.blur()
+                    if (isBull) onAddTarget!('BULL')
+                    else onAddTarget!(item as number)
+                  }} style={{
+                    flex: 1, padding: '6px 0', borderRadius: 4,
+                    border: `1px solid ${colors.ledOn}`,
+                    background: '#1a1a1a', color: colors.ledOn,
+                    fontWeight: 800, fontSize: 11, cursor: 'pointer',
+                  }}>
+                    {isBull ? 'B' : item}
+                  </button>
+                )
+              })}
+            </div>
+            {/* Long Zeile 2: 14-10 + X */}
+            <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
+              {[14, 13, 12, 11, 10, 'X'].map(item => {
+                const isMiss = item === 'X'
+                return (
+                  <button key={String(item)} onClick={(e) => {
+                    e.currentTarget.blur()
+                    if (isMiss) onAddTarget!('MISS')
+                    else onAddTarget!(item as number)
+                  }} style={{
+                    flex: 1, padding: '6px 0', borderRadius: 4,
+                    border: `1px solid ${isMiss ? '#555' : colors.ledOn}`,
+                    background: isMiss ? '#2a2a2a' : '#1a1a1a',
+                    color: isMiss ? colors.textBright : colors.ledOn,
+                    fontWeight: 800, fontSize: 11, cursor: 'pointer',
+                  }}>
+                    {isMiss ? '✕' : item}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+          )}
           {/* Row 2: S, D, T, Undo, Confirm */}
           <div style={{ display: 'flex', gap: 2 }}>
             {[1, 2, 3].map(m => (
@@ -553,6 +886,20 @@ export default function CricketArcadeView({
                 color: darts.length > 0 ? '#f59e0b' : '#555', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
               ↩ Dart
             </button>
+            {onAnnounceStatus && (
+              <button onClick={(e) => { e.currentTarget.blur(); onAnnounceStatus() }}
+                style={{ padding: '8px 0', borderRadius: 4, border: `1px solid ${colors.statusGreen}`,
+                  background: colors.statusGreenDim, color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', width: 28 }}>
+                🔊
+              </button>
+            )}
+            {onToggleView && (
+              <button onClick={(e) => { e.currentTarget.blur(); onToggleView() }}
+                style={{ padding: '8px 0', borderRadius: 4, border: '1px solid #555',
+                  background: '#1a1a1a', color: '#aaa', fontWeight: 600, fontSize: 10, cursor: 'pointer', width: 28 }}>
+                ⊞
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -565,11 +912,11 @@ export default function CricketArcadeView({
 
       {/* Untere Spieler */}
       {bottomRows.length > 0 && (
-        <div style={{ marginTop: compact ? 4 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
+        <div style={{ marginTop: compact ? 2 : 8, display: 'flex', flexDirection: 'column', gap: compact ? 2 : 6, flex: bottomRows.length, minHeight: 0, overflow: 'hidden' }}>
           {bottomRows.map((row, rowIndex) => (
-            <div key={rowIndex} style={{ display: 'flex', gap: compact ? 4 : 8 }}>
+            <div key={rowIndex} style={{ display: 'flex', gap: compact ? 2 : 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
               {row.map(p => (
-                <div key={p.id} style={{ flex: row.length === 1 ? '1' : '0 0 calc(50% - 2px)' }}>
+                <div key={p.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} />
                 </div>
               ))}
@@ -777,6 +1124,8 @@ export default function CricketArcadeView({
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   )

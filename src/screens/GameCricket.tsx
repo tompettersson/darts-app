@@ -614,6 +614,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   // Globales Theme System
   const { isArcade, colors } = useTheme()
 
+  // View-Toggle: 'auto' (theme-based), 'table', or 'arcade'
+  const [cricketViewMode, setCricketViewMode] = useState<'auto' | 'table' | 'arcade'>('auto')
+  const showArcadeView = cricketViewMode === 'arcade'
+
   // --- Pause-Modus ---
   const [gamePaused, setGamePaused] = useState(() => isMatchPaused(matchId, 'cricket'))
 
@@ -1251,21 +1255,35 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
 
   // ===== Layout Konstanten =====
   // Responsive widths based on screen size and player count
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 800
-  const isMobileScreen = screenWidth < 600
-  const isTabletScreen = screenWidth >= 600 && screenWidth <= 1200
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800
+  const isMobileScreen = Math.min(screenWidth, screenHeight) < 600
+  const isTabletScreen = !isMobileScreen && screenWidth <= 1200
+  const isMobileLandscape = isLandscape && Math.min(screenWidth, screenHeight) < 600
   const playerCount = order.length
 
-  const ROW_H = isMobileScreen ? 26 : isTabletScreen ? 30 : 32
-  const headerBarHeight = isMobileScreen ? 22 : isTabletScreen ? 26 : 28
+  const isLongRange = matchRange === 'long'
+  const targetCount = isLongRange ? 13 : 8 // 10-20+Bull+Miss vs 15-20+Bull+Miss
+  const ROW_H = isMobileScreen ? (isLongRange ? 16 : 26) : isTabletScreen ? (isLongRange ? 22 : 30) : 32
+  const headerBarHeight = isMobileScreen ? (isLongRange ? 18 : 22) : isTabletScreen ? 26 : 28
 
   // Responsive column widths
-  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? 70 : isTabletScreen ? 140 : 220
-  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? 80 : isTabletScreen ? 180 : 260
+  const mobileCricketWidth = playerCount <= 2 ? 80 : playerCount <= 4 ? 55 : playerCount <= 6 ? 38 : 28
+  const CRICKET_CARD_WIDTH_MIN = isMobileScreen ? mobileCricketWidth : isTabletScreen ? 140 : 220
+  const CRICKET_CARD_WIDTH_MAX = isMobileScreen ? mobileCricketWidth : isTabletScreen ? 180 : 260
   const mobilePlayersOnScreen = Math.min(playerCount, 4)
   const mobileGaps = (mobilePlayersOnScreen + 1) * 4 // gaps between columns
   const PLAYER_CARD_WIDTH = isMobileScreen
-    ? Math.max(50, Math.floor((screenWidth - CRICKET_CARD_WIDTH_MAX - mobileGaps - 24) / mobilePlayersOnScreen))
+    ? Math.max(40, Math.floor((screenWidth - mobileCricketWidth - mobileGaps - 16) / mobilePlayersOnScreen))
     : 140
 
   function playerCardStyle(active: boolean, playerColor?: string): React.CSSProperties {
@@ -1281,8 +1299,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       maxWidth: isMobileScreen ? undefined : PLAYER_CARD_WIDTH,
       display: 'flex',
       flexDirection: 'column',
-      padding: isMobileScreen ? 4 : 10,
-      paddingTop: isMobileScreen ? 4 : 10,
+      padding: isMobileScreen ? 1 : 10,
+      paddingTop: isMobileScreen ? 1 : 10,
       boxShadow: active ? `0 0 20px ${color}50, 0 0 40px ${color}30` : 'none',
       transition: 'box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease',
       boxSizing: 'border-box',
@@ -1300,8 +1318,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     width: isMobileScreen ? '100%' : CRICKET_CARD_WIDTH_MAX,
     display: 'flex',
     flexDirection: 'column',
-    padding: isMobileScreen ? 4 : 10,
-    paddingTop: isMobileScreen ? 4 : 10,
+    padding: isMobileScreen ? 1 : 10,
+    paddingTop: isMobileScreen ? 1 : 10,
   }
 
   function PlayerHeader({
@@ -1318,6 +1336,24 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     const textAlign = side === 'left' ? 'right' : 'left'
     const fontSize = isMobileScreen ? 11 : 14
 
+    // Mobile: vertical name, fixed height, aligned to bottom
+    if (isMobileScreen) {
+      const nameHeight = isLongRange ? 35 : 45
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          marginBottom: 2, height: nameHeight, justifyContent: 'flex-end',
+        }}>
+          <span style={{
+            writingMode: 'vertical-rl', textOrientation: 'mixed',
+            fontSize: isLongRange ? 7 : 8, fontWeight: 700, maxHeight: nameHeight - 3,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            transform: 'rotate(180deg)',
+          }}>{name}</span>
+        </div>
+      )
+    }
+
     return (
       <div
         style={{
@@ -1329,10 +1365,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           fontWeight: 700,
           fontSize,
           lineHeight: `${headerBarHeight}px`,
-          marginBottom: isMobileScreen ? 2 : 6,
+          marginBottom: 6,
           textAlign,
           width: '100%',
-          gap: isMobileScreen ? 2 : 8,
+          gap: 8,
         }}
       >
         <span
@@ -1381,13 +1417,13 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         style={{
           display: 'grid',
           gridTemplateColumns: isSimple
-            ? '18px' // Simple: nur Marks
-            : side === 'left' ? '1fr 18px' : '18px 1fr',
+            ? (isMobileScreen ? (playerCount > 6 ? '12px' : '14px') : '18px')
+            : side === 'left' ? `1fr ${isMobileScreen ? (playerCount > 6 ? '12px' : '14px') : '18px'}` : `${isMobileScreen ? (playerCount > 6 ? '12px' : '14px') : '18px'} 1fr`,
           gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
           alignItems: 'center',
           justifyContent: isSimple ? (side === 'left' ? 'flex-end' : 'flex-start') : undefined,
-          rowGap: 4,
-          columnGap: 8,
+          rowGap: isMobileScreen ? 2 : 4,
+          columnGap: isMobileScreen ? 2 : 8,
           textAlign: alignTallies === 'right' ? 'right' : 'left',
         }}
       >
@@ -1402,7 +1438,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 style={{
                   gridColumn: '1 / -1',
                   fontWeight: 800,
-                  fontSize: isMobileScreen ? 16 : 20,
+                  fontSize: isMobileScreen ? (isLongRange ? 12 : 16) : 20,
                   color: playerChartColors[order.indexOf(pid)] ?? '#f97316',
                   textAlign: side === 'left' ? 'right' : 'left',
                   lineHeight: `${ROW_H}px`,
@@ -1500,8 +1536,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             flexWrap: 'wrap',
           }}
         >
-          <span>Cricket</span>
-          <span
+          {!isMobileScreen && <span>Cricket</span>}
+          {!isMobileScreen && <span
             style={{
               fontSize: 12,
               opacity: 0.7,
@@ -1510,7 +1546,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             }}
           >
             {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
-          </span>
+          </span>}
         </div>
 
         {/* Target Buttons */}
@@ -1518,7 +1554,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           style={{
             display: 'grid',
             gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
-            rowGap: 4,
+            rowGap: isMobileScreen ? 2 : 4,
           }}
         >
           {targetList.map(t => {
@@ -1533,12 +1569,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 key={tKey}
                 type="button"
                 style={{
-                  border: isCrazyTarget ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                  borderRadius: 12,
-                  padding: '6px 10px',
-                  background: isCrazyTarget ? '#fef3c7' : '#fff',
+                  border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen ? 'none' : '1px solid #e5e7eb'),
+                  borderRadius: isMobileScreen ? 2 : 12,
+                  padding: isMobileScreen ? '0' : '6px 10px',
+                  background: isCrazyTarget ? '#fef3c7' : (isMobileScreen ? 'transparent' : '#fff'),
                   display: 'flex',
-                  justifyContent: 'space-between',
+                  justifyContent: 'center',
                   alignItems: 'center',
                   cursor: 'pointer',
                   width: '100%',
@@ -1556,32 +1592,33 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 <div
                   style={{
                     fontWeight: 800,
-                    fontSize: 14,
+                    fontSize: isMobileScreen ? (isLongRange || playerCount > 6 ? 8 : 10) : 14,
                     position: 'relative',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: isMobileScreen ? 0 : 6,
                   }}
                 >
                   <span
                     style={{
                       textDecoration: closedAll ? 'line-through' : 'none',
-                      textDecorationThickness: closedAll ? '3px' : undefined,
+                      textDecorationThickness: closedAll ? '2px' : undefined,
                       color: isCrazyTarget ? '#b45309' : (closedAll ? '#475569' : '#111827'),
-                      background: closedAll ? '#f1f5f9' : 'transparent',
+                      background: closedAll && !isMobileScreen ? '#f1f5f9' : 'transparent',
                       borderRadius: 6,
-                      padding: closedAll ? '0 6px' : 0,
+                      padding: closedAll && !isMobileScreen ? '0 6px' : 0,
                     }}
                   >
-                    {isCrazyTarget && '🎯 '}{String(t)}
+                    {isCrazyTarget && !isMobileScreen && '🎯 '}{t === 'BULL' ? (isMobileScreen ? 'B' : 'BULL') : t === 'MISS' ? (isMobileScreen ? 'X' : 'Miss') : String(t)}
                   </span>
-                  {closedAll && (
+                  {closedAll && !isMobileScreen && (
                     <span style={{ ...ui.badge, background: '#e2e8f0', color: '#334155' }}>
                       CLOSED
                     </span>
                   )}
                 </div>
 
+                {!isMobileScreen && (
                 <div style={{ ...ui.sub, textAlign: 'right' }}>
                   {t === 'MISS'
                     ? 'kein Treffer (M)'
@@ -1589,6 +1626,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                         t === 'BULL' ? ' · S=Bull, D/T=DBull' : ''
                       }`}
                 </div>
+                )}
               </button>
             )
           })}
@@ -1638,11 +1676,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     ...rightIds.map(pid => ({ kind: 'player' as const, pid, side: 'right' as const })),
   ]
 
-  const gridTemplateColumns = [
-    ...leftIds.map(() => isMobileScreen ? '1fr' : `${PLAYER_CARD_WIDTH}px`),
-    isMobileScreen ? `${CRICKET_CARD_WIDTH_MAX}px` : `${CRICKET_CARD_WIDTH_MAX}px`,
-    ...rightIds.map(() => isMobileScreen ? '1fr' : `${PLAYER_CARD_WIDTH}px`),
-  ].join(' ')
+  const gridTemplateColumns = isMobileScreen
+    ? [...leftIds.map(() => '1fr'), `${mobileCricketWidth}px`, ...rightIds.map(() => '1fr')].join(' ')
+    : [...leftIds.map(() => `${PLAYER_CARD_WIDTH}px`), `${CRICKET_CARD_WIDTH_MAX}px`, ...rightIds.map(() => `${PLAYER_CARD_WIDTH}px`)].join(' ')
 
   // Sticky Header
   const headerStyle: React.CSSProperties = {
@@ -1675,13 +1711,16 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }${legStandStr}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`
 
   // Dynamischer Hintergrund basierend auf aktivem Spieler
+  const mobileFullScreen = isMobileScreen ? { height: '100dvh', minHeight: '100dvh', maxHeight: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' as const, gap: 2, padding: '2px 4px 0' } : {}
+  const fullscreenClass = isMobileScreen ? 'game-fullscreen' : undefined
   const backgroundStyle = playerColorBgEnabled
     ? {
         ...ui.page,
+        ...mobileFullScreen,
         background: `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`,
         transition: 'background 0.5s ease',
       }
-    : ui.page
+    : { ...ui.page, ...mobileFullScreen }
 
   // Enter-Taste zum Weitergehen bei Leg-Summary
   useEffect(() => {
@@ -1708,7 +1747,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }
 
   return (
-    <div style={backgroundStyle}>
+    <div style={backgroundStyle} className={fullscreenClass}>
       {/* Pause Overlay */}
       {gamePaused && <PauseOverlay onResume={() => setGamePaused(false)} />}
 
@@ -1734,8 +1773,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         title={cricketTitle}
       />
 
+      {/* View-Toggle moved to bottom next to Leg-Verlauf */}
+
       {/* Score-Info Leiste — nur im Normal-Modus (im Arcade in der ArcadeView integriert) */}
-      {!isArcade && (
+      {!showArcadeView && (
         <div
           style={{
             ...headerStyle,
@@ -1773,6 +1814,20 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
               )
             })}
           </div>
+          {/* Ansage + LED Toggle — nur Landscape, neben Darts */}
+          {isMobileLandscape && (
+            <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+              <button onClick={() => {
+                const name = match.players.find(p => p.playerId === activeId)?.name ?? activeId
+                const statusTargets = match.range === 'short' ? ['20','19','18','17','16','15','BULL'] : ['10','11','12','13','14','15','16','17','18','19','20','BULL']
+                const needs: { target: string; count: number }[] = []
+                for (const t of statusTargets) { const marks = baseState.marksByPlayer[activeId]?.[t] ?? 0; if (marks < 3) needs.push({ target: t, count: 3 - marks }) }
+                announcePlayerNeeds(name, needs)
+              }} style={{ padding: '2px 6px', fontSize: 9, border: `1px solid ${colors.border}`, borderRadius: 3, background: 'transparent', color: colors.fgDim, cursor: 'pointer' }}>🔊</button>
+              <button onClick={() => setCricketViewMode(prev => prev === 'arcade' ? 'auto' : 'arcade')}
+                style={{ padding: '2px 6px', fontSize: 9, border: `1px solid ${colors.border}`, borderRadius: 3, background: 'transparent', color: colors.fgDim, cursor: 'pointer' }}>◉ LED</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2060,20 +2115,123 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       )}
 
       {/* VIEW MODE: Classic oder Arcade */}
-      {!isArcade ? (
-        /* NEUES LAYOUT: Spieler oben, darunter Leg-Verlauf + Eingabe nebeneinander */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobileScreen ? 6 : 12, width: '100%', maxWidth: isMobileScreen ? screenWidth : undefined, margin: '0 auto' }}>
+      {!showArcadeView ? (
+        /* Tabellen-Layout */
+        isMobileLandscape ? (
+        /* LANDSCAPE: Spieler links (volle Breite), Eingabe rechts */
+        <div style={{ display: 'flex', gap: 4, flex: 1, minHeight: 0, overflow: 'hidden', padding: '0 2px' }}>
+          {/* Links: Spieler-Grid — volle restliche Breite, Mittelspalte 3× breiter */}
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: [...leftIds.map(() => '1fr'), `${mobileCricketWidth * 3}px`, ...rightIds.map(() => '1fr')].join(' '),
+              alignItems: 'stretch',
+              gap: 2, flex: 1, minHeight: 0, overflow: 'hidden',
+            }}>
+              {gridCells.map((cell, idx) => {
+                if (cell.kind === 'cricket') {
+                  return (
+                    <div key={`c-${idx}`} style={{ ...cricketCardStyle, padding: 0, display: 'flex', flexDirection: 'column' }}>
+                      {/* Spacer: gleiche Höhe wie PlayerHeader (45px + 2px margin) */}
+                      <div style={{ height: isLongRange ? 37 : 47, flexShrink: 0 }} />
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
+                        rowGap: 2,
+                      }}>
+                        {targetList.map(t => {
+                          const tKey = String(t)
+                          const closedAll = t !== 'MISS' && isClosedForAll(tKey)
+                          const mobileLabel = t === 'BULL' ? 'B' : t === 'MISS' ? 'X' : String(t)
+                          return (
+                            <button key={tKey}
+                              onClick={() => t === 'MISS' ? addTarget('MISS') : addTarget(typeof t === 'number' ? t : t as 'BULL')}
+                              style={{
+                                borderRadius: 3, padding: 0, border: 'none', height: ROW_H,
+                                background: colors.bgCard, display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                fontWeight: 800, fontSize: isLongRange ? 8 : 12, color: closedAll ? '#94a3b8' : colors.fg,
+                                textDecoration: closedAll ? 'line-through' : 'none', cursor: 'pointer',
+                                WebkitTapHighlightColor: 'transparent', boxSizing: 'border-box',
+                              }}>
+                              {mobileLabel}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+                return <div key={cell.pid}>{renderPlayerCard(cell.pid, cell.side)}</div>
+              })}
+            </div>
+          </div>
+          {/* Rechts: Eingabe oben + Wurffolge unten */}
+          <div style={{ width: 120, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0 }}>
+            {/* Target Buttons: 2 Spalten — 20 bis 10 durchgehend, dann B + X */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              {(isLongRange ? [20,19,18,17,16,15,14,13,12,11,10] : [20,19,18,17,16,15]).map(num => (
+                <button key={num} type="button" onClick={(e) => { e.currentTarget.blur(); addTarget(num) }}
+                  style={{ border: '1px solid #e5e7eb', borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
+                    background: colors.bgCard, fontWeight: 700, fontSize: isLongRange ? 10 : 11, cursor: 'pointer', color: colors.fg }}>{num}</button>
+              ))}
+              <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('BULL') }}
+                style={{ border: '1px solid #e5e7eb', borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
+                  background: colors.bgCard, fontWeight: 700, fontSize: isLongRange ? 10 : 11, cursor: 'pointer', color: colors.fg }}>B</button>
+              <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('MISS') }}
+                style={{ border: '1px solid #e5e7eb', borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
+                  background: colors.bgMuted, fontWeight: 600, fontSize: isLongRange ? 10 : 11, cursor: 'pointer', color: colors.fgDim }}>X</button>
+            </div>
+            {/* S/D/T */}
+            <div style={{ display: 'flex', gap: 2 }}>
+              {[1, 2, 3].map(m => (
+                <button key={m} onClick={() => setMult(m as 1 | 2 | 3)}
+                  style={{ flex: 1, padding: '4px 0', borderRadius: 3,
+                    border: mult === m ? '2px solid #0ea5e9' : '1px solid #e5e7eb',
+                    background: mult === m ? '#e0f2fe' : colors.bgCard, fontWeight: 700, fontSize: 11, cursor: 'pointer', color: colors.fg }}>
+                  {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
+                </button>
+              ))}
+            </div>
+            {/* Undo + Back + OK */}
+            <div style={{ display: 'flex', gap: 2 }}>
+              <button style={{ flex: 1, padding: '4px 0', borderRadius: 3, border: '1px solid #e5e7eb', background: colors.bgCard, fontSize: 10, cursor: 'pointer', color: colors.fg }}
+                onClick={undoLastTurn}>↶</button>
+              <button style={{ flex: 1, padding: '4px 0', borderRadius: 3, border: '1px solid #e5e7eb', background: colors.bgCard, fontSize: 10, cursor: 'pointer', color: colors.fg }}
+                onClick={() => setTurn(t => t.slice(0, -1))} disabled={turn.length === 0}>←</button>
+              <button style={{ flex: 2, padding: '4px 0', borderRadius: 3, border: 'none', background: '#111827', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+                onClick={() => confirmTurn()}>OK</button>
+            </div>
+            {/* Wurffolge — scrollbar, nimmt restlichen Platz */}
+            <div style={{ flex: 1, minHeight: 30, overflowY: 'auto', overflowX: 'hidden', borderTop: `1px solid ${colors.border}`, paddingTop: 3 }}>
+              {recentTurns.map((t, i) => {
+                const pColor = t.playerColor ?? '#999'
+                const shortName = (t.playerName ?? '').slice(0, 5)
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap', overflow: 'hidden', fontSize: 8, lineHeight: '13px' }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 99, background: pColor, flexShrink: 0 }} />
+                    <span style={{ color: colors.fgDim, fontWeight: 600, minWidth: 25, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shortName}</span>
+                    <span style={{ color: colors.fg, fontWeight: 700 }}>{t.darts?.join(' ') ?? '—'}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        ) : (
+        /* PORTRAIT: Spieler oben, darunter Leg-Verlauf + Eingabe nebeneinander */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobileScreen ? 6 : 12, width: '100%', maxWidth: isMobileScreen ? '100vw' : undefined, margin: '0 auto', overflow: 'hidden', boxSizing: 'border-box', padding: isMobileScreen ? (playerCount > 6 ? '0 1px' : '0 4px') : undefined }}>
           {/* OBERER BEREICH: Spieler-Grid */}
           <div
             style={{
               display: 'grid',
               gridTemplateColumns,
-              alignItems: 'start',
-              gap: isMobileScreen ? 4 : 12,
+              alignItems: isMobileScreen ? 'end' : 'start',
+              gap: isMobileScreen ? 2 : 12,
               width: '100%',
+              maxWidth: '100%',
               justifyContent: 'center',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
             }}
           >
             {gridCells.map((cell, idx) => {
@@ -2109,7 +2267,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                       style={{
                         display: 'grid',
                         gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
-                        rowGap: 4,
+                        rowGap: isMobileScreen ? 2 : 4,
                       }}
                     >
                       {targetList.map(t => {
@@ -2117,29 +2275,30 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                         const closedAll = t !== 'MISS' && isClosedForAll(tKey)
                         const activeCrazyTarget = crazyTargets?.[Math.min(turn.length, (crazyTargets?.length ?? 1) - 1)]
                         const isCrazyTarget = activeCrazyTarget === tKey
+                        const mobileLabel = t === 'BULL' ? 'B' : t === 'MISS' ? 'X' : String(t)
 
                         return (
                           <button
                             key={tKey}
                             onClick={() => t === 'MISS' ? addTarget('MISS') : addTarget(typeof t === 'number' ? t : t as 'BULL')}
                             style={{
-                              borderRadius: isMobileScreen ? 4 : 8,
-                              padding: isMobileScreen ? '2px 4px' : '4px 10px',
-                              background: t === 'MISS' ? '#f8fafc' : (isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : '#fff')),
-                              border: isCrazyTarget ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                              borderRadius: isMobileScreen ? 2 : 8,
+                              padding: isMobileScreen ? '0' : '4px 10px',
+                              background: t === 'MISS' ? '#f8fafc' : (isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : (isMobileScreen ? 'transparent' : '#fff'))),
+                              border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen ? 'none' : '1px solid #e5e7eb'),
                               display: 'flex',
                               justifyContent: 'center',
                               alignItems: 'center',
                               fontWeight: 700,
-                              fontSize: isMobileScreen ? 12 : 14,
+                              fontSize: isMobileScreen ? (isLongRange || playerCount > 6 ? 8 : 10) : 14,
                               color: t === 'MISS' ? '#64748b' : (closedAll ? '#94a3b8' : '#111827'),
                               textDecoration: closedAll ? 'line-through' : 'none',
                               cursor: 'pointer',
                               WebkitTapHighlightColor: 'transparent',
                             }}
                           >
-                            {isCrazyTarget && '🎯 '}{t === 'MISS' ? 'Miss' : String(t)}
-                            {closedAll && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: '#64748b' }}>CLOSED</span>}
+                            {isCrazyTarget && !isMobileScreen && '🎯 '}{isMobileScreen ? mobileLabel : (t === 'MISS' ? 'Miss' : String(t))}
+                            {closedAll && !isMobileScreen && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: '#64748b' }}>CLOSED</span>}
                           </button>
                         )
                       })}
@@ -2162,8 +2321,41 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           >
             {/* Leg-Verlauf (unter Eingabe auf Mobile, links auf Desktop) */}
             <div style={{ width: isMobileScreen ? '100%' : 300, flexShrink: 0, overflow: 'hidden', maxHeight: isMobileScreen ? 150 : undefined }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#374151' }}>
-                Leg-Verlauf
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 13, color: colors.fg }}>Leg-Verlauf</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => {
+                      const name = match.players.find(p => p.playerId === activeId)?.name ?? activeId
+                      const statusTargets = match.range === 'short' ? ['20','19','18','17','16','15','BULL'] : ['10','11','12','13','14','15','16','17','18','19','20','BULL']
+                      const needs: { target: string; count: number }[] = []
+                      for (const t of statusTargets) {
+                        const marks = baseState.marksByPlayer[activeId]?.[t] ?? 0
+                        if (marks < 3) needs.push({ target: t, count: 3 - marks })
+                      }
+                      announcePlayerNeeds(name, needs)
+                    }}
+                    style={{
+                      padding: '2px 8px', fontSize: 10, fontWeight: 600,
+                      border: `1px solid ${colors.border}`, borderRadius: 4,
+                      background: 'transparent', color: colors.fgDim, cursor: 'pointer',
+                    }}
+                  >
+                    🔊 Ansage
+                  </button>
+                  <button
+                    onClick={() => setCricketViewMode(prev => prev === 'arcade' ? 'auto' : 'arcade')}
+                    style={{
+                      padding: '2px 8px', fontSize: 10, fontWeight: 600,
+                      border: `1px solid ${colors.border}`, borderRadius: 4,
+                      background: showArcadeView ? (isArcade ? '#1e293b' : '#dbeafe') : 'transparent',
+                      color: showArcadeView ? (isArcade ? '#e5e7eb' : '#1e40af') : colors.fgDim,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showArcadeView ? '⊞ Tabelle' : '◉ LED'}
+                  </button>
+                </div>
               </div>
               <CricketTurnList
                 turns={recentTurns}
@@ -2215,129 +2407,89 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 </div>
               )}
 
-              {/* Target Buttons - alle in einer Reihe */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 4,
-                  marginBottom: 8,
-                }}
-              >
-                {/* Short Mode: 20, 19, 18, 17, 16, 15, Bull, Miss */}
-                {[20, 19, 18, 17, 16, 15].map(num => {
-                  const tKey = String(num)
-                  const closedAll = isClosedForAll(tKey)
-                  const activeCrazyTarget = crazyTargets?.[Math.min(turn.length, (crazyTargets?.length ?? 1) - 1)]
-                  const isCrazyTarget = activeCrazyTarget === tKey
-
-                  return (
-                    <button
-                      key={num}
-                      type="button"
-                      style={{
-                        border: isCrazyTarget ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                        borderRadius: 6,
-                        padding: '8px 10px',
-                        background: isCrazyTarget ? '#fef3c7' : '#fff',
-                        fontWeight: 700,
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        color: closedAll ? '#94a3b8' : '#111827',
-                        textDecoration: closedAll ? 'line-through' : 'none',
-                      }}
-                      onClick={(e) => {
-                        e.currentTarget.blur()
-                        addTarget(num)
-                      }}
-                    >
-                      {num}
-                    </button>
-                  )
-                })}
-                {/* Bull */}
-                <button
-                  type="button"
-                  style={{
-                    border: crazyTargets?.[Math.min(turn.length, (crazyTargets?.length ?? 1) - 1)] === 'BULL' ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                    borderRadius: 6,
-                    padding: '8px 10px',
-                    background: crazyTargets?.[Math.min(turn.length, (crazyTargets?.length ?? 1) - 1)] === 'BULL' ? '#fef3c7' : '#fff',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    cursor: 'pointer',
-                  }}
-                  onClick={(e) => {
-                    e.currentTarget.blur()
-                    addTarget('BULL')
-                  }}
-                >
-                  Bull
-                </button>
-                {/* Miss */}
-                <button
-                  type="button"
-                  style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 6,
-                    padding: '8px 10px',
-                    background: '#f8fafc',
-                    fontWeight: 600,
-                    fontSize: 14,
-                    cursor: 'pointer',
-                    color: '#64748b',
-                  }}
-                  onClick={(e) => {
-                    e.currentTarget.blur()
-                    addTarget('MISS')
-                  }}
-                >
-                  Miss
-                </button>
-              </div>
-
-              {/* Long Mode: Extra Zahlen 10-14 */}
-              {match.range === 'long' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 4,
-                    marginBottom: 8,
-                  }}
-                >
-                  {[14, 13, 12, 11, 10].map(num => {
-                    const tKey = String(num)
-                    const closedAll = isClosedForAll(tKey)
-                    return (
-                      <button
-                        key={num}
-                        type="button"
-                        style={{
-                          flex: 1,
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 6,
-                          padding: '6px 4px',
-                          background: '#fff',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          cursor: 'pointer',
-                          color: closedAll ? '#94a3b8' : '#111827',
-                          textDecoration: closedAll ? 'line-through' : 'none',
-                        }}
-                        onClick={(e) => {
-                          e.currentTarget.blur()
-                          addTarget(num)
-                        }}
-                      >
-                        {num}
+              {/* Target Buttons */}
+              {isLongRange && isMobileScreen ? (
+                <>
+                  {/* Long Portrait: 4er-Grid */}
+                  <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
+                    {[20, 19, 18, 17].map(n => (
+                      <button key={n} type="button" onClick={(e) => { e.currentTarget.blur(); addTarget(n) }}
+                        style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 2px',
+                          background: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#111827', minWidth: 0 }}>{n}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
+                    {[16, 15, 14, 13].map(n => (
+                      <button key={n} type="button" onClick={(e) => { e.currentTarget.blur(); addTarget(n) }}
+                        style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 2px',
+                          background: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#111827', minWidth: 0 }}>{n}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
+                    {[12, 11, 10].map(n => (
+                      <button key={n} type="button" onClick={(e) => { e.currentTarget.blur(); addTarget(n) }}
+                        style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 2px',
+                          background: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#111827', minWidth: 0 }}>{n}</button>
+                    ))}
+                    <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('MISS') }}
+                      style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 2px',
+                        background: '#f8fafc', fontWeight: 600, fontSize: 12, cursor: 'pointer', color: '#64748b', minWidth: 0 }}>X</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 2, marginBottom: 3 }}>
+                    {[1, 2, 3].map(m => (
+                      <button key={m} onClick={() => setMult(m as 1 | 2 | 3)}
+                        style={{ flex: 1, padding: '6px 2px', borderRadius: 6,
+                          border: mult === m ? '2px solid #0ea5e9' : '1px solid #e5e7eb',
+                          background: mult === m ? '#e0f2fe' : '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                        {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
                       </button>
-                    )
-                  })}
-                </div>
+                    ))}
+                    <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('BULL') }}
+                      style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 2px',
+                        background: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', minWidth: 0 }}>B</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
+                    <button style={{ flex: 1, padding: '6px 2px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, cursor: 'pointer' }}
+                      onClick={undoLastTurn}>↶ Aufn.</button>
+                    <button style={{ flex: 1, padding: '6px 2px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', fontSize: 11, cursor: 'pointer' }}
+                      onClick={() => setTurn(t => t.slice(0, -1))} disabled={turn.length === 0}>← Dart</button>
+                    <button style={{ flex: 2, padding: '6px 2px', borderRadius: 6, border: 'none', background: '#111827', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                      onClick={() => confirmTurn()}>{turn.length === 0 ? '3× Miss' : 'OK'}</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Short: 1 Zeile 20-15+B+X */}
+                  <div style={{ display: 'flex', flexWrap: 'nowrap', gap: isMobileScreen ? 2 : 4, marginBottom: 8 }}>
+                    {[20, 19, 18, 17, 16, 15].map(num => {
+                      const tKey = String(num)
+                      const closedAll = isClosedForAll(tKey)
+                      return (
+                        <button key={num} type="button" onClick={(e) => { e.currentTarget.blur(); addTarget(num) }}
+                          style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6,
+                            padding: isMobileScreen ? '6px 2px' : '8px 10px', background: '#fff',
+                            fontWeight: 700, fontSize: isMobileScreen ? 12 : 14, cursor: 'pointer',
+                            color: closedAll ? '#94a3b8' : '#111827', textDecoration: closedAll ? 'line-through' : 'none', minWidth: 0 }}>
+                          {num}
+                        </button>
+                      )
+                    })}
+                    <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('BULL') }}
+                      style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: isMobileScreen ? '6px 2px' : '8px 10px',
+                        background: '#fff', fontWeight: 700, fontSize: isMobileScreen ? 12 : 14, cursor: 'pointer', minWidth: 0 }}>
+                      {isMobileScreen ? 'B' : 'Bull'}
+                    </button>
+                    <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('MISS') }}
+                      style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: isMobileScreen ? '6px 2px' : '8px 10px',
+                        background: '#f8fafc', fontWeight: 600, fontSize: isMobileScreen ? 12 : 14, cursor: 'pointer', color: '#64748b', minWidth: 0 }}>
+                      {isMobileScreen ? 'X' : 'Miss'}
+                    </button>
+                  </div>
+                </>
               )}
 
-              {/* S/D/T Multiplier */}
-              <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+              {/* S/D/T Multiplier — nur wenn nicht Long Mobile (dort im 4er-Grid) */}
+              {!(isLongRange && isMobileScreen) && <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                 {[1, 2, 3].map(m => (
                   <button
                     key={m}
@@ -2357,10 +2509,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                     {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
                   </button>
                 ))}
-              </div>
+              </div>}
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 4 }}>
+              {/* Action Buttons — nur wenn nicht Long Mobile */}
+              {!(isLongRange && isMobileScreen) && <div style={{ display: 'flex', gap: 4 }}>
                 <button
                   style={{
                     flex: 1,
@@ -2407,10 +2559,11 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 >
                   {turn.length === 0 ? '3× Miss' : 'OK'}
                 </button>
-              </div>
+              </div>}
             </div>
           </div>
         </div>
+        )
       ) : (
         /* ARCADE VIEW — Unified Dark Screen */
         <CricketArcadeView
@@ -2468,6 +2621,9 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
           crazyProTargets={crazyTargets}
           turnHistory={recentTurns}
           turnListRef={turnListScrollRef}
+          onToggleView={() => setCricketViewMode('auto')}
+          viewLabel="⊞ Tabelle"
+          forceLandscape={isMobileLandscape}
         />
       )}
 

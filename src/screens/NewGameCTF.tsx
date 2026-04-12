@@ -215,8 +215,8 @@ export default function NewGameCTF({ onCancel, onStart }: Props) {
                   </button>
                 )
               })}
-              <button style={styles.pill} onClick={addGuest} title="Gast hinzufügen">
-                + Gast
+              <button style={{ ...styles.pill, ...(selected.length >= maxPlayers ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }} onClick={addGuest} disabled={selected.length >= maxPlayers} title="Gast hinzufügen">
+                {selected.length >= maxPlayers ? `Max ${maxPlayers}` : '+ Gast'}
               </button>
             </div>
 
