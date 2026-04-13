@@ -181,9 +181,11 @@ type PauseOverlayProps = {
     average: number
     dartsThrown: number
   }>
+  /** Optional: Extra-Inhalte (z.B. Charts) die in der Pause angezeigt werden */
+  children?: React.ReactNode
 }
 
-export function PauseOverlay({ onResume, matchScore, elapsedTime, playerStats }: PauseOverlayProps) {
+export function PauseOverlay({ onResume, matchScore, elapsedTime, playerStats, children }: PauseOverlayProps) {
   const { isArcade, colors } = useTheme()
 
   // Jede Taste beendet Pause
@@ -312,6 +314,7 @@ export function PauseOverlay({ onResume, matchScore, elapsedTime, playerStats }:
           50% { opacity: 0.7; transform: scale(1.02); }
         }
       `}</style>
+      {children}
     </div>
   )
 }

@@ -2225,49 +2225,60 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
               const fd = getPlayerData(featuredPlayer)
 
               return (
-                <div className="mp-mobile-split">
-                  {/* LEFT: Featured player (full card) */}
-                  <div className="mp-mobile-featured">
-                    <PlayerTurnCard
-                      key={`${featuredPlayer.playerId}-${fd.isActive ? 'active' : 'idle'}`}
-                      name={featuredPlayer.name ?? featuredPlayer.playerId}
-                      color={featuredPlayer.color}
-                      remaining={fd.resolvedRemaining}
-                      currentDarts={fd.currentDarts}
-                      dartsRemaining={fd.dartsRemaining}
-                      lastVisit={fd.lastVisit}
-                      flashLabel={fd.flashLabel}
-                      isActive={fd.isActive}
-                      isMyPlayer={fd.isMyPlayer}
-                      legs={fd.playerLegs}
-                      sets={fd.playerSets}
-                      showSets={isSets}
-                      threeDartAvg={fd.avg}
-                      recentScores={fd.recentScores}
-                      outRule={match ? getOutRule(match) : 'double-out'}
-                    />
-                  </div>
+                <>
+                  <div className="mp-mobile-split">
+                    {/* LEFT: Featured player (full card) */}
+                    <div className="mp-mobile-featured">
+                      <PlayerTurnCard
+                        key={`${featuredPlayer.playerId}-${fd.isActive ? 'active' : 'idle'}`}
+                        name={featuredPlayer.name ?? featuredPlayer.playerId}
+                        color={featuredPlayer.color}
+                        remaining={fd.resolvedRemaining}
+                        currentDarts={fd.currentDarts}
+                        dartsRemaining={fd.dartsRemaining}
+                        lastVisit={fd.lastVisit}
+                        flashLabel={fd.flashLabel}
+                        isActive={fd.isActive}
+                        isMyPlayer={fd.isMyPlayer}
+                        legs={fd.playerLegs}
+                        sets={fd.playerSets}
+                        showSets={isSets}
+                        threeDartAvg={fd.avg}
+                        recentScores={fd.recentScores}
+                        outRule={match ? getOutRule(match) : 'double-out'}
+                      />
+                    </div>
 
-                  {/* RIGHT: Other players (compact rows) */}
-                  <div className="mp-mobile-sidebar">
-                    {otherPlayers.map((p) => {
-                      const d = getPlayerData(p)
-                      return (
-                        <CompactPlayerRow
-                          key={p.playerId}
-                          name={p.name ?? p.playerId}
-                          color={p.color}
-                          remaining={d.resolvedRemaining}
-                          isActive={d.isActive}
-                          legs={d.playerLegs}
-                          sets={d.playerSets}
-                          showSets={isSets}
-                          threeDartAvg={d.avg}
-                        />
-                      )
-                    })}
+                    {/* RIGHT: Other players (compact rows) */}
+                    <div className="mp-mobile-sidebar">
+                      {otherPlayers.map((p) => {
+                        const d = getPlayerData(p)
+                        return (
+                          <CompactPlayerRow
+                            key={p.playerId}
+                            name={p.name ?? p.playerId}
+                            color={p.color}
+                            remaining={d.resolvedRemaining}
+                            isActive={d.isActive}
+                            legs={d.playerLegs}
+                            sets={d.playerSets}
+                            showSets={isSets}
+                            threeDartAvg={d.avg}
+                          />
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
+                  {/* Scoreboard below */}
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    {multiplayer?.enabled && !isMyTurn && (
+                      <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
+                        {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
+                      </div>
+                    )}
+                    <Scoreboard onThrow={handleThrow} dartsThrown={current.length} thrownDarts={current.map(d => ({ bed: d.bed, mult: d.mult }))} onUndoLastDart={handleUndoLastDart} onUndoLastVisit={handleUndoLastVisit} />
+                  </div>
+                </>
               )
             }
 

@@ -14,9 +14,11 @@ type Props = {
   glowColor?: string // Farbe des Glow-Effekts (default: orange)
   ringMode?: StrRingMode // 'triple' (default) oder 'double'
   bullMode?: StrBullMode // nur relevant wenn targetNumber === 25
+  zoomed?: boolean // Zoom auf den relevanten Bereich (17-20 + Bull)
+  flashVisible?: boolean // Direkt vom Parent gesteuert: true = Flash sichtbar
 }
 
-export default function StraeusschenDartboard({ targetNumber, triplesHit, size = 300, glowColor = '#f97316', ringMode = 'triple', bullMode = 'red-only' }: Props) {
+export default function StraeusschenDartboard({ targetNumber, triplesHit, size = 300, glowColor = '#f97316', ringMode = 'triple', bullMode = 'red-only', zoomed, flashVisible }: Props) {
   const cx = size / 2
   const cy = size / 2
   const segmentAngle = 360 / 20
@@ -103,7 +105,23 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
   const dartPositions = getDartPositions(targetBoardIndex, triplesHit)
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size}
+      viewBox={(() => {
+        if (!zoomed) return `${-size * 0.06} ${-size * 0.06} ${size * 1.12} ${size * 1.12}`
+        // Zoom auf das aktive Zielsegment — Bull = Mitte
+        if (targetNumber === 25) {
+          const zoomSize = size * 0.5
+          return `${cx - zoomSize / 2} ${cy - zoomSize / 2} ${zoomSize} ${zoomSize}`
+        }
+        const targetIdx = BOARD_ORDER.indexOf(targetNumber as number)
+        const angle = (targetIdx * segmentAngle - 90) * (Math.PI / 180)
+        const focusR = outerRadius * 0.65
+        const focusX = cx + focusR * Math.cos(angle)
+        const focusY = cy + focusR * Math.sin(angle)
+        const zoomSize = size * 0.55
+        return `${focusX - zoomSize / 2} ${focusY - zoomSize / 2} ${zoomSize} ${zoomSize}`
+      })()}
+      style={{ overflow: 'visible', transition: 'viewBox 0.5s ease' }}>
       <defs>
         <filter id="str-triple-glow" x="-150%" y="-150%" width="400%" height="400%">
           <feGaussianBlur stdDeviation="10" result="blur" />
@@ -132,11 +150,23 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
           .str-target-ring {
             animation: str-pulse 1.2s ease-in-out infinite;
           }
+          @keyframes str-hit-flash {
+            0% { opacity: 1; }
+            12.5% { opacity: 0; }
+            25% { opacity: 1; }
+            37.5% { opacity: 0; }
+            50% { opacity: 1; }
+            62.5% { opacity: 0; }
+            75% { opacity: 1; }
+            87.5% { opacity: 0; }
+            100% { opacity: 0; }
+          }
         `}</style>
       </defs>
 
       {/* Hintergrund */}
-      <circle cx={cx} cy={cy} r={outerRadius + 4} fill="#111" />
+      {!zoomed && <circle cx={cx} cy={cy} r={outerRadius + 4} fill="#111" />}
+      {/* Kein grauer Hintergrund bei zoomed */}
 
       {/* Segmente */}
       {BOARD_ORDER.map((num, i) => {
@@ -147,9 +177,15 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
         const isTarget = !isBullTarget && num === targetNumber
         const dim = 0.35
 
+        // Zoomed: nur Zielsegment anzeigen
+        if (zoomed && !isTarget) return null
+
         // Bestimme welcher Ring im Zielsegment leuchtet
         const isTargetDouble = isTarget && rm === 'double'
         const isTargetTriple = isTarget && rm === 'triple'
+
+        // Echte Segmentfarbe für das Ziel (rot oder grün)
+        const realTargetColor = rm === 'double' ? colors.double : colors.triple
 
         // Glow-Radien abhängig vom Ring-Modus
         const glowInner = rm === 'double' ? doubleInner - 4 : tripleInner - 4
@@ -157,11 +193,11 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
 
         return (
           <g key={num}>
-            {/* Glow-Hintergrund für Ziel-Ring */}
+            {/* Glow-Hintergrund für Ziel-Ring — in der echten Segmentfarbe */}
             {isTarget && (
               <path
                 d={createArcPath(glowInner, glowOuter, startAngle - 1, endAngle + 1)}
-                fill={glowColor}
+                fill={realTargetColor}
                 opacity={0.4}
                 filter="url(#str-triple-glow)"
                 className="str-target-ring"
@@ -171,10 +207,10 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
             {/* Double-Ring */}
             <path
               d={createArcPath(doubleInner, doubleOuter, startAngle, endAngle)}
-              fill={isTargetDouble ? glowColor : colors.double}
+              fill={isTargetDouble ? realTargetColor : colors.double}
               stroke="#222"
               strokeWidth={isTargetDouble ? 1.5 : 0.5}
-              opacity={isTargetDouble ? 1 : dim}
+              opacity={isTargetDouble ? 1 : (zoomed ? 0.8 : dim)}
               className={isTargetDouble ? 'str-target-ring' : undefined}
             />
             {/* Äußeres Single */}
@@ -183,15 +219,15 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
               fill={colors.single}
               stroke="#222"
               strokeWidth={0.5}
-              opacity={dim}
+              opacity={zoomed ? 0.8 : dim}
             />
             {/* Triple-Ring */}
             <path
               d={createArcPath(tripleInner, tripleOuter, startAngle, endAngle)}
-              fill={isTargetTriple ? glowColor : colors.triple}
+              fill={isTargetTriple ? realTargetColor : colors.triple}
               stroke="#222"
               strokeWidth={isTargetTriple ? 1.5 : 0.5}
-              opacity={isTargetTriple ? 1 : dim}
+              opacity={isTargetTriple ? 1 : (zoomed ? 0.8 : dim)}
               className={isTargetTriple ? 'str-target-ring' : undefined}
             />
             {/* Inneres Single */}
@@ -200,7 +236,7 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
               fill={colors.single}
               stroke="#222"
               strokeWidth={0.5}
-              opacity={dim}
+              opacity={zoomed ? 0.8 : dim}
             />
 
             {/* Zahlen-Label */}
@@ -227,8 +263,8 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
         )
       })}
 
-      {/* Bull's Eye */}
-      {/* Glow-Kreis hinter dem Bull wenn es das Ziel ist */}
+      {/* Bull's Eye — bei zoomed nur anzeigen wenn Bull das Ziel ist */}
+      {zoomed && !isBullTarget ? null : (<>
       {isBullTarget && (
         <circle
           cx={cx}
@@ -260,9 +296,10 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
         opacity={isBullTarget ? 1 : 0.35}
         className={isBullTarget ? 'str-target-ring' : undefined}
       />
+      </>)}
 
-      {/* "Steckende Darts" im Ziel-Ring */}
-      {dartPositions.map((pos, i) => (
+      {/* "Steckende Darts" im Ziel-Ring — nur wenn nicht zoomed */}
+      {!zoomed && dartPositions.map((pos, i) => (
         <g key={i}>
           <circle cx={pos.x} cy={pos.y} r={8} fill="#fbbf24" opacity={0.3} filter="url(#str-dart-glow)" />
           <circle cx={pos.x} cy={pos.y} r={4} fill="#fbbf24" stroke="#fff" strokeWidth={1.5} />
@@ -273,6 +310,26 @@ export default function StraeusschenDartboard({ targetNumber, triplesHit, size =
           />
         </g>
       ))}
+
+      {/* Treffer-Flash: Gegenfarbe blinken (rot→grün, grün→rot) */}
+      {flashVisible && !isBullTarget && (() => {
+        const targetIdx = BOARD_ORDER.indexOf(targetNumber as number)
+        const segColors = getSegmentColors(targetIdx)
+        const ringColor = rm === 'double' ? segColors.double : segColors.triple
+        const flashColor = ringColor === '#e31b23' ? '#22c55e' : '#ef4444'
+        const offset = -segmentAngle / 2
+        const sa = targetIdx * segmentAngle + offset - 1
+        const ea = (targetIdx + 1) * segmentAngle + offset + 1
+        const inner = rm === 'double' ? doubleInner - 3 : tripleInner - 3
+        const outer = rm === 'double' ? doubleOuter + 5 : tripleOuter + 5
+        return (
+          <path d={createArcPath(inner, outer, sa, ea)} fill={flashColor} pointerEvents="none" />
+        )
+      })()}
+      {flashVisible && isBullTarget && (
+        <circle cx={cx} cy={cy} r={(bm === 'both' ? bullOuterRadius : bullInnerRadius) + 3}
+          fill="#22c55e" pointerEvents="none" />
+      )}
     </svg>
   )
 }

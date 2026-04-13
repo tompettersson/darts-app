@@ -662,7 +662,7 @@ export default function CricketArcadeView({
             </div>
             {/* Wurffolge — scrollbar */}
             {turnHistory && turnHistory.length > 0 && (
-              <div style={{ width: 80, flexShrink: 0, overflowY: 'scroll', overflowX: 'hidden', maxHeight: 8 * 14, borderLeft: '1px solid #333', paddingLeft: 3, WebkitOverflowScrolling: 'touch' }}>
+              <div style={{ width: 80, flexShrink: 0, overflowY: 'scroll', overflowX: 'hidden', maxHeight: (isShort ? 5 : 8) * 14, borderLeft: '1px solid #333', paddingLeft: 3, WebkitOverflowScrolling: 'touch' }}>
                 {turnHistory.map((t, i) => {
                   const pColor = t.playerColor ?? '#999'
                   const shortName = (t.playerName ?? '').slice(0, 3)

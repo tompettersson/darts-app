@@ -136,33 +136,12 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
     return () => { mqMobile.removeEventListener('change', h1); mqTablet.removeEventListener('change', h2) }
   }, [isTouch])
 
-  // IMPORTANT: These hooks must be called unconditionally (before any early return)
-  // to prevent React Error 310 when isMobile changes on rotation
+  // IMPORTANT: ALL hooks must be called unconditionally (before any early return)
+  // to prevent React "Rendered fewer hooks than expected" error when isMobile changes on rotation
   const [hoverId, setHoverId] = useState<string | null>(null)
   useEffect(() => {
     return () => { if (stopListeningRef.current) stopListeningRef.current() }
   }, [])
-
-  const dark = theme === 'arcade'
-
-  // Mobile + Tablet: render touch-friendly 4x4 grid
-  if (isMobile || isTablet) {
-    return (
-      <MobileScoreInput
-        onThrow={onThrow}
-        dartsThrown={dartsThrown}
-        thrownDarts={thrownDarts}
-        onUndoLastDart={onUndoLastDart}
-        onUndoLastVisit={onUndoLastVisit}
-        large={isTablet}
-      />
-    )
-  }
-
-  // Speech Recognition Support prüfen
-  const speechSupported = isSpeechInputSupported()
-  const dartsRemaining = 3 - dartsThrown
-  const canUseThreeDartVoice = dartsThrown === 0
 
   // Refs für Keyboard-Handler (damit immer aktueller Wert verfügbar)
   const multRef = useRef(mult)
@@ -202,8 +181,10 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
     }
   }, [fireNum, clearNumBuf])
 
-  // Tastatur-Handler: S/D/T + Nummern + B/M
+  // Tastatur-Handler: S/D/T + Nummern + B/M (nur Desktop, aber Hook muss immer aufgerufen werden)
+  const isMobileOrTablet = isMobile || isTablet
   useEffect(() => {
+    if (isMobileOrTablet) return // Kein Keyboard-Handler auf Mobile
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return
       const t = e.target as HTMLElement | null
@@ -313,7 +294,28 @@ export default function Scoreboard({ onThrow, dartsThrown = 0, thrownDarts, them
       window.removeEventListener('keydown', onKey)
       if (numBufTimer.current) window.clearTimeout(numBufTimer.current)
     }
-  }, [fireNum, flushBuf, clearNumBuf])
+  }, [isMobileOrTablet, fireNum, flushBuf, clearNumBuf])
+
+  const dark = theme === 'arcade'
+
+  // Mobile + Tablet: render touch-friendly 4x4 grid
+  if (isMobileOrTablet) {
+    return (
+      <MobileScoreInput
+        onThrow={onThrow}
+        dartsThrown={dartsThrown}
+        thrownDarts={thrownDarts}
+        onUndoLastDart={onUndoLastDart}
+        onUndoLastVisit={onUndoLastVisit}
+        large={isTablet}
+      />
+    )
+  }
+
+  // Speech Recognition Support prüfen
+  const speechSupported = isSpeechInputSupported()
+  const dartsRemaining = 3 - dartsThrown
+  const canUseThreeDartVoice = dartsThrown === 0
 
   const isSelected = (m: 1 | 2 | 3) => mult === m
 

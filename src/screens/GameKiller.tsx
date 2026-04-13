@@ -762,11 +762,188 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     )
   }
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    const onOrientation = () => setTimeout(update, 100)
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
+  }, [])
+  const isMobileK = Math.min(screenWidth, screenHeight) < 600
+
+  // Qualifying ring multiplier — der einzige Mult der zählt
+  const qualMult = config.qualifyingRing === 'TRIPLE' ? 3 : 2
+  const qualLabel = config.qualifyingRing === 'TRIPLE' ? 'T' : 'D'
+
+  // Mobile: Kombinierte Spieler-Cards (Status + Tipp-Button in einem)
+  const renderMobilePlayerCards = (landscape = false) => {
+    const activePsState = players.find(p => p.playerId === activePlayerId)
+    const isQualifying = activePsState && !activePsState.isKiller && !activePsState.isEliminated
+    const pc = players.length
+    const sz = landscape
+      ? (pc <= 3 ? { font: 12, target: 14, heart: 12, pad: '3px 8px', gap: 5 }
+        : pc <= 5 ? { font: 10, target: 12, heart: 10, pad: '2px 6px', gap: 3 }
+        : { font: 9, target: 11, heart: 9, pad: '1px 5px', gap: 2 })
+      : (pc <= 3 ? { font: 14, target: 18, heart: 15, pad: '8px 12px', gap: 6 }
+        : pc <= 5 ? { font: 12, target: 15, heart: 13, pad: '6px 10px', gap: 5 }
+        : { font: 10, target: 13, heart: 11, pad: '4px 8px', gap: 3 })
+
+    return players.map((ps) => {
+      const pColor = playerColors[ps.playerId] ?? '#888'
+      const pName = playerNames[ps.playerId] ?? ps.playerId
+      const isElim = ps.isEliminated
+      const isSelf = ps.playerId === activePlayerId
+      const isAct = ps.playerId === activePlayerId
+      const disabled = isElim || current.length >= 3 || (isQualifying && !isSelf)
+      const targetNum = config.secretNumbers && !isSelf && !isElim ? '?' : ps.targetNumber
+
+      return (
+        <button
+          key={ps.playerId}
+          disabled={disabled}
+          onClick={() => {
+            if (typeof ps.targetNumber === 'number') {
+              multRef.current = qualMult as 1 | 2 | 3
+              setMult(qualMult as 1 | 2 | 3)
+              addDart(ps.targetNumber)
+            }
+          }}
+          style={{
+            flex: 1, minHeight: 0,
+            display: 'flex', alignItems: 'center', gap: sz.gap,
+            padding: sz.pad, borderRadius: 8,
+            border: `2px solid ${isElim ? '#333' : isAct ? pColor : pColor + '40'}`,
+            background: isElim ? '#1a1a1a' : isAct ? `${pColor}25` : `${pColor}10`,
+            boxShadow: isAct ? `0 0 12px ${pColor}50` : eliminatedFlash[ps.playerId] ? '0 0 20px rgba(231,76,60,0.6)' : 'none',
+            opacity: disabled && !isElim ? 0.5 : 1,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            color: '#e5e7eb', fontWeight: 700,
+            WebkitTapHighlightColor: 'transparent',
+            transition: 'box-shadow 0.3s, background 0.3s, border-color 0.3s',
+            animation: eliminatedFlash[ps.playerId] ? 'eliminatedFlash 0.6s ease-out' : undefined,
+          }}
+        >
+          {/* Farbpunkt */}
+          <div style={{
+            width: landscape ? 8 : 10, height: landscape ? 8 : 10,
+            borderRadius: '50%', background: pColor, flexShrink: 0,
+            opacity: isElim ? 0.3 : 1,
+            boxShadow: isAct ? `0 0 6px ${pColor}` : 'none',
+          }} />
+          {/* Name */}
+          <span style={{
+            flex: 1, textAlign: 'left', fontSize: sz.font,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            color: isElim ? '#555' : isAct ? pColor : '#ccc',
+            textDecoration: isElim ? 'line-through' : 'none',
+          }}>
+            {pName}
+          </span>
+          {/* Status: Killer / Qualifying */}
+          {ps.isKiller && !isElim && (
+            <span style={{
+              fontSize: sz.font - 1, fontWeight: 900, color: '#e74c3c',
+              animation: 'killerGlow 2s infinite',
+              letterSpacing: 1,
+            }}>KILLER</span>
+          )}
+          {!ps.isKiller && !isElim && (
+            <span style={{ fontSize: sz.font - 2, color: '#3498db' }}>
+              {ps.qualifyingHits}/{config.hitsToBecomeKiller}
+            </span>
+          )}
+          {/* Target-Zahl */}
+          <span style={{
+            fontSize: sz.target, fontWeight: 900,
+            color: isElim ? '#444' : '#fff',
+            minWidth: landscape ? 28 : 36, textAlign: 'center',
+          }}>
+            {isElim ? '☠' : `${qualLabel}${targetNum}`}
+          </span>
+          {/* Herzen */}
+          <span style={{ fontSize: sz.heart, flexShrink: 0 }}>
+            {Array.from({ length: Math.max(0, ps.lives) }).map((_, i) => (
+              <span key={i} style={{
+                display: 'inline-block',
+                animation: heartAnimations[ps.playerId] === 'gain' ? 'heartGain 0.6s ease-out' : undefined,
+              }}>{'\u2764\uFE0F'}</span>
+            ))}
+            {Array.from({ length: config.startingLives - Math.max(0, ps.lives) }).map((_, i) => (
+              <span key={`d${i}`} style={{
+                display: 'inline-block',
+                animation: heartAnimations[ps.playerId] === 'break' ? 'heartBreak 0.5s ease-out' : undefined,
+              }}>{'\uD83D\uDDA4'}</span>
+            ))}
+          </span>
+        </button>
+      )
+    })
+  }
+
+  // Mobile: Dart-Slots + Miss + Undo
+  const renderMobileDartSlots = (compact = false) => (
+    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: compact ? 4 : 6, padding: compact ? '2px 0' : '4px 0' }}>
+      <div style={{ display: 'flex', gap: 3, flex: 1 }}>
+        {[0, 1, 2].map(i => {
+          const d = current[i]
+          return (
+            <div key={i} style={{
+              flex: 1, height: compact ? 24 : 28, borderRadius: 6,
+              border: `1.5px solid ${d ? '#f97316' : '#333'}`,
+              background: d ? '#2a2a1e' : '#1a1a1a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: compact ? 10 : 12, fontWeight: 700, color: d ? '#f5f5dc' : '#555',
+            }}>
+              {d ? formatDart(d) : `${i + 1}.`}
+            </div>
+          )
+        })}
+      </div>
+      {/* Miss */}
+      <button
+        disabled={current.length >= 3}
+        onClick={addMiss}
+        style={{
+          padding: compact ? '3px 10px' : '4px 14px', borderRadius: 6,
+          border: '1.5px solid #555', background: '#2a2a2a',
+          color: '#aaa', fontSize: compact ? 10 : 12, fontWeight: 700,
+          cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
+          opacity: current.length >= 3 ? 0.4 : 1,
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >MISS</button>
+      {/* Undo */}
+      <button
+        onClick={() => { if (current.length > 0) { cancelDebouncedAnnounce(); setCurrent(prev => prev.slice(0, -1)) } else undoLastTurn() }}
+        disabled={current.length === 0 && events.length <= 1}
+        style={{
+          padding: compact ? '3px 8px' : '4px 10px', borderRadius: 6,
+          border: '1px solid #444', background: '#222',
+          color: '#aaa', fontSize: compact ? 10 : 11, fontWeight: 600,
+          cursor: 'pointer', opacity: (current.length === 0 && events.length <= 1) ? 0.3 : 1,
+        }}
+      >↩</button>
+    </div>
+  )
+
   return (
     <div
+      className={isMobileK ? 'game-fullscreen' : undefined}
       style={{
         background: '#181c20',
         minHeight: '100dvh',
+        height: isMobileK ? '100dvh' : undefined,
         display: 'flex',
         flexDirection: 'column',
         color: '#e5e7eb',
@@ -815,10 +992,11 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           onAbort()
         }}
         title={`Killer${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
+        subtitle={isMobileK ? `${formatDuration(elapsedMs)} · ${state.phase === 'qualifying' ? 'Qualifying' : state.phase === 'killing' ? 'Killing' : 'Beendet'} · ${qualLabel}-Ring` : undefined}
       />
 
-      {/* Info-Leiste */}
-      <div
+      {/* Info-Leiste — auf Mobile versteckt */}
+      {!isMobileK && (<div
         style={{
           display: 'flex',
           justifyContent: 'center',
@@ -923,10 +1101,31 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
         >
           {formatDuration(elapsedMs)}
         </div>
-      </div>
+      </div>)}
 
-      {/* Main Content */}
-      <div
+      {/* ===== MOBILE LAYOUT ===== */}
+      {isMobileK ? (
+        isLandscape ? (
+          /* Landscape: Dart-Slots oben, Player-Card-Buttons voll */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, padding: '2px 6px' }}>
+            {renderMobileDartSlots(true)}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0, overflow: 'hidden', marginTop: 2 }}>
+              {renderMobilePlayerCards(true)}
+            </div>
+          </div>
+        ) : (
+          /* Portrait: Dart-Slots oben, Player-Card-Buttons füllen den Rest */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, padding: '4px 8px' }}>
+            {renderMobileDartSlots(false)}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0, overflow: 'hidden', marginTop: 4 }}>
+              {renderMobilePlayerCards(false)}
+            </div>
+          </div>
+        )
+      ) : null}
+
+      {/* ===== DESKTOP LAYOUT ===== */}
+      {!isMobileK && (<div
         style={{
           flex: 1,
           display: 'flex',
@@ -1357,7 +1556,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
             </div>
           </div>
         </div>
-      </div>
+      </div>)}
 
       {/* Intermission Overlay (Leg-Ende) */}
       {intermission && (

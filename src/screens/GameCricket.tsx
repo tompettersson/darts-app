@@ -1293,7 +1293,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     if (useCompactWidth) {
       return {
         border: active ? `2px solid ${color}` : 'none',
-        background: active ? `${color}08` : 'transparent',
+        background: active ? `${color}20` : `${color}08`,
         borderRadius: 4,
         position: 'relative',
         overflow: 'hidden',
@@ -1301,11 +1301,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         flexDirection: 'column',
         padding: 0,
         boxSizing: 'border-box',
+        transition: 'background 0.3s ease',
       }
     }
     return {
-      border: active ? `2px solid ${color}` : '1px solid #e5e7eb',
-      background: active ? `${color}10` : '#fff',
+      border: active ? `2px solid ${color}` : `1px solid ${colors.border}`,
+      background: active ? `${color}18` : `${color}08`,
       borderRadius: isMobileScreen ? 8 : 12,
       position: 'relative',
       overflow: 'hidden',
@@ -2150,7 +2151,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
         /* Tabellen-Layout */
         isMobileLandscape ? (
         /* LANDSCAPE: Spieler links (volle Breite), Eingabe rechts */
-        <div style={{ display: 'flex', gap: 4, flex: 1, minHeight: 0, overflow: 'hidden', padding: '0 2px' }}>
+        <div style={{ display: 'flex', gap: 4, flex: 1, minHeight: 0, overflow: 'hidden', padding: '0 2px',
+          background: activeId ? `${playerChartColors[order.indexOf(activeId)] ?? '#f97316'}10` : undefined,
+          transition: 'background 0.3s ease',
+        }}>
           {/* Links: Spieler-Grid — volle restliche Breite, Mittelspalte 3× breiter */}
           <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{
@@ -2193,7 +2197,18 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                     </div>
                   )
                 }
-                return <div key={cell.pid}>{renderPlayerCard(cell.pid, cell.side)}</div>
+                const pIdx = order.indexOf(cell.pid)
+                const pColor = playerChartColors[pIdx] ?? '#f97316'
+                const pIsActive = cell.pid === activeId
+                return (
+                  <div key={cell.pid} style={{
+                    background: pIsActive ? `${pColor}25` : `${pColor}08`,
+                    borderRadius: 4,
+                    transition: 'background 0.3s ease',
+                  }}>
+                    {renderPlayerCard(cell.pid, cell.side)}
+                  </div>
+                )
               })}
             </div>
           </div>
@@ -2203,14 +2218,14 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               {(isLongRange ? [20,19,18,17,16,15,14,13,12,11,10] : [20,19,18,17,16,15]).map(num => (
                 <button key={num} type="button" onClick={(e) => { e.currentTarget.blur(); addTarget(num) }}
-                  style={{ border: '1px solid #e5e7eb', borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
+                  style={{ border: `1px solid ${colors.border}`, borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
                     background: colors.bgCard, fontWeight: 700, fontSize: isLongRange ? 10 : 11, cursor: 'pointer', color: colors.fg }}>{num}</button>
               ))}
               <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('BULL') }}
-                style={{ border: '1px solid #e5e7eb', borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
+                style={{ border: `1px solid ${colors.border}`, borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
                   background: colors.bgCard, fontWeight: 700, fontSize: isLongRange ? 10 : 11, cursor: 'pointer', color: colors.fg }}>B</button>
               <button type="button" onClick={(e) => { e.currentTarget.blur(); addTarget('MISS') }}
-                style={{ border: '1px solid #e5e7eb', borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
+                style={{ border: `1px solid ${colors.border}`, borderRadius: 3, padding: isLongRange ? '3px 0' : '5px 0',
                   background: colors.bgMuted, fontWeight: 600, fontSize: isLongRange ? 10 : 11, cursor: 'pointer', color: colors.fgDim }}>X</button>
             </div>
             {/* S/D/T */}
@@ -2218,19 +2233,19 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
               {[1, 2, 3].map(m => (
                 <button key={m} onClick={() => setMult(m as 1 | 2 | 3)}
                   style={{ flex: 1, padding: '4px 0', borderRadius: 3,
-                    border: mult === m ? '2px solid #0ea5e9' : '1px solid #e5e7eb',
-                    background: mult === m ? '#e0f2fe' : colors.bgCard, fontWeight: 700, fontSize: 11, cursor: 'pointer', color: colors.fg }}>
+                    border: mult === m ? '2px solid #0ea5e9' : `1px solid ${colors.border}`,
+                    background: mult === m ? (isArcade ? '#1e3a5f' : '#e0f2fe') : colors.bgCard, fontWeight: 700, fontSize: 11, cursor: 'pointer', color: mult === m ? (isArcade ? '#0ea5e9' : '#1d4ed8') : colors.fg }}>
                   {m === 1 ? 'S' : m === 2 ? 'D' : 'T'}
                 </button>
               ))}
             </div>
             {/* Undo + Back + OK */}
             <div style={{ display: 'flex', gap: 2 }}>
-              <button style={{ flex: 1, padding: '4px 0', borderRadius: 3, border: '1px solid #e5e7eb', background: colors.bgCard, fontSize: 10, cursor: 'pointer', color: colors.fg }}
+              <button style={{ flex: 1, padding: '4px 0', borderRadius: 3, border: `1px solid ${colors.border}`, background: colors.bgCard, fontSize: 10, cursor: 'pointer', color: colors.fg }}
                 onClick={undoLastTurn}>↶</button>
-              <button style={{ flex: 1, padding: '4px 0', borderRadius: 3, border: '1px solid #e5e7eb', background: colors.bgCard, fontSize: 10, cursor: 'pointer', color: colors.fg }}
+              <button style={{ flex: 1, padding: '4px 0', borderRadius: 3, border: `1px solid ${colors.border}`, background: colors.bgCard, fontSize: 10, cursor: 'pointer', color: colors.fg }}
                 onClick={() => setTurn(t => t.slice(0, -1))} disabled={turn.length === 0}>←</button>
-              <button style={{ flex: 2, padding: '4px 0', borderRadius: 3, border: 'none', background: '#111827', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+              <button style={{ flex: 2, padding: '4px 0', borderRadius: 3, border: 'none', background: isArcade ? '#1e293b' : '#111827', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
                 onClick={() => confirmTurn()}>OK</button>
             </div>
             {/* Wurffolge — scrollbar, nimmt restlichen Platz */}

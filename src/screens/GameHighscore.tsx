@@ -36,6 +36,7 @@ import GameControls, { PauseOverlay } from '../components/GameControls'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import { PLAYER_COLORS } from '../playerColors'
+import Scoreboard from '../components/Scoreboard'
 import { useDisableScale } from '../components/ScaleWrapper'
 
 // Leg-Zusammenfassung Typ
@@ -92,6 +93,8 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
   }, [matchId, storedMatch])
   const [currentDarts, setCurrentDarts] = useState<HighscoreDart[]>([])
   const [saving, setSaving] = useState(false)
+  const [scorePopup, setScorePopup] = useState<{ value: number; key: number } | null>(null)
+  const scorePopupTimerRef = useRef<number>(0)
 
   // Multiplayer: Remote-Events synchronisieren
   const prevRemoteHsRef = useRef<any[] | null>(null)
@@ -266,9 +269,12 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     const result = recordHighscoreTurn(state, activePlayerId, currentDarts, elapsedMs)
     let newEvents: HighscoreEvent[] = [...events, result.turnEvent]
 
-    // Punkte ansagen
+    // Punkte ansagen + Popup
     const turnScore = currentDarts.reduce((sum, d) => sum + d.value, 0)
     announceScore(turnScore, false)
+    if (scorePopupTimerRef.current) window.clearTimeout(scorePopupTimerRef.current)
+    setScorePopup({ value: turnScore, key: Date.now() })
+    scorePopupTimerRef.current = window.setTimeout(() => setScorePopup(null), 900) as unknown as number
 
     // Nächsten Spieler ansagen (falls Spiel weitergeht)
     if (!result.legFinished && !result.matchFinished && state.match) {
@@ -684,6 +690,26 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     return 'Single'
   }
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
+  const [isLandscapeHS, setIsLandscapeHS] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
+      setIsLandscapeHS(window.innerWidth > window.innerHeight)
+    }
+    const onOrientation = () => setTimeout(update, 100)
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
+  }, [])
+  const isMobileHS = Math.min(screenWidth, screenHeight) < 600
+
   if (!state.match) {
     return <div style={{ padding: 20, color: colors.fg }}>Match nicht gefunden</div>
   }
@@ -696,16 +722,132 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     ? ` · FT${structure.targetLegs}: ${players.map(p => state.legWinsByPlayer[p.id] ?? 0).join(':')}`
     : ''
 
-  return (
+  // === Shared Render-Helfer für Mobile Portrait + Landscape ===
+  const renderPlayerCards = () => {
+    const pc = players.length
+    const isLand = isMobileHS && isLandscapeHS
+    const mSizes = isMobileHS ? (
+      isLand
+        ? (pc <= 2 ? { pad: '8px 12px', name: 14, score: 20, dot: 9, gap: 7, bar: 3 }
+          : pc <= 4 ? { pad: '6px 10px', name: 12, score: 16, dot: 8, gap: 6, bar: 3 }
+          : pc <= 6 ? { pad: '4px 8px', name: 10, score: 13, dot: 6, gap: 5, bar: 2 }
+          : { pad: '3px 6px', name: 9, score: 11, dot: 5, gap: 4, bar: 2 })
+        : (pc <= 2 ? { pad: '10px 14px', name: 15, score: 22, dot: 10, gap: 8, bar: 4 }
+          : pc <= 4 ? { pad: '8px 12px', name: 13, score: 18, dot: 9, gap: 7, bar: 3 }
+          : pc <= 6 ? { pad: '5px 10px', name: 11, score: 14, dot: 7, gap: 5, bar: 3 }
+          : { pad: '3px 8px', name: 10, score: 12, dot: 6, gap: 4, bar: 2 })
+    ) : { pad: '6px 10px', name: 12, score: 16, dot: 8, gap: 6, bar: 3 }
+
+    return players.map((player, idx) => {
+      const score = getPlayerScore(state, player.id)
+      const isActive = player.id === activePlayerId
+      const playerColor = playerColors[player.id] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+      const displayScore = isActive ? liveScore : score
+      return (
+        <div key={player.id} style={{
+          background: isActive ? `${playerColor}25` : `${playerColor}10`,
+          borderRadius: 6, padding: mSizes.pad,
+          border: `2px solid ${isActive ? playerColor : playerColor + '40'}`,
+          boxShadow: isActive ? `0 0 12px ${playerColor}50, inset 0 0 12px ${playerColor}15` : 'none',
+          flex: isMobileHS ? 1 : undefined,
+          display: isMobileHS ? 'flex' : undefined,
+          flexDirection: isMobileHS ? 'column' : undefined,
+          justifyContent: isMobileHS ? 'center' : undefined,
+          minHeight: isMobileHS ? 0 : undefined,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: mSizes.gap }}>
+            <div style={{ width: mSizes.dot, height: mSizes.dot, borderRadius: '50%', background: playerColor, flexShrink: 0 }} />
+            <span style={{ fontWeight: 600, color: c.textBright, fontSize: mSizes.name, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {player.name}
+            </span>
+            <span style={{ fontSize: mSizes.score, fontWeight: 800, color: isActive ? playerColor : c.textBright, flexShrink: 0 }}>
+              {displayScore}
+            </span>
+          </div>
+          <div style={{ marginTop: isMobileHS ? 3 : 4, background: isArcade ? '#1a1a1a' : '#e5e7eb', borderRadius: 2, height: mSizes.bar, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.min(100, (displayScore / targetScore) * 100)}%`, height: '100%', background: playerColor, transition: 'width 0.3s' }} />
+          </div>
+        </div>
+      )
+    })
+  }
+
+  const renderProgressTrack = () => {
+    const isLand = isMobileHS && isLandscapeHS
+    return (
     <div style={{
+      flexShrink: 0,
+      background: c.cardBg, borderRadius: isLand ? 6 : 8, padding: isLand ? '3px 10px' : '6px 12px',
+      border: `1px solid ${c.border}`,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isLand ? 1 : 3 }}>
+        <span style={{ fontSize: isLand ? 8 : 9, fontWeight: 600, color: c.textDim }}>0</span>
+        <span style={{ fontSize: isLand ? 8 : 9, fontWeight: 700, color: c.accent }}>{targetScore}</span>
+      </div>
+      <div style={{ position: 'relative', height: isLand ? 14 : 18 }}>
+        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 4, marginTop: -2, background: isArcade ? '#333' : '#e5e7eb', borderRadius: 2 }} />
+        {players.map((player, idx) => {
+          const score = getPlayerScore(state, player.id)
+          const isAct = player.id === activePlayerId
+          const pColor = playerColors[player.id] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+          const dScore = isAct ? liveScore : score
+          const pct = Math.min(100, (dScore / targetScore) * 100)
+          return (
+            <div key={player.id} style={{
+              position: 'absolute', left: `${pct}%`, top: '50%',
+              transform: 'translate(-50%, -50%)', transition: 'left 0.3s',
+              zIndex: isAct ? 2 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            }}>
+              <div style={{ fontSize: 8, fontWeight: 700, color: pColor, lineHeight: 1, marginBottom: 1, whiteSpace: 'nowrap' }}>
+                {dScore}
+              </div>
+              <div style={{
+                width: isAct ? 14 : 10, height: isAct ? 14 : 10, borderRadius: '50%',
+                background: pColor, border: `2px solid ${isArcade ? '#0a0a0a' : '#fff'}`,
+                boxShadow: isAct ? `0 0 6px ${pColor}80` : '0 1px 2px rgba(0,0,0,0.2)',
+              }} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+    )
+  }
+
+  return (
+    <div className={isMobileHS ? 'game-fullscreen' : undefined} style={{
       height: '100dvh',
+      maxHeight: isMobileHS ? '100dvh' : undefined,
       background: c.bg,
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
     }}>
-      {/* Pause Overlay */}
-      {gamePaused && !intermission && <PauseOverlay onResume={() => setGamePaused(false)} />}
+      {/* Score Popup */}
+      {scorePopup && (
+        <div key={scorePopup.key} className="g-scorePopup">
+          +{scorePopup.value}
+        </div>
+      )}
+
+      {/* Pause Overlay — mit Chart auf Mobile */}
+      {gamePaused && !intermission && (
+        <PauseOverlay onResume={() => setGamePaused(false)}>
+          {isMobileHS && chartPlayers.length > 0 && (
+            <div style={{ marginTop: 16, padding: '8px', maxWidth: 360, width: '90vw', height: 220 }}>
+              <HighscoreProgressionChart
+                targetScore={targetScore}
+                players={chartPlayers}
+                liveScore={liveScore}
+                activePlayerId={activePlayerId ?? undefined}
+                liveDartCount={currentDarts.length}
+                liveDartScores={liveDartScores}
+                winnerPlayerId={state.finished?.winnerId}
+              />
+            </div>
+          )}
+        </PauseOverlay>
+      )}
 
       {/* Header mit GameControls */}
       <GameControls
@@ -723,9 +865,11 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           onExit()
         }}
         title={`Highscore ${targetScore}${legStandStr}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
+        subtitle={formatDuration(elapsedMs)}
       />
 
-      {/* Timer + Multiplikator Info */}
+      {/* Timer + Multiplikator Info — im Landscape versteckt (spart Höhe) */}
+      {!(isMobileHS && isLandscapeHS) && (
       <div style={{
         flexShrink: 0,
         background: c.cardBg,
@@ -752,15 +896,60 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           </span>
         )}
       </div>
+      )}
 
-      {/* Haupt-Layout: Links Chart, Rechts Spieler + Input (kompakt) */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        overflow: 'hidden',
-        minHeight: 0,
-      }}>
-        {/* LINKS: Progression-Chart (~70%) */}
+      {/* Haupt-Layout */}
+      {isMobileHS && isLandscapeHS ? (
+        /* ===== MOBILE LANDSCAPE ===== */
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, padding: '2px 6px' }}>
+          {/* Fortschritts-Balken oben — volle Breite, kompakt */}
+          {renderProgressTrack()}
+
+          {/* Darunter: Player Cards links, Scoreboard rechts */}
+          <div style={{ flex: 1, display: 'flex', gap: 4, minHeight: 0, marginTop: 2 }}>
+            {/* Links: Player Cards — 40% */}
+            <div style={{ width: '40%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0, overflow: 'hidden' }}>
+              {renderPlayerCards()}
+            </div>
+            {/* Rechts: Scoreboard — 60% */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+              <Scoreboard
+                onThrow={(bed, mult) => addDart(bed, mult)}
+                dartsThrown={currentDarts.length}
+                thrownDarts={currentDarts.map(d => ({ bed: (d.target === 'MISS' ? 'MISS' : d.target === 'BULL' ? (d.mult === 2 ? 'DBULL' : 'BULL') : d.target) as any, mult: d.mult }))}
+                onUndoLastDart={undoLastDart}
+                onUndoLastVisit={undoLastDart}
+              />
+            </div>
+          </div>
+        </div>
+      ) : isMobileHS ? (
+        /* ===== MOBILE PORTRAIT ===== */
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, padding: '4px 8px' }}>
+          {/* Obere Hälfte: Spieler + Progress — flex: 1, Inhalt füllt den Platz */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', gap: 4 }}>
+            {/* Spieler-Liste — Cards wachsen bei wenigen Spielern */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0 }}>
+              {renderPlayerCards()}
+            </div>
+            {/* Fortschritts-Karte */}
+            {renderProgressTrack()}
+          </div>
+          {/* Scoreboard — genau 50% der Höhe */}
+          <div style={{ height: '50%', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            <Scoreboard
+              onThrow={(bed, mult) => addDart(bed, mult)}
+              dartsThrown={currentDarts.length}
+              thrownDarts={currentDarts.map(d => ({ bed: (d.target === 'MISS' ? 'MISS' : d.target === 'BULL' ? (d.mult === 2 ? 'DBULL' : 'BULL') : d.target) as any, mult: d.mult }))}
+              onUndoLastDart={undoLastDart}
+              onUndoLastVisit={undoLastDart}
+            />
+          </div>
+        </div>
+      ) : (
+        /* ===== DESKTOP ===== */
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+        {/* Chart */}
         <div style={{
           flex: 2,
           display: 'flex',
@@ -779,7 +968,7 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           />
         </div>
 
-        {/* RECHTS: Spieler + Input (kompakt, ~30%) */}
+        {/* Spieler + Input */}
         <div style={{
           width: 240,
           flexShrink: 0,
@@ -787,92 +976,21 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           flexDirection: 'column',
           padding: '8px 12px 8px 0',
           overflow: 'hidden',
+          minHeight: 0,
         }}>
-          {/* Spieler-Liste (kompakt) */}
+          {/* Spieler-Liste */}
           <div style={{
-            flex: 1,
+            flexShrink: 1,
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
             overflowY: 'auto',
             marginBottom: 8,
           }}>
-            {players.map((player, idx) => {
-              const score = getPlayerScore(state, player.id)
-              const isActive = player.id === activePlayerId
-              const playerColor = playerColors[player.id] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
-              const displayScore = isActive ? liveScore : score
-
-              return (
-                <div
-                  key={player.id}
-                  style={{
-                    background: c.cardBg,
-                    borderRadius: 6,
-                    padding: '6px 10px',
-                    border: `2px solid ${isActive ? playerColor : c.border}`,
-                    boxShadow: isActive ? `0 0 8px ${playerColor}40` : 'none',
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}>
-                    {/* Farb-Punkt */}
-                    <div style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: playerColor,
-                      flexShrink: 0,
-                    }} />
-
-                    {/* Name */}
-                    <span style={{
-                      fontWeight: 600,
-                      color: c.textBright,
-                      fontSize: 12,
-                      flex: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {player.name}
-                    </span>
-
-                    {/* Score */}
-                    <span style={{
-                      fontSize: 16,
-                      fontWeight: 800,
-                      color: isActive ? playerColor : c.textBright,
-                      flexShrink: 0,
-                    }}>
-                      {displayScore}
-                    </span>
-                  </div>
-
-                  {/* Kompakter Progress */}
-                  <div style={{
-                    marginTop: 4,
-                    background: isArcade ? '#1a1a1a' : '#e5e7eb',
-                    borderRadius: 2,
-                    height: 3,
-                    overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      width: `${Math.min(100, (displayScore / targetScore) * 100)}%`,
-                      height: '100%',
-                      background: playerColor,
-                      transition: 'width 0.3s',
-                    }} />
-                  </div>
-                </div>
-              )
-            })}
+            {renderPlayerCards()}
           </div>
 
-          {/* Input-Bereich (kompakt) */}
+          {/* Desktop: Kompakter Input */}
           <div style={{
             flexShrink: 0,
             background: c.cardBg,
@@ -880,101 +998,46 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
             padding: 8,
             border: `1px solid ${c.border}`,
           }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 6,
-            }}>
-              <span style={{ fontSize: 10, color: c.textDim }}>
-                Aufnahme
-              </span>
-              <span style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: c.accent,
-              }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 10, color: c.textDim }}>Aufnahme</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: c.accent }}>
                 +{currentDarts.reduce((sum, d) => sum + d.value, 0)}
               </span>
             </div>
-
-            {/* Darts anzeigen */}
-            <div style={{
-              display: 'flex',
-              gap: 4,
-              marginBottom: 6,
-            }}>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
               {[0, 1, 2].map(i => {
                 const dart = currentDarts[i]
                 return (
-                  <div
-                    key={i}
-                    style={{
-                      flex: 1,
-                      height: 28,
-                      borderRadius: 4,
-                      border: `1px solid ${dart ? c.accent : c.border}`,
-                      background: dart ? (isArcade ? '#1a1a1a' : '#f0f9ff') : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: dart ? c.textBright : c.textDim,
-                    }}
-                  >
+                  <div key={i} style={{
+                    flex: 1, height: 28, borderRadius: 4,
+                    border: `1px solid ${dart ? c.accent : c.border}`,
+                    background: dart ? (isArcade ? '#1a1a1a' : '#f0f9ff') : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700, color: dart ? c.textBright : c.textDim,
+                  }}>
                     {dart ? formatDartLabel(dart) : '—'}
                   </div>
                 )
               })}
             </div>
-
-            {/* Buttons */}
-            <div style={{
-              display: 'flex',
-              gap: 6,
-            }}>
-              <button
-                onClick={undoLastDart}
-                disabled={currentDarts.length === 0}
-                style={{
-                  flex: 1,
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                  border: `1px solid ${c.border}`,
-                  background: 'transparent',
-                  color: currentDarts.length === 0 ? c.textDim : c.textBright,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: currentDarts.length === 0 ? 'not-allowed' : 'pointer',
-                  opacity: currentDarts.length === 0 ? 0.5 : 1,
-                }}
-              >
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={undoLastDart} disabled={currentDarts.length === 0}
+                style={{ flex: 1, padding: '6px 8px', borderRadius: 4, border: `1px solid ${c.border}`,
+                  background: 'transparent', color: currentDarts.length === 0 ? c.textDim : c.textBright,
+                  fontSize: 10, fontWeight: 600, cursor: currentDarts.length === 0 ? 'not-allowed' : 'pointer', opacity: currentDarts.length === 0 ? 0.5 : 1 }}>
                 ← Undo
               </button>
-              <button
-                onClick={confirmTurn}
-                disabled={currentDarts.length === 0}
-                style={{
-                  flex: 1,
-                  padding: '6px 12px',
-                  borderRadius: 4,
-                  border: 'none',
-                  background: currentDarts.length === 0 ? c.textDim : c.accent,
-                  color: '#fff',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  cursor: currentDarts.length === 0 ? 'not-allowed' : 'pointer',
-                  opacity: currentDarts.length === 0 ? 0.5 : 1,
-                }}
-              >
+              <button onClick={confirmTurn} disabled={currentDarts.length === 0}
+                style={{ flex: 1, padding: '6px 12px', borderRadius: 4, border: 'none',
+                  background: currentDarts.length === 0 ? c.textDim : c.accent, color: '#fff',
+                  fontSize: 10, fontWeight: 700, cursor: currentDarts.length === 0 ? 'not-allowed' : 'pointer', opacity: currentDarts.length === 0 ? 0.5 : 1 }}>
                 OK ↵
               </button>
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Speichern-Indikator */}
       {saving && (

@@ -758,16 +758,23 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
 
   // Mobile detection
   const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
   const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
   useEffect(() => {
     const update = () => {
       setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
       setIsLandscape(window.innerWidth > window.innerHeight)
     }
+    const onOrientation = () => setTimeout(update, 100)
     window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
   }, [])
-  const isMobile = Math.min(screenWidth, typeof window !== 'undefined' ? window.innerHeight : 800) < 600
+  const isMobile = Math.min(screenWidth, screenHeight) < 600
 
   // Mobile: Treffer auf aktuelles Feld
   const addHitOnTarget = useCallback(() => {
@@ -792,7 +799,26 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
       }}
     >
       {/* Pause Overlay */}
-      {gamePaused && <PauseOverlay onResume={() => setGamePaused(false)} />}
+      {gamePaused && (
+        <PauseOverlay onResume={() => setGamePaused(false)}>
+          {/* Leg-Verlauf Chart in Pause auf Mobile anzeigen */}
+          {isMobile && captureRounds.length > 0 && (
+            <div style={{ marginTop: 16, padding: '8px 12px', background: c.cardBg, borderRadius: 10, border: `1px solid ${c.border}`, maxWidth: 360 }}>
+              <div style={{ fontSize: 11, color: c.textDim, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Leg-Verlauf
+              </div>
+              <div style={{ overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
+                <ATBCaptureScoreChart
+                  rounds={captureRounds}
+                  players={chartPlayers}
+                  minGroupWidth={Math.max(20, Math.min(30, 300 / Math.max(captureRounds.length, 1)))}
+                  height={100}
+                />
+              </div>
+            </div>
+          )}
+        </PauseOverlay>
+      )}
 
       {/* Header mit Pause/Mute/Exit */}
       <GameControls
@@ -1521,8 +1547,8 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
       </div>
       )}
 
-      {/* Leg-Verlauf Chart (volle Breite) */}
-      {captureRounds.length > 0 && (
+      {/* Leg-Verlauf Chart (volle Breite) — nur Desktop, auf Mobile in Pause */}
+      {!isMobile && captureRounds.length > 0 && (
         <div
           style={{
             padding: '6px 16px 10px',

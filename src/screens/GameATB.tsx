@@ -786,16 +786,23 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
 
   // Mobile detection
   const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
   const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
   useEffect(() => {
     const update = () => {
       setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
       setIsLandscape(window.innerWidth > window.innerHeight)
     }
+    const onOrientation = () => setTimeout(update, 100)
     window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
   }, [])
-  const isMobile = Math.min(screenWidth, typeof window !== 'undefined' ? window.innerHeight : 800) < 600
+  const isMobile = Math.min(screenWidth, screenHeight) < 600
 
   return (
     <div
