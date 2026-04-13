@@ -2077,7 +2077,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
     : {}
 
   return (
-    <div className="g-page game-fullscreen" style={{ ...backgroundStyle, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="g-page game-fullscreen" style={{ ...backgroundStyle, height: '100dvh', maxHeight: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Celebration Effect (Confetti) */}
       {celebration && (
         <CelebrationEffect

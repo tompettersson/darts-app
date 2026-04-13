@@ -671,8 +671,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         background: playerColorBgEnabled && activePlayerColor
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
           : c.bg,
-        height: isMobile ? '100dvh' : undefined,
-        minHeight: '100dvh',
+        height: '100dvh',
+        maxHeight: isMobile ? '100dvh' : undefined,
+        minHeight: isMobile ? undefined : '100dvh',
         display: 'flex',
         flexDirection: 'column',
         overflow: isMobile ? 'hidden' : undefined,
@@ -842,7 +843,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
 
       {/* Main Content — Mobile */}
       {isMobile ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 8px 8px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 8px 0', minHeight: 0, overflow: 'hidden' }}>
           {/* Header: Runde + Spieler + Timer */}
           {activePlayer && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px', marginBottom: 4 }}>

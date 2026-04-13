@@ -782,6 +782,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
           : c.bg,
         height: '100dvh',
+        maxHeight: isMobile ? '100dvh' : undefined,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',

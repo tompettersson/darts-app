@@ -30,6 +30,18 @@ html, body, #root {
 #root > .game-fullscreen {
   padding-bottom: 0 !important;
   overflow: hidden !important;
+  max-height: 100dvh !important;
+  height: 100dvh !important;
+}
+
+/* When game-fullscreen is active, prevent body/html from scrolling */
+body:has(.game-fullscreen) {
+  overflow: hidden !important;
+  height: 100dvh !important;
+}
+html:has(.game-fullscreen) {
+  overflow: hidden !important;
+  height: 100dvh !important;
 }
 
 /* Design Tokens - mapped to global theme variables */

@@ -804,8 +804,9 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         background: playerColorBgEnabled && activePlayerColor
           ? `linear-gradient(180deg, ${activePlayerColor}20 0%, ${activePlayerColor}05 100%)`
           : c.bg,
-        height: isMobile ? '100dvh' : undefined,
-        minHeight: isMobile ? '100dvh' : '100dvh',
+        height: '100dvh',
+        maxHeight: isMobile ? '100dvh' : undefined,
+        minHeight: isMobile ? undefined : '100dvh',
         display: 'flex',
         flexDirection: 'column',
         overflow: isMobile ? 'hidden' : undefined,

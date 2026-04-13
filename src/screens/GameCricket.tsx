@@ -1742,7 +1742,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }${legStandStr}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`
 
   // Dynamischer Hintergrund basierend auf aktivem Spieler
-  const mobileFullScreen = isMobileScreen ? { height: '100dvh', minHeight: '100dvh', maxHeight: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' as const, gap: 2, padding: '2px 4px 0' } : {}
+  const mobileFullScreen = isMobileScreen ? { height: '100dvh', maxHeight: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' as const, gap: 2, padding: '2px 4px 0' } : {}
   const fullscreenClass = isMobileScreen ? 'game-fullscreen' : undefined
   const backgroundStyle = playerColorBgEnabled
     ? {
