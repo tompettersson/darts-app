@@ -42,6 +42,7 @@ import {
   now,
   id,
   getOutRule,
+  getInRule,
   // Type Guards
   isMatchStarted,
   isLegStarted,
@@ -128,11 +129,14 @@ function dartScore(d: Dart): number {
 }
 
 // Live-Preview: Rest nach bisherigen Darts (inkl. Bust-Logik)
-function simulateLiveRemaining(startRemaining: number, darts: Dart[]) {
+function simulateLiveRemaining(startRemaining: number, darts: Dart[], opts?: { doubleIn?: boolean; isIn?: boolean }) {
   let tmp = startRemaining
   let bust = false
+  let playerIsIn = opts?.isIn ?? true // Standard: Spieler ist "in"
+
   for (let i = 0; i < darts.length && i < 3; i++) {
     const d = darts[i]
+    const isDouble = d.bed === 'DBULL' || (typeof d.bed === 'number' && d.mult === 2)
     const score =
       d.bed === 'MISS'
         ? 0
@@ -141,9 +145,18 @@ function simulateLiveRemaining(startRemaining: number, darts: Dart[]) {
           : d.bed === 'BULL'
             ? 25
             : d.bed * d.mult
+
+    // Double-In: Punkte zählen erst ab dem ersten Double
+    if (opts?.doubleIn && !playerIsIn) {
+      if (isDouble && score > 0) {
+        playerIsIn = true // Jetzt "in"
+      } else {
+        continue // Nicht abziehen, Spieler noch nicht "in"
+      }
+    }
+
     const after = tmp - score
     if (after === 0) {
-      const isDouble = d.bed === 'DBULL' || (typeof d.bed === 'number' && d.mult === 2)
       if (isDouble) {
         tmp = 0
         break
@@ -1409,7 +1422,9 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
       const draft = [...list, next]
 
       if (!leg) return list
-      const { remaining, bust } = simulateLiveRemaining(leg.remainingByPlayer[activePlayerId], draft)
+      const isDoubleIn = match ? getInRule(match) === 'double-in' : false
+      const playerIsIn = leg.inByPlayer?.[activePlayerId] ?? true
+      const { remaining, bust } = simulateLiveRemaining(leg.remainingByPlayer[activePlayerId], draft, { doubleIn: isDoubleIn, isIn: playerIsIn })
 
       // Auto-Confirm bei Bust, Checkout oder 3 Darts
       if (bust || remaining === 0 || draft.length === 3) {
@@ -1951,7 +1966,9 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
 
   const statsByPlayer = computeStats(events)
   const remainingOfActive = leg?.remainingByPlayer[activePlayerId] ?? 0
-  const live = simulateLiveRemaining(remainingOfActive, current)
+  const isDoubleInRule = match ? getInRule(match) === 'double-in' : false
+  const activePlayerIsIn = leg?.inByPlayer?.[activePlayerId] ?? true
+  const live = simulateLiveRemaining(remainingOfActive, current, { doubleIn: isDoubleInRule, isIn: activePlayerIsIn })
 
   // Chart-Daten für Score Progression
   const chartData = useMemo(() => {
@@ -2821,11 +2838,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
                     {/* Right: scoreboard — half width, full height */}
                     <div style={{ width: '40%', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
                       {multiplayer?.enabled && !isMyTurn && (
-                        <div style={{
-                          textAlign: 'center', padding: '4px 8px', marginBottom: 4,
-                          background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6,
-                          color: '#92400e', fontWeight: 700, fontSize: 11,
-                        }}>
+                        <div className="game-hint-banner warning" style={{ fontSize: 11, padding: '4px 8px', fontWeight: 600 }}>
                           {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
                         </div>
                       )}
@@ -2869,11 +2882,7 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
 
                   {/* Multiplayer: opponent's turn hint */}
                   {multiplayer?.enabled && !isMyTurn && (
-                    <div style={{
-                      textAlign: 'center', padding: '6px 12px',
-                      background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8,
-                      color: '#92400e', fontWeight: 700, fontSize: 12,
-                    }}>
+                    <div className="game-hint-banner warning" style={{ fontSize: 12, padding: '6px 12px', fontWeight: 600 }}>
                       {match.players.find(p => p.playerId === activePlayerId)?.name ?? 'Gegner'} ist am Zug
                     </div>
                   )}
