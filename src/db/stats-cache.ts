@@ -105,7 +105,7 @@ type LoadGroupFn = (pid: string, group: string, out: Record<string, unknown>) =>
 const GROUPS_BY_GAME_TYPE: Record<string, string[]> = {
   x01:        ['core', 'x01variants', 'x01detail', 'insights', 'playerinsights', 'achievements'],
   cricket:    ['core', 'cricket', 'insights', 'playerinsights', 'achievements'],
-  atb:        ['core', 'achievements'],
+  atb:        ['core', 'atbvariants', 'achievements'],
   str:        ['core'],
   ctf:        ['core'],
   shanghai:   ['core'],
@@ -165,7 +165,7 @@ export function queueStatsRefresh(
 // ============================================================================
 
 const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames',
-                    'insights', 'playerinsights', 'achievements']
+                    'insights', 'playerinsights', 'atbvariants', 'achievements']
 
 /**
  * Backfill all stat groups for a single player.

@@ -8,6 +8,9 @@ import {
   getCricketFullStats,
   getATBFullStats,
   getATBBestTimes,
+  getATBVariantStats,
+  getATBVariantBestTimes,
+  getATBVariantSpecificStats,
   getQuickStats,
   getPlayerStreaks,
   getAllHeadToHeadForPlayer,
@@ -103,6 +106,9 @@ export type SQLStatsData = {
   cricket: CricketFullStats | null
   atb: ATBFullStats | null
   atbBestTimes: ATBBestTime[]
+  atbByVariant?: Record<string, any>
+  atbVariantSpecific?: Record<string, any>
+  atbBestTimesByVariant?: Record<string, any[]>
   quick: QuickStats | null
   streaks: PlayerStreak | null
   headToHead: HeadToHead[]
@@ -277,7 +283,7 @@ export function useSQLStats(playerId: string | undefined, activeTab: StatsTab = 
         // Background prefetch: load remaining groups silently
         if (!prefetchDoneRef.current) {
           prefetchDoneRef.current = true
-          const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'achievements']
+          const ALL_GROUPS = ['core', 'x01variants', 'x01detail', 'cricket', 'minigames', 'insights', 'playerinsights', 'atbvariants', 'achievements']
           const remaining = ALL_GROUPS.filter(g => !loadedGroupsRef.current.has(g))
           if (remaining.length > 0) {
             setTimeout(async () => {
@@ -329,7 +335,7 @@ function getGroupsForTab(tab: StatsTab): string[] {
     case 'x01':
       return ['core', 'x01variants', 'x01detail']
     case 'cricketco':
-      return ['core', 'cricket', 'minigames']
+      return ['core', 'cricket', 'minigames', 'atbvariants']
     case 'insights':
       return ['core', 'insights', 'playerinsights']
     case 'trends':
@@ -474,6 +480,34 @@ export async function loadGroup(pid: string, group: string, out: Partial<SQLStat
         fullAchievements, formCurve, bobs27Progression, bobs27DoubleWeakness,
         trainingRecommendations, todaySession, winStreaks,
       })
+      break
+    }
+    case 'atbvariants': {
+      const variants = [
+        { key: 'none', rule: 'none' },
+        { key: 'suddenDeath', rule: 'suddenDeath' },
+        { key: 'bullHeavy', rule: 'bullHeavy' },
+        { key: 'noDoubleEscape', rule: 'noDoubleEscape' },
+        { key: 'miss3Previous', rule: 'miss3Back', miss3: 'previous' as const },
+        { key: 'miss3Start', rule: 'miss3Back', miss3: 'start' as const },
+      ]
+
+      const [variantStats, variantBestTimes, variantSpecific] = await Promise.all([
+        Promise.all(variants.map(v => safe(getATBVariantStats(pid, v.rule, v.miss3), null))),
+        Promise.all(variants.map(v => safe(getATBVariantBestTimes(pid, v.rule, v.miss3), []))),
+        Promise.all(variants.map(v => safe(getATBVariantSpecificStats(pid, v.rule, v.miss3), null))),
+      ])
+
+      const atbByVariant: Record<string, any> = {}
+      const atbBestTimesByVariant: Record<string, any[]> = {}
+      const atbVariantSpecific: Record<string, any> = {}
+      variants.forEach((v, i) => {
+        atbByVariant[v.key] = variantStats[i]
+        atbBestTimesByVariant[v.key] = variantBestTimes[i]
+        atbVariantSpecific[v.key] = variantSpecific[i]
+      })
+
+      Object.assign(out, { atbByVariant, atbBestTimesByVariant, atbVariantSpecific })
       break
     }
   }

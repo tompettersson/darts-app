@@ -1437,8 +1437,8 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
     sql: `INSERT INTO atb_matches (
       id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       mode, direction, structure_kind, best_of_legs, legs_per_set, best_of_sets,
-      sequence_mode, target_mode, multiplier_mode, special_rule, generated_sequence
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      sequence_mode, target_mode, multiplier_mode, special_rule, generated_sequence, miss3_back_variant
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
       match_name = EXCLUDED.match_name,
@@ -1459,7 +1459,8 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
       target_mode = EXCLUDED.target_mode,
       multiplier_mode = EXCLUDED.multiplier_mode,
       special_rule = EXCLUDED.special_rule,
-      generated_sequence = EXCLUDED.generated_sequence`,
+      generated_sequence = EXCLUDED.generated_sequence,
+      miss3_back_variant = EXCLUDED.miss3_back_variant`,
     params: [
       match.id,
       match.title,
@@ -1482,6 +1483,7 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
       match.config?.multiplierMode ?? null,
       match.config?.specialRule ?? null,
       match.generatedSequence ? toJSON(match.generatedSequence) : null,
+      match.config?.miss3BackVariant ?? null,
     ],
   })
 

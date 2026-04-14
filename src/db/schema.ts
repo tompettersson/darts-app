@@ -1,7 +1,7 @@
 // src/db/schema.ts
 // SQLite Schema für Darts 501 Engine
 
-export const CURRENT_DB_VERSION = 12
+export const CURRENT_DB_VERSION = 13
 
 // ============================================================================
 // Core Tables
@@ -1016,6 +1016,14 @@ export const MIGRATIONS: Migration[] = [
       'ALTER TABLE bobs27_matches ADD COLUMN notes TEXT',
       'ALTER TABLE operation_matches ADD COLUMN match_name TEXT',
       'ALTER TABLE operation_matches ADD COLUMN notes TEXT',
+    ],
+  },
+  {
+    version: 13,
+    name: 'add_atb_miss3_back_variant',
+    up: [
+      'ALTER TABLE atb_matches ADD COLUMN miss3_back_variant TEXT',
+      'CREATE INDEX IF NOT EXISTS idx_atb_matches_special_rule ON atb_matches(special_rule)',
     ],
   },
 ]

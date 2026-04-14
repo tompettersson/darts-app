@@ -531,6 +531,7 @@ export type DBATBMatch = {
   multiplier_mode: string | null
   special_rule: string | null
   generated_sequence: string | null
+  miss3_back_variant: string | null
 }
 
 export async function getATBMatches(): Promise<DBATBMatch[]> {

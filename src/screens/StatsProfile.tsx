@@ -32,6 +32,7 @@ export default function StatsProfile({
   const [cursor, setCursor] = useState(0)
   const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'uebersicht')
   const [x01Variant, setX01Variant] = useState<121 | 301 | 501 | 701 | 901>(501)
+  const [atbVariant, setAtbVariant] = useState<string>('alle')
 
   // Theme System
   const { isArcade, colors } = useTheme()
@@ -1174,113 +1175,226 @@ export default function StatsProfile({
 
           {/* --- ATB (Around the Block) --- */}
           <Accordion title="Around the Block" defaultOpen={false}>
-            {sqlStats.data.atb && sqlStats.data.atb.matchesPlayed > 0 ? (() => {
-              const atb = sqlStats.data.atb
+            {(() => {
+              const atbStats = atbVariant === 'alle'
+                ? sqlStats.data?.atb
+                : sqlStats.data?.atbByVariant?.[atbVariant]
+              const atbTimes = atbVariant === 'alle'
+                ? sqlStats.data?.atbBestTimes
+                : sqlStats.data?.atbBestTimesByVariant?.[atbVariant]
+
               return (
               <>
-                {/* Übersicht */}
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Matches gespielt</span>
-                    <span style={s.statsValueHighlight}>{atb.matchesPlayed}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Matches gewonnen</span>
-                    <span style={s.statsValueGood}>{atb.matchesWon}</span>
-                  </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Gewinnquote</span>
-                    <span style={s.statsValueHighlight}>{formatPct(atb.matchWinRate)}</span>
-                  </div>
+                <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colors.fgMuted }}>Variante:</span>
+                  <select
+                    value={atbVariant}
+                    onChange={(e) => setAtbVariant(e.target.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: `1px solid ${colors.border}`,
+                      background: colors.bgInput,
+                      color: colors.fg,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      flex: 1,
+                      minWidth: 160,
+                      maxWidth: 280,
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
+                    }}
+                  >
+                    <option value="alle">Alle</option>
+                    <option value="none">Standard</option>
+                    <option value="suddenDeath">Sudden Death</option>
+                    <option value="bullHeavy">Bull Heavy</option>
+                    <option value="noDoubleEscape">No Double Escape</option>
+                    <option value="miss3Previous">3x Miss → Zurück</option>
+                    <option value="miss3Start">3x Miss → Start</option>
+                  </select>
                 </div>
 
-                {/* Leistung */}
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Darts gesamt</span>
-                    <span style={s.statsValue}>{atb.totalDarts}</span>
+                {atbStats && atbStats.matchesPlayed > 0 ? (
+                <>
+                  {/* Übersicht */}
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Übersicht</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Matches gespielt</span>
+                      <span style={s.statsValueHighlight}>{atbStats.matchesPlayed}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Matches gewonnen</span>
+                      <span style={s.statsValueGood}>{atbStats.matchesWon}</span>
+                    </div>
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Gewinnquote</span>
+                      <span style={s.statsValueHighlight}>{formatPct(atbStats.matchWinRate)}</span>
+                    </div>
                   </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Avg Darts pro Sieg</span>
-                    <span style={s.statsValueHighlight}>{formatNum(atb.avgDartsPerWin, 1)}</span>
-                  </div>
-                  {/* Progress-Bar für Hit-Rate */}
-                  <div style={{ marginTop: 8, marginBottom: 8 }}>
-                    <ProgressBar
-                      value={atb.hitRate}
-                      label="Trefferquote"
-                      color="#10b981"
-                      height={16}
-                    />
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Treffer</span>
-                    <span style={s.statsValue}>{atb.totalHits}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Fehlwürfe</span>
-                    <span style={s.statsValueBad}>{atb.totalMisses}</span>
-                  </div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Triples</span>
-                    <span style={s.statsValue}>{atb.totalTriples}</span>
-                  </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Doubles</span>
-                    <span style={s.statsValue}>{atb.totalDoubles}</span>
-                  </div>
-                </div>
 
-                {/* Bestleistungen */}
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Bestleistungen</div>
-                  <div style={s.statsRow}>
-                    <span style={s.statsLabel}>Wenigste Darts (Sieg)</span>
-                    <span style={s.statsValueGood}>{atb.bestDarts || '—'}</span>
+                  {/* Leistung */}
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Leistung</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Darts gesamt</span>
+                      <span style={s.statsValue}>{atbStats.totalDarts}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Avg Darts pro Sieg</span>
+                      <span style={s.statsValueHighlight}>{formatNum(atbStats.avgDartsPerWin, 1)}</span>
+                    </div>
+                    {/* Progress-Bar für Hit-Rate */}
+                    <div style={{ marginTop: 8, marginBottom: 8 }}>
+                      <ProgressBar
+                        value={atbStats.hitRate}
+                        label="Trefferquote"
+                        color="#10b981"
+                        height={16}
+                      />
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Treffer</span>
+                      <span style={s.statsValue}>{atbStats.totalHits}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Fehlwürfe</span>
+                      <span style={s.statsValueBad}>{atbStats.totalMisses}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Triples</span>
+                      <span style={s.statsValue}>{atbStats.totalTriples}</span>
+                    </div>
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Doubles</span>
+                      <span style={s.statsValue}>{atbStats.totalDoubles}</span>
+                    </div>
                   </div>
-                  <div style={s.statsRowLast}>
-                    <span style={s.statsLabel}>Beste Zeit (Sieg)</span>
-                    <span style={s.statsValue}>
-                      {atb.bestTimeMs ? formatDuration(atb.bestTimeMs) : '—'}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Best Times pro Modus */}
-                {sqlStats.data.atbBestTimes.length > 0 && (
-                  <div style={s.statsCardLast}>
-                    <div style={s.statsCardTitle as React.CSSProperties}>Bestzeiten nach Modus</div>
-                    {sqlStats.data.atbBestTimes.map((bt, i) => {
-                      const modeLabel = bt.mode === 'classic' ? 'Klassisch' :
-                                       bt.mode === 'doubles' ? 'Doubles' :
-                                       bt.mode === 'triples' ? 'Triples' : bt.mode
-                      const dirLabel = bt.direction === 'forward' ? '->' :
-                                      bt.direction === 'backward' ? '<-' : '<->'
-                      return (
-                        <div key={`${bt.mode}-${bt.direction}`}
-                             style={i === sqlStats.data.atbBestTimes.length - 1 ? s.statsRowLast : s.statsRow}>
-                          <span style={s.statsLabel}>{modeLabel} {dirLabel}</span>
-                          <div style={{ textAlign: 'right' }}>
-                            <span style={s.statsValueGood}>{bt.bestDarts} Darts</span>
-                            <span style={{ ...s.statsValue, marginLeft: 8, color: colors.fgDim }}>
-                              ({formatDuration(bt.bestTime)})
-                            </span>
-                            <span style={{ fontSize: 11, color: colors.fgDim, marginLeft: 8 }}>
-                              {bt.attempts}x
-                            </span>
+                  {/* Bestleistungen */}
+                  <div style={s.statsCard}>
+                    <div style={s.statsCardTitle as React.CSSProperties}>Bestleistungen</div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Wenigste Darts (Sieg)</span>
+                      <span style={s.statsValueGood}>{atbStats.bestDarts || '—'}</span>
+                    </div>
+                    <div style={s.statsRowLast}>
+                      <span style={s.statsLabel}>Beste Zeit (Sieg)</span>
+                      <span style={s.statsValue}>
+                        {atbStats.bestTimeMs ? formatDuration(atbStats.bestTimeMs) : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Best Times pro Modus */}
+                  {atbTimes && atbTimes.length > 0 && (
+                    <div style={s.statsCard}>
+                      <div style={s.statsCardTitle as React.CSSProperties}>Bestzeiten nach Modus</div>
+                      {atbTimes.map((bt: any, i: number) => {
+                        const modeLabel = bt.mode === 'classic' ? 'Klassisch' :
+                                         bt.mode === 'doubles' ? 'Doubles' :
+                                         bt.mode === 'triples' ? 'Triples' : bt.mode
+                        const dirLabel = bt.direction === 'forward' ? '->' :
+                                        bt.direction === 'backward' ? '<-' : '<->'
+                        return (
+                          <div key={`${bt.mode}-${bt.direction}`}
+                               style={i === atbTimes.length - 1 ? s.statsRowLast : s.statsRow}>
+                            <span style={s.statsLabel}>{modeLabel} {dirLabel}</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={s.statsValueGood}>{bt.bestDarts} Darts</span>
+                              <span style={{ ...s.statsValue, marginLeft: 8, color: colors.fgDim }}>
+                                ({formatDuration(bt.bestTime)})
+                              </span>
+                              <span style={{ fontSize: 11, color: colors.fgDim, marginLeft: 8 }}>
+                                {bt.attempts}x
+                              </span>
+                            </div>
                           </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Variant-specific stats */}
+                  {atbVariant !== 'alle' && atbVariant !== 'none' && (() => {
+                    const specific = sqlStats.data?.atbVariantSpecific?.[atbVariant]
+                    if (!specific || Object.keys(specific).length === 0) return null
+
+                    return (
+                      <div style={s.statsCard}>
+                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                          {atbVariant === 'suddenDeath' && 'Sudden Death Statistiken'}
+                          {atbVariant === 'bullHeavy' && 'Bull Heavy Statistiken'}
+                          {atbVariant === 'noDoubleEscape' && 'Double Statistiken'}
+                          {(atbVariant === 'miss3Previous' || atbVariant === 'miss3Start') && 'Reset Statistiken'}
                         </div>
-                      )
-                    })}
+
+                        {atbVariant === 'suddenDeath' && (
+                          <>
+                            <div style={s.statsRow}>
+                              <span style={s.statsLabel}>Überlebte Runden</span>
+                              <span style={{ fontWeight: 700 }}>{specific.survivedRounds ?? 0}</span>
+                            </div>
+                            {specific.eliminationField && (
+                              <div style={s.statsRowLast}>
+                                <span style={s.statsLabel}>Häufigstes Eliminierungs-Feld</span>
+                                <span style={{ fontWeight: 700 }}>{specific.eliminationField}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {atbVariant === 'bullHeavy' && (
+                          <>
+                            <div style={s.statsRow}>
+                              <span style={s.statsLabel}>Bulls gesamt</span>
+                              <span style={{ fontWeight: 700 }}>{specific.totalBulls ?? 0}</span>
+                            </div>
+                            <div style={s.statsRow}>
+                              <span style={s.statsLabel}>Avg Darts pro Bull</span>
+                              <span style={{ fontWeight: 700 }}>{specific.avgDartsPerBull?.toFixed(1) ?? '—'}</span>
+                            </div>
+                            <div style={s.statsRowLast}>
+                              <span style={s.statsLabel}>Bull-Quote</span>
+                              <span style={{ fontWeight: 700 }}>{specific.bullQuoteFirstDart?.toFixed(0) ?? 0}%</span>
+                            </div>
+                          </>
+                        )}
+
+                        {atbVariant === 'noDoubleEscape' && (
+                          <div style={s.statsRowLast}>
+                            <span style={s.statsLabel}>Double-Quote</span>
+                            <span style={{ fontWeight: 700 }}>{specific.doubleQuoteFirstDart?.toFixed(0) ?? 0}%</span>
+                          </div>
+                        )}
+
+                        {(atbVariant === 'miss3Previous' || atbVariant === 'miss3Start') && (
+                          <>
+                            <div style={s.statsRow}>
+                              <span style={s.statsLabel}>Resets gesamt</span>
+                              <span style={{ fontWeight: 700 }}>{specific.totalResets ?? 0}</span>
+                            </div>
+                            <div style={s.statsRowLast}>
+                              <span style={s.statsLabel}>Felder verloren</span>
+                              <span style={{ fontWeight: 700 }}>{specific.fieldsLostToResets ?? 0}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </>
+                ) : (
+                  <div style={s.noData as React.CSSProperties}>
+                    {atbVariant === 'alle'
+                      ? 'Keine ATB-Statistiken vorhanden.'
+                      : 'Keine Statistiken für diese Variante vorhanden.'}
                   </div>
                 )}
               </>
               )
-            })() : (
-              <div style={s.noData as React.CSSProperties}>Keine ATB-Statistiken vorhanden.</div>
-            )}
+            })()}
           </Accordion>
 
           {/* --- CTF (Capture the Field) --- */}
