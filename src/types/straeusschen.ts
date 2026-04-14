@@ -21,6 +21,8 @@ export type StrBullPosition = 'start' | 'end' | 'random'
 export type StrStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: StrPlayer[]
   mode: StrMode

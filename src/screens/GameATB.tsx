@@ -175,7 +175,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         ;(async () => {
           await ensureATBMatchExistsAsync(matchId, remote, playerIds)
           try { await persistATBEvents(matchId, remote) } catch {}
-          await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+          await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.allEliminated)
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
         })()
       } else {
@@ -186,7 +186,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             if (await isMatchFinishedInDB('atb_matches', matchId)) return
             await ensureATBMatchExistsAsync(matchId, remote, playerIds)
             await persistATBEvents(matchId, remote)
-            await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs)
+            await finishATBMatch(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.allEliminated)
           } catch {}
         }, 5000)
         if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
@@ -507,7 +507,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         ;(async () => {
           try {
             await persistATBEvents(matchId, newEvents)
-            await finishATBMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs)
+            await finishATBMatch(matchId, result.matchFinished!.winnerId, result.matchFinished!.totalDarts, result.matchFinished!.durationMs, result.matchFinished!.allEliminated)
           } catch (err) {
             console.warn('[ATB] Persist failed:', err)
           } finally {

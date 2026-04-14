@@ -57,6 +57,7 @@ import {
   dbFinishShanghaiMatch,
   dbFinishBobs27Match,
   dbFinishOperationMatch,
+  dbUpdateMatchMetadata,
   type DBProfile,
   type DBX01Match,
   type DBCricketMatch,
@@ -1063,12 +1064,16 @@ export function setMatchMetadata(
     return false
   }
 
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
   list[idx] = {
     ...list[idx],
-    matchName: matchName.trim() || undefined,
-    notes: notes.trim() || undefined,
+    matchName: trimmedName,
+    notes: trimmedNotes,
   }
   saveMatches(list)
+  // Auch in DB persistieren
+  dbUpdateMatchMetadata('x01_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
   return true
 }
 
@@ -2373,12 +2378,16 @@ export function setCricketMatchMetadata(
     return false
   }
 
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
   list[idx] = {
     ...list[idx],
-    matchName: matchName.trim() || undefined,
-    notes: notes.trim() || undefined,
+    matchName: trimmedName,
+    notes: trimmedNotes,
   }
   saveCricketMatches(list)
+  // Auch in DB persistieren
+  dbUpdateMatchMetadata('cricket_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
   return true
 }
 
@@ -3314,7 +3323,8 @@ export function finishATBMatch(
   matchId: string,
   winnerId: string,
   winnerDarts: number,
-  durationMs: number
+  durationMs: number,
+  allEliminated?: boolean
 ): Promise<void> {
   const all = getATBMatches()
   const idx = all.findIndex(m => m.id === matchId)
@@ -3325,6 +3335,7 @@ export function finishATBMatch(
   all[idx].winnerId = winnerId
   all[idx].winnerDarts = winnerDarts
   all[idx].durationMs = durationMs
+  if (allEliminated) all[idx].allEliminated = true
   atbMatchesCache = all
   dbDeleteActiveGame(matchId).catch(() => {})
 
@@ -3770,6 +3781,32 @@ export function deleteATBMatch(matchId: string) {
   clearMatchElapsedTime(matchId, 'atb')
 }
 
+/** Setzt Spielname und Bemerkungen für ein ATB Match (nur einmal möglich). */
+export function setATBMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getATBMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveATBMatches(list)
+  dbUpdateMatchMetadata('atb_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
+}
+
 /* -------------------------------------------------
    Sträußchen (STR) Storage
 ------------------------------------------------- */
@@ -4035,6 +4072,32 @@ export function deleteStrMatch(matchId: string) {
 
   clearMatchPaused(matchId, 'str')
   clearMatchElapsedTime(matchId, 'str')
+}
+
+/** Setzt Spielname und Bemerkungen für ein Sträußchen Match (nur einmal möglich). */
+export function setStrMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getStrMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveStrMatches(list)
+  dbUpdateMatchMetadata('str_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
 }
 
 /* -------------------------------------------------
@@ -4315,6 +4378,32 @@ export function deleteCTFMatch(matchId: string) {
   clearMatchElapsedTime(matchId, 'ctf')
 }
 
+/** Setzt Spielname und Bemerkungen für ein CTF Match (nur einmal möglich). */
+export function setCTFMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getCTFMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveCTFMatches(list)
+  dbUpdateMatchMetadata('ctf_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
+}
+
 
 /* -------------------------------------------------
    Shanghai Storage
@@ -4550,6 +4639,32 @@ export function deleteShanghaiMatch(matchId: string) {
   clearMatchElapsedTime(matchId, 'shanghai')
 }
 
+/** Setzt Spielname und Bemerkungen für ein Shanghai Match (nur einmal möglich). */
+export function setShanghaiMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getShanghaiMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveShanghaiMatches(list)
+  dbUpdateMatchMetadata('shanghai_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
+}
+
 
 /* -------------------------------------------------
    Killer Storage
@@ -4779,6 +4894,32 @@ export function deleteKillerMatch(matchId: string) {
   dbDeleteActiveGame(matchId).catch(() => {})
 }
 
+/** Setzt Spielname und Bemerkungen für ein Killer Match (nur einmal möglich). */
+export function setKillerMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getKillerMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveKillerMatches(list)
+  dbUpdateMatchMetadata('killer_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
+}
+
 
 export function getKillerInfo(match: KillerStoredMatch): { players: number; winner: string | null; rounds: number } {
   const players = match.players?.length ?? 0
@@ -5002,6 +5143,32 @@ export function deleteBobs27Match(matchId: string) {
 
   clearMatchPaused(matchId, 'bobs27')
   clearMatchElapsedTime(matchId, 'bobs27')
+}
+
+/** Setzt Spielname und Bemerkungen für ein Bob's 27 Match (nur einmal möglich). */
+export function setBobs27MatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getBobs27Matches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveBobs27Matches(list)
+  dbUpdateMatchMetadata('bobs27_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
 }
 
 /**
@@ -5318,6 +5485,32 @@ export function deleteOperationMatch(matchId: string) {
 
   clearMatchPaused(matchId, 'operation')
   clearMatchElapsedTime(matchId, 'operation')
+}
+
+/** Setzt Spielname und Bemerkungen für ein Operation Match (nur einmal möglich). */
+export function setOperationMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getOperationMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveOperationMatches(list)
+  dbUpdateMatchMetadata('operation_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
 }
 
 /**
@@ -6067,6 +6260,32 @@ export function deleteHighscoreMatch(matchId: string) {
 
   clearMatchPaused(matchId, 'highscore')
   clearMatchElapsedTime(matchId, 'highscore')
+}
+
+/** Setzt Spielname und Bemerkungen für ein Highscore Match (nur einmal möglich). */
+export function setHighscoreMatchMetadata(
+  matchId: string,
+  matchName: string,
+  notes: string
+): boolean {
+  const list = getHighscoreMatches()
+  const idx = list.findIndex(m => m.id === matchId)
+  if (idx === -1) return false
+
+  if (list[idx].matchName !== undefined || list[idx].notes !== undefined) {
+    return false
+  }
+
+  const trimmedName = matchName.trim() || undefined
+  const trimmedNotes = notes.trim() || undefined
+  list[idx] = {
+    ...list[idx],
+    matchName: trimmedName,
+    notes: trimmedNotes,
+  }
+  saveHighscoreMatches(list)
+  dbUpdateMatchMetadata('highscore_matches', matchId, trimmedName ?? null, trimmedNotes ?? null)
+  return true
 }
 
 

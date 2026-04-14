@@ -9,6 +9,7 @@ import { applyBobs27Events, formatDuration } from '../dartsBobs27'
 import { computeBobs27MatchStats } from '../stats/computeBobs27Stats'
 import { PLAYER_COLORS } from '../playerColors'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
+import { generateBobs27Report } from '../narratives/generateModeReports'
 
 // Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -239,6 +240,44 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
               </div>
             </div>
           )}
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateBobs27Report({
+              matchId,
+              players: players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: storedMatch.winnerId,
+              rankings: rankings.map(r => ({
+                playerId: r.playerId,
+                name: r.name,
+                finalScore: r.finalScore,
+                eliminated: r.eliminated,
+                eliminatedAtTarget: r.eliminatedAtTarget,
+                hitRate: r.hitRate,
+                longestHitStreak: r.longestHitStreak,
+                perfectTargets: r.perfectTargets,
+                targetsCompleted: r.targetsCompleted,
+                totalTargets: r.totalTargets,
+                bestTarget: r.bestTarget ? { label: r.bestTarget.label, hits: r.bestTarget.hits } : null,
+                worstTarget: r.worstTarget ? { label: r.worstTarget.label, hits: r.worstTarget.hits } : null,
+              })),
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: isArcade ? `${colors.accent}15` : 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: `1px solid ${isArcade ? colors.accent + '40' : '#93c5fd'}`,
+                maxWidth: 700, margin: '0 auto 16px',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: isArcade ? colors.accent : '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: colors.fg }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Spieler-Statistiken (Vergleichstabelle) */}
           {(() => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CricketTarget } from '../../types/cricket'
+import { useTheme } from '../../ThemeProvider'
 
 export type Mult = 1|2|3
 
@@ -41,6 +42,7 @@ function markSymbol(m: number | undefined) {
 export default function CricketScoreSheet({
   players, activePlayerId, targets, onThrow, totalLabel = 'Punkte',
 }: Props) {
+  const { colors, isArcade } = useTheme()
   const [mult, setMult] = useState<Mult>(1) // S=1 default
 
   // Tastaturkürzel: S/D/T
@@ -66,7 +68,31 @@ export default function CricketScoreSheet({
     return { left: L, right: R }
   }, [players])
 
-  const s = styles
+  // Theme-aware styles
+  const s = useMemo(() => buildStyles(colors, isArcade), [colors, isArcade])
+
+  const colStyle = (active: boolean, _color?: string): React.CSSProperties => ({
+    display: 'grid',
+    gap: 8,
+    minWidth: 180,
+    borderRadius: 14,
+    padding: 4,
+    border: `1px solid ${active ? '#0ea5e9' : 'transparent'}`,
+    boxShadow: active ? '0 0 0 3px rgba(14,165,233,0.12)' : 'none',
+  })
+
+  const buttonMode = (active: boolean): React.CSSProperties => ({
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: active ? '1px solid #0ea5e9' : `1px solid ${colors.border}`,
+    background: active ? (isArcade ? '#0c4a6e' : '#e0f2fe') : colors.bgCard,
+    color: active ? (isArcade ? '#7dd3fc' : '#0369a1') : colors.fg,
+    cursor: 'pointer',
+    fontWeight: 700,
+    lineHeight: 1.2,
+    transition: 'background .15s, border-color .15s, color .15s, box-shadow .15s',
+    boxShadow: active ? '0 0 0 3px rgba(14,165,233,0.15)' : 'none',
+  })
 
   return (
     <div style={s.wrap}>
@@ -96,7 +122,7 @@ export default function CricketScoreSheet({
           <div key={p.id} style={colStyle(p.id === activePlayerId, p.color)}>
             <div style={s.colHeader}>
               <span style={{ ...s.dot, background: p.color || '#6b7280' }} />
-              <div style={s.name} title={p.name}>{p.name}</div>
+              <div style={s.name}>{p.name}</div>
               <div style={s.totalLabel}>{totalLabel}</div>
               <div style={s.totalVal}>{p.totalPoints}</div>
             </div>
@@ -129,7 +155,7 @@ export default function CricketScoreSheet({
           <div key={p.id} style={colStyle(p.id === activePlayerId, p.color)}>
             <div style={s.colHeader}>
               <span style={{ ...s.dot, background: p.color || '#6b7280' }} />
-              <div style={s.name} title={p.name}>{p.name}</div>
+              <div style={s.name}>{p.name}</div>
               <div style={s.totalLabel}>{totalLabel}</div>
               <div style={s.totalVal}>{p.totalPoints}</div>
             </div>
@@ -146,98 +172,74 @@ export default function CricketScoreSheet({
   )
 }
 
-/* ---------- Styles (inline, clean, kein Layout-Shift) ---------- */
+/* ---------- Theme-aware Styles ---------- */
 
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { display: 'grid', gap: 12 },
-  topBar: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    gap: 12, padding: '8px 0',
-  },
-  hint: { fontSize: 11, opacity: 0.65, marginLeft: 6 },
-  legend: { display: 'flex', gap: 14, fontSize: 12, opacity: 0.75 },
-  sheet: {
-    display: 'grid',
-    gridAutoFlow: 'column',
-    alignItems: 'start',
-    gap: 12,
-  },
-  centerCol: {
-    display: 'grid',
-    gap: 8,
-    justifyItems: 'center',
-    padding: '0 10px',
-    borderLeft: '1px solid #e5e7eb',
-    borderRight: '1px solid #e5e7eb',
-  },
-  centerHeader: {
-    fontSize: 12, opacity: 0.7, fontWeight: 700, marginBottom: 2, letterSpacing: 1,
-  },
-  centerBtn: {
-    width: 80, padding: '8px 0',
-    borderRadius: 10,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
-    fontWeight: 800,
-    cursor: 'pointer',
-    transition: 'background .12s, border-color .12s, box-shadow .12s',
-  } as React.CSSProperties,
-  colHeader: {
-    display: 'grid',
-    gridTemplateColumns: '14px 1fr auto auto',
-    alignItems: 'center',
-    gap: 8,
-    padding: '6px 8px',
-    borderRadius: 10,
-    background: '#f8fafc',
-    border: '1px solid #e5e7eb',
-    marginBottom: 6,
-  },
-  name: { fontWeight: 800, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  totalLabel: { fontSize: 11, opacity: 0.65, textAlign: 'right' },
-  totalVal: { fontWeight: 900, fontVariantNumeric: 'tabular-nums', minWidth: 28, textAlign: 'right' },
-  dot: { width: 10, height: 10, borderRadius: 999, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' },
-  rowCell: {
-    display: 'grid',
-    gridTemplateColumns: '32px 38px', // links Marks, rechts Punkte
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 8px',
-    borderRadius: 10,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
-    fontWeight: 800,
-  },
-  markCell: { textAlign: 'center', fontSize: 18 },
-  pointsCell: { textAlign: 'right', fontVariantNumeric: 'tabular-nums', minWidth: 18 },
-}
-
-function colStyle(active: boolean, color?: string): React.CSSProperties {
+function buildStyles(colors: any, isArcade: boolean): Record<string, React.CSSProperties> {
   return {
-    display: 'grid',
-    gap: 8,
-    minWidth: 180,
-    borderRadius: 14,
-    padding: 4,
-    border: `1px solid ${active ? '#0ea5e9' : '#ffffff00'}`,
-    boxShadow: active ? '0 0 0 3px rgba(14,165,233,0.12)' : 'none',
+    wrap: { display: 'grid', gap: 12 },
+    topBar: {
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      gap: 12, padding: '8px 0',
+    },
+    hint: { fontSize: 11, opacity: 0.65, marginLeft: 6 },
+    legend: { display: 'flex', gap: 14, fontSize: 12, opacity: 0.75, color: colors.fg },
+    sheet: {
+      display: 'grid',
+      gridAutoFlow: 'column',
+      alignItems: 'start',
+      gap: 12,
+    },
+    centerCol: {
+      display: 'grid',
+      gap: 8,
+      justifyItems: 'center',
+      padding: '0 10px',
+      borderLeft: `1px solid ${colors.border}`,
+      borderRight: `1px solid ${colors.border}`,
+    },
+    centerHeader: {
+      fontSize: 12, opacity: 0.7, fontWeight: 700, marginBottom: 2, letterSpacing: 1,
+      color: colors.fg,
+    },
+    centerBtn: {
+      width: 80, padding: '8px 0',
+      borderRadius: 10,
+      border: `1px solid ${colors.border}`,
+      background: colors.bgCard,
+      color: colors.fg,
+      fontWeight: 800,
+      cursor: 'pointer',
+      transition: 'background .12s, border-color .12s, box-shadow .12s',
+    } as React.CSSProperties,
+    colHeader: {
+      display: 'grid',
+      gridTemplateColumns: '14px 1fr auto auto',
+      alignItems: 'center',
+      gap: 8,
+      padding: '6px 8px',
+      borderRadius: 10,
+      background: colors.bgMuted,
+      border: `1px solid ${colors.border}`,
+      marginBottom: 6,
+      color: colors.fg,
+    },
+    name: { fontWeight: 800, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: colors.fg },
+    totalLabel: { fontSize: 11, opacity: 0.65, textAlign: 'right', color: colors.fgMuted },
+    totalVal: { fontWeight: 900, fontVariantNumeric: 'tabular-nums', minWidth: 28, textAlign: 'right', color: colors.fg },
+    dot: { width: 10, height: 10, borderRadius: 999, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' },
+    rowCell: {
+      display: 'grid',
+      gridTemplateColumns: '32px 38px',
+      alignItems: 'center',
+      gap: 6,
+      padding: '6px 8px',
+      borderRadius: 10,
+      border: `1px solid ${colors.border}`,
+      background: colors.bgCard,
+      fontWeight: 800,
+      color: colors.fg,
+    },
+    markCell: { textAlign: 'center', fontSize: 18, color: isArcade ? '#ffffff' : colors.fg },
+    pointsCell: { textAlign: 'right', fontVariantNumeric: 'tabular-nums', minWidth: 18, color: colors.fg },
   }
-}
-
-function buttonMode(active: boolean): React.CSSProperties {
-  return {
-    padding: '8px 12px',
-    borderRadius: 8,
-    border: active ? '1px solid #0ea5e9' : '1px solid #e5e7eb',
-    background: active ? '#e0f2fe' : '#fff',
-    color: active ? '#0369a1' : '#111827',
-    cursor: 'pointer',
-    fontWeight: 700,
-    lineHeight: 1.2,
-    transition: 'background .15s, border-color .15s, color .15s, box-shadow .15s',
-    boxShadow: active ? '0 0 0 3px rgba(14,165,233,0.15)' : 'none',
-  }
-
-  
-
 }

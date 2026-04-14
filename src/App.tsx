@@ -276,7 +276,7 @@ const MenuIconOnline = () => (
 import { getVoiceLang, setVoiceLang, getAvailableVoices, getPreferredVoice, setPreferredVoice, type SpeechLang } from './speech'
 
 // Types
-import type { CricketSetup } from './screens/newgame/CricketModePicker'
+// CricketSetup Import entfernt — nicht mehr benötigt in App.tsx
 import type { ATBSetup } from './screens/NewGameStart'
 import type { ATBMode, ATBDirection } from './types/aroundTheBlock'
 
@@ -484,7 +484,7 @@ export default function App() {
 
   // Auswahl / Config
   const [preset, setPreset] = useState<Preset | null>(null)
-  const [cricketCfg, setCricketCfg] = useState<CricketSetup | null>(null)
+  // cricketCfg entfernt — Einstellungen werden jetzt in NewGameCricket verwaltet
   const [atbCfg, setAtbCfg] = useState<ATBSetup | null>(null)
 
   // ATB Match IDs
@@ -846,8 +846,7 @@ export default function App() {
           setPreset(p)
           setView('new-config')
         }}
-        onSelectCricket={(cfg) => {
-          setCricketCfg(cfg)
+        onSelectCricket={() => {
           setView('new-cricket')
         }}
         onSelectATB={(cfg) => {
@@ -1119,10 +1118,9 @@ export default function App() {
   }
 
   // CRICKET KONFIG
-  if (view === 'new-cricket' && cricketCfg) {
+  if (view === 'new-cricket') {
     return (
       <NewGameCricket
-        cfg={cricketCfg}
         onCancel={() => setView('new-start')}
         onStart={({ cfg, players, targetWins }) => {
           const bestOfGames = targetWins * 2 - 1
@@ -1976,10 +1974,17 @@ export default function App() {
               break
             }
             case 'cricket': {
+              const isCrazyCricket = config.cricketStyle === 'crazy'
               initialEvents = [
                 { eventId: genId(), type: 'CricketMatchStarted', ts, matchId,
                   range: config.cricketRange || 'short', style: config.cricketStyle || 'standard',
-                  targetWins: config.cricketLegs || 2, players },
+                  targetWins: config.cricketLegs || 2, players,
+                  cutthroatEndgame: config.cricketCutthroatEndgame,
+                  crazyMode: isCrazyCricket ? (config.cricketCrazyMode || 'normal') : undefined,
+                  crazySameForAll: isCrazyCricket ? (config.cricketCrazySameForAll ?? true) : undefined,
+                  crazyScoringMode: isCrazyCricket ? (config.cricketCrazyScoringMode || 'standard') : undefined,
+                  crazySalt: isCrazyCricket ? (config.cricketCrazySalt ?? Math.floor(Math.random() * 1000000)) : undefined,
+                },
                 { eventId: genId(), type: 'CricketLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
               break

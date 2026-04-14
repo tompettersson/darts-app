@@ -22,8 +22,11 @@ export type GameConfig = {
   cricketRange?: 'short' | 'long'
   cricketStyle?: 'standard' | 'cutthroat' | 'simple' | 'crazy'
   cricketCrazyMode?: 'normal' | 'pro'
+  cricketCrazySameForAll?: boolean
   cricketCrazyScoringMode?: 'simple' | 'standard' | 'cutthroat'
+  cricketCrazySalt?: number
   cricketLegs?: number
+  cricketCutthroatEndgame?: 'standard' | 'suddenDeath'
 
   // ATB
   atbMode?: string

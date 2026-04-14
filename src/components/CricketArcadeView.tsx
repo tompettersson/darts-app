@@ -132,6 +132,7 @@ function PlayerRow({
   compact,
   closedTargets = [],
   totalPlayers = 2,
+  crazyTarget,
 }: {
   player: PlayerData
   targets: string[]
@@ -139,6 +140,7 @@ function PlayerRow({
   closedTargets?: string[]
   compact?: boolean
   totalPlayers?: number
+  crazyTarget?: string
 }) {
   const isActive = player.isActive
   const playerColor = player.color || colors.ledOn
@@ -162,7 +164,7 @@ function PlayerRow({
         padding: pad,
         border: isActive ? `2px solid ${playerColor}` : '2px solid transparent',
         boxShadow: isActive ? `0 0 15px ${playerGlow}, 0 0 30px ${playerColor}20` : 'none',
-        transition: 'all 0.3s ease',
+        transition: 'background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
         flex: 1, minHeight: 0, overflow: 'hidden',
         display: 'flex', flexDirection: 'column', justifyContent: 'center',
       }}
@@ -172,6 +174,8 @@ function PlayerRow({
         style={{
           textAlign: 'center',
           marginBottom: compact ? 4 : 12,
+          height: compact ? nameSize + 4 : nameSize + 8,
+          lineHeight: `${compact ? nameSize + 4 : nameSize + 8}px`,
           fontSize: nameSize,
           fontWeight: 700,
           color: isActive ? playerColor : colors.textDim,
@@ -179,6 +183,7 @@ function PlayerRow({
           letterSpacing: compact ? 1 : 3,
           textShadow: isActive ? `0 0 12px ${playerGlow}` : 'none',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          flexShrink: 0,
         }}
       >
         {player.name}
@@ -196,15 +201,25 @@ function PlayerRow({
           const marks = player.marks[key] ?? 0
           const baseMarks = player.baseMarks[key] ?? 0
           const isClosed = closedTargets.includes(t)
+          const isCrazyTarget = player.isActive && crazyTarget === key
           return (
-            <div key={t} style={{ textAlign: 'center', minWidth: markMin, opacity: isClosed ? 0.5 : 1 }}>
+            <div key={t} style={{
+              textAlign: 'center', minWidth: markMin, opacity: isClosed && !isCrazyTarget ? 0.5 : 1,
+              background: isCrazyTarget ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+              borderRadius: 6,
+              boxShadow: isCrazyTarget ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none',
+              padding: '2px 1px',
+              transition: 'background 0.3s ease, box-shadow 0.3s ease',
+            }}>
               <div style={{
                 fontSize: markFontSize,
-                color: isClosed ? colors.statusGreen : (marks >= 3 ? colors.ledOn : colors.textDim),
+                color: isCrazyTarget ? '#fbbf24' : (isClosed ? colors.statusGreen : (marks >= 3 ? colors.ledOn : colors.textDim)),
                 marginBottom: compact ? 2 : 5,
-                fontWeight: marks >= 3 ? 700 : 500,
-                textDecoration: isClosed ? 'line-through' : 'none',
+                fontWeight: isCrazyTarget ? 800 : (marks >= 3 ? 700 : 500),
+                textDecoration: isClosed && !isCrazyTarget ? 'line-through' : 'none',
                 letterSpacing: 1,
+                textShadow: isCrazyTarget ? '0 0 8px #fbbf24' : 'none',
+                animation: isCrazyTarget ? 'pulse 1.5s infinite' : 'none',
               }}>
                 {t === 'BULL' ? 'B' : t}
               </div>
@@ -431,6 +446,11 @@ export default function CricketArcadeView({
   const hasControls = !!onAddTarget
   const darts = turn ?? []
 
+  // Aktuelles Crazy-Target für den laufenden Dart
+  const currentCrazyTarget = crazyTargets && crazyTargets.length > 0
+    ? crazyTargets[Math.min(darts.length, crazyTargets.length - 1)]
+    : undefined
+
   // Mobile detection + compact mode
   const [screenWidth, setScreenWidth] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth : 600)
   React.useEffect(() => {
@@ -501,7 +521,7 @@ export default function CricketArcadeView({
               <div key={ri} style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
                 {row.map(p => (
                   <div key={p.id} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} totalPlayers={players.length} />
+                    <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} totalPlayers={players.length} crazyTarget={currentCrazyTarget} />
                   </div>
                 ))}
               </div>
@@ -684,7 +704,7 @@ export default function CricketArcadeView({
                 <div key={ri} style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
                   {row.map(p => (
                     <div key={p.id} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                      <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} totalPlayers={players.length} />
+                      <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} totalPlayers={players.length} crazyTarget={currentCrazyTarget} />
                     </div>
                   ))}
                 </div>
@@ -719,7 +739,7 @@ export default function CricketArcadeView({
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
           {players.map(p => (
             <div key={p.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} totalPlayers={players.length} />
+              <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={true} totalPlayers={players.length} crazyTarget={currentCrazyTarget} />
             </div>
           ))}
         </div>
@@ -767,15 +787,26 @@ export default function CricketArcadeView({
       ) : (
       <>
       {/* Ansage + View-Toggle: nur Desktop (nicht Mobile/Landscape — dort in S/D/T-Zeile) */}
-      {!isMobile && !isLandscapeMode && onAnnounceStatus && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
-          <button onClick={onAnnounceStatus} style={{
-            padding: '4px 12px', borderRadius: 4, border: `1px solid ${colors.statusGreen}`,
-            background: colors.statusGreenDim, color: '#fff',
-            fontSize: 11, fontWeight: 700, cursor: 'pointer',
-          }}>
-            🔊 Status ansagen
-          </button>
+      {!isMobile && !isLandscapeMode && (onAnnounceStatus || onToggleView) && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4, gap: 8 }}>
+          {onAnnounceStatus && (
+            <button onClick={onAnnounceStatus} style={{
+              padding: '4px 12px', borderRadius: 4, border: `1px solid ${colors.statusGreen}`,
+              background: colors.statusGreenDim, color: '#fff',
+              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            }}>
+              🔊 Ansage
+            </button>
+          )}
+          {onToggleView && (
+            <button onClick={(e) => { e.currentTarget.blur(); onToggleView() }} style={{
+              padding: '4px 12px', borderRadius: 4, border: '1px solid #555',
+              background: '#1a1a1a', color: '#aaa',
+              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            }}>
+              {viewLabel || '⊞ Tabelle'}
+            </button>
+          )}
         </div>
       )}
 
@@ -785,7 +816,7 @@ export default function CricketArcadeView({
           <div key={rowIndex} style={{ display: 'flex', gap: compact ? 2 : 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
             {row.map(p => (
               <div key={p.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} totalPlayers={players.length} />
+                <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} totalPlayers={players.length} crazyTarget={currentCrazyTarget} />
               </div>
             ))}
           </div>
@@ -921,7 +952,7 @@ export default function CricketArcadeView({
             <div key={rowIndex} style={{ display: 'flex', gap: compact ? 2 : 8, flex: 1, minHeight: 0, overflow: 'hidden' }}>
               {row.map(p => (
                 <div key={p.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} totalPlayers={players.length} />
+                  <PlayerRow player={p} targets={targets} hideScore={hideScore} closedTargets={closedTargets} compact={compact} totalPlayers={players.length} crazyTarget={currentCrazyTarget} />
                 </div>
               ))}
             </div>

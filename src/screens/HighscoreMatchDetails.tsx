@@ -13,6 +13,7 @@ import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateHighscoreReport } from '../narratives/generateModeReports'
 
 type Props = {
   matchId: string
@@ -461,6 +462,41 @@ export default function HighscoreMatchDetails({ matchId, onBack }: Props) {
                 </div>
               </div>
             )
+          })()}
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateHighscoreReport({
+              matchId,
+              players: match.players.map(p => ({ id: p.id, name: p.name })),
+              winnerId: match.winnerId,
+              targetScore: match.targetScore,
+              playerStats: matchStats.map(s => ({
+                playerId: s.playerId,
+                playerName: s.name,
+                finalScore: s.totalScore,
+                dartsThrown: s.totalDarts,
+                avgPointsPerTurn: s.avgPerTurn,
+                bestTurn: s.bestTurn,
+                speedRating: s.totalDarts > 0 ? match.targetScore / s.totalDarts : 0,
+                normalized999Darts: match.targetScore < 999 ? Math.round(s.totalDarts * (999 / match.targetScore)) : null,
+              })),
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: isArcade ? `${colors.accent}15` : 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: `1px solid ${isArcade ? colors.accent + '40' : '#93c5fd'}`,
+                maxWidth: 700, margin: '0 auto 16px',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: isArcade ? colors.accent : '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: colors.fg }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
           })()}
 
           {/* Match-Statistik */}

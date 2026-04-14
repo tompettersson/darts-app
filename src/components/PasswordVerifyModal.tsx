@@ -21,13 +21,15 @@ type Props = {
 export default function PasswordVerifyModal({ players, skipPlayerId, onSuccess, onCancel }: Props) {
   const { colors, isArcade } = useTheme()
   const { isPlayerVerified, addVerifiedPlayer } = useAuth()
-  // Filter: skip logged-in user, guests, and already-verified players on this device
-  const toVerify = players.filter(p =>
+
+  // Einmalig beim Mount berechnen — nicht bei jedem Re-Render neu filtern,
+  // sonst schrumpft die Liste wenn addVerifiedPlayer aufgerufen wird
+  const [toVerify] = useState(() => players.filter(p =>
     p.id !== skipPlayerId &&
     !p.id.startsWith('guest-') &&
     !p.id.startsWith('temp-') &&
     !isPlayerVerified(p.id)
-  )
+  ))
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [password, setPassword] = useState('')

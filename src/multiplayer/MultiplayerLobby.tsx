@@ -112,12 +112,17 @@ function X01Config({ config, onChange }: { config: GameConfig; onChange: (c: Gam
 // ---- Cricket Config Component ----
 
 function CricketConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
-  const styles = [
+  const styleOptions = [
     { value: 'standard', label: 'Standard' },
     { value: 'cutthroat', label: 'Cutthroat' },
     { value: 'simple', label: 'Simple' },
     { value: 'crazy', label: 'Crazy' },
   ]
+
+  const isCrazy = config.cricketStyle === 'crazy'
+  const isCutthroat = config.cricketStyle === 'cutthroat'
+  // Bei Crazy: Scoring-Mode separat wählen (Standard/Cutthroat/Simple)
+  const crazyScoringMode = config.cricketCrazyScoringMode ?? 'standard'
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
@@ -133,11 +138,54 @@ function CricketConfig({ config, onChange }: { config: GameConfig; onChange: (c:
       </div>
       <label style={{ fontWeight: 600, fontSize: 13 }}>Stil</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {styles.map(s => (
+        {styleOptions.map(s => (
           <button key={s.value} onClick={() => onChange({ ...config, cricketStyle: s.value as any })}
             style={pillStyle(config.cricketStyle === s.value)}>{s.label}</button>
         ))}
       </div>
+
+      {/* Cutthroat Endgame */}
+      {isCutthroat && (
+        <>
+          <label style={{ fontWeight: 600, fontSize: 13 }}>Endgame</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={() => onChange({ ...config, cricketCutthroatEndgame: 'standard' })}
+              style={pillStyle(config.cricketCutthroatEndgame !== 'suddenDeath')}>3 Runden</button>
+            <button onClick={() => onChange({ ...config, cricketCutthroatEndgame: 'suddenDeath' })}
+              style={pillStyle(config.cricketCutthroatEndgame === 'suddenDeath')}>Sudden Death</button>
+          </div>
+        </>
+      )}
+
+      {/* Crazy-Optionen */}
+      {isCrazy && (
+        <>
+          <label style={{ fontWeight: 600, fontSize: 13 }}>Crazy: Darts</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={() => onChange({ ...config, cricketCrazyMode: 'normal' })}
+              style={pillStyle(config.cricketCrazyMode !== 'pro')}>1 Ziel/Turn</button>
+            <button onClick={() => onChange({ ...config, cricketCrazyMode: 'pro' })}
+              style={pillStyle(config.cricketCrazyMode === 'pro')}>3 Ziele/Turn</button>
+          </div>
+          <label style={{ fontWeight: 600, fontSize: 13 }}>Crazy: Zielzahl</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={() => onChange({ ...config, cricketCrazySameForAll: true })}
+              style={pillStyle(config.cricketCrazySameForAll !== false)}>Gleich für alle</button>
+            <button onClick={() => onChange({ ...config, cricketCrazySameForAll: false })}
+              style={pillStyle(config.cricketCrazySameForAll === false)}>Pro Spieler</button>
+          </div>
+          <label style={{ fontWeight: 600, fontSize: 13 }}>Crazy: Punkte</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={() => onChange({ ...config, cricketCrazyScoringMode: 'standard' })}
+              style={pillStyle(crazyScoringMode === 'standard')}>Standard</button>
+            <button onClick={() => onChange({ ...config, cricketCrazyScoringMode: 'cutthroat' })}
+              style={pillStyle(crazyScoringMode === 'cutthroat')}>Cutthroat</button>
+            <button onClick={() => onChange({ ...config, cricketCrazyScoringMode: 'simple' })}
+              style={pillStyle(crazyScoringMode === 'simple')}>Simple</button>
+          </div>
+        </>
+      )}
+
       <label style={{ fontWeight: 600, fontSize: 13 }}>Legs</label>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {[1, 2, 3, 4, 5].map(n => (

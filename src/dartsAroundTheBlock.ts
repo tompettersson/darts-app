@@ -311,6 +311,7 @@ export type ATBMatchFinishedEvent = {
   winnerId: string
   totalDarts: number
   durationMs: number
+  allEliminated?: boolean // Sudden Death: alle Spieler eliminiert
 }
 
 // Legacy: Capture the Field Runden-Event (nur für Deserialisierung alter Matches)
@@ -367,6 +368,7 @@ export type ATBState = {
     winnerId: string
     totalDarts: number
     durationMs: number
+    allEliminated?: boolean
   } | null
   events: ATBEvent[]
   // NEU: Spezialregel-Status pro Spieler
@@ -546,6 +548,7 @@ export function applyATBEvents(events: ATBEvent[]): ATBState {
           winnerId: event.winnerId,
           totalDarts: event.totalDarts,
           durationMs: event.durationMs,
+          allEliminated: (event as ATBMatchFinishedEvent).allEliminated,
         }
         break
       }
@@ -1095,6 +1098,62 @@ export function recordATBTurn(
           state.match.config,
           state.match.direction
         )
+      }
+    }
+  }
+
+  // Sudden Death: Prüfe ob Spiel durch Eliminierung enden muss
+  if (specialEffects.eliminated && config?.specialRule === 'suddenDeath' && !result.legFinished) {
+    const players = state.match.players
+
+    // Baue effektive Eliminierungs-Map: aktueller State + dieser Turn
+    const eliminatedAfterTurn: Record<string, boolean> = {}
+    for (const p of players) {
+      eliminatedAfterTurn[p.playerId] = state.specialStateByPlayer[p.playerId]?.eliminated ?? false
+    }
+    eliminatedAfterTurn[playerId] = true // aktueller Spieler gerade eliminiert
+
+    const activePlayers = players.filter(p => !eliminatedAfterTurn[p.playerId])
+
+    if (activePlayers.length <= 1) {
+      // Spiel endet — Gewinner = Spieler mit höchstem Fortschritt
+      const effectiveIndex: Record<string, number> = { ...state.currentIndexByPlayer }
+      effectiveIndex[playerId] = newIndex
+
+      const sortedByProgress = [...players].sort((a, b) => {
+        const idxA = effectiveIndex[a.playerId] ?? 0
+        const idxB = effectiveIndex[b.playerId] ?? 0
+        if (idxB !== idxA) return idxB - idxA
+        // Tiebreak: früherer Spieler in der Reihenfolge
+        return players.indexOf(a) - players.indexOf(b)
+      })
+
+      const winnerId = sortedByProgress[0].playerId
+      const winnerDarts = (state.dartsUsedByPlayer[winnerId] ?? 0)
+        + (winnerId === playerId ? darts.length : 0)
+      const totalDarts = (state.dartsUsedTotalByPlayer[winnerId] ?? 0)
+        + (winnerId === playerId ? darts.length : 0)
+      const durationMs = Date.now() - state.startTime
+
+      result.legFinished = {
+        type: 'ATBLegFinished',
+        eventId: id(),
+        matchId: state.match.matchId,
+        legId: state.currentLegId!,
+        ts: now(),
+        winnerId,
+        winnerDarts,
+      }
+
+      result.matchFinished = {
+        type: 'ATBMatchFinished',
+        eventId: id(),
+        matchId: state.match.matchId,
+        ts: now(),
+        winnerId,
+        totalDarts,
+        durationMs,
+        allEliminated: activePlayers.length === 0,
       }
     }
   }

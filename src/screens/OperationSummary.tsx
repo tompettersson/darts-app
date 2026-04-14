@@ -4,7 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useTheme } from '../ThemeProvider'
 import { getThemedUI } from '../ui'
-import { getOperationMatchById } from '../storage'
+import { getOperationMatchById, setOperationMatchMetadata } from '../storage'
 import { applyOperationEvents, formatDuration } from '../dartsOperation'
 import { computeOperationMatchStats, computeOperationLegStats } from '../stats/computeOperationStats'
 import { PLAYER_COLORS } from '../playerColors'
@@ -48,6 +48,17 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
 
   // Leg selector state
   const [selectedLegIndex, setSelectedLegIndex] = useState(0)
+
+  const [endscreenName, setEndscreenName] = useState((match as any)?.matchName ?? '')
+  const [endscreenNotes, setEndscreenNotes] = useState((match as any)?.notes ?? '')
+  const [metadataSaved, setMetadataSaved] = useState(
+    (match as any)?.matchName !== undefined || (match as any)?.notes !== undefined
+  )
+
+  const handleSaveMetadata = () => {
+    const success = setOperationMatchMetadata(matchId, endscreenName, endscreenNotes)
+    if (success) setMetadataSaved(true)
+  }
 
   if (!match || !state) {
     return (
@@ -585,6 +596,49 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
               </div>
             </div>
           )}
+
+          {/* Spielname + Bemerkungen */}
+          <div style={{ ...styles.card, marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Spielinfo</div>
+            {metadataSaved ? (
+              <div>
+                {endscreenName && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13, color: colors.fgDim }}>Spielname</div>
+                    <div style={{ fontWeight: 500 }}>{endscreenName}</div>
+                  </div>
+                )}
+                {endscreenNotes && (
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13, color: colors.fgDim }}>Bemerkungen</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{endscreenNotes}</div>
+                  </div>
+                )}
+                {!endscreenName && !endscreenNotes && (
+                  <div style={{ color: colors.fgDim, fontSize: 13 }}>Keine Spielinfo gespeichert</div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Spielname (optional)</label>
+                  <input type="text" value={endscreenName} onChange={(e) => setEndscreenName(e.target.value)}
+                    placeholder="z.B. Finale WM 2024"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bgInput, color: colors.fg, fontSize: 14, boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Bemerkungen (optional)</label>
+                  <textarea value={endscreenNotes} onChange={(e) => setEndscreenNotes(e.target.value)}
+                    placeholder="Besonderheiten, Highlights, etc." rows={3}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bgInput, color: colors.fg, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+                </div>
+                <button onClick={handleSaveMetadata}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.bgCard, color: colors.fg, fontWeight: 600, fontSize: 14, cursor: 'pointer', width: '100%' }}>
+                  Speichern
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Buttons */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, marginTop: 8 }}>

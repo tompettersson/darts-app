@@ -168,6 +168,8 @@ export type CTFState = {
 export type CTFStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: CTFPlayer[]
   structure: CTFStructure

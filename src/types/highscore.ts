@@ -103,6 +103,8 @@ export type HighscoreEvent =
 export type HighscoreStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: HighscorePlayer[]
   targetScore: number  // 300-999

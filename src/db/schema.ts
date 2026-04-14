@@ -1,7 +1,7 @@
 // src/db/schema.ts
 // SQLite Schema für Darts 501 Engine
 
-export const CURRENT_DB_VERSION = 11
+export const CURRENT_DB_VERSION = 12
 
 // ============================================================================
 // Core Tables
@@ -994,6 +994,28 @@ export const MIGRATIONS: Migration[] = [
     down: [
       'ALTER TABLE profiles DROP COLUMN IF EXISTS password_hash',
       'ALTER TABLE profiles DROP COLUMN IF EXISTS is_admin',
+    ],
+  },
+  {
+    version: 12,
+    name: 'add_match_name_notes',
+    up: [
+      'ALTER TABLE atb_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE atb_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE ctf_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE ctf_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE str_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE str_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE highscore_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE highscore_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE shanghai_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE shanghai_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE killer_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE killer_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE bobs27_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE bobs27_matches ADD COLUMN notes TEXT',
+      'ALTER TABLE operation_matches ADD COLUMN match_name TEXT',
+      'ALTER TABLE operation_matches ADD COLUMN notes TEXT',
     ],
   },
 ]

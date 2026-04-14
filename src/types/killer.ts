@@ -175,6 +175,8 @@ export type KillerState = {
 export type KillerStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: KillerPlayer[]
   config: KillerMatchConfig

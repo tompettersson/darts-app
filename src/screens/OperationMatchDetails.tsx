@@ -10,6 +10,7 @@ import { computeOperationMatchStats, computeOperationLegStats } from '../stats/c
 import type { OperationDartEvent } from '../types/operation'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateOperationReport } from '../narratives/generateModeReports'
 
 type Props = {
   matchId: string
@@ -111,6 +112,52 @@ export default function OperationMatchDetails({ matchId, onBack }: Props) {
               </div>
             )}
           </div>
+
+          {/* Spielbericht */}
+          {(() => {
+            const reportRankings = match.players.map(p => {
+              const s = computeOperationMatchStats(match, p.playerId)
+              return s ? {
+                playerId: p.playerId,
+                name: p.name,
+                totalHitScore: s.totalHitScore,
+                hitRate: s.hitRate,
+                avgHitScorePerDart: s.avgHitScorePerDart,
+                maxHitStreak: s.maxHitStreak,
+                bestTurnScore: s.bestTurnScore,
+                tripleCount: s.tripleCount,
+                doubleCount: s.doubleCount,
+                singleCount: s.singleCount,
+                noScoreCount: s.noScoreCount,
+              } : null
+            }).filter(Boolean) as Array<{
+              playerId: string; name: string; totalHitScore: number; hitRate: number;
+              avgHitScorePerDart: number; maxHitStreak: number; bestTurnScore: number;
+              tripleCount: number; doubleCount: number; singleCount: number; noScoreCount: number;
+            }>
+            const report = generateOperationReport({
+              matchId,
+              players: match.players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: match.winnerId,
+              rankings: reportRankings,
+              legsCount: match.config.legsCount,
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: isArcade ? `${colors.accent}15` : 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: `1px solid ${isArcade ? colors.accent + '40' : '#93c5fd'}`,
+                maxWidth: 700, margin: '0 auto 16px',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: isArcade ? colors.accent : '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: colors.fg }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Legs Navigation */}
           {state.legs.length > 1 && (

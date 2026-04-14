@@ -958,6 +958,20 @@ export async function dbGetX01MatchById(matchId: string): Promise<DBX01Match | n
   }
 }
 
+/** Update match_name and notes for any match table */
+export async function dbUpdateMatchMetadata(
+  table: string,
+  matchId: string,
+  matchName: string | null,
+  notes: string | null
+): Promise<void> {
+  if (!isDBReady()) return
+  await exec(
+    `UPDATE ${table} SET match_name = ?, notes = ? WHERE id = ?`,
+    [matchName, notes, matchId]
+  )
+}
+
 export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
   const ready = await ensureDB()
   if (!ready) {
@@ -1285,6 +1299,8 @@ export async function dbUpdateCricketEvents(matchId: string, events: any[]): Pro
 export type DBATBMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -1338,6 +1354,8 @@ export async function dbGetATBMatches(): Promise<DBATBMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -1360,6 +1378,8 @@ export async function dbGetATBMatchById(matchId: string): Promise<DBATBMatch | n
   const m = await queryOne<{
     id: string
     title: string
+    match_name: string | null
+    notes: string | null
     created_at: string
     finished: number
     finished_at: string | null
@@ -1391,6 +1411,8 @@ export async function dbGetATBMatchById(matchId: string): Promise<DBATBMatch | n
   return {
     id: m.id,
     title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
     createdAt: m.created_at,
     finished: m.finished === 1,
     finishedAt: m.finished_at,
@@ -1413,12 +1435,14 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
 
   statements.push({
     sql: `INSERT INTO atb_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       mode, direction, structure_kind, best_of_legs, legs_per_set, best_of_sets,
       sequence_mode, target_mode, multiplier_mode, special_rule, generated_sequence
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -1439,6 +1463,8 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt,
@@ -1526,6 +1552,8 @@ export async function dbFinishATBMatch(
 export type DBCTFMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -1581,6 +1609,8 @@ export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -1620,13 +1650,15 @@ export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
 
   statements.push({
     sql: `INSERT INTO ctf_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       multiplier_mode, rotate_order, bull_position,
       structure_kind, best_of_legs, legs_per_set, best_of_sets,
       generated_sequence, capture_field_winners, capture_total_scores
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -1646,6 +1678,8 @@ export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt ?? finishEvt?.ts ?? null,
@@ -1728,6 +1762,8 @@ export async function dbUpdateCTFEvents(matchId: string, events: any[]): Promise
 export type DBStrMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -1788,6 +1824,8 @@ export async function dbGetStrMatches(): Promise<DBStrMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -1828,13 +1866,15 @@ export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
 
   statements.push({
     sql: `INSERT INTO str_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       mode, target_number, number_order, turn_order, ring_mode, bull_mode, bull_position,
       structure_kind, best_of_legs, legs_per_set, best_of_sets,
       generated_order, leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -1858,6 +1898,8 @@ export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt,
@@ -1964,6 +2006,8 @@ export async function dbFinishStrMatch(
 export type DBHighscoreMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -2017,6 +2061,8 @@ export async function dbGetHighscoreMatches(): Promise<DBHighscoreMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -2050,12 +2096,14 @@ export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<voi
 
   statements.push({
     sql: `INSERT INTO highscore_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       target_score, structure_kind, target_legs, legs_per_set, target_sets,
       leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -2072,6 +2120,8 @@ export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<voi
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt,
@@ -2181,6 +2231,8 @@ export async function dbFinishHighscoreMatch(
 export type DBShanghaiMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -2235,6 +2287,8 @@ export async function dbGetShanghaiMatches(): Promise<DBShanghaiMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -2261,6 +2315,8 @@ export async function dbGetShanghaiMatchById(matchId: string): Promise<DBShangha
   const m = await queryOne<{
     id: string
     title: string
+    match_name: string | null
+    notes: string | null
     created_at: string
     finished: number
     finished_at: string | null
@@ -2296,6 +2352,8 @@ export async function dbGetShanghaiMatchById(matchId: string): Promise<DBShangha
   return {
     id: m.id,
     title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
     createdAt: m.created_at,
     finished: m.finished === 1,
     finishedAt: m.finished_at,
@@ -2328,12 +2386,14 @@ export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void>
 
   statements.push({
     sql: `INSERT INTO shanghai_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       structure_kind, best_of_legs, legs_per_set, best_of_sets,
       final_scores, leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -2350,6 +2410,8 @@ export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void>
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt,
@@ -2451,6 +2513,8 @@ export async function dbFinishShanghaiMatch(
 export type DBKillerMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -2512,6 +2576,8 @@ export async function dbGetKillerMatches(): Promise<DBKillerMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -2535,6 +2601,8 @@ export async function dbGetKillerMatchById(matchId: string): Promise<DBKillerMat
   const m = await queryOne<{
     id: string
     title: string
+    match_name: string | null
+    notes: string | null
     created_at: string
     finished: number
     finished_at: string | null
@@ -2576,6 +2644,8 @@ export async function dbGetKillerMatchById(matchId: string): Promise<DBKillerMat
   return {
     id: m.id,
     title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
     createdAt: m.created_at,
     finished: m.finished === 1,
     finishedAt: m.finished_at,
@@ -2608,13 +2678,15 @@ export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
 
   statements.push({
     sql: `INSERT INTO killer_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       hits_to_become_killer, qualifying_ring, starting_lives,
       friendly_fire, self_heal, no_negative_lives, secret_numbers, target_assignment,
       final_standings, structure_kind, best_of_legs, legs_per_set, best_of_sets, leg_wins, set_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -2639,6 +2711,8 @@ export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt,
@@ -2755,6 +2829,8 @@ export async function dbFinishKillerMatch(
 export type DBBobs27Match = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -2807,6 +2883,8 @@ export async function dbGetBobs27Matches(): Promise<DBBobs27Match[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -2833,6 +2911,8 @@ export async function dbGetBobs27MatchById(matchId: string): Promise<DBBobs27Mat
   const m = await queryOne<{
     id: string
     title: string
+    match_name: string | null
+    notes: string | null
     created_at: string
     finished: number
     finished_at: string | null
@@ -2866,6 +2946,8 @@ export async function dbGetBobs27MatchById(matchId: string): Promise<DBBobs27Mat
   return {
     id: m.id,
     title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
     createdAt: m.created_at,
     finished: m.finished === 1,
     finishedAt: m.finished_at,
@@ -2899,11 +2981,13 @@ export async function dbSaveBobs27Match(match: DBBobs27Match): Promise<void> {
 
   statements.push({
     sql: `INSERT INTO bobs27_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       start_score, darts_per_target, include_bull, allow_negative, final_scores
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -2918,6 +3002,8 @@ export async function dbSaveBobs27Match(match: DBBobs27Match): Promise<void> {
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt,
@@ -3014,6 +3100,8 @@ export async function dbFinishBobs27Match(
 export type DBOperationMatch = {
   id: string
   title: string
+  matchName?: string | null
+  notes?: string | null
   createdAt: string
   finished: boolean
   finishedAt: string | null
@@ -3067,6 +3155,8 @@ export async function dbGetOperationMatches(): Promise<DBOperationMatch[]> {
     return {
       id: m.id,
       title: m.title,
+      matchName: m.match_name,
+      notes: m.notes,
       createdAt: m.created_at,
       finished: m.finished === 1,
       finishedAt: m.finished_at,
@@ -3094,6 +3184,8 @@ export async function dbGetOperationMatchById(matchId: string): Promise<DBOperat
   const m = await queryOne<{
     id: string
     title: string
+    match_name: string | null
+    notes: string | null
     created_at: string
     finished: number
     finished_at: string | null
@@ -3124,6 +3216,8 @@ export async function dbGetOperationMatchById(matchId: string): Promise<DBOperat
   return {
     id: m.id,
     title: m.title,
+    matchName: m.match_name,
+    notes: m.notes,
     createdAt: m.created_at,
     finished: m.finished === 1,
     finishedAt: m.finished_at,
@@ -3158,11 +3252,13 @@ export async function dbSaveOperationMatch(match: DBOperationMatch): Promise<voi
 
   statements.push({
     sql: `INSERT INTO operation_matches (
-      id, title, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
+      id, title, match_name, notes, created_at, finished, finished_at, duration_ms, winner_id, winner_darts,
       legs_count, target_mode, final_scores, leg_wins
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
+      match_name = EXCLUDED.match_name,
+      notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
       finished = EXCLUDED.finished,
       finished_at = EXCLUDED.finished_at,
@@ -3176,6 +3272,8 @@ export async function dbSaveOperationMatch(match: DBOperationMatch): Promise<voi
     params: [
       match.id,
       match.title,
+      match.matchName ?? null,
+      match.notes ?? null,
       match.createdAt,
       match.finished ? 1 : 0,
       match.finishedAt ?? null,

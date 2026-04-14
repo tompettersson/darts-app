@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ui, getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
-import CricketModePicker, { type CricketSetup } from './newgame/CricketModePicker'
+// CricketModePicker nicht mehr benötigt — Einstellungen sind jetzt in NewGameCricket
 import ArcadeScrollPicker, { type PickerItem } from '../components/ArcadeScrollPicker'
 import type { ATBMode, ATBDirection } from '../types/aroundTheBlock'
 import { getLastGameConfig } from './NewGame'
@@ -223,8 +223,8 @@ export type ATBSetup = { mode: ATBMode; direction: ATBDirection }
 type Props = {
   onBack?: () => void
   onSelectPreset: (p: Preset) => void
-  /** Cricket-Auswahl nach „Weiter" */
-  onSelectCricket?: (cfg: CricketSetup) => void
+  /** Cricket-Auswahl */
+  onSelectCricket?: () => void
   /** Around the Block Auswahl */
   onSelectATB?: (cfg: ATBSetup) => void
   /** Zufallsspiel Auswahl */
@@ -302,7 +302,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
     const id = pickerItems[index].id
     if (id === 'random') onSelectRandom?.()
     else if (id === 'x01') setStep('preset')
-    else if (id === 'cricket') setStep('cricket')
+    else if (id === 'cricket') onSelectCricket?.()
     else if (id === 'feldspiele') setStep('feldspiele')
     else if (id === 'funparty') setStep('funparty')
     else if (id === 'training') setStep('training')
@@ -388,7 +388,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
       if (e.key === 'Escape' || e.key === 'Backspace') {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
         e.preventDefault()
-        if (step === 'preset' || step === 'cricket' || step === 'feldspiele' || step === 'funparty' || step === 'training' || step === 'online') setStep('type')
+        if (step === 'preset' || step === 'feldspiele' || step === 'funparty' || step === 'training' || step === 'online') setStep('type')
         else if (onBack) onBack()
       }
     }
@@ -502,7 +502,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
               {/* Cricket */}
               <button
                 style={{ ...styles.tile, borderLeft: `4px solid ${modeAccents.cricket}` }}
-                onClick={() => setStep('cricket')}
+                onClick={() => onSelectCricket?.()}
                 aria-label="Cricket auswählen"
               >
                 <div style={tileWithIconStyle}>
@@ -796,13 +796,7 @@ export default function NewGameStart({ onBack, onSelectPreset, onSelectCricket, 
           )
         )}
 
-        {/* Step 3: Cricket Picker */}
-        {step === 'cricket' && (
-          <CricketModePicker
-            onBack={() => setStep('type')}
-            onConfirm={(cfg) => onSelectCricket?.(cfg)}
-          />
-        )}
+        {/* Cricket geht jetzt direkt zu NewGameCricket */}
       </div>
 
     </div>

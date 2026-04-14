@@ -16,6 +16,7 @@ import {
   type CricketMatchFinished,
 } from '../dartsCricket'
 import MatchHeader from '../components/MatchHeader'
+import { generateCricketMatchReport } from '../narratives/generateModeReports'
 import LegHeader from '../components/LegHeader'
 import { PLAYER_COLORS } from '../components/ScoreProgressionChart'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
@@ -702,6 +703,46 @@ export default function CricketMatchDetails({ matchId, onBack }: Props) {
           playedAt={startEvt.ts}
           onBack={onBack}
         />
+
+        {/* Spielbericht */}
+        {(() => {
+          const report = generateCricketMatchReport({
+            matchId,
+            players: matchData.players.map(p => ({ id: p.id, name: p.name })),
+            winnerId: matchEndEvent?.winnerPlayerId,
+            style: startEvt.style,
+            range: startEvt.range,
+            playerStats: players.map(p => ({
+              playerId: p.playerId,
+              playerName: p.playerName,
+              totalMarks: p.totalMarks,
+              marksPerTurn: p.marksPerTurn,
+              legsWon: p.legsWon,
+              bestTurnMarks: p.bestTurnMarks,
+              triplesHit: p.triplesHit,
+              bullHitsSingle: p.bullHitsSingle,
+              bullHitsDouble: p.bullHitsDouble,
+              turnsWithNoScore: p.turnsWithNoScore,
+            })),
+          })
+          return report ? (
+            <div style={{
+              marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+              background: isArcade
+                ? 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(37,99,235,0.10))'
+                : 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+              border: `1px solid ${isArcade ? colors.border : '#93c5fd'}`,
+              maxWidth: 700, margin: '0 auto 16px',
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: isArcade ? colors.accent : '#1e40af' }}>
+                Spielbericht
+              </div>
+              <div style={{ lineHeight: 1.7, fontSize: 14, color: isArcade ? colors.fg : '#1e293b' }}>
+                {report}
+              </div>
+            </div>
+          ) : null
+        })()}
 
         {/* Match-Statistik */}
         <div style={card}>

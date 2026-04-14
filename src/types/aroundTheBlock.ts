@@ -66,6 +66,8 @@ export const DEFAULT_ATB_CONFIG: ATBMatchConfig = {
 export type ATBStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: ATBPlayer[]
   mode: ATBMode
@@ -77,6 +79,7 @@ export type ATBStoredMatch = {
   durationMs?: number
   winnerId?: string
   winnerDarts?: number
+  allEliminated?: boolean // Sudden Death: alle Spieler eliminiert
   // Leg/Set Ergebnisse
   legWins?: Record<string, number>
   setWins?: Record<string, number>

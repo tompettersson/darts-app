@@ -152,6 +152,8 @@ export type Bobs27State = {
 export type Bobs27StoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: Bobs27Player[]
   config: Bobs27Config

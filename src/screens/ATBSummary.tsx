@@ -4,7 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
-import { getATBMatchById } from '../storage'
+import { getATBMatchById, setATBMatchMetadata } from '../storage'
 import {
   applyATBEvents,
   formatDuration,
@@ -50,6 +50,17 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
 
   const storedMatch = getATBMatchById(matchId)
 
+  const [endscreenName, setEndscreenName] = useState((storedMatch as any)?.matchName ?? '')
+  const [endscreenNotes, setEndscreenNotes] = useState((storedMatch as any)?.notes ?? '')
+  const [metadataSaved, setMetadataSaved] = useState(
+    (storedMatch as any)?.matchName !== undefined || (storedMatch as any)?.notes !== undefined
+  )
+
+  const handleSaveMetadata = () => {
+    const success = setATBMatchMetadata(matchId, endscreenName, endscreenNotes)
+    if (success) setMetadataSaved(true)
+  }
+
   if (!storedMatch) {
     return (
       <div style={styles.page}>
@@ -74,6 +85,8 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
   const winner = match.players.find(p => p.playerId === storedMatch.winnerId)
   const totalFields = match.sequence.length
   const matchStats = computeATBMatchStats(storedMatch)
+  const isSuddenDeath = match.config?.specialRule === 'suddenDeath'
+  const allEliminated = storedMatch.allEliminated ?? false
 
   // Spielerfarben-Map
   const playerColorMap: Record<string, string> = {}
@@ -109,10 +122,13 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
           {/* Gewinner */}
           {winner && (
             <div style={{ ...styles.card, marginBottom: 16, textAlign: 'center' }}>
+              {isSuddenDeath && allEliminated && (
+                <div style={{ fontSize: 36, marginBottom: 4 }}>💀</div>
+              )}
               <div style={{ fontSize: isMobile ? 12 : 14, color: colors.fgMuted, marginBottom: 4 }}>
-                Gewinner
+                {isSuddenDeath && allEliminated ? 'Alle ausgeschieden – Weitester Fortschritt' : 'Gewinner'}
               </div>
-              <div style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: colors.success, marginBottom: 8 }}>
+              <div style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: isSuddenDeath && allEliminated ? colors.warning : colors.success, marginBottom: 8 }}>
                 {winner.name}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
@@ -168,6 +184,7 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
               <div style={{ display: 'grid', gap: 8 }}>
                 {sortedPlayers.map((p, i) => {
                   const isWinner = p.playerId === storedMatch.winnerId
+                  const isEliminated = state.specialStateByPlayer[p.playerId]?.eliminated
                   const progress = state.currentIndexByPlayer[p.playerId] ?? 0
                   const darts = state.dartsUsedByPlayer[p.playerId] ?? 0
                   const percent = (progress / totalFields) * 100
@@ -178,13 +195,13 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
                       style={{
                         padding: '10px 14px',
                         borderRadius: 8,
-                        background: isWinner ? colors.successBg : colors.bgMuted,
-                        border: isWinner ? `2px solid ${colors.success}` : `1px solid ${colors.border}`,
+                        background: isWinner ? colors.successBg : isEliminated ? colors.errorBg : colors.bgMuted,
+                        border: isWinner ? `2px solid ${colors.success}` : isEliminated ? `1px solid ${colors.error}` : `1px solid ${colors.border}`,
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontWeight: isWinner ? 700 : 500, color: isWinner ? colors.success : colors.fg }}>
-                          {i + 1}. {p.name} {isWinner && '🏆'}
+                        <span style={{ fontWeight: isWinner ? 700 : 500, color: isWinner ? colors.success : isEliminated ? colors.error : colors.fg }}>
+                          {i + 1}. {p.name} {isWinner && (allEliminated ? '👑' : '🏆')} {isEliminated && !isWinner && '💀'}
                         </span>
                         <span style={{ fontSize: 12, color: colors.fgMuted }}>
                           {darts} Darts
@@ -196,12 +213,12 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
                           style={{
                             height: '100%',
                             width: `${percent}%`,
-                            background: isWinner ? colors.success : colors.fgDim,
+                            background: isWinner ? colors.success : isEliminated ? colors.error : colors.fgDim,
                           }}
                         />
                       </div>
-                      <div style={{ fontSize: 11, color: colors.fgMuted, marginTop: 4 }}>
-                        {progress} / {totalFields} Felder
+                      <div style={{ fontSize: 11, color: isEliminated ? colors.error : colors.fgMuted, marginTop: 4 }}>
+                        {isEliminated && !isWinner ? `💀 Ausgeschieden · ${progress} / ${totalFields} Felder` : `${progress} / ${totalFields} Felder`}
                       </div>
                     </div>
                   )
@@ -268,6 +285,49 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
               </table>
             </div>
           )}
+
+          {/* Spielname + Bemerkungen */}
+          <div style={{ ...styles.card, marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Spielinfo</div>
+            {metadataSaved ? (
+              <div>
+                {endscreenName && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13, color: colors.fgDim }}>Spielname</div>
+                    <div style={{ fontWeight: 500 }}>{endscreenName}</div>
+                  </div>
+                )}
+                {endscreenNotes && (
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13, color: colors.fgDim }}>Bemerkungen</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{endscreenNotes}</div>
+                  </div>
+                )}
+                {!endscreenName && !endscreenNotes && (
+                  <div style={{ color: colors.fgDim, fontSize: 13 }}>Keine Spielinfo gespeichert</div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Spielname (optional)</label>
+                  <input type="text" value={endscreenName} onChange={(e) => setEndscreenName(e.target.value)}
+                    placeholder="z.B. Finale WM 2024"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bgInput, color: colors.fg, fontSize: 14, boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Bemerkungen (optional)</label>
+                  <textarea value={endscreenNotes} onChange={(e) => setEndscreenNotes(e.target.value)}
+                    placeholder="Besonderheiten, Highlights, etc." rows={3}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bgInput, color: colors.fg, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+                </div>
+                <button onClick={handleSaveMetadata}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.bgCard, color: colors.fg, fontWeight: 600, fontSize: 14, cursor: 'pointer', width: '100%' }}>
+                  Speichern
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Aktionen */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8 }}>

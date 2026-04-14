@@ -149,6 +149,8 @@ export type OperationState = {
 export type OperationStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: OperationPlayer[]
   config: OperationConfig

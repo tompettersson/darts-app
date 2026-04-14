@@ -65,9 +65,9 @@ function loadCricketById(id: string) {
 /* ===========================
    SVG Marks (0..3)
 =========================== */
-function MarkSVG({ value, preview }: { value: 0 | 1 | 2 | 3; preview?: boolean }) {
-  const bg = preview ? '#fef3c7' : 'transparent'
-  const stroke = '#111827'
+function MarkSVG({ value, preview, strokeColor, previewBg }: { value: 0 | 1 | 2 | 3; preview?: boolean; strokeColor?: string; previewBg?: string }) {
+  const bg = preview ? (previewBg || '#fef3c7') : 'transparent'
+  const stroke = strokeColor || '#111827'
   const sw = 2.4
   return (
     <svg
@@ -209,10 +209,14 @@ function Tally({
   count,
   align = 'right',
   previewIncrease,
+  tallyColor,
+  previewBg,
 }: {
   count: number
   align?: 'left' | 'right'
   previewIncrease?: boolean
+  tallyColor?: string
+  previewBg?: string
 }) {
   const safe = Math.max(0, Math.min(count, 999))
   const fullGroups = Math.floor(safe / 5)
@@ -225,12 +229,12 @@ function Tally({
         justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: 6,                            // klarer Abstand zwischen Gruppen/Strichen
-        background: previewIncrease ? '#fff7ed' : 'transparent', // dezenter Preview-Tint (warm)
+        gap: 6,
+        background: previewIncrease ? (previewBg || '#fff7ed') : 'transparent',
         borderRadius: 6,
         padding: previewIncrease ? '2px 6px' : 0,
         minHeight: TALLY_BAR_H,
-        color: '#0f172a',                  // etwas dunkler → bessere Lesbarkeit
+        color: tallyColor || '#0f172a',
         fontWeight: 700,
         lineHeight: 1,
       }}
@@ -1324,8 +1328,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   }
 
   const cricketCardStyle: React.CSSProperties = {
-    border: useCompactWidth ? 'none' : '1px solid #e5e7eb',
-    background: useCompactWidth ? 'transparent' : '#fff',
+    border: useCompactWidth ? 'none' : `1px solid ${colors.border}`,
+    background: useCompactWidth ? 'transparent' : colors.bgCard,
     borderRadius: isMobileScreen ? 8 : 12,
     position: 'relative',
     overflow: 'hidden',
@@ -1492,7 +1496,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 justifyContent: side === 'left' ? 'flex-end' : 'flex-start',
               }}
             >
-              <MarkSVG value={mv} preview={isPreview} />
+              <MarkSVG value={mv} preview={isPreview} strokeColor={isArcade ? '#ffffff' : '#111827'} previewBg={isArcade ? '#4a3520' : '#fef3c7'} />
             </div>
           )
 
@@ -1511,6 +1515,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
               count={tallyPrev}
               align={alignTallies}
               previewIncrease={previewInc}
+              tallyColor={isArcade ? '#ffffff' : '#0f172a'}
+              previewBg={isArcade ? '#4a3520' : '#fff7ed'}
             />
           )
 
@@ -1550,12 +1556,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
   function renderCricketColumn() {
     return (
       <div style={cricketCardStyle}>
-        {/* Cricket Header */}
+        {/* Cricket Header — zeigt Crazy-Zielzahl wenn aktiv */}
         <div
           style={{
             minHeight: headerBarHeight,
             display: 'flex',
-            alignItems: 'baseline',
+            alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 700,
             fontSize: 14,
@@ -1567,17 +1573,30 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             flexWrap: 'wrap',
           }}
         >
-          {!isMobileScreen && <span>Cricket</span>}
-          {!isMobileScreen && <span
-            style={{
-              fontSize: 12,
-              opacity: 0.7,
-              marginTop: 4,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
-          </span>}
+          {currentActiveTarget ? (
+            <span style={{
+              fontSize: 18, fontWeight: 800,
+              color: '#f59e0b',
+              textShadow: isArcade ? '0 0 10px #f59e0b' : 'none',
+              animation: 'pulse 1.5s infinite',
+            }}>
+              🎯 {currentActiveTarget === 'BULL' ? 'BULL' : currentActiveTarget}
+            </span>
+          ) : (
+            <>
+              {!isMobileScreen && <span style={{ color: colors.fg }}>Cricket</span>}
+              {!isMobileScreen && <span
+                style={{
+                  fontSize: 12,
+                  opacity: 0.7,
+                  whiteSpace: 'nowrap',
+                  color: colors.fgMuted,
+                }}
+              >
+                {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
+              </span>}
+            </>
+          )}
         </div>
 
         {/* Target Buttons */}
@@ -1600,10 +1619,10 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 key={tKey}
                 type="button"
                 style={{
-                  border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen && playerCount > 4 ? 'none' : '1px solid #e5e7eb'),
+                  border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen && playerCount > 4 ? 'none' : `1px solid ${colors.border}`),
                   borderRadius: isMobileScreen ? 2 : 12,
                   padding: isMobileScreen ? '0' : '6px 10px',
-                  background: isCrazyTarget ? '#fef3c7' : (isMobileScreen ? 'transparent' : '#fff'),
+                  background: isCrazyTarget ? (isArcade ? '#4a3520' : '#fef3c7') : (isMobileScreen ? 'transparent' : colors.bgCard),
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -1634,8 +1653,8 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                     style={{
                       textDecoration: closedAll ? 'line-through' : 'none',
                       textDecorationThickness: closedAll ? '2px' : undefined,
-                      color: isCrazyTarget ? '#b45309' : (closedAll ? '#475569' : '#111827'),
-                      background: closedAll && !isMobileScreen ? '#f1f5f9' : 'transparent',
+                      color: isCrazyTarget ? '#b45309' : (closedAll ? colors.fgDim : colors.fg),
+                      background: closedAll && !isMobileScreen ? colors.bgMuted : 'transparent',
                       borderRadius: 6,
                       padding: closedAll && !isMobileScreen ? '0 6px' : 0,
                     }}
@@ -1643,7 +1662,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                     {isCrazyTarget && !isMobileScreen && '🎯 '}{t === 'BULL' ? (isMobileScreen ? 'B' : 'BULL') : t === 'MISS' ? (isMobileScreen ? 'X' : 'Miss') : String(t)}
                   </span>
                   {closedAll && !isMobileScreen && (
-                    <span style={{ ...ui.badge, background: '#e2e8f0', color: '#334155' }}>
+                    <span style={{ ...ui.badge, background: colors.bgSoft, color: colors.fgMuted }}>
                       CLOSED
                     </span>
                   )}
@@ -2167,9 +2186,22 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 if (cell.kind === 'cricket') {
                   return (
                     <div key={`c-${idx}`} style={{ ...cricketCardStyle, padding: 0, display: 'flex', flexDirection: 'column' }}>
-                      {/* Spacer: gleiche Höhe wie PlayerHeader (45px + 2px margin) */}
-                      {/* Spacer: gleiche Höhe wie PlayerHeader */}
-                      <div style={{ height: useCompactWidth ? 16 : (isLongRange ? 37 : 47), flexShrink: 0 }} />
+                      {/* Header: Crazy-Zielzahl oder Spacer */}
+                      <div style={{
+                        height: useCompactWidth ? 16 : (isLongRange ? 37 : 47), flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {currentActiveTarget && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 800,
+                            color: '#f59e0b',
+                            textShadow: isArcade ? '0 0 8px #f59e0b' : 'none',
+                            animation: 'pulse 1.5s infinite',
+                          }}>
+                            🎯 {currentActiveTarget === 'BULL' ? 'B' : currentActiveTarget}
+                          </span>
+                        )}
+                      </div>
                       <div style={{
                         display: 'grid',
                         gridTemplateRows: `repeat(${targetList.length}, ${ROW_H}px)`,
@@ -2178,14 +2210,19 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                         {targetList.map(t => {
                           const tKey = String(t)
                           const closedAll = t !== 'MISS' && isClosedForAll(tKey)
+                          const activeCrazyTarget = crazyTargets?.[Math.min(turn.length, (crazyTargets?.length ?? 1) - 1)]
+                          const isCrazyTarget = activeCrazyTarget === tKey
                           const mobileLabel = t === 'BULL' ? 'B' : t === 'MISS' ? 'X' : String(t)
                           return (
                             <button key={tKey}
                               onClick={() => t === 'MISS' ? addTarget('MISS') : addTarget(typeof t === 'number' ? t : t as 'BULL')}
                               style={{
-                                borderRadius: 3, padding: 0, border: 'none', height: ROW_H,
-                                background: colors.bgCard, display: 'flex', justifyContent: 'center', alignItems: 'center',
-                                fontWeight: 800, fontSize: isLongRange ? 8 : 12, color: closedAll ? '#94a3b8' : colors.fg,
+                                borderRadius: 3, padding: 0, border: isCrazyTarget ? '2px solid #f59e0b' : 'none', height: ROW_H,
+                                background: isCrazyTarget ? (isArcade ? '#4a3520' : '#fef3c7') : colors.bgCard,
+                                boxShadow: isCrazyTarget ? '0 0 6px rgba(245, 158, 11, 0.5)' : 'none',
+                                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                fontWeight: 800, fontSize: isLongRange ? 8 : 12,
+                                color: isCrazyTarget ? '#f59e0b' : (closedAll ? colors.fgDim : colors.fg),
                                 textDecoration: closedAll ? 'line-through' : 'none', cursor: 'pointer',
                                 WebkitTapHighlightColor: 'transparent', boxSizing: 'border-box',
                               }}>
@@ -2286,7 +2323,7 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                 // Cricket-Column: Nur Marks, keine Buttons mehr
                 return (
                   <div key={`c-${idx}`} style={cricketCardStyle}>
-                    {/* Cricket Header — gleiche Höhe wie PlayerHeader */}
+                    {/* Cricket Header — zeigt Crazy-Zielzahl wenn aktiv */}
                     <div
                       style={{
                         minHeight: useCompactWidth ? 14 : headerBarHeight,
@@ -2302,11 +2339,24 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                         width: '100%',
                       }}
                     >
-                      {isMobileScreen ? '' : 'Cricket'}
-                      {!isMobileScreen && (
-                        <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6 }}>
-                          {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
+                      {currentActiveTarget ? (
+                        <span style={{
+                          fontSize: useCompactWidth ? 10 : 16, fontWeight: 800,
+                          color: '#f59e0b',
+                          textShadow: isArcade ? '0 0 8px #f59e0b' : 'none',
+                          animation: 'pulse 1.5s infinite',
+                        }}>
+                          🎯 {currentActiveTarget === 'BULL' ? 'B' : currentActiveTarget}
                         </span>
+                      ) : (
+                        <>
+                          {isMobileScreen ? '' : 'Cricket'}
+                          {!isMobileScreen && (
+                            <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 6, color: colors.fgMuted }}>
+                              {match.range === 'short' ? '15–20, Bull' : '10–20, Bull'}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -2332,14 +2382,15 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
                             style={{
                               borderRadius: useCompactWidth ? 4 : (isMobileScreen ? 2 : 8),
                               padding: isMobileScreen ? (useCompactWidth ? '1px 2px' : '0') : '4px 10px',
-                              background: t === 'MISS' ? '#f8fafc' : (isCrazyTarget ? '#fef3c7' : (closedAll ? '#f1f5f9' : (useCompactWidth ? '#fff' : (isMobileScreen ? 'transparent' : '#fff')))),
-                              border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen && playerCount > 4 ? 'none' : '1px solid #d1d5db'),
+                              background: t === 'MISS' ? colors.bgMuted : (isCrazyTarget ? (isArcade ? '#4a3520' : '#fef3c7') : (closedAll ? colors.bgMuted : colors.bgCard)),
+                              border: isCrazyTarget ? '2px solid #f59e0b' : (isMobileScreen && playerCount > 4 ? 'none' : `1px solid ${colors.border}`),
+                              boxShadow: isCrazyTarget ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none',
                               display: 'flex',
                               justifyContent: 'center',
                               alignItems: 'center',
-                              fontWeight: 700,
+                              fontWeight: isCrazyTarget ? 800 : 700,
                               fontSize: isMobileScreen ? (isLongRange || playerCount > 6 ? 8 : 10) : 14,
-                              color: t === 'MISS' ? '#64748b' : (closedAll ? '#94a3b8' : '#111827'),
+                              color: t === 'MISS' ? colors.fgDim : (isCrazyTarget ? '#f59e0b' : (closedAll ? colors.fgDim : colors.fg)),
                               textDecoration: closedAll ? 'line-through' : 'none',
                               cursor: 'pointer',
                               WebkitTapHighlightColor: 'transparent',
@@ -2844,8 +2895,12 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
     }
 
     // Berechne marksAdded für Ansage
+    // Bei Crazy Cricket: nur Treffer auf die aktuelle Zielzahl(en) zählen
     const marksBefore = baseState.marksByPlayer[activeId] ?? {}
-    const { marksAdded } = computeMarksDetail(darts, marksBefore, targetKeys)
+    const announceTargets = (match.style === 'crazy' && crazyTargets && crazyTargets.length > 0)
+      ? crazyTargets
+      : targetKeys
+    const { marksAdded } = computeMarksDetail(darts, marksBefore, announceTargets)
 
     // Ansagen: Treffer → Closed → Nächster Spieler (alle queued, in Reihenfolge)
     const marksDelay = marksAdded > 0 ? 1200 : 0

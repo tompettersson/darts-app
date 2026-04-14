@@ -496,6 +496,12 @@ html:has(.game-fullscreen) {
   text-shadow: 0 0 30px rgba(249,115,22,0.7), 0 0 60px rgba(249,115,22,0.3);
 }
 
+/* Pulse Animation (Crazy Cricket Target, etc.) */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Speichern-Spinner */
 @keyframes spin {
   to { transform: rotate(360deg); }

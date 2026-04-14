@@ -4,7 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
-import { getKillerMatchById } from '../storage'
+import { getKillerMatchById, setKillerMatchMetadata } from '../storage'
 import { applyKillerEvents, formatDuration, formatDart } from '../dartsKiller'
 import { computeKillerMatchStats, getKillerLegs } from '../stats/computeKillerStats'
 import type { KillerStoredMatch, KillerLogEntry, KillerTurnAddedEvent, KillerPlayerEliminatedEvent } from '../types/killer'
@@ -99,6 +99,17 @@ function KillerSummaryContent({
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  const [endscreenName, setEndscreenName] = useState((storedMatch as any)?.matchName ?? '')
+  const [endscreenNotes, setEndscreenNotes] = useState((storedMatch as any)?.notes ?? '')
+  const [metadataSaved, setMetadataSaved] = useState(
+    (storedMatch as any)?.matchName !== undefined || (storedMatch as any)?.notes !== undefined
+  )
+
+  const handleSaveMetadata = () => {
+    const success = setKillerMatchMetadata(storedMatch.id, endscreenName, endscreenNotes)
+    if (success) setMetadataSaved(true)
+  }
 
   const state = useMemo(() => applyKillerEvents(storedMatch.events), [storedMatch.events])
   const killerLegs = useMemo(() => getKillerLegs(storedMatch), [storedMatch])
@@ -967,6 +978,49 @@ function KillerSummaryContent({
               )}
             </div>
           )}
+
+          {/* Spielname + Bemerkungen */}
+          <div style={{ ...styles.card, marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Spielinfo</div>
+            {metadataSaved ? (
+              <div>
+                {endscreenName && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13, color: colors.fgDim }}>Spielname</div>
+                    <div style={{ fontWeight: 500 }}>{endscreenName}</div>
+                  </div>
+                )}
+                {endscreenNotes && (
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 13, color: colors.fgDim }}>Bemerkungen</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{endscreenNotes}</div>
+                  </div>
+                )}
+                {!endscreenName && !endscreenNotes && (
+                  <div style={{ color: colors.fgDim, fontSize: 13 }}>Keine Spielinfo gespeichert</div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Spielname (optional)</label>
+                  <input type="text" value={endscreenName} onChange={(e) => setEndscreenName(e.target.value)}
+                    placeholder="z.B. Finale WM 2024"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bgInput, color: colors.fg, fontSize: 14, boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontWeight: 600, marginBottom: 4, fontSize: 13 }}>Bemerkungen (optional)</label>
+                  <textarea value={endscreenNotes} onChange={(e) => setEndscreenNotes(e.target.value)}
+                    placeholder="Besonderheiten, Highlights, etc." rows={3}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: `1px solid ${colors.border}`, background: colors.bgInput, color: colors.fg, fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+                </div>
+                <button onClick={handleSaveMetadata}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.bgCard, color: colors.fg, fontWeight: 600, fontSize: 14, cursor: 'pointer', width: '100%' }}>
+                  Speichern
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* ============================================================ */}
           {/* 5. Action Buttons */}

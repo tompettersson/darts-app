@@ -14,6 +14,7 @@ import MatchHeader, { type MatchHeaderPlayer } from '../components/MatchHeader'
 import LegHeader, { type LegHeaderPlayer } from '../components/LegHeader'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { PLAYER_COLORS } from '../playerColors'
+import { generateATBReport } from '../narratives/generateModeReports'
 
 type Props = {
   matchId: string
@@ -662,6 +663,36 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
             playedAt={match.createdAt}
             onBack={onBack}
           />
+
+          {/* Spielbericht */}
+          {(() => {
+            const report = generateATBReport({
+              matchId,
+              players: match.players.map(p => ({ id: p.playerId, name: p.name })),
+              winnerId: match.winnerId,
+              winnerDarts: matchStats.find(s => s.isWinner)?.totalDarts,
+              mode: match.mode,
+              direction: match.direction,
+              playerDarts: Object.fromEntries(matchStats.map(s => [s.playerId, s.totalDarts])),
+              playerProgress: Object.fromEntries(matchStats.map(s => [s.playerId, s.fieldsCompleted])),
+              totalFields: sequence.length,
+            })
+            return report ? (
+              <div style={{
+                marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+                background: isArcade ? `${colors.accent}15` : 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                border: `1px solid ${isArcade ? colors.accent + '40' : '#93c5fd'}`,
+                maxWidth: 700, margin: '0 auto 16px',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: isArcade ? colors.accent : '#1e40af' }}>
+                  Spielbericht
+                </div>
+                <div style={{ lineHeight: 1.7, fontSize: 14, color: colors.fg }}>
+                  {report}
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Match-Eigenschaften */}
           <div style={{ ...styles.card, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>

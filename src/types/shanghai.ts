@@ -147,6 +147,8 @@ export type ShanghaiState = {
 export type ShanghaiStoredMatch = {
   id: string
   title: string
+  matchName?: string
+  notes?: string
   createdAt: string
   players: ShanghaiPlayer[]
   structure: ShanghaiStructure

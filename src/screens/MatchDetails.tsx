@@ -27,6 +27,7 @@ import X01StaircaseChart from '../components/X01StaircaseChart'
 import { compute121LegStats, compute121MatchStats } from '../stats/compute121LegStats'
 import type { Stats121Leg, Stats121Match } from '../types/stats121'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
+import { generateMatchReport, type MatchReportInput } from '../narratives/generateReport'
 
 type Props = { matchId: string; onBack: () => void }
 
@@ -1286,6 +1287,77 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     setScoreString = match.players.map(p => setWinsPerPlayer[p.playerId]).join(':')
   }
 
+  // Spielbericht generieren
+  const matchReport = useMemo(() => {
+    if (!match || legFinished.length === 0) return ''
+    const reportInput: MatchReportInput = {
+      matchId,
+      startingScore: match.startingScorePerLeg ?? 501,
+      isSets,
+      players: match.players.map(p => ({ playerId: p.playerId, name: p.name ?? p.playerId })),
+      winnerPlayerId: finishedEvt?.winnerPlayerId,
+      legs: legFinished.map((lf, idx) => {
+        const leg = state.legs.find(l => l.legId === lf.legId)
+        const byPlayer = match.players.map(p => {
+          const visits = (leg?.visits ?? []).filter((v: any) => v.playerId === p.playerId)
+          const totalScore = visits.reduce((sum: number, v: any) => sum + (v.bust ? 0 : v.visitScore), 0)
+          const totalDarts = visits.reduce((sum: number, v: any) => sum + v.darts.length, 0)
+          const busts = visits.filter((v: any) => v.bust).length
+          const bestVisit = visits.reduce((best: number, v: any) => Math.max(best, v.visitScore), 0)
+          const threeDA = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0
+          return {
+            playerId: p.playerId,
+            name: p.name ?? p.playerId,
+            threeDA,
+            bestVisit,
+            busts,
+            darts: totalDarts,
+          }
+        })
+        const allVisits = leg?.visits ?? []
+        const has180 = allVisits.some((v: any) => v.visitScore === 180)
+        const dartsThrownTotal = allVisits.reduce((sum: number, v: any) => sum + v.darts.length, 0)
+        // Highest checkout: remaining before the finishing visit
+        let highestCheckout: number | undefined
+        for (const v of allVisits as any[]) {
+          if (v.remainingAfter === 0 && !v.bust) {
+            if (!highestCheckout || v.remainingBefore > highestCheckout) {
+              highestCheckout = v.remainingBefore
+            }
+          }
+        }
+        return {
+          legIndex: idx + 1,
+          winnerPlayerId: lf.winnerPlayerId,
+          dartsThrownTotal,
+          byPlayer,
+          highestCheckout,
+          has180,
+        }
+      }),
+      overallStats: match.players.map(p => {
+        const sp = statsByPlayer[p.playerId]
+        const made = sp?.doublesHitDart ?? 0
+        const att = sp?.doubleAttemptsDart ?? 0
+        const checkoutPct = att > 0 ? (made / att) * 100 : 0
+        return {
+          playerId: p.playerId,
+          name: p.name ?? p.playerId,
+          threeDA: sp?.threeDartAvg ?? 0,
+          checkoutPct,
+          highestCheckout: highestCheckoutByPlayer[p.playerId] ?? 0,
+          tons180: sp?.bins._180 ?? 0,
+          tons140plus: sp?.bins._140plus ?? 0,
+          tons100plus: sp?.bins._100plus ?? 0,
+          busts: sp?.busts ?? 0,
+          dartsThrown: sp?.dartsThrown ?? 0,
+          bestLegDarts: sp?.bestLegDarts ?? null,
+        }
+      }),
+    }
+    return generateMatchReport(reportInput)
+  }, [matchId, match, legFinished, state.legs, statsByPlayer, finishedEvt, highestCheckoutByPlayer, isSets])
+
   return (
     <div style={styles.page}>
       <div style={styles.centerPage}>
@@ -1314,6 +1386,23 @@ export default function MatchDetails({ matchId, onBack }: Props) {
             <div style={styles.card}>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>Bemerkungen</div>
               <div style={{ whiteSpace: 'pre-wrap' }}>{stored.notes}</div>
+            </div>
+          )}
+
+          {/* Spielbericht */}
+          {matchReport && (
+            <div style={{
+              marginBottom: 16, padding: '16px 20px', borderRadius: 12,
+              background: isArcade ? `${colors.accent}15` : 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+              border: `1px solid ${isArcade ? colors.accent + '40' : '#93c5fd'}`,
+              maxWidth: 700, margin: '0 auto 16px',
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: isArcade ? colors.accent : '#1e40af' }}>
+                Spielbericht
+              </div>
+              <div style={{ lineHeight: 1.7, fontSize: 14, color: colors.fg }}>
+                {matchReport}
+              </div>
             </div>
           )}
 
