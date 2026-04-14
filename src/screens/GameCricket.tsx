@@ -1100,7 +1100,11 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
       : turnIndex
 
     // Salt für echten Zufall (beim Match-Start generiert), Fallback auf matchId-Hash
-    const salt = match.crazySalt ?? hashString(match.matchId)
+    // WICHTIG: legFactor muss identisch sein wie in dartsCricket.ts (applyCricketEvents)
+    const baseSalt = match.crazySalt ?? hashString(match.matchId)
+    const finishedLegs = events.filter(e => e.type === 'CricketLegFinished').length
+    const legFactor = finishedLegs * 1000003 // Primzahl für gute Verteilung (gleich wie Engine)
+    const salt = baseSalt + legFactor
     const seed = salt + seedNumber * 7919 // 7919 ist eine Primzahl für gute Verteilung
     const random = seededRandom(seed)
 

@@ -1976,14 +1976,14 @@ export default function App() {
             case 'cricket': {
               const isCrazyCricket = config.cricketStyle === 'crazy'
               initialEvents = [
-                { eventId: genId(), type: 'CricketMatchStarted', ts, matchId,
+                { eventId: genId(), type: 'CricketMatchStarted', ts, matchId, version: 1,
                   range: config.cricketRange || 'short', style: config.cricketStyle || 'standard',
                   targetWins: config.cricketLegs || 2, players,
                   cutthroatEndgame: config.cricketCutthroatEndgame,
                   crazyMode: isCrazyCricket ? (config.cricketCrazyMode || 'normal') : undefined,
                   crazySameForAll: isCrazyCricket ? (config.cricketCrazySameForAll ?? true) : undefined,
                   crazyScoringMode: isCrazyCricket ? (config.cricketCrazyScoringMode || 'standard') : undefined,
-                  crazySalt: isCrazyCricket ? (config.cricketCrazySalt ?? Math.floor(Math.random() * 1000000)) : undefined,
+                  crazySalt: isCrazyCricket ? Math.floor(Math.random() * 1000000) : undefined,
                 },
                 { eventId: genId(), type: 'CricketLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
