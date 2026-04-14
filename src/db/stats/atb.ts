@@ -213,9 +213,9 @@ export async function getATBVariantStats(
     FROM atb_events e
     JOIN atb_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
     JOIN atb_matches m ON m.id = e.match_id AND m.finished = 1
-      ${eventFilter}
     WHERE e.type = 'ATBTurnAdded'
       AND e.data::jsonb->>'playerId' = ?
+      ${eventFilter}
   `, eventParams)
 
   const matchesWon = stats?.matches_won ?? 0
