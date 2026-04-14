@@ -794,6 +794,123 @@ export default function ATBMatchDetails({ matchId, onBack }: Props) {
             </table>
           </div>
 
+          {/* Spezialregel-Statistiken */}
+          {matchConfig.specialRule && matchConfig.specialRule !== 'none' && (() => {
+            const rule = matchConfig.specialRule as string
+            // Berechne Spezial-Stats pro Spieler aus Turn-Events
+            const specialStats = match.players.map(p => {
+              const playerTurns = allTurnEvents.filter(t => t.playerId === p.playerId)
+              const eff = playerTurns.map(t => t.specialEffects ?? {})
+
+              if (rule === 'suddenDeath') {
+                const survived = playerTurns.filter(t => !t.specialEffects?.eliminated).length
+                const elimTurn = playerTurns.find(t => t.specialEffects?.eliminated)
+                return { playerId: p.playerId, survived, eliminationField: elimTurn?.newIndex ?? null, eliminated: !!elimTurn }
+              }
+              if (rule === 'bullHeavy') {
+                const bullNeeded = eff.filter(e => e.needsBull === true || e.bullHit === true).length
+                const bullHit = eff.filter(e => e.bullHit === true).length
+                return { playerId: p.playerId, bullNeeded, bullHit, bullQuote: bullNeeded > 0 ? Math.round(bullHit / bullNeeded * 100) : 0 }
+              }
+              if (rule === 'noDoubleEscape') {
+                const doubleUsed = eff.filter(e => e.usedDouble === true).length
+                const doubleRequired = eff.filter(e => (e as any).doubleRequired === true).length
+                const total = doubleUsed + doubleRequired
+                return { playerId: p.playerId, doubleUsed, doubleRequired, doubleQuote: total > 0 ? Math.round(doubleUsed / total * 100) : 0 }
+              }
+              if (rule === 'miss3Back') {
+                const resets = eff.filter(e => e.setBackTo !== undefined).length
+                const fieldsLost = eff.reduce((sum, e) => {
+                  if (e.setBackTo !== undefined) {
+                    const turn = playerTurns.find(t => t.specialEffects === (e as any))
+                    // Approximate: miss count resets at 3, so each reset loses ~1 or full index
+                    return sum + 1
+                  }
+                  return sum
+                }, 0)
+                return { playerId: p.playerId, resets, fieldsLost }
+              }
+              return { playerId: p.playerId }
+            })
+
+            return (
+              <div style={styles.card}>
+                <div style={{ fontWeight: 700, marginBottom: 12 }}>
+                  {rule === 'suddenDeath' && '💀 Sudden Death Statistiken'}
+                  {rule === 'bullHeavy' && '🎯 Bull Heavy Statistiken'}
+                  {rule === 'noDoubleEscape' && '🎯 No Double Escape Statistiken'}
+                  {rule === 'miss3Back' && '↩ Miss 3 Back Statistiken'}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={thLeft}></th>
+                      {match.players.map(p => (
+                        <th key={p.playerId} style={{ ...thRight, color: playerColors[p.playerId] }}>{p.name}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rule === 'suddenDeath' && (
+                      <>
+                        <tr>
+                          <td style={tdLeft}>Überlebte Runden</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).survived ?? 0}</td>)}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Status</td>
+                          {specialStats.map(s => <td key={s.playerId} style={{ ...tdRight, color: (s as any).eliminated ? '#ef4444' : colors.success }}>
+                            {(s as any).eliminated ? `💀 Feld ${(s as any).eliminationField ?? '?'}` : '✓ Überlebt'}
+                          </td>)}
+                        </tr>
+                      </>
+                    )}
+                    {rule === 'bullHeavy' && (
+                      <>
+                        <tr>
+                          <td style={tdLeft}>Bulls getroffen</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).bullHit ?? 0}</td>)}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Bull benötigt</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).bullNeeded ?? 0}</td>)}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Bull-Quote</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).bullQuote ?? 0}%</td>)}
+                        </tr>
+                      </>
+                    )}
+                    {rule === 'noDoubleEscape' && (
+                      <>
+                        <tr>
+                          <td style={tdLeft}>Double getroffen</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).doubleUsed ?? 0}</td>)}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Double verpasst</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).doubleRequired ?? 0}</td>)}
+                        </tr>
+                        <tr>
+                          <td style={tdLeft}>Double-Quote</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).doubleQuote ?? 0}%</td>)}
+                        </tr>
+                      </>
+                    )}
+                    {rule === 'miss3Back' && (
+                      <>
+                        <tr>
+                          <td style={tdLeft}>Resets</td>
+                          {specialStats.map(s => <td key={s.playerId} style={tdRight}>{(s as any).resets ?? 0}</td>)}
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
           {/* Erweiterte Statistiken */}
           {detailedStats.length > 0 && (
             <>

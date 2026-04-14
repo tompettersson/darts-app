@@ -286,6 +286,82 @@ export default function ATBSummary({ matchId, onBackToMenu, onRematch, onBackToL
             </div>
           )}
 
+          {/* Spezialregel-Statistiken */}
+          {state.match?.config?.specialRule && state.match.config.specialRule !== 'none' && (() => {
+            const rule = state.match!.config!.specialRule
+            const allTurns = storedMatch.events.filter((e: any) => e.type === 'ATBTurnAdded') as any[]
+            const tdLabel: React.CSSProperties = { padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted, fontSize: 13 }
+            const tdVal: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, fontWeight: 600, fontSize: 13 }
+
+            const specialData = match!.players.map(p => {
+              const pt = allTurns.filter((t: any) => t.playerId === p.playerId)
+              const eff = pt.map((t: any) => t.specialEffects ?? {})
+              if (rule === 'suddenDeath') {
+                const survived = pt.filter((t: any) => !t.specialEffects?.eliminated).length
+                const elimTurn = pt.find((t: any) => t.specialEffects?.eliminated)
+                return { survived, eliminationField: elimTurn?.newIndex ?? null, eliminated: !!elimTurn }
+              }
+              if (rule === 'bullHeavy') {
+                const bullNeeded = eff.filter((e: any) => e.needsBull === true || e.bullHit === true).length
+                const bullHit = eff.filter((e: any) => e.bullHit === true).length
+                return { bullNeeded, bullHit, bullQuote: bullNeeded > 0 ? Math.round(bullHit / bullNeeded * 100) : 0 }
+              }
+              if (rule === 'noDoubleEscape') {
+                const doubleUsed = eff.filter((e: any) => e.usedDouble === true).length
+                const doubleReq = eff.filter((e: any) => e.doubleRequired === true).length
+                const total = doubleUsed + doubleReq
+                return { doubleUsed, doubleReq, doubleQuote: total > 0 ? Math.round(doubleUsed / total * 100) : 0 }
+              }
+              if (rule === 'miss3Back') {
+                const resets = eff.filter((e: any) => e.setBackTo !== undefined).length
+                return { resets }
+              }
+              return {}
+            })
+
+            return (
+              <div style={{ ...styles.card, marginBottom: 16, overflowX: 'auto' }}>
+                <div style={{ ...styles.sub, marginBottom: 8 }}>
+                  {rule === 'suddenDeath' && '💀 Sudden Death'}
+                  {rule === 'bullHeavy' && '🎯 Bull Heavy'}
+                  {rule === 'noDoubleEscape' && '🎯 No Double Escape'}
+                  {rule === 'miss3Back' && '↩ Miss 3 Back'}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: colors.fgMuted, fontWeight: 600 }}>Stat</th>
+                      {matchStats.map(s => (
+                        <th key={s.playerId} style={{ textAlign: 'right', padding: '6px 8px', borderBottom: `1px solid ${colors.border}`, color: s.isWinner ? colors.success : colors.fg, fontWeight: 600 }}>
+                          {s.playerName}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rule === 'suddenDeath' && <>
+                      <tr><td style={tdLabel}>Überlebte Runden</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).survived ?? 0}</td>)}</tr>
+                      <tr><td style={tdLabel}>Status</td>{specialData.map((s, i) => <td key={i} style={{ ...tdVal, color: (s as any).eliminated ? '#ef4444' : colors.success }}>{(s as any).eliminated ? `💀 Feld ${(s as any).eliminationField ?? '?'}` : '✓'}</td>)}</tr>
+                    </>}
+                    {rule === 'bullHeavy' && <>
+                      <tr><td style={tdLabel}>Bulls getroffen</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).bullHit ?? 0}</td>)}</tr>
+                      <tr><td style={tdLabel}>Bull benötigt</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).bullNeeded ?? 0}</td>)}</tr>
+                      <tr><td style={tdLabel}>Bull-Quote</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).bullQuote ?? 0}%</td>)}</tr>
+                    </>}
+                    {rule === 'noDoubleEscape' && <>
+                      <tr><td style={tdLabel}>Double getroffen</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).doubleUsed ?? 0}</td>)}</tr>
+                      <tr><td style={tdLabel}>Double verpasst</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).doubleReq ?? 0}</td>)}</tr>
+                      <tr><td style={tdLabel}>Double-Quote</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).doubleQuote ?? 0}%</td>)}</tr>
+                    </>}
+                    {rule === 'miss3Back' && <>
+                      <tr><td style={tdLabel}>Resets</td>{specialData.map((s, i) => <td key={i} style={tdVal}>{(s as any).resets ?? 0}</td>)}</tr>
+                    </>}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
           {/* Spielname + Bemerkungen */}
           <div style={{ ...styles.card, marginBottom: 16 }}>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Spielinfo</div>
