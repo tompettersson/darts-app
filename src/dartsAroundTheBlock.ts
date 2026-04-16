@@ -627,7 +627,8 @@ export function calculateAdvance(
     const target = sequence[idx]
 
     // Prüfe ob der Wurf das aktuelle Ziel trifft
-    if (dart.target === target || (dart.target === 'BULL' && target === 'BULL')) {
+    // eslint-disable-next-line eqeqeq
+    if (dart.target == target || (dart.target === 'BULL' && target === 'BULL')) {
       if (target === 'BULL') {
         // Bull getroffen = Abschluss (Double Bull zählt auch als Bull-Treffer)
         idx = sequence.length

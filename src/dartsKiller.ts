@@ -424,7 +424,8 @@ export function recordKillerTurn(
 
     if (!isCurrentlyKiller) {
       // Qualifying-Dart: eigene Zahl im richtigen Ring treffen
-      if (dart.target === myTarget && dart.mult >= requiredMult) {
+      // eslint-disable-next-line eqeqeq
+      if (dart.target == myTarget && Number(dart.mult) >= requiredMult) {
         qualifyingHitsGained++
         if (ps.qualifyingHits + qualifyingHitsGained >= config.hitsToBecomeKiller) {
           isCurrentlyKiller = true
@@ -433,10 +434,11 @@ export function recordKillerTurn(
       }
     } else {
       // Killer-Dart (auch direkt nach Qualifying im selben Turn)
-      if (dart.mult < requiredMult) continue
+      if (Number(dart.mult) < requiredMult) continue
       for (const otherPs of state.players) {
         if (otherPs.isEliminated) continue
-        if (otherPs.targetNumber === dart.target) {
+        // eslint-disable-next-line eqeqeq
+        if (otherPs.targetNumber == dart.target) {
           hitsOnPlayers[otherPs.playerId] = (hitsOnPlayers[otherPs.playerId] ?? 0) + 1
           break
         }

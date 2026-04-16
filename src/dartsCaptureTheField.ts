@@ -328,14 +328,17 @@ export function calculateCaptureScore(
   let score = 0
   for (const dart of darts) {
     if (dart.target === 'MISS') continue
-    if (dart.target !== targetNumber) continue // Nur Treffer auf Ziel zaehlen
+    // Loose comparison: after JSON roundtrip, target may be string "14" instead of number 14
+    // eslint-disable-next-line eqeqeq
+    if (dart.target != targetNumber) continue
 
+    const mult = Number(dart.mult) || 1
     switch (multiplierMode) {
       case 'standard':
-        score += dart.mult // T=3, D=2, S=1
+        score += mult // T=3, D=2, S=1
         break
       case 'standard2':
-        score += dart.mult === 1 ? 1 : 2 // T=2, D=2, S=1
+        score += mult === 1 ? 1 : 2 // T=2, D=2, S=1
         break
       case 'single':
         score += 1 // Alle = 1

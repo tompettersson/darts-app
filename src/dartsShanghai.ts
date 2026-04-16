@@ -57,8 +57,10 @@ export function calculateShanghaiScore(darts: ShanghaiDart[], targetNumber: numb
   let score = 0
   for (const dart of darts) {
     if (dart.target === 'MISS') continue
-    if (dart.target !== targetNumber) continue
-    score += dart.mult * targetNumber
+    // Loose comparison: after JSON roundtrip, target may be string instead of number
+    // eslint-disable-next-line eqeqeq
+    if (dart.target != targetNumber) continue
+    score += (Number(dart.mult) || 1) * targetNumber
   }
   return score
 }
@@ -74,10 +76,12 @@ export function isShanghaiHit(darts: ShanghaiDart[], targetNumber: number): bool
 
   for (const dart of darts) {
     if (dart.target === 'MISS') continue
-    if (dart.target !== targetNumber) continue
-    if (dart.mult === 1) hasSingle = true
-    if (dart.mult === 2) hasDouble = true
-    if (dart.mult === 3) hasTriple = true
+    // eslint-disable-next-line eqeqeq
+    if (dart.target != targetNumber) continue
+    const mult = Number(dart.mult) || 1
+    if (mult === 1) hasSingle = true
+    if (mult === 2) hasDouble = true
+    if (mult === 3) hasTriple = true
   }
 
   return hasSingle && hasDouble && hasTriple
