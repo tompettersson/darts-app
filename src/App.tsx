@@ -2098,9 +2098,20 @@ export default function App() {
               const killerAssignments = orderedPlayerList.map((p, i) => ({
                 playerId: p.playerId, targetNumber: killerNumbers[i],
               }))
+              // Full config matching defaultKillerConfig() — engine expects startingLives, not lives
+              const killerConfig = {
+                hitsToBecomeKiller: 1,
+                qualifyingRing: 'DOUBLE' as const,
+                startingLives: config.killerLives || 3,
+                friendlyFire: true,
+                selfHeal: false,
+                noNegativeLives: true,
+                secretNumbers: false,
+                targetAssignment: 'auto' as const,
+              }
               initialEvents = [
                 { eventId: genId(), type: 'KillerMatchStarted', ts, matchId, players,
-                  config: { lives: config.killerLives || 3 },
+                  config: killerConfig,
                   structure: { kind: 'legs' as const, bestOfLegs: legs } },
                 { eventId: genId(), type: 'KillerLegStarted', ts, matchId,
                   legIndex: 0, setIndex: 0, startingPlayerIndex: 0 },
