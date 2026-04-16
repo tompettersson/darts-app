@@ -2436,14 +2436,11 @@ export default function StatsProfile({
             )
           })()}
 
-          {/* Checkout-Doppelfelder (aus Karriere-Stats) */}
+          {/* Checkout-Doppelfelder (direkt aus allen abgeschlossenen X01-Spielen) */}
           {(() => {
-            const doubles = x01Career?.finishingDoubles ?? {}
-            const entries = Object.entries(doubles)
-              .map(([field, count]) => ({ field, count: count as number }))
-              .sort((a, b) => b.count - a.count)
-            const totalCheckouts = entries.reduce((sum, e) => sum + e.count, 0)
-            const top5 = entries.slice(0, 5)
+            const rates = sqlStats.data.doubleRates ?? []
+            const top5 = rates.slice(0, 5)
+            const totalCheckouts = rates.reduce((sum, d) => sum + d.hits, 0)
             return (
             <Accordion title="Checkout-Doppelfelder (X01)" defaultOpen={false}>
               {top5.length === 0 ? (
@@ -2454,7 +2451,7 @@ export default function StatsProfile({
                 {top5.map((d, i) => (
                   <div key={d.field} style={i === top5.length - 1 ? s.statsRowLast : s.statsRow}>
                     <span style={s.statsLabel}>{d.field}</span>
-                    <span style={s.statsValueGood}>{d.count}× ({formatPct(totalCheckouts > 0 ? (d.count / totalCheckouts) * 100 : 0)})</span>
+                    <span style={s.statsValueGood}>{d.hits}× ({formatPct(totalCheckouts > 0 ? (d.hits / totalCheckouts) * 100 : 0)})</span>
                   </div>
                 ))}
               </div>
@@ -2466,7 +2463,7 @@ export default function StatsProfile({
                 </div>
                 <div style={s.statsRowLast}>
                   <span style={s.statsLabel}>Verschiedene Doppel genutzt</span>
-                  <span style={s.statsValue}>{entries.length}</span>
+                  <span style={s.statsValue}>{rates.length}</span>
                 </div>
               </div>
               </>)}

@@ -154,43 +154,43 @@ export async function getX01SegmentAccuracy(playerId: string): Promise<SegmentAc
   }
 }
 
+/**
+ * Checkout-Doppelfelder: Welche Doppel wurden zum Auschecken verwendet?
+ * Direkt aus den VisitAdded-Events berechnet — der finishing Dart (finishingDartSeq)
+ * zeigt welcher Dart das Leg beendet hat.
+ */
 export async function getX01DoubleRates(playerId: string): Promise<DoubleFieldRate[]> {
   try {
-    const darts = await query<{
+    // Query: Alle Visits mit finishingDartSeq (= erfolgreicher Checkout)
+    const checkouts = await query<{
       bed: string
       mult: number
-      aim_bed: string | null
-      aim_mult: number | null
     }>(`
       SELECT
-        d.value::jsonb->>'bed' as bed,
-        (d.value::jsonb->>'mult')::integer as mult,
-        d.value::jsonb->'aim'->>'bed' as aim_bed,
-        (d.value::jsonb->'aim'->>'mult')::integer as aim_mult
+        (e.data::jsonb->'darts'->(((e.data::jsonb->>'finishingDartSeq')::integer) - 1))->>'bed' as bed,
+        ((e.data::jsonb->'darts'->(((e.data::jsonb->>'finishingDartSeq')::integer) - 1))->>'mult')::integer as mult
       FROM x01_events e
       JOIN x01_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
       JOIN x01_matches m ON m.id = e.match_id AND m.finished = 1
-      , jsonb_array_elements(e.data::jsonb->'darts') d(value)
       WHERE e.type = 'VisitAdded'
         AND e.data::jsonb->>'playerId' = ?
-        AND ((d.value::jsonb->'aim'->>'mult')::integer = 2 OR ((d.value::jsonb->'aim'->>'mult') IS NULL AND (d.value::jsonb->>'mult')::integer = 2))
+        AND e.data::jsonb->>'finishingDartSeq' IS NOT NULL
     `, [playerId, playerId])
 
-    const doubles: Record<string, { attempts: number; hits: number }> = {}
-
-    for (const dart of darts) {
-      const aimBed = dart.aim_bed ?? dart.bed
-      const field = aimBed === 'DBULL' || aimBed === 'BULL' ? 'DBULL' : `D${aimBed}`
-      if (!doubles[field]) doubles[field] = { attempts: 0, hits: 0 }
-      doubles[field].attempts++
-      if (dart.mult === 2 && (dart.bed === aimBed || (field === 'DBULL' && (dart.bed === 'DBULL' || dart.bed === 'BULL')))) {
-        doubles[field].hits++
-      }
+    const doubles: Record<string, number> = {}
+    for (const c of checkouts) {
+      const field = c.mult === 3
+        ? `T${c.bed}`
+        : c.mult === 2
+          ? (c.bed === 'BULL' || c.bed === 'DBULL' ? 'DBULL' : `D${c.bed}`)
+          : (c.bed === 'BULL' || c.bed === 'DBULL' ? 'Bull' : `S${c.bed}`)
+      doubles[field] = (doubles[field] ?? 0) + 1
     }
 
+    const total = checkouts.length
     return Object.entries(doubles)
-      .map(([field, d]) => ({ field, attempts: d.attempts, hits: d.hits, hitRate: Math.round(d.hits / d.attempts * 1000) / 10 }))
-      .sort((a, b) => b.attempts - a.attempts)
+      .map(([field, count]) => ({ field, attempts: total, hits: count, hitRate: total > 0 ? Math.round(count / total * 1000) / 10 : 0 }))
+      .sort((a, b) => b.hits - a.hits)
   } catch (e) {
     console.warn('[Stats] getX01DoubleRates failed:', e)
     return []
