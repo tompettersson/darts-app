@@ -1,6 +1,6 @@
 // src/screens/StatsProfile.tsx
 import React, { useEffect, useMemo, useState } from 'react'
-import { getProfiles, getStrMatches, getHighscoreMatches, getCTFMatches, getGlobalX01PlayerStats, type Profile } from '../storage'
+import { getProfiles, getStrMatches, getHighscoreMatches, getCTFMatches, getShanghaiMatches, getKillerMatches, getBobs27Matches, getOperationMatches, getGlobalX01PlayerStats, type Profile } from '../storage'
 import { useTheme } from '../ThemeProvider'
 import { computeStrMatchStats, type StrPlayerMatchStat } from '../stats/computeStraeusschenStats'
 import { computeCTFMatchStats } from '../stats/computeCTFStats'
@@ -598,6 +598,203 @@ export default function StatsProfile({
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
                       <span style={{ ...s.statsValue, fontSize: 12 }}>{ctfSolo.length}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Sträußchen */}
+            {(() => {
+              const strAll = getStrMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
+              const strMulti = strAll.filter(m => m.players.length > 1)
+              const strSolo = strAll.filter(m => m.players.length <= 1)
+              const strWon = strMulti.filter(m => m.winnerId === selected.id).length
+              const strWinRate = strMulti.length > 0 ? Math.round(strWon / strMulti.length * 100) : 0
+              if (strAll.length === 0) return null
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Sträußchen</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches (gegen Gegner)</span>
+                    <span style={s.statsValue}>{strMulti.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{strWon}</span>
+                  </div>
+                  {strMulti.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar value={strWinRate} label="Quote" color="#ec4899" />
+                    </div>
+                  )}
+                  {strSolo.length > 0 && (
+                    <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{strSolo.length}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Highscore */}
+            {(() => {
+              const hsAll = getHighscoreMatches().filter(m => m.finished && m.players.some((p: any) => (p.playerId ?? p.id) === selected.id))
+              const hsMulti = hsAll.filter(m => m.players.length > 1)
+              const hsSolo = hsAll.filter(m => m.players.length <= 1)
+              const hsWon = hsMulti.filter(m => m.winnerId === selected.id).length
+              const hsWinRate = hsMulti.length > 0 ? Math.round(hsWon / hsMulti.length * 100) : 0
+              if (hsAll.length === 0) return null
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Highscore</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches (gegen Gegner)</span>
+                    <span style={s.statsValue}>{hsMulti.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{hsWon}</span>
+                  </div>
+                  {hsMulti.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar value={hsWinRate} label="Quote" color="#06b6d4" />
+                    </div>
+                  )}
+                  {hsSolo.length > 0 && (
+                    <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{hsSolo.length}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Shanghai */}
+            {(() => {
+              const shAll = getShanghaiMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
+              const shMulti = shAll.filter(m => m.players.length > 1)
+              const shSolo = shAll.filter(m => m.players.length <= 1)
+              const shWon = shMulti.filter(m => m.winnerId === selected.id).length
+              const shWinRate = shMulti.length > 0 ? Math.round(shWon / shMulti.length * 100) : 0
+              if (shAll.length === 0) return null
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Shanghai</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches (gegen Gegner)</span>
+                    <span style={s.statsValue}>{shMulti.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{shWon}</span>
+                  </div>
+                  {shMulti.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar value={shWinRate} label="Quote" color="#14b8a6" />
+                    </div>
+                  )}
+                  {shSolo.length > 0 && (
+                    <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{shSolo.length}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Killer */}
+            {(() => {
+              const klAll = getKillerMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
+              const klMulti = klAll.filter(m => m.players.length > 1)
+              const klWon = klMulti.filter(m => m.winnerId === selected.id).length
+              const klWinRate = klMulti.length > 0 ? Math.round(klWon / klMulti.length * 100) : 0
+              if (klAll.length === 0) return null
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Killer</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches</span>
+                    <span style={s.statsValue}>{klMulti.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{klWon}</span>
+                  </div>
+                  {klMulti.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar value={klWinRate} label="Quote" color="#ef4444" />
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Bob's 27 */}
+            {(() => {
+              const b27All = getBobs27Matches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
+              const b27Multi = b27All.filter(m => m.players.length > 1)
+              const b27Solo = b27All.filter(m => m.players.length <= 1)
+              const b27Won = b27Multi.filter(m => m.winnerId === selected.id).length
+              const b27WinRate = b27Multi.length > 0 ? Math.round(b27Won / b27Multi.length * 100) : 0
+              if (b27All.length === 0) return null
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Bob's 27</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches (gegen Gegner)</span>
+                    <span style={s.statsValue}>{b27Multi.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{b27Won}</span>
+                  </div>
+                  {b27Multi.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar value={b27WinRate} label="Quote" color="#a855f7" />
+                    </div>
+                  )}
+                  {b27Solo.length > 0 && (
+                    <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{b27Solo.length}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Operation */}
+            {(() => {
+              const opAll = getOperationMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
+              const opMulti = opAll.filter(m => m.players.length > 1)
+              const opSolo = opAll.filter(m => m.players.length <= 1)
+              const opWon = opMulti.filter(m => m.winnerId === selected.id).length
+              const opWinRate = opMulti.length > 0 ? Math.round(opWon / opMulti.length * 100) : 0
+              if (opAll.length === 0) return null
+              return (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Operation</div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Matches (gegen Gegner)</span>
+                    <span style={s.statsValue}>{opMulti.length}</span>
+                  </div>
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Gewonnen</span>
+                    <span style={s.statsValueGood}>{opWon}</span>
+                  </div>
+                  {opMulti.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <ProgressBar value={opWinRate} label="Quote" color="#f97316" />
+                    </div>
+                  )}
+                  {opSolo.length > 0 && (
+                    <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
+                      <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{opSolo.length}</span>
                     </div>
                   )}
                 </div>
