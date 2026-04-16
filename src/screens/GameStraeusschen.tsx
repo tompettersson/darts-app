@@ -471,8 +471,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   }
 
   const modeLabel = state.match.mode === 'single'
-    ? `Sträußchen · ${formatTarget(state.match.targetNumber ?? 20)}`
-    : `Sträußchen · ${formatTarget(17)}–${formatTarget(state.match.includeBull ? 25 : 20)}`
+    ? `Sträußchen · ${formatTarget(state.match.targetNumber ?? 20)} · ${ringLabel}`
+    : `Sträußchen · ${formatTarget(17)}–${formatTarget(state.match.includeBull ? 25 : 20)} · ${ringLabel}`
 
   // Fortschritts-Infos für alle Spieler
   const playerInfos = state.match.players.map((p, index) => {

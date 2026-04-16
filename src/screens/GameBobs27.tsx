@@ -100,6 +100,14 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   const players = state.match?.players ?? []
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = players.find(p => p.playerId === activePlayerId)
+
+  // Config-Info für Header
+  const b27Config = state.match?.config
+  const b27ConfigParts = [
+    b27Config?.includeBull ? 'mit Bull' : null,
+    b27Config?.allowNegative ? 'Negativ erlaubt' : null,
+  ].filter(Boolean)
+  const b27Title = `Bob's 27${b27ConfigParts.length > 0 ? ` · ${b27ConfigParts.join(' · ')}` : ''}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`
   const activePlayerState = activePlayerId ? state.playerStates[activePlayerId] : null
   const currentTarget = activePlayerId ? getCurrentTarget(state, activePlayerId) : null
 
@@ -657,7 +665,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
               <span style={{ fontSize: 11, fontFamily: 'monospace', color: c.textDim }}>{formatDuration(elapsedMs)}</span>
             </div>
             <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch}
-              title={`Bob's 27${multiplayer?.enabled && multiplayer.roomCode ? ` \u00b7 ${multiplayer.roomCode}` : ''}`} />
+              title={b27Title} />
           </div>
           {/* Main landscape content */}
           <div style={{ flex: 1, display: 'flex', minHeight: 0, padding: '6px 8px', gap: 10 }}>
@@ -795,7 +803,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
             <span style={{ fontSize: 11, fontFamily: 'monospace', color: c.textDim }}>{formatDuration(elapsedMs)}</span>
           </div>
           <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch}
-            title={`Bob's 27${multiplayer?.enabled && multiplayer.roomCode ? ` \u00b7 ${multiplayer.roomCode}` : ''}`} />
+            title={b27Title} />
         </div>
 
         {/* Scrollable content */}
@@ -1175,7 +1183,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
           isMuted={muted}
           onToggleMute={() => setMuted(m => !m)}
           onExit={handleExitMatch}
-          title={`Bob's 27${multiplayer?.enabled && multiplayer.roomCode ? ` \u00b7 ${multiplayer.roomCode}` : ''}`}
+          title={b27Title}
         />
       </div>
 

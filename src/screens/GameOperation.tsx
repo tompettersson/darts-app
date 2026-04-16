@@ -1113,7 +1113,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
         isMuted={muted}
         onToggleMute={() => setMuted(m => !m)}
         onExit={handleExitMatch}
-        title={`Operation: EFKG${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
+        title={`Operation: EFKG · Feld ${targetLabel}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
       {/* Info bar: Timer + Leg info */}
