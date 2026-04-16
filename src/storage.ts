@@ -687,51 +687,44 @@ export function ensureCricketMatchExists(matchId: string, events: any[], playerI
 
 export function ensureATBMatchExists(m: string, e: any[], p: string[]) {
   // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getATBMatches, saveATBMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  // ATBStoredMatch uses 'players' array, not 'playerIds'
+  const startEvt = e.find((ev: any) => ev.type === 'ATBMatchStarted') as any
+  const players = startEvt?.players ?? p.map((id: string) => ({ playerId: id, name: id }))
+  const mode = startEvt?.mode ?? 'standard'
+  const direction = startEvt?.direction ?? 'forward'
+  ensureMultiplayerMatchExists(m, e, () => ({
+    id: m, title: 'ATB – Multiplayer', createdAt: e[0]?.ts ?? now(), events: e,
+    players, mode, direction, structure: startEvt?.structure ?? { kind: 'legs' as const, bestOfLegs: 1 },
+    finished: false,
+  } as any), getATBMatches, saveATBMatches, undefined)
 }
+// Helper: extract players + config from start event for cache stubs
+function mpCacheStub(m: string, e: any[], startType: string, title: string, extraFields?: Record<string, any>) {
+  const startEvt = e.find((ev: any) => ev.type === startType) as any
+  const players = startEvt?.players ?? []
+  return { id: m, title, createdAt: e[0]?.ts ?? now(), events: e, players, finished: false, ...extraFields, ...(startEvt ?? {}) } as any
+}
+
 export function ensureStrMatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getStrMatches, saveStrMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'StrMatchStarted', 'Sträußchen – Multiplayer'), getStrMatches, saveStrMatches, undefined)
 }
 export function ensureHighscoreMatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getHighscoreMatches, saveHighscoreMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'HighscoreMatchStarted', 'Highscore – Multiplayer'), getHighscoreMatches, saveHighscoreMatches, undefined)
 }
 export function ensureCTFMatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getCTFMatches, saveCTFMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'CTFMatchStarted', 'CTF – Multiplayer'), getCTFMatches, saveCTFMatches, undefined)
 }
 export function ensureShanghaiMatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getShanghaiMatches, saveShanghaiMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'ShanghaiMatchStarted', 'Shanghai – Multiplayer'), getShanghaiMatches, saveShanghaiMatches, undefined)
 }
 export function ensureKillerMatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getKillerMatches, saveKillerMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'KillerMatchStarted', 'Killer – Multiplayer'), getKillerMatches, saveKillerMatches, undefined)
 }
 export function ensureBobs27MatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getBobs27Matches, saveBobs27Matches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'Bobs27MatchStarted', "Bob's 27 – Multiplayer"), getBobs27Matches, saveBobs27Matches, undefined)
 }
 export function ensureOperationMatchExists(m: string, e: any[], p: string[]) {
-  // During multiplayer gameplay: only update in-memory cache, NO DB writes.
-  ensureMultiplayerMatchExists(m, e, () => ({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any), getOperationMatches, saveOperationMatches,
-    undefined, // No DB write during gameplay — saves DB calls
-  )
+  ensureMultiplayerMatchExists(m, e, () => mpCacheStub(m, e, 'OperationMatchStarted', 'Operation – Multiplayer'), getOperationMatches, saveOperationMatches, undefined)
 }
 
 /** Async versions — use when match needs to be saved reliably (e.g., match end) */
