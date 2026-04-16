@@ -678,6 +678,10 @@ export function announceKillerSetWin(playerName: string) {
   speak(t().killerSetWin(playerName))
 }
 
+export function announceKillerTurnSummary(playerName: string, hits: number) {
+  speak(t().killerTurnSummary(playerName, hits))
+}
+
 // ===== Killer SFX (Web Audio API - synthetisch) =====
 
 let killerAudioCtx: AudioContext | null = null

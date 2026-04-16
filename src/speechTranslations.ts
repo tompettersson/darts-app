@@ -82,6 +82,7 @@ export type SpeechTexts = {
   killerSelfHeal: (name: string) => string
   killerLegWin: (name: string) => string
   killerSetWin: (name: string) => string
+  killerTurnSummary: (name: string, hits: number) => string
 
   // === Operation ===
   opGameStart: (name: string) => string
@@ -245,6 +246,7 @@ export const speechTexts: Record<SpeechLang, SpeechTexts> = {
     killerSelfHeal: (name) => `${name} heals!`,
     killerLegWin: (name) => `${name} wins the Leg!`,
     killerSetWin: (name) => `${name} wins the Set!`,
+    killerTurnSummary: (name, hits) => hits === 0 ? `${name}, no hits` : hits === 1 ? `${name}, one hit` : `${name}, ${hits} hits`,
 
     opGameStart: (name) => `${name}, Game on!`,
     opLastRound: () => 'Last round!',
@@ -324,6 +326,7 @@ export const speechTexts: Record<SpeechLang, SpeechTexts> = {
     killerWinner: (name) => `${name} gewinnt! Letzter Überlebender!`,
     killerSelfHeal: (name) => `${name} heilt sich!`,
     killerLegWin: (name) => `${name} gewinnt das Leg!`,
+    killerTurnSummary: (name, hits) => hits === 0 ? `${name}, kein Treffer` : hits === 1 ? `${name}, ein Treffer` : `${name}, ${hits} Treffer`,
     killerSetWin: (name) => `${name} gewinnt das Set!`,
 
     opGameStart: (name) => `${name}, Game on!`,
@@ -403,6 +406,7 @@ export const speechTexts: Record<SpeechLang, SpeechTexts> = {
     killerEliminated: (name) => `${name} est éliminé !`,
     killerWinner: (name) => `${name} gagne ! Dernier survivant !`,
     killerSelfHeal: (name) => `${name} se soigne !`,
+    killerTurnSummary: (name, hits) => hits === 0 ? `${name}, aucun coup` : hits === 1 ? `${name}, un coup` : `${name}, ${hits} coups`,
     killerLegWin: (name) => `${name} gagne le Leg !`,
     killerSetWin: (name) => `${name} gagne le Set !`,
 
@@ -482,6 +486,7 @@ export const speechTexts: Record<SpeechLang, SpeechTexts> = {
     killerHit: (attacker, victim, lives) => `${attacker} colpisce ${victim}! ${lives} ${lives === 1 ? 'vita' : 'vite'} rimast${lives === 1 ? 'a' : 'e'}`,
     killerEliminated: (name) => `${name} è eliminato!`,
     killerWinner: (name) => `${name} vince! Ultimo sopravvissuto!`,
+    killerTurnSummary: (name, hits) => hits === 0 ? `${name}, nessun colpo` : hits === 1 ? `${name}, un colpo` : `${name}, ${hits} colpi`,
     killerSelfHeal: (name) => `${name} si cura!`,
     killerLegWin: (name) => `${name} vince il Leg!`,
     killerSetWin: (name) => `${name} vince il Set!`,
@@ -561,6 +566,7 @@ export const speechTexts: Record<SpeechLang, SpeechTexts> = {
     killerQualified: (name) => `${name} är nu en Killer!`,
     killerHit: (attacker, victim, lives) => `${attacker} träffar ${victim}! ${lives} liv kvar`,
     killerEliminated: (name) => `${name} är utslagen!`,
+    killerTurnSummary: (name, hits) => hits === 0 ? `${name}, ingen traff` : hits === 1 ? `${name}, en traff` : `${name}, ${hits} traffar`,
     killerWinner: (name) => `${name} vinner! Sista överlevande!`,
     killerSelfHeal: (name) => `${name} läker sig!`,
     killerLegWin: (name) => `${name} vinner Legget!`,
@@ -640,6 +646,7 @@ export const speechTexts: Record<SpeechLang, SpeechTexts> = {
     killerQualifying: (name, ring, number) => `${name}, raak de ${ring} ${number}!`,
     killerQualified: (name) => `${name} is nu een Killer!`,
     killerHit: (attacker, victim, lives) => `${attacker} raakt ${victim}! Nog ${lives} ${lives === 1 ? 'leven' : 'levens'}`,
+    killerTurnSummary: (name, hits) => hits === 0 ? `${name}, geen raak` : hits === 1 ? `${name}, een raak` : `${name}, ${hits} raak`,
     killerEliminated: (name) => `${name} is uitgeschakeld!`,
     killerWinner: (name) => `${name} wint! Laatste overlevende!`,
     killerSelfHeal: (name) => `${name} geneest zichzelf!`,

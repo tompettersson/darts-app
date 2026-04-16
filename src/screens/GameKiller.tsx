@@ -40,6 +40,7 @@ import {
   announceKillerSelfHeal,
   announceKillerLegWin,
   announceKillerSetWin,
+  announceKillerTurnSummary,
   playKillerHitSound,
   playKillerEliminatedSound,
   playTriple20Sound,
@@ -464,6 +465,15 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       // Trigger elimination animation
       setEliminatedAnim(elimName)
       setTimeout(() => setEliminatedAnim(null), 2000)
+    }
+
+    // Turn-Zusammenfassung: Treffer ansagen
+    const totalHitsInTurn = result.turnEvent.livesChanges.filter(lc => lc.delta < 0 && lc.playerId !== activePlayerId).length
+      + (result.turnEvent.becameKiller ? 1 : 0)
+      + result.turnEvent.livesChanges.filter(lc => lc.delta > 0).length
+    if (!muted) {
+      const hitCount = result.turnEvent.darts.filter((d: any) => d.target !== 'MISS').length
+      setTimeout(() => announceKillerTurnSummary(turnPlayerName, hitCount), 600)
     }
 
     // Alle neuen Events sammeln
@@ -1219,7 +1229,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           onAbort()
         }}
         title={`Killer${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
-        subtitle={isMobileK ? `${formatDuration(elapsedMs)} · ${state.phase === 'qualifying' ? 'Qualifying' : state.phase === 'killing' ? 'Killing' : 'Beendet'} · ${qualLabel}-Ring` : undefined}
+        subtitle={isMobileK ? `${formatDuration(elapsedMs)} · ${state.phase === 'qualifying' ? 'Qualifying' : state.phase === 'killing' ? 'Killing' : 'Beendet'} · ${qualLabel}-Ring${config.selfHeal ? ' · Self-Heal' : ''}${config.friendlyFire ? ' · Friendly Fire' : ''}` : undefined}
       />
 
       {/* Info-Leiste — auf Mobile versteckt */}
@@ -1277,6 +1287,18 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
         }}>
           {config.startingLives} Leben
         </span>
+
+        {/* Spieleinstellungen */}
+        {config.selfHeal && (
+          <span style={{ background: '#14532d', padding: '3px 8px', borderRadius: 4, color: '#22c55e', fontWeight: 600, fontSize: 11 }}>
+            Self-Heal
+          </span>
+        )}
+        {config.friendlyFire && (
+          <span style={{ background: '#7f1d1d', padding: '3px 8px', borderRadius: 4, color: '#fca5a5', fontWeight: 600, fontSize: 11 }}>
+            Friendly Fire
+          </span>
+        )}
 
         {/* Legs/Sets Score */}
         {state.structure.kind === 'legs' && state.structure.bestOfLegs > 1 && (
