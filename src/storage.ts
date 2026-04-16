@@ -776,7 +776,7 @@ export async function ensureATBMatchExistsAsync(m: string, e: any[], p: string[]
   persistedEventCount.set(m, e.length)
   const list = getATBMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveATBMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveATBMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'ATBMatchStarted', 'ATB – Multiplayer')); saveATBMatches(list) }
 }
 
 export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -785,7 +785,7 @@ export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]
   persistedEventCount.set(m, e.length)
   const list = getStrMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveStrMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveStrMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'StrMatchStarted', 'Sträußchen – Multiplayer')); saveStrMatches(list) }
 }
 
 export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -794,7 +794,7 @@ export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: st
   persistedEventCount.set(m, e.length)
   const list = getHighscoreMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveHighscoreMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveHighscoreMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'HighscoreMatchStarted', 'Highscore – Multiplayer')); saveHighscoreMatches(list) }
 }
 
 export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -803,7 +803,7 @@ export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]
   persistedEventCount.set(m, e.length)
   const list = getCTFMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveCTFMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveCTFMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'CTFMatchStarted', 'CTF – Multiplayer')); saveCTFMatches(list) }
 }
 
 export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -812,7 +812,7 @@ export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: str
   persistedEventCount.set(m, e.length)
   const list = getShanghaiMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveShanghaiMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveShanghaiMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'ShanghaiMatchStarted', 'Shanghai – Multiplayer')); saveShanghaiMatches(list) }
 }
 
 export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -821,7 +821,7 @@ export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: strin
   persistedEventCount.set(m, e.length)
   const list = getKillerMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveKillerMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveKillerMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'KillerMatchStarted', 'Killer – Multiplayer')); saveKillerMatches(list) }
 }
 
 export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -830,7 +830,7 @@ export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: strin
   persistedEventCount.set(m, e.length)
   const list = getBobs27Matches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveBobs27Matches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveBobs27Matches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'Bobs27MatchStarted', "Bob's 27 – Multiplayer")); saveBobs27Matches(list) }
 }
 
 export async function ensureOperationMatchExistsAsync(m: string, e: any[], p: string[]) {
@@ -839,7 +839,7 @@ export async function ensureOperationMatchExistsAsync(m: string, e: any[], p: st
   persistedEventCount.set(m, e.length)
   const list = getOperationMatches(); const idx = list.findIndex(x => x.id === m)
   if (idx >= 0) { list[idx] = { ...list[idx], events: e }; saveOperationMatches(list) }
-  else { list.unshift({ id: m, createdAt: e[0]?.ts ?? now(), events: e, playerIds: p, finished: false } as any); saveOperationMatches(list) }
+  else { list.unshift(mpCacheStub(m, e, 'OperationMatchStarted', 'Operation – Multiplayer')); saveOperationMatches(list) }
 }
 
 // SQLite-aware Matches laden
