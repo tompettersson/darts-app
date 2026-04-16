@@ -585,6 +585,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         finished: isFinishedX01(m),
         mode: info.score,
         matchName: m.matchName,
+        notes: m.notes,
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
@@ -601,6 +602,7 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
         finished: isFinishedCricket(m),
         mode: `Cricket ${info.range} L`,
         matchName: m.matchName,
+        notes: m.notes,
         playerNames: info.playerNames,
         winnerName: info.winnerName,
         result: info.result,
@@ -922,9 +924,6 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                 else if (m.kind === 'operation' && onOpenOperationMatch) onOpenOperationMatch(m.id)
               }}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: isMobile ? 6 : 8,
                 padding: isMobile ? '6px 8px' : '8px 12px',
                 background: m.finished ? colors.bgCard : (isArcade ? 'rgba(251,191,36,0.15)' : '#fefce8'),
                 borderRadius: 8,
@@ -937,36 +936,43 @@ export default function MatchHistory({ onBack, onOpenX01Match, onOpenCricketMatc
                 overflow: 'hidden',
               }}
             >
-              {/* Left: Status badges + Mode */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                {!m.finished && (
-                  <span style={{ background: '#fbbf24', color: '#78350f', fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, textTransform: 'uppercase', lineHeight: 1.2 }}>
-                    offen
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8 }}>
+                {/* Left: Status badges + Mode */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                  {!m.finished && (
+                    <span style={{ background: '#fbbf24', color: '#78350f', fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, textTransform: 'uppercase', lineHeight: 1.2 }}>
+                      offen
+                    </span>
+                  )}
+                  {(m as any).isOnline && <span style={{ fontSize: 10 }} title="Online">🌐</span>}
+                  <span style={{ fontWeight: 700, color: colors.fg, fontSize: isMobile ? 11 : 12, whiteSpace: 'nowrap' }}>
+                    {m.matchName || m.mode}{(m as any).isCrazy ? ' 🤪' : ''}{(m as any).isCapture ? ' 🚩' : ''}
                   </span>
-                )}
-                {(m as any).isOnline && <span style={{ fontSize: 10 }} title="Online">🌐</span>}
-                <span style={{ fontWeight: 700, color: colors.fg, fontSize: isMobile ? 11 : 12, whiteSpace: 'nowrap' }}>
-                  {m.matchName || m.mode}{(m as any).isCrazy ? ' 🤪' : ''}{(m as any).isCapture ? ' 🚩' : ''}
+                </div>
+                {/* Center: Players */}
+                <span style={{ flex: 1, fontSize: isMobile ? 10 : 11, color: colors.fgMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {m.playerNames.join(', ')}
                 </span>
-              </div>
-              {/* Center: Players */}
-              <span style={{ flex: 1, fontSize: isMobile ? 10 : 11, color: colors.fgMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                {m.playerNames.join(', ')}
-              </span>
-              {/* Right: Result + Winner + Date */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
-                {m.result && (
-                  <span style={{ fontWeight: 800, fontSize: isMobile ? 11 : 12, color: colors.fg, background: colors.bgMuted, padding: '1px 5px', borderRadius: 4 }}>
-                    {m.result}
+                {/* Right: Result + Winner + Date */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexShrink: 0 }}>
+                  {m.result && (
+                    <span style={{ fontWeight: 800, fontSize: isMobile ? 11 : 12, color: colors.fg, background: colors.bgMuted, padding: '1px 5px', borderRadius: 4 }}>
+                      {m.result}
+                    </span>
+                  )}
+                  {m.winnerName ? (
+                    <span style={{ fontWeight: 600, color: colors.success, fontSize: isMobile ? 10 : 12, maxWidth: isMobile ? 50 : 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.winnerName}</span>
+                  ) : !m.finished ? null : null}
+                  <span style={{ color: colors.fgDim, fontSize: isMobile ? 10 : 11, whiteSpace: 'nowrap' }}>
+                    {isMobile ? fmtDate(m.createdAt) : fmtDateTime(m.createdAt)}
                   </span>
-                )}
-                {m.winnerName ? (
-                  <span style={{ fontWeight: 600, color: colors.success, fontSize: isMobile ? 10 : 12, maxWidth: isMobile ? 50 : 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.winnerName}</span>
-                ) : !m.finished ? null : null}
-                <span style={{ color: colors.fgDim, fontSize: isMobile ? 10 : 11, whiteSpace: 'nowrap' }}>
-                  {isMobile ? fmtDate(m.createdAt) : fmtDateTime(m.createdAt)}
-                </span>
+                </div>
               </div>
+              {(m as any).notes && (
+                <div style={{ fontSize: isMobile ? 10 : 11, color: colors.fgMuted, fontStyle: 'italic', marginTop: 3, paddingLeft: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {(m as any).notes}
+                </div>
+              )}
             </div>
           ))
         )}
