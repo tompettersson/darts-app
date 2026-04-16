@@ -669,6 +669,8 @@ export type ActiveGame = {
   config: Record<string, any> | null
   players: Array<{ id: string; name: string; color?: string }> | null
   startedAt: string
+  isMultiplayer?: boolean
+  roomCode?: string | null
 }
 
 let activeGamesTableReady = false
@@ -678,6 +680,9 @@ async function ensureActiveGamesTable(): Promise<void> {
   // Try SELECT first — if table exists, skip DDL (saves 1-2 roundtrips)
   try {
     await query('SELECT 1 FROM active_games LIMIT 0')
+    // Ensure new columns exist (idempotent ALTER)
+    await exec('ALTER TABLE active_games ADD COLUMN IF NOT EXISTS is_multiplayer INTEGER DEFAULT 0').catch(() => {})
+    await exec('ALTER TABLE active_games ADD COLUMN IF NOT EXISTS room_code TEXT').catch(() => {})
     activeGamesTableReady = true
     return
   } catch {
@@ -685,13 +690,15 @@ async function ensureActiveGamesTable(): Promise<void> {
   }
   await exec(`
     CREATE TABLE IF NOT EXISTS active_games (
-      id          TEXT PRIMARY KEY,
-      player_id   TEXT NOT NULL,
-      game_type   TEXT NOT NULL,
-      title       TEXT NOT NULL,
-      config      JSONB,
-      players     JSONB,
-      started_at  TEXT NOT NULL
+      id              TEXT PRIMARY KEY,
+      player_id       TEXT NOT NULL,
+      game_type       TEXT NOT NULL,
+      title           TEXT NOT NULL,
+      config          JSONB,
+      players         JSONB,
+      started_at      TEXT NOT NULL,
+      is_multiplayer  INTEGER DEFAULT 0,
+      room_code       TEXT
     )`)
   await exec('CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)')
   activeGamesTableReady = true
@@ -700,14 +707,17 @@ async function ensureActiveGamesTable(): Promise<void> {
 export async function dbInsertActiveGame(game: ActiveGame): Promise<void> {
   await ensureActiveGamesTable()
   await exec(
-    `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at)
-     VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?)
+    `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at, is_multiplayer, room_code)
+     VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET
        title = EXCLUDED.title,
        config = EXCLUDED.config,
-       players = EXCLUDED.players`,
+       players = EXCLUDED.players,
+       is_multiplayer = EXCLUDED.is_multiplayer,
+       room_code = EXCLUDED.room_code`,
     [game.id, game.playerId, game.gameType, game.title,
-     JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt]
+     JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt,
+     game.isMultiplayer ? 1 : 0, game.roomCode ?? null]
   )
 }
 
@@ -721,7 +731,8 @@ export async function dbGetActiveGames(): Promise<ActiveGame[]> {
   try {
     const rows = await query<{
       id: string; player_id: string; game_type: string; title: string;
-      config: any; players: any; started_at: string
+      config: any; players: any; started_at: string;
+      is_multiplayer?: number; room_code?: string | null
     }>('SELECT * FROM active_games ORDER BY started_at DESC')
 
     activeGamesTableReady = true
@@ -733,6 +744,8 @@ export async function dbGetActiveGames(): Promise<ActiveGame[]> {
       config: r.config,
       players: r.players,
       startedAt: r.started_at,
+      isMultiplayer: r.is_multiplayer === 1,
+      roomCode: r.room_code ?? null,
     }))
   } catch {
     // Table doesn't exist yet — create it and return empty

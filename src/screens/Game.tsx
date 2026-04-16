@@ -1212,6 +1212,19 @@ export default function Game({ matchId, onExit, onNewGame, onBackToLobby, multip
       )
     }
 
+    // Host: persist events to DB during gameplay (enables resume + cross-device)
+    if (multiplayer.isHost && startEvt) {
+      ;(async () => {
+        try {
+          await ensureX01MatchExistsAsync(
+            matchId, (multiplayer.remoteEvents ?? []) as any[],
+            startEvt.players?.map((p: any) => p.playerId) ?? [],
+            `${startEvt.mode ?? 'X01'} – Multiplayer`,
+          )
+        } catch (e) { console.warn('[MP] persistEvents failed:', e) }
+      })()
+    }
+
     // Announce only when it's MY turn (not on other player's phone)
     if (speechEnabled && multiplayer.remoteEvents.length > prevLen && match) {
       const newState = applyEvents(multiplayer.remoteEvents)

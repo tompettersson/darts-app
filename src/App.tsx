@@ -170,7 +170,7 @@ import { generateRandomGame, describeRandomGame } from './randomGame'
 
 // Multiplayer
 import PartySocket from 'partysocket'
-import { useMultiplayerRoom, MultiplayerLobby, SpectatorView } from './multiplayer'
+import { useMultiplayerRoom, MultiplayerLobby, SpectatorView, generateRoomCode } from './multiplayer'
 import type { DartsEvent as DartsEventType } from './darts501'
 
 // Arcade Scroll Picker
@@ -2123,6 +2123,19 @@ export default function App() {
           // Send start-game to server (broadcasts events to all clients)
           mpActions.startGame(matchId, config.gameType, initialEvents)
 
+          // Register multiplayer game as active (for resume + cross-device)
+          registerActiveGame({
+            id: matchId,
+            playerId: multiplayerMyPlayerId,
+            gameType: config.gameType,
+            title: `${config.gameType === 'x01' ? (config.startScore || 501) : config.gameType.toUpperCase()} – ${orderedPlayerList.map(p => p.name).join(' vs ')}`,
+            config: { ...config, isMultiplayer: true },
+            players: orderedPlayerList.map(p => ({ id: p.playerId, name: p.name, color: p.color })),
+            startedAt: new Date().toISOString(),
+            isMultiplayer: true,
+            roomCode: multiplayerRoomCode,
+          })
+
           // Register game in live registry for spectators
           try {
             const regSocket = new PartySocket({ host: import.meta.env.VITE_PARTYKIT_HOST || 'darts-multiplayer.david711-ass.partykit.dev', room: '__live__' })
@@ -2879,6 +2892,87 @@ export default function App() {
   async function resumeGame(game: ActiveGame) {
     setResumeLoading(true)
     try {
+      // Multiplayer resume: load events from DB, create new room, open lobby
+      if (game.isMultiplayer) {
+        let events: any[] = []
+        // Load events from DB based on game type
+        switch (game.gameType) {
+          case 'x01': {
+            const m = await dbGetX01MatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          case 'cricket': {
+            const m = await dbGetCricketMatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          case 'atb': {
+            const m = await dbGetATBMatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          case 'shanghai': {
+            const m = await dbGetShanghaiMatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          case 'killer': {
+            const m = await dbGetKillerMatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          case 'bobs27': {
+            const m = await dbGetBobs27MatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          case 'operation': {
+            const m = await dbGetOperationMatchById(game.id)
+            if (m) events = m.events
+            break
+          }
+          default: {
+            // str, highscore, ctf — load via generic async loaders
+            const loaders: Record<string, () => Promise<any>> = {
+              str: getStrMatchesAsync, highscore: getHighscoreMatchesAsync,
+              ctf: getCTFMatchesAsync,
+            }
+            if (loaders[game.gameType]) {
+              const matches = await loaders[game.gameType]()
+              const m = matches?.find((x: any) => x.id === game.id)
+              if (m) events = m.events
+            }
+          }
+        }
+
+        if (events.length === 0) {
+          showToast('Keine Spieldaten gefunden')
+          setResumeLoading(false)
+          return
+        }
+
+        // Create new room and open lobby
+        const newRoomCode = generateRoomCode()
+        setMultiplayerRoomCode(newRoomCode)
+        setMultiplayerMatchId(game.id)
+        setMultiplayerGameType(game.gameType)
+        setMultiplayerRemoteEvents(events as DartsEvent[])
+        setMultiplayerMyPlayerId(auth.user?.profileId ?? '')
+
+        // Create the room via mpActions
+        const myProfile = getProfiles().find(p => p.id === (auth.user?.profileId ?? ''))
+        mpActions.createRoom({
+          playerId: auth.user?.profileId ?? '',
+          name: myProfile?.name ?? '',
+          color: myProfile?.color,
+        })
+
+        setView('multiplayer-lobby-host')
+        setResumeLoading(false)
+        return
+      }
+
       switch (game.gameType) {
         case 'x01': {
           const m = await dbGetX01MatchById(game.id)

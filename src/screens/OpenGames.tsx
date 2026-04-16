@@ -141,14 +141,31 @@ export default function OpenGames({ games, onSelect, onDiscard, onBack }: Props)
                   alignItems: 'center',
                   marginBottom: 4,
                 }}>
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: 'uppercase' as const,
-                    letterSpacing: '0.05em',
-                    color: info.color,
-                  }}>
-                    {info.label}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: 'uppercase' as const,
+                      letterSpacing: '0.05em',
+                      color: info.color,
+                    }}>
+                      {info.label}
+                    </span>
+                    {game.isMultiplayer && (
+                      <span style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        textTransform: 'uppercase' as const,
+                        letterSpacing: '0.05em',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: '#3b82f620',
+                        color: '#3b82f6',
+                        border: '1px solid #3b82f640',
+                      }}>
+                        Online
+                      </span>
+                    )}
                   </span>
                   <span style={{ fontSize: 12, color: colors.fgMuted }}>
                     {formatRelativeDate(game.startedAt)}
