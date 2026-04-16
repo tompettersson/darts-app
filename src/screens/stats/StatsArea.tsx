@@ -12,23 +12,35 @@ import { useSQLStats } from '../../hooks/useSQLStats'
 // H2HState Type-Import (nur Typ, kein Code-Bundle)
 import type { H2HState } from './StatsDashboard'
 
+// Retry-wrapper for lazy imports — survives stale chunks after deployment
+function lazyRetry<T extends { default: React.ComponentType<any> }>(
+  factory: () => Promise<T>,
+): React.LazyExoticComponent<T['default']> {
+  return React.lazy(() =>
+    factory().catch(() => {
+      if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)))
+      return factory().catch(() => { window.location.reload(); return factory() })
+    }),
+  )
+}
+
 // Lazy-loaded Screens (nur bei Bedarf geladen)
-const StatsDashboard = React.lazy(() => import('./StatsDashboard'))
-const PlayersOverview = React.lazy(() => import('./PlayersOverview'))
-const StatsProfile = React.lazy(() => import('../StatsProfile'))
-const AdvancedStatsTab = React.lazy(() => import('./AdvancedStatsTab'))
-const MatchDetails = React.lazy(() => import('../MatchDetails'))
-const ATBMatchDetails = React.lazy(() => import('../ATBMatchDetails'))
-const StrMatchDetails = React.lazy(() => import('../StrMatchDetails'))
-const HighscoreMatchDetails = React.lazy(() => import('../HighscoreMatchDetails'))
-const CTFMatchDetails = React.lazy(() => import('../CTFMatchDetails'))
-const ShanghaiMatchDetails = React.lazy(() => import('../ShanghaiMatchDetails'))
-const KillerSummary = React.lazy(() => import('../KillerSummary'))
-const CricketMatchDetails = React.lazy(() => import('../CricketMatchDetails'))
-const Bobs27MatchDetails = React.lazy(() => import('../Bobs27MatchDetails'))
-const OperationMatchDetails = React.lazy(() => import('../OperationMatchDetails'))
-const HallOfFame = React.lazy(() => import('../HallOfFame'))
-const MatchHistory = React.lazy(() => import('../MatchHistory'))
+const StatsDashboard = lazyRetry(() => import('./StatsDashboard'))
+const PlayersOverview = lazyRetry(() => import('./PlayersOverview'))
+const StatsProfile = lazyRetry(() => import('../StatsProfile'))
+const AdvancedStatsTab = lazyRetry(() => import('./AdvancedStatsTab'))
+const MatchDetails = lazyRetry(() => import('../MatchDetails'))
+const ATBMatchDetails = lazyRetry(() => import('../ATBMatchDetails'))
+const StrMatchDetails = lazyRetry(() => import('../StrMatchDetails'))
+const HighscoreMatchDetails = lazyRetry(() => import('../HighscoreMatchDetails'))
+const CTFMatchDetails = lazyRetry(() => import('../CTFMatchDetails'))
+const ShanghaiMatchDetails = lazyRetry(() => import('../ShanghaiMatchDetails'))
+const KillerSummary = lazyRetry(() => import('../KillerSummary'))
+const CricketMatchDetails = lazyRetry(() => import('../CricketMatchDetails'))
+const Bobs27MatchDetails = lazyRetry(() => import('../Bobs27MatchDetails'))
+const OperationMatchDetails = lazyRetry(() => import('../OperationMatchDetails'))
+const HallOfFame = lazyRetry(() => import('../HallOfFame'))
+const MatchHistory = lazyRetry(() => import('../MatchHistory'))
 
 type View =
   | 'stats-menu'

@@ -103,52 +103,69 @@ import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501
 // Types (erased at compile time)
 import type { Preset } from './screens/NewGameStart'
 
+// Retry-wrapper for lazy imports — survives stale chunks after deployment
+function lazyRetry<T extends { default: React.ComponentType<any> }>(
+  factory: () => Promise<T>,
+): React.LazyExoticComponent<T['default']> {
+  return React.lazy(() =>
+    factory().catch(() => {
+      // Chunk probably outdated after deploy — bust cache and retry once
+      if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)))
+      return factory().catch(() => {
+        // Still fails — hard reload
+        window.location.reload()
+        return factory() // never resolves, but keeps TS happy
+      })
+    }),
+  )
+}
+
 // Lazy-loaded Admin & Auth Screens
-const AdminPanel = React.lazy(() => import('./screens/AdminPanel'))
+const AdminPanel = lazyRetry(() => import('./screens/AdminPanel'))
 
 // Lazy-loaded NewGame & Profile Screens
-const NewGame = React.lazy(() => import('./screens/NewGame'))
-const NewGameStart = React.lazy(() => import('./screens/NewGameStart'))
-const CreateProfile = React.lazy(() => import('./screens/CreateProfile'))
-const ProfileList = React.lazy(() => import('./screens/ProfileList'))
-const NewGameCricket = React.lazy(() => import('./screens/NewGameCricket'))
-const NewGameATB = React.lazy(() => import('./screens/NewGameATB'))
-const NewGame121 = React.lazy(() => import('./screens/NewGame121'))
-const NewGameStraeusschen = React.lazy(() => import('./screens/NewGameStraeusschen'))
-const NewGameHighscore = React.lazy(() => import('./screens/NewGameHighscore'))
-const NewGameCTF = React.lazy(() => import('./screens/NewGameCTF'))
-const NewGameShanghai = React.lazy(() => import('./screens/NewGameShanghai'))
-const NewGameKiller = React.lazy(() => import('./screens/NewGameKiller'))
-const NewGameBobs27 = React.lazy(() => import('./screens/NewGameBobs27'))
-const NewGameOperation = React.lazy(() => import('./screens/NewGameOperation'))
-const CheckoutQuiz = React.lazy(() => import('./screens/CheckoutQuiz'))
-const OpenGames = React.lazy(() => import('./screens/OpenGames'))
+const NewGame = lazyRetry(() => import('./screens/NewGame'))
+const NewGameStart = lazyRetry(() => import('./screens/NewGameStart'))
+const CreateProfile = lazyRetry(() => import('./screens/CreateProfile'))
+const ProfileList = lazyRetry(() => import('./screens/ProfileList'))
+const NewGameCricket = lazyRetry(() => import('./screens/NewGameCricket'))
+const NewGameATB = lazyRetry(() => import('./screens/NewGameATB'))
+const NewGame121 = lazyRetry(() => import('./screens/NewGame121'))
+const NewGameStraeusschen = lazyRetry(() => import('./screens/NewGameStraeusschen'))
+const NewGameHighscore = lazyRetry(() => import('./screens/NewGameHighscore'))
+const NewGameCTF = lazyRetry(() => import('./screens/NewGameCTF'))
+const NewGameShanghai = lazyRetry(() => import('./screens/NewGameShanghai'))
+const NewGameKiller = lazyRetry(() => import('./screens/NewGameKiller'))
+const NewGameBobs27 = lazyRetry(() => import('./screens/NewGameBobs27'))
+const NewGameOperation = lazyRetry(() => import('./screens/NewGameOperation'))
+const CheckoutQuiz = lazyRetry(() => import('./screens/CheckoutQuiz'))
+const OpenGames = lazyRetry(() => import('./screens/OpenGames'))
 
 // Lazy-loaded Game Screens, Summaries & Stats
-const Game = React.lazy(() => import('./screens/Game'))
-const GameCricket = React.lazy(() => import('./screens/GameCricket'))
-const GameATB = React.lazy(() => import('./screens/GameATB'))
-const GameStraeusschen = React.lazy(() => import('./screens/GameStraeusschen'))
-const GameHighscore = React.lazy(() => import('./screens/GameHighscore'))
-const GameCTF = React.lazy(() => import('./screens/GameCTF'))
-const GameShanghai = React.lazy(() => import('./screens/GameShanghai'))
-const GameKiller = React.lazy(() => import('./screens/GameKiller'))
-const GameBobs27 = React.lazy(() => import('./screens/GameBobs27'))
-const GameOperation = React.lazy(() => import('./screens/GameOperation'))
-const GameCheckoutTrainer = React.lazy(() => import('./screens/GameCheckoutTrainer'))
-const StatsArea = React.lazy(() => import('./screens/stats/StatsArea'))
-const CricketSummary = React.lazy(() => import('./screens/CricketSummary'))
-const ATBSummary = React.lazy(() => import('./screens/ATBSummary'))
-const StraeusschenSummary = React.lazy(() => import('./screens/StraeusschenSummary'))
-const HighscoreSummary = React.lazy(() => import('./screens/HighscoreSummary'))
-const CTFSummary = React.lazy(() => import('./screens/CTFSummary'))
-const ShanghaiSummary = React.lazy(() => import('./screens/ShanghaiSummary'))
-const KillerSummary = React.lazy(() => import('./screens/KillerSummary'))
-const Bobs27Summary = React.lazy(() => import('./screens/Bobs27Summary'))
-const OperationSummary = React.lazy(() => import('./screens/OperationSummary'))
+const Game = lazyRetry(() => import('./screens/Game'))
+const GameCricket = lazyRetry(() => import('./screens/GameCricket'))
+const GameATB = lazyRetry(() => import('./screens/GameATB'))
+const GameStraeusschen = lazyRetry(() => import('./screens/GameStraeusschen'))
+const GameHighscore = lazyRetry(() => import('./screens/GameHighscore'))
+const GameCTF = lazyRetry(() => import('./screens/GameCTF'))
+const GameShanghai = lazyRetry(() => import('./screens/GameShanghai'))
+const GameKiller = lazyRetry(() => import('./screens/GameKiller'))
+const GameBobs27 = lazyRetry(() => import('./screens/GameBobs27'))
+const GameOperation = lazyRetry(() => import('./screens/GameOperation'))
+const GameCheckoutTrainer = lazyRetry(() => import('./screens/GameCheckoutTrainer'))
+const StatsArea = lazyRetry(() => import('./screens/stats/StatsArea'))
+const CricketSummary = lazyRetry(() => import('./screens/CricketSummary'))
+const ATBSummary = lazyRetry(() => import('./screens/ATBSummary'))
+const StraeusschenSummary = lazyRetry(() => import('./screens/StraeusschenSummary'))
+const HighscoreSummary = lazyRetry(() => import('./screens/HighscoreSummary'))
+const CTFSummary = lazyRetry(() => import('./screens/CTFSummary'))
+const ShanghaiSummary = lazyRetry(() => import('./screens/ShanghaiSummary'))
+const KillerSummary = lazyRetry(() => import('./screens/KillerSummary'))
+const Bobs27Summary = lazyRetry(() => import('./screens/Bobs27Summary'))
+const OperationSummary = lazyRetry(() => import('./screens/OperationSummary'))
 
 // Zufallsspiel (lazy)
-const NewGameRandom = React.lazy(() => import('./screens/NewGameRandom'))
+const NewGameRandom = lazyRetry(() => import('./screens/NewGameRandom'))
 import { generateRandomGame, describeRandomGame } from './randomGame'
 
 // Multiplayer
