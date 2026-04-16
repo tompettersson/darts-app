@@ -163,73 +163,39 @@ export default function MatchDetails({ matchId, onBack }: Props) {
   const stored = loadMatchById(matchId)
   const profiles = useMemo(() => getProfiles(), [])
 
-  if (!stored) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.centerPage}>
-          <div style={styles.centerInner}>
-            <div style={styles.card}>
-              <h2 style={{ margin: 0 }}>Match nicht gefunden</h2>
-              <div style={{ marginTop: 10 }}>
-                <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const events = stored.events as DartsEvent[]
-  const state = useMemo(() => applyEvents(events), [events])
+  const events = (stored?.events ?? []) as DartsEvent[]
+  const state = useMemo(() => events.length > 0 ? applyEvents(events) : { match: undefined, legs: [], events: [] }, [events])
   const match = state.match as MatchStarted | undefined
-
-  if (!match) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.centerPage}>
-          <div style={styles.centerInner}>
-            <div style={styles.card}>
-              <h2 style={{ margin: 0 }}>Unvollständige Matchdaten</h2>
-              <div style={{ marginTop: 10 }}>
-                <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   // Spielerfarben aus Profilen holen
   const playerColors: Record<string, string> = {}
-  match.players.forEach((p, idx) => {
+  match?.players.forEach((p, idx) => {
     const profile = profiles.find((pr) => pr.id === p.playerId)
     playerColors[p.playerId] = profile?.color ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
   })
-  const pids = match.players.map(p => p.playerId)
+  const pids = match?.players.map(p => p.playerId) ?? []
   const tdWin = (c: string | undefined): React.CSSProperties => c ? { ...tdRight, color: c, fontWeight: 700 } : tdRight
 
-  const isSets = match.structure.kind === 'sets'
+  const isSets = match?.structure.kind === 'sets'
   const finishedEvt = state.events.find((e) => e.type === 'MatchFinished') as MatchFinished | undefined
-  const winnerName = finishedEvt ? pName(match, finishedEvt.winnerPlayerId) : undefined
+  const winnerName = finishedEvt && match ? pName(match, finishedEvt.winnerPlayerId) : undefined
 
   // Stats berechnen
   const statsByPlayer = useMemo(() => computeStats(events), [events])
 
   // Format-String
   let format = ''
-  if (match.structure.kind === 'sets') {
+  if (match?.structure.kind === 'sets') {
     const sets = Math.floor((match.structure.bestOfSets || 1) / 2) + 1
     const legs = match.structure.legsPerSet || 1
     format = `First to ${sets} Sets, ${legs} Legs`
-  } else {
+  } else if (match) {
     const legs = Math.floor((match.structure.bestOfLegs || 1) / 2) + 1
     format = `First to ${legs} Legs`
   }
 
   // Score aus mode extrahieren
-  const score = (match.mode || '').split('-')[0] || '501'
+  const score = (match?.mode || '').split('-')[0] || '501'
 
   // Sets/Legs sammeln
   const setFinished = state.events.filter((e) => e.type === 'SetFinished') as SetFinished[]
@@ -272,7 +238,7 @@ export default function MatchDetails({ matchId, onBack }: Props) {
   // Höchste Aufnahme und Höchstes Checkout pro Spieler berechnen
   const highestVisitByPlayer: Record<string, number> = {}
   const highestCheckoutByPlayer: Record<string, number> = {}
-  match.players.forEach((p) => {
+  ;(match?.players ?? []).forEach((p) => {
     highestVisitByPlayer[p.playerId] = 0
     highestCheckoutByPlayer[p.playerId] = 0
   })
@@ -318,8 +284,8 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     { label: '100+', getValue: (pid) => String(statsByPlayer[pid]?.bins._100plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._100plus ?? 0, better: 'high' },
     { label: '61+', getValue: (pid) => String(statsByPlayer[pid]?.bins._61plus ?? 0), getCompareValue: (pid) => statsByPlayer[pid]?.bins._61plus ?? 0, better: 'high' },
     // === Checkout-Details ===
-    { label: getOutRule(match) === 'master-out' ? 'Checkout-Versuche' : 'Double-Versuche', getValue: (pid) => String(statsByPlayer[pid]?.doubleAttemptsDart ?? 0) },
-    { label: getOutRule(match) === 'master-out' ? 'Lieblings-Checkout' : 'Lieblingsdoppel', getValue: (pid) => {
+    { label: match && getOutRule(match) === 'master-out' ? 'Checkout-Versuche' : 'Double-Versuche', getValue: (pid) => String(statsByPlayer[pid]?.doubleAttemptsDart ?? 0) },
+    { label: match && getOutRule(match) === 'master-out' ? 'Lieblings-Checkout' : 'Lieblingsdoppel', getValue: (pid) => {
       const doubles = statsByPlayer[pid]?.finishingDoubles ?? {}
       const sorted = Object.entries(doubles).sort(([, a], [, b]) => b - a)
       return sorted.length > 0 ? sorted[0][0] : '–'
@@ -430,6 +396,111 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     }
     return result
   }, [events, is121Game, match, legFinished])
+
+  // Spielbericht generieren (Hook muss vor allen bedingten Returns stehen)
+  const matchReport = useMemo(() => {
+    if (!match || legFinished.length === 0) return ''
+    const reportInput: MatchReportInput = {
+      matchId,
+      startingScore: match.startingScorePerLeg ?? 501,
+      isSets,
+      players: match.players.map(p => ({ playerId: p.playerId, name: p.name ?? p.playerId })),
+      winnerPlayerId: finishedEvt?.winnerPlayerId,
+      legs: legFinished.map((lf, idx) => {
+        const leg = state.legs.find(l => l.legId === lf.legId)
+        const byPlayer = match.players.map(p => {
+          const visits = (leg?.visits ?? []).filter((v: any) => v.playerId === p.playerId)
+          const totalScore = visits.reduce((sum: number, v: any) => sum + (v.bust ? 0 : v.visitScore), 0)
+          const totalDarts = visits.reduce((sum: number, v: any) => sum + v.darts.length, 0)
+          const busts = visits.filter((v: any) => v.bust).length
+          const bestVisit = visits.reduce((best: number, v: any) => Math.max(best, v.visitScore), 0)
+          const threeDA = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0
+          return {
+            playerId: p.playerId,
+            name: p.name ?? p.playerId,
+            threeDA,
+            bestVisit,
+            busts,
+            darts: totalDarts,
+          }
+        })
+        const allVisits = leg?.visits ?? []
+        const has180 = allVisits.some((v: any) => v.visitScore === 180)
+        const dartsThrownTotal = allVisits.reduce((sum: number, v: any) => sum + v.darts.length, 0)
+        let highestCheckout: number | undefined
+        for (const v of allVisits as any[]) {
+          if (v.remainingAfter === 0 && !v.bust) {
+            if (!highestCheckout || v.remainingBefore > highestCheckout) {
+              highestCheckout = v.remainingBefore
+            }
+          }
+        }
+        return {
+          legIndex: idx + 1,
+          winnerPlayerId: lf.winnerPlayerId,
+          dartsThrownTotal,
+          byPlayer,
+          highestCheckout,
+          has180,
+        }
+      }),
+      overallStats: match.players.map(p => {
+        const sp = statsByPlayer[p.playerId]
+        const made = sp?.doublesHitDart ?? 0
+        const att = sp?.doubleAttemptsDart ?? 0
+        const checkoutPct = att > 0 ? (made / att) * 100 : 0
+        return {
+          playerId: p.playerId,
+          name: p.name ?? p.playerId,
+          threeDA: sp?.threeDartAvg ?? 0,
+          checkoutPct,
+          highestCheckout: highestCheckoutByPlayer[p.playerId] ?? 0,
+          tons180: sp?.bins._180 ?? 0,
+          tons140plus: sp?.bins._140plus ?? 0,
+          tons100plus: sp?.bins._100plus ?? 0,
+          busts: sp?.busts ?? 0,
+          dartsThrown: sp?.dartsThrown ?? 0,
+          bestLegDarts: sp?.bestLegDarts ?? null,
+        }
+      }),
+    }
+    return generateMatchReport(reportInput)
+  }, [matchId, match, legFinished, state.legs, statsByPlayer, finishedEvt, highestCheckoutByPlayer, isSets])
+
+  // === Early returns (NACH allen Hooks) ===
+  if (!stored) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.centerPage}>
+          <div style={styles.centerInner}>
+            <div style={styles.card}>
+              <h2 style={{ margin: 0 }}>Match nicht gefunden</h2>
+              <div style={{ marginTop: 10 }}>
+                <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!match) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.centerPage}>
+          <div style={styles.centerInner}>
+            <div style={styles.card}>
+              <h2 style={{ margin: 0 }}>Unvollständige Matchdaten</h2>
+              <div style={{ marginTop: 10 }}>
+                <button style={styles.backBtn} onClick={onBack}>← Zurück</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // SET DETAIL VIEW (nur wenn kein Leg ausgewählt)
   if (selectedSetIndex !== null && isSets && !selectedLegId) {
@@ -1286,77 +1357,6 @@ export default function MatchDetails({ matchId, onBack }: Props) {
     })
     setScoreString = match.players.map(p => setWinsPerPlayer[p.playerId]).join(':')
   }
-
-  // Spielbericht generieren
-  const matchReport = useMemo(() => {
-    if (!match || legFinished.length === 0) return ''
-    const reportInput: MatchReportInput = {
-      matchId,
-      startingScore: match.startingScorePerLeg ?? 501,
-      isSets,
-      players: match.players.map(p => ({ playerId: p.playerId, name: p.name ?? p.playerId })),
-      winnerPlayerId: finishedEvt?.winnerPlayerId,
-      legs: legFinished.map((lf, idx) => {
-        const leg = state.legs.find(l => l.legId === lf.legId)
-        const byPlayer = match.players.map(p => {
-          const visits = (leg?.visits ?? []).filter((v: any) => v.playerId === p.playerId)
-          const totalScore = visits.reduce((sum: number, v: any) => sum + (v.bust ? 0 : v.visitScore), 0)
-          const totalDarts = visits.reduce((sum: number, v: any) => sum + v.darts.length, 0)
-          const busts = visits.filter((v: any) => v.bust).length
-          const bestVisit = visits.reduce((best: number, v: any) => Math.max(best, v.visitScore), 0)
-          const threeDA = totalDarts > 0 ? (totalScore / totalDarts) * 3 : 0
-          return {
-            playerId: p.playerId,
-            name: p.name ?? p.playerId,
-            threeDA,
-            bestVisit,
-            busts,
-            darts: totalDarts,
-          }
-        })
-        const allVisits = leg?.visits ?? []
-        const has180 = allVisits.some((v: any) => v.visitScore === 180)
-        const dartsThrownTotal = allVisits.reduce((sum: number, v: any) => sum + v.darts.length, 0)
-        // Highest checkout: remaining before the finishing visit
-        let highestCheckout: number | undefined
-        for (const v of allVisits as any[]) {
-          if (v.remainingAfter === 0 && !v.bust) {
-            if (!highestCheckout || v.remainingBefore > highestCheckout) {
-              highestCheckout = v.remainingBefore
-            }
-          }
-        }
-        return {
-          legIndex: idx + 1,
-          winnerPlayerId: lf.winnerPlayerId,
-          dartsThrownTotal,
-          byPlayer,
-          highestCheckout,
-          has180,
-        }
-      }),
-      overallStats: match.players.map(p => {
-        const sp = statsByPlayer[p.playerId]
-        const made = sp?.doublesHitDart ?? 0
-        const att = sp?.doubleAttemptsDart ?? 0
-        const checkoutPct = att > 0 ? (made / att) * 100 : 0
-        return {
-          playerId: p.playerId,
-          name: p.name ?? p.playerId,
-          threeDA: sp?.threeDartAvg ?? 0,
-          checkoutPct,
-          highestCheckout: highestCheckoutByPlayer[p.playerId] ?? 0,
-          tons180: sp?.bins._180 ?? 0,
-          tons140plus: sp?.bins._140plus ?? 0,
-          tons100plus: sp?.bins._100plus ?? 0,
-          busts: sp?.busts ?? 0,
-          dartsThrown: sp?.dartsThrown ?? 0,
-          bestLegDarts: sp?.bestLegDarts ?? null,
-        }
-      }),
-    }
-    return generateMatchReport(reportInput)
-  }, [matchId, match, legFinished, state.legs, statsByPlayer, finishedEvt, highestCheckoutByPlayer, isSets])
 
   return (
     <div style={styles.page}>
