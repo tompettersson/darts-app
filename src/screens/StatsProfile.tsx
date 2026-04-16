@@ -2436,39 +2436,36 @@ export default function StatsProfile({
             )
           })()}
 
-          {/* Top-5 Doppelfelder */}
-          {sqlStats.data.doubleRates && sqlStats.data.doubleRates.length > 0 && (() => {
-            const top5 = sqlStats.data.doubleRates
-              .filter(d => d.attempts >= 3)
-              .sort((a, b) => b.hitRate - a.hitRate)
-              .slice(0, 5)
-            const worst3 = sqlStats.data.doubleRates
-              .filter(d => d.attempts >= 3)
-              .sort((a, b) => a.hitRate - b.hitRate)
-              .slice(0, 3)
+          {/* Checkout-Doppelfelder (aus Karriere-Stats) */}
+          {x01Career && x01Career.finishingDoubles && Object.keys(x01Career.finishingDoubles).length > 0 && (() => {
+            const entries = Object.entries(x01Career.finishingDoubles)
+              .map(([field, count]) => ({ field, count: count as number }))
+              .sort((a, b) => b.count - a.count)
+            const totalCheckouts = entries.reduce((sum, e) => sum + e.count, 0)
+            const top5 = entries.slice(0, 5)
             if (top5.length === 0) return null
             return (
-            <Accordion title="Doppelfeld-Analyse (X01)" defaultOpen={false}>
+            <Accordion title="Checkout-Doppelfelder (X01)" defaultOpen={false}>
               <div style={s.statsCard}>
-                <div style={s.statsCardTitle as React.CSSProperties}>Stärkste Doppelfelder</div>
+                <div style={s.statsCardTitle as React.CSSProperties}>Meistgenutzte Doppel zum Auschecken</div>
                 {top5.map((d, i) => (
                   <div key={d.field} style={i === top5.length - 1 ? s.statsRowLast : s.statsRow}>
-                    <span style={s.statsLabel}>D{d.field}</span>
-                    <span style={s.statsValueGood}>{formatPct(d.hitRate)} ({d.hits}/{d.attempts})</span>
+                    <span style={s.statsLabel}>{d.field}</span>
+                    <span style={s.statsValueGood}>{d.count}× ({formatPct(totalCheckouts > 0 ? (d.count / totalCheckouts) * 100 : 0)})</span>
                   </div>
                 ))}
               </div>
-              {worst3.length > 0 && worst3[0].hitRate < 30 && (
-                <div style={s.statsCard}>
-                  <div style={s.statsCardTitle as React.CSSProperties}>Schwächste Doppelfelder</div>
-                  {worst3.map((d, i) => (
-                    <div key={d.field} style={i === worst3.length - 1 ? s.statsRowLast : s.statsRow}>
-                      <span style={s.statsLabel}>D{d.field}</span>
-                      <span style={s.statsValueBad}>{formatPct(d.hitRate)} ({d.hits}/{d.attempts})</span>
-                    </div>
-                  ))}
+              <div style={s.statsCard}>
+                <div style={s.statsCardTitle as React.CSSProperties}>Gesamt</div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Checkouts insgesamt</span>
+                  <span style={s.statsValueHighlight}>{totalCheckouts}</span>
                 </div>
-              )}
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Verschiedene Doppel genutzt</span>
+                  <span style={s.statsValue}>{entries.length}</span>
+                </div>
+              </div>
             </Accordion>
             )
           })()}
