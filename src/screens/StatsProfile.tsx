@@ -1,6 +1,6 @@
 // src/screens/StatsProfile.tsx
 import React, { useEffect, useMemo, useState } from 'react'
-import { getProfiles, getStrMatches, getHighscoreMatches, getCTFMatches, getShanghaiMatches, getKillerMatches, getBobs27Matches, getOperationMatches, getGlobalX01PlayerStats, type Profile } from '../storage'
+import { getProfiles, getStrMatches, getHighscoreMatches, getCTFMatches, getShanghaiMatches, getKillerMatches, getBobs27Matches, getOperationMatches, getGlobalX01PlayerStats, getStrMatchesAsync, getHighscoreMatchesAsync, getCTFMatchesAsync, getShanghaiMatchesAsync, type Profile } from '../storage'
 import { useTheme } from '../ThemeProvider'
 import { computeStrMatchStats, type StrPlayerMatchStat } from '../stats/computeStraeusschenStats'
 import { computeCTFMatchStats } from '../stats/computeCTFStats'
@@ -33,6 +33,23 @@ export default function StatsProfile({
   const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'uebersicht')
   const [x01Variant, setX01Variant] = useState<121 | 301 | 501 | 701 | 901>(501)
   const [atbVariant, setAtbVariant] = useState<string>('alle')
+  const [minigamesCacheLoaded, setMinigamesCacheLoaded] = useState(false)
+
+  // Lazy-load minigame match caches from DB when tab is opened
+  useEffect(() => {
+    if (activeTab !== 'minigames' && activeTab !== 'uebersicht') return
+    if (minigamesCacheLoaded) return
+    let cancelled = false
+    Promise.all([
+      getStrMatchesAsync(),
+      getCTFMatchesAsync(),
+      getShanghaiMatchesAsync(),
+      getHighscoreMatchesAsync(),
+    ]).then(() => {
+      if (!cancelled) setMinigamesCacheLoaded(true)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [activeTab, minigamesCacheLoaded])
 
   // Theme System
   const { isArcade, colors } = useTheme()
@@ -2303,6 +2320,169 @@ export default function StatsProfile({
                 </div>
               </Accordion>
             </>
+            )
+          })()}
+
+          {/* Clutch-Performance (X01) */}
+          {sqlStats.data.clutchStats && (() => {
+            const c = sqlStats.data.clutchStats
+            if (c.clutchAttempts === 0 && c.normalAttempts === 0) return null
+            return (
+            <Accordion title="Clutch-Performance (X01)" defaultOpen={false}>
+              <div style={s.statsCard}>
+                <div style={s.statsCardTitle as React.CSSProperties}>Checkout unter Druck vs. Normal</div>
+                {c.clutchAttempts > 0 && (
+                  <>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Clutch-Checkout (bei Rückstand)</span>
+                      <span style={s.statsValueHighlight}>{formatPct(c.clutchRate)}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Clutch-Versuche / Treffer</span>
+                      <span style={s.statsValue}>{c.clutchAttempts} / {c.clutchSuccesses}</span>
+                    </div>
+                  </>
+                )}
+                {c.normalAttempts > 0 && (
+                  <>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Normal-Checkout</span>
+                      <span style={s.statsValue}>{formatPct(c.normalRate)}</span>
+                    </div>
+                    <div style={s.statsRow}>
+                      <span style={s.statsLabel}>Normal-Versuche / Treffer</span>
+                      <span style={s.statsValue}>{c.normalAttempts} / {c.normalSuccesses}</span>
+                    </div>
+                  </>
+                )}
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Ø Darts am Doppel</span>
+                  <span style={s.statsValue}>{c.avgDartsAtDouble > 0 ? c.avgDartsAtDouble.toFixed(1) : '—'}</span>
+                </div>
+              </div>
+            </Accordion>
+            )
+          })()}
+
+          {/* Warmup-Effekt */}
+          {sqlStats.data.warmupEffect && sqlStats.data.warmupEffect.sessionCount >= 3 && (() => {
+            const w = sqlStats.data.warmupEffect
+            const improves = w.difference > 0
+            return (
+            <Accordion title="Warmup-Effekt" defaultOpen={false}>
+              <div style={s.statsCard}>
+                <div style={s.statsCardTitle as React.CSSProperties}>Erstes Spiel vs. spätere Spiele</div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Avg 1. Match einer Session</span>
+                  <span style={s.statsValue}>{formatNum(w.firstMatchAvg)}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Avg ab 2. Match</span>
+                  <span style={improves ? s.statsValueGood : s.statsValueBad}>{formatNum(w.laterMatchesAvg)}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Unterschied</span>
+                  <span style={improves ? s.statsValueGood : s.statsValueBad}>
+                    {improves ? '+' : ''}{formatNum(w.difference)} Punkte
+                  </span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Siegquote 1. Match</span>
+                  <span style={s.statsValue}>{formatPct(w.firstMatchWinRate)}</span>
+                </div>
+                <div style={s.statsRow}>
+                  <span style={s.statsLabel}>Siegquote ab 2. Match</span>
+                  <span style={s.statsValue}>{formatPct(w.laterMatchesWinRate)}</span>
+                </div>
+                <div style={s.statsRowLast}>
+                  <span style={s.statsLabel}>Sessions analysiert</span>
+                  <span style={s.statsValue}>{w.sessionCount}</span>
+                </div>
+              </div>
+            </Accordion>
+            )
+          })()}
+
+          {/* Beste Tageszeit */}
+          {sqlStats.data.timeInsights && sqlStats.data.timeInsights.hourlyPerformance.length > 0 && (() => {
+            const t = sqlStats.data.timeInsights
+            const topHours = t.hourlyPerformance
+              .filter(h => h.matchCount >= 2)
+              .sort((a, b) => b.winRate - a.winRate)
+              .slice(0, 5)
+            if (topHours.length === 0) return null
+            return (
+            <Accordion title="Tageszeit-Analyse" defaultOpen={false}>
+              <div style={s.statsCard}>
+                <div style={s.statsCardTitle as React.CSSProperties}>Beste Spielzeiten</div>
+                {t.bestHour !== null && (
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Stärkste Uhrzeit</span>
+                    <span style={s.statsValueGood}>{t.bestHour}:00 – {t.bestHour + 1}:00 Uhr ({formatPct(t.bestHourWinRate)})</span>
+                  </div>
+                )}
+                {t.avgMatchDurationMinutes > 0 && (
+                  <div style={s.statsRow}>
+                    <span style={s.statsLabel}>Ø Match-Dauer</span>
+                    <span style={s.statsValue}>{Math.round(t.avgMatchDurationMinutes)} Min.</span>
+                  </div>
+                )}
+                {t.fastestMatchMinutes !== null && (
+                  <div style={s.statsRowLast}>
+                    <span style={s.statsLabel}>Schnellstes Match</span>
+                    <span style={s.statsValue}>{Math.round(t.fastestMatchMinutes)} Min.</span>
+                  </div>
+                )}
+              </div>
+              {topHours.length > 1 && (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Siegquote nach Uhrzeit</div>
+                  {topHours.map((h, i) => (
+                    <div key={h.hour} style={i === topHours.length - 1 ? s.statsRowLast : s.statsRow}>
+                      <span style={s.statsLabel}>{h.hour}:00 – {h.hour + 1}:00 ({h.matchCount} Spiele)</span>
+                      <span style={s.statsValueHighlight}>{formatPct(h.winRate)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Accordion>
+            )
+          })()}
+
+          {/* Top-5 Doppelfelder */}
+          {sqlStats.data.doubleRates && sqlStats.data.doubleRates.length > 0 && (() => {
+            const top5 = sqlStats.data.doubleRates
+              .filter(d => d.attempts >= 3)
+              .sort((a, b) => b.hitRate - a.hitRate)
+              .slice(0, 5)
+            const worst3 = sqlStats.data.doubleRates
+              .filter(d => d.attempts >= 3)
+              .sort((a, b) => a.hitRate - b.hitRate)
+              .slice(0, 3)
+            if (top5.length === 0) return null
+            return (
+            <Accordion title="Doppelfeld-Analyse (X01)" defaultOpen={false}>
+              <div style={s.statsCard}>
+                <div style={s.statsCardTitle as React.CSSProperties}>Stärkste Doppelfelder</div>
+                {top5.map((d, i) => (
+                  <div key={d.field} style={i === top5.length - 1 ? s.statsRowLast : s.statsRow}>
+                    <span style={s.statsLabel}>D{d.field}</span>
+                    <span style={s.statsValueGood}>{formatPct(d.hitRate)} ({d.hits}/{d.attempts})</span>
+                  </div>
+                ))}
+              </div>
+              {worst3.length > 0 && worst3[0].hitRate < 30 && (
+                <div style={s.statsCard}>
+                  <div style={s.statsCardTitle as React.CSSProperties}>Schwächste Doppelfelder</div>
+                  {worst3.map((d, i) => (
+                    <div key={d.field} style={i === worst3.length - 1 ? s.statsRowLast : s.statsRow}>
+                      <span style={s.statsLabel}>D{d.field}</span>
+                      <span style={s.statsValueBad}>{formatPct(d.hitRate)} ({d.hits}/{d.attempts})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Accordion>
             )
           })()}
           </>

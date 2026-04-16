@@ -343,7 +343,7 @@ function getGroupsForTab(tab: StatsTab): string[] {
     case 'trends':
       return ['core'] // Trends loads its own data via separate queries
     case 'analyse':
-      return ['core', 'minigames']
+      return ['core', 'insights']
     case 'erfolge':
       return ['core', 'achievements', 'insights', 'playerinsights']
     default:
