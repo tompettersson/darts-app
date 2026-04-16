@@ -16,6 +16,28 @@ const MAX_AUTO_RETRIES = 3
 export default class ErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false, error: null, retryCount: 0 }
 
+  constructor(props: Props) {
+    super(props)
+    // On mount, check if there was a previous error that caused a reset
+    const prevError = sessionStorage.getItem('eb-last-error')
+    const prevStack = sessionStorage.getItem('eb-last-stack')
+    const prevTs = sessionStorage.getItem('eb-last-ts')
+    if (prevError && prevTs) {
+      const age = Date.now() - parseInt(prevTs, 10)
+      if (age < 10_000) {
+        console.warn(
+          `%c[ErrorBoundary] Letzter Fehler (vor ${Math.round(age / 1000)}s):`,
+          'color: #f59e0b; font-weight: bold; font-size: 13px',
+        )
+        console.warn(`%c${prevError}`, 'color: #ef4444; font-weight: bold')
+        if (prevStack) console.warn(prevStack)
+      }
+      sessionStorage.removeItem('eb-last-error')
+      sessionStorage.removeItem('eb-last-stack')
+      sessionStorage.removeItem('eb-last-ts')
+    }
+  }
+
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error }
   }
@@ -23,6 +45,13 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack)
     logError(error, 'ErrorBoundary')
+
+    // Persist error to sessionStorage so it survives the auto-retry reset
+    try {
+      sessionStorage.setItem('eb-last-error', error.message || String(error))
+      sessionStorage.setItem('eb-last-stack', (info.componentStack ?? '') + '\n\n' + (error.stack ?? ''))
+      sessionStorage.setItem('eb-last-ts', String(Date.now()))
+    } catch { /* sessionStorage full or unavailable */ }
 
     // Auto-recover from transient React render errors (e.g. data not loaded yet)
     const isTransient =
