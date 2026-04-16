@@ -145,6 +145,11 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   const [heartAnimations, setHeartAnimations] = useState<Record<string, 'break' | 'gain'>>({})
   const [eliminatedFlash, setEliminatedFlash] = useState<Record<string, boolean>>({})
 
+  // New animation states
+  const [killerFlash, setKillerFlash] = useState<string | null>(null)
+  const [attackAnims, setAttackAnims] = useState<{from: string, to: string}[]>([])
+  const [eliminatedAnim, setEliminatedAnim] = useState<string | null>(null)
+
   // Input-Modus: Nummernpad oder Dartscheibe
   const [inputMode, setInputMode] = useState<'pad' | 'board'>('pad')
 
@@ -325,10 +330,31 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
 
     setCurrent(prev => {
       if (prev.length >= 3) return prev
-      return [...prev, dart]
+      const next = [...prev, dart]
+
+      // Check if this dart qualifies the player as Killer (immediate feedback)
+      const ps = players.find(p => p.playerId === activePlayerId)
+      if (ps && !ps.isKiller && !ps.isEliminated && typeof ps.targetNumber === 'number') {
+        const qm = config.qualifyingRing === 'TRIPLE' ? 3 : 2
+        if (dartTarget === ps.targetNumber && currentMult >= qm) {
+          const currentHits = ps.qualifyingHits + prev.filter(d =>
+            d.target === ps.targetNumber && d.mult >= qm
+          ).length + 1
+          if (currentHits >= config.hitsToBecomeKiller) {
+            // Sofortige Killer-Benachrichtigung!
+            setTimeout(() => {
+              setKillerFlash(activePlayerId)
+              if (!muted) announceKillerQualified(playerNames[activePlayerId] ?? '')
+              setTimeout(() => setKillerFlash(null), 2000)
+            }, 100)
+          }
+        }
+      }
+
+      return next
     })
     setMult(1)
-  }, [activePlayerId, current, gamePaused, multiplayer, isMyTurn])
+  }, [activePlayerId, current, gamePaused, multiplayer, isMyTurn, players, config, playerNames, muted])
 
   // Miss hinzufuegen
   const addMiss = useCallback(() => {
@@ -380,24 +406,33 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     const turnPlayerName = playerNames[activePlayerId] ?? ''
 
     // Speech + SFX fuer Turn-Ergebnis
-    if (result.turnEvent.becameKiller) {
-      announceKillerQualified(turnPlayerName)
-    }
+    // becameKiller is already announced immediately in addDart, skip duplicate
+    // (killerFlash being set means it was already announced)
 
+    // Trigger attack animations for hits
+    const newAttacks: {from: string, to: string}[] = []
     for (const lc of result.turnEvent.livesChanges) {
       if (lc.delta < 0 && lc.playerId !== activePlayerId) {
         const victimName = playerNames[lc.playerId] ?? ''
         announceKillerHit(turnPlayerName, victimName, lc.newLives)
         playKillerHitSound()
+        newAttacks.push({ from: activePlayerId, to: lc.playerId })
       } else if (lc.delta > 0) {
         announceKillerSelfHeal(turnPlayerName)
       }
+    }
+    if (newAttacks.length > 0) {
+      setAttackAnims(newAttacks)
+      setTimeout(() => setAttackAnims([]), 1000)
     }
 
     for (const elimId of result.turnEvent.eliminations) {
       const elimName = playerNames[elimId] ?? ''
       announceKillerEliminated(elimName)
       playKillerEliminatedSound()
+      // Trigger elimination animation
+      setEliminatedAnim(elimName)
+      setTimeout(() => setEliminatedAnim(null), 2000)
     }
 
     // Alle neuen Events sammeln
@@ -807,6 +842,7 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       const isAct = ps.playerId === activePlayerId
       const disabled = isElim || current.length >= 3 || (isQualifying && !isSelf)
       const targetNum = config.secretNumbers && !isSelf && !isElim ? '?' : ps.targetNumber
+      const isAttackVictim = attackAnims.some(a => a.to === ps.playerId)
 
       return (
         <button
@@ -820,72 +856,159 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
             }
           }}
           style={{
-            flex: 1, minHeight: 0,
-            display: 'flex', alignItems: 'center', gap: sz.gap,
-            padding: sz.pad, borderRadius: 8,
+            position: 'relative',
+            flex: landscape ? undefined : 1, minHeight: 0,
+            display: 'flex',
+            flexDirection: landscape ? 'column' : 'row',
+            alignItems: landscape ? 'stretch' : 'center',
+            justifyContent: landscape ? 'center' : undefined,
+            gap: landscape ? 2 : sz.gap,
+            padding: landscape ? '4px 8px' : sz.pad, borderRadius: 8,
             border: `2px solid ${isElim ? '#333' : isAct ? pColor : pColor + '40'}`,
-            background: isElim ? '#1a1a1a' : isAct ? `${pColor}25` : `${pColor}10`,
-            boxShadow: isAct ? `0 0 12px ${pColor}50` : eliminatedFlash[ps.playerId] ? '0 0 20px rgba(231,76,60,0.6)' : 'none',
+            background: isElim ? '#1a1a1a' : isAct
+              ? `linear-gradient(135deg, ${pColor}30, ${pColor}10)`
+              : `linear-gradient(135deg, ${pColor}15, ${pColor}05)`,
+            boxShadow: isAct ? `0 0 16px ${pColor}60, inset 0 0 20px ${pColor}10` : eliminatedFlash[ps.playerId] ? '0 0 20px rgba(231,76,60,0.6)' : 'none',
             opacity: disabled && !isElim ? 0.5 : 1,
             cursor: disabled ? 'not-allowed' : 'pointer',
             color: '#e5e7eb', fontWeight: 700,
             WebkitTapHighlightColor: 'transparent',
             transition: 'box-shadow 0.3s, background 0.3s, border-color 0.3s',
             animation: eliminatedFlash[ps.playerId] ? 'eliminatedFlash 0.6s ease-out' : undefined,
+            overflow: 'hidden',
           }}
         >
-          {/* Farbpunkt */}
-          <div style={{
-            width: landscape ? 8 : 10, height: landscape ? 8 : 10,
-            borderRadius: '50%', background: pColor, flexShrink: 0,
-            opacity: isElim ? 0.3 : 1,
-            boxShadow: isAct ? `0 0 6px ${pColor}` : 'none',
-          }} />
-          {/* Name */}
-          <span style={{
-            flex: 1, textAlign: 'left', fontSize: sz.font,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            color: isElim ? '#555' : isAct ? pColor : '#ccc',
-            textDecoration: isElim ? 'line-through' : 'none',
-          }}>
-            {pName}
-          </span>
-          {/* Status: Killer / Qualifying */}
-          {ps.isKiller && !isElim && (
-            <span style={{
-              fontSize: sz.font - 1, fontWeight: 900, color: '#e74c3c',
-              animation: 'killerGlow 2s infinite',
-              letterSpacing: 1,
-            }}>KILLER</span>
+          {/* Attack explosion overlay */}
+          {isAttackVictim && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 40, animation: 'explosionPop 0.8s ease-out forwards',
+              pointerEvents: 'none', zIndex: 10,
+            }}>💥</div>
           )}
-          {!ps.isKiller && !isElim && (
-            <span style={{ fontSize: sz.font - 2, color: '#3498db' }}>
-              {ps.qualifyingHits}/{config.hitsToBecomeKiller}
-            </span>
+          {/* Heart gain sparkle */}
+          {heartAnimations[ps.playerId] === 'gain' && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 28, animation: 'sparkle 0.8s ease-out forwards',
+              pointerEvents: 'none', zIndex: 10,
+            }}>✨</div>
           )}
-          {/* Target-Zahl */}
-          <span style={{
-            fontSize: sz.target, fontWeight: 900,
-            color: isElim ? '#444' : '#fff',
-            minWidth: landscape ? 28 : 36, textAlign: 'center',
-          }}>
-            {isElim ? '☠' : `${qualLabel}${targetNum}`}
-          </span>
-          {/* Herzen */}
-          <span style={{ fontSize: sz.heart, flexShrink: 0 }}>
-            {Array.from({ length: Math.max(0, ps.lives) }).map((_, i) => (
-              <span key={i} style={{
-                display: 'inline-block',
-                animation: heartAnimations[ps.playerId] === 'gain' ? 'heartGain 0.6s ease-out' : undefined,
-              }}>{'\u2764\uFE0F'}</span>
-            ))}
-            {Array.from({ length: config.startingLives - Math.max(0, ps.lives) }).map((_, i) => (
-              <span key={`d${i}`} style={{
-                display: 'inline-block',
-                animation: heartAnimations[ps.playerId] === 'break' ? 'heartBreak 0.5s ease-out' : undefined,
-              }}>{'\uD83D\uDDA4'}</span>
-            ))}
-          </span>
+          {landscape ? (
+            /* Landscape: 2-row card layout */
+            <>
+              {/* Top row: name + status */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: 8, height: 8,
+                  borderRadius: '50%', background: pColor, flexShrink: 0,
+                  opacity: isElim ? 0.3 : 1,
+                  boxShadow: isAct ? `0 0 6px ${pColor}` : 'none',
+                }} />
+                <span style={{
+                  flex: 1, textAlign: 'left', fontSize: sz.font,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  color: isElim ? '#555' : isAct ? pColor : '#ccc',
+                  textDecoration: isElim ? 'line-through' : 'none',
+                }}>
+                  {pName}
+                </span>
+                {ps.isKiller && !isElim && (
+                  <span style={{
+                    fontSize: sz.font - 1, fontWeight: 900, color: '#e74c3c',
+                    animation: 'killerGlow 2s infinite',
+                    letterSpacing: 1,
+                  }}>KILLER</span>
+                )}
+                {!ps.isKiller && !isElim && (
+                  <span style={{ fontSize: sz.font - 2, color: '#3498db' }}>
+                    {ps.qualifyingHits}/{config.hitsToBecomeKiller}
+                  </span>
+                )}
+              </div>
+              {/* Bottom row: target + hearts */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                <span style={{
+                  fontSize: sz.target, fontWeight: 900,
+                  color: isElim ? '#444' : '#fff',
+                }}>
+                  {isElim ? '☠' : `${qualLabel}${targetNum}`}
+                </span>
+                <span style={{ fontSize: sz.heart, flexShrink: 0 }}>
+                  {Array.from({ length: Math.max(0, ps.lives) }).map((_, i) => (
+                    <span key={i} style={{
+                      display: 'inline-block',
+                      animation: heartAnimations[ps.playerId] === 'gain' ? 'heartGain 0.6s ease-out' : undefined,
+                    }}>{'\u2764\uFE0F'}</span>
+                  ))}
+                  {Array.from({ length: config.startingLives - Math.max(0, ps.lives) }).map((_, i) => (
+                    <span key={`d${i}`} style={{
+                      display: 'inline-block',
+                      animation: heartAnimations[ps.playerId] === 'break' ? 'heartBreak 0.5s ease-out' : undefined,
+                    }}>{'\uD83D\uDDA4'}</span>
+                  ))}
+                </span>
+              </div>
+            </>
+          ) : (
+            /* Portrait: single-row layout */
+            <>
+              {/* Farbpunkt */}
+              <div style={{
+                width: 10, height: 10,
+                borderRadius: '50%', background: pColor, flexShrink: 0,
+                opacity: isElim ? 0.3 : 1,
+                boxShadow: isAct ? `0 0 6px ${pColor}` : 'none',
+              }} />
+              {/* Name */}
+              <span style={{
+                flex: 1, textAlign: 'left', fontSize: sz.font,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                color: isElim ? '#555' : isAct ? pColor : '#ccc',
+                textDecoration: isElim ? 'line-through' : 'none',
+              }}>
+                {pName}
+              </span>
+              {/* Status: Killer / Qualifying */}
+              {ps.isKiller && !isElim && (
+                <span style={{
+                  fontSize: sz.font - 1, fontWeight: 900, color: '#e74c3c',
+                  animation: 'killerGlow 2s infinite',
+                  letterSpacing: 1,
+                }}>KILLER</span>
+              )}
+              {!ps.isKiller && !isElim && (
+                <span style={{ fontSize: sz.font - 2, color: '#3498db' }}>
+                  {ps.qualifyingHits}/{config.hitsToBecomeKiller}
+                </span>
+              )}
+              {/* Target-Zahl */}
+              <span style={{
+                fontSize: sz.target, fontWeight: 900,
+                color: isElim ? '#444' : '#fff',
+                minWidth: 36, textAlign: 'center',
+              }}>
+                {isElim ? '☠' : `${qualLabel}${targetNum}`}
+              </span>
+              {/* Herzen */}
+              <span style={{ fontSize: sz.heart, flexShrink: 0 }}>
+                {Array.from({ length: Math.max(0, ps.lives) }).map((_, i) => (
+                  <span key={i} style={{
+                    display: 'inline-block',
+                    animation: heartAnimations[ps.playerId] === 'gain' ? 'heartGain 0.6s ease-out' : undefined,
+                  }}>{'\u2764\uFE0F'}</span>
+                ))}
+                {Array.from({ length: config.startingLives - Math.max(0, ps.lives) }).map((_, i) => (
+                  <span key={`d${i}`} style={{
+                    display: 'inline-block',
+                    animation: heartAnimations[ps.playerId] === 'break' ? 'heartBreak 0.5s ease-out' : undefined,
+                  }}>{'\uD83D\uDDA4'}</span>
+                ))}
+              </span>
+            </>
+          )}
         </button>
       )
     })
@@ -971,7 +1094,72 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           0% { background: rgba(231, 76, 60, 0.4); }
           100% { background: transparent; }
         }
+        @keyframes killerFlashAnim {
+          0% { opacity: 1; }
+          70% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes killerTextPop {
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes explosionPop {
+          0% { transform: scale(0.5); opacity: 0; }
+          30% { transform: scale(2); opacity: 1; }
+          100% { transform: scale(3); opacity: 0; }
+        }
+        @keyframes fadeInOut {
+          0% { opacity: 0; }
+          20% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes skullDrop {
+          0% { transform: translateY(-50px) scale(0.5); opacity: 0; }
+          100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        @keyframes sparkle {
+          0% { transform: scale(0); opacity: 1; }
+          50% { transform: scale(1.5); opacity: 1; }
+          100% { transform: scale(2); opacity: 0; }
+        }
       `}</style>
+
+      {/* Killer Flash Overlay */}
+      {killerFlash && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(231, 76, 60, 0.15)',
+          animation: 'killerFlashAnim 2s ease-out forwards',
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            fontSize: 64, fontWeight: 900, color: '#e74c3c',
+            textShadow: '0 0 40px rgba(231,76,60,0.8), 0 0 80px rgba(231,76,60,0.4)',
+            animation: 'killerTextPop 0.5s ease-out',
+            letterSpacing: 8,
+          }}>
+            KILLER!
+          </div>
+        </div>
+      )}
+
+      {/* Elimination Animation Overlay */}
+      {eliminatedAnim && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9998,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.4)',
+          animation: 'fadeInOut 1.5s ease-out forwards',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontSize: 48, animation: 'skullDrop 0.5s ease-out', color: '#e5e7eb', fontWeight: 800 }}>
+            ☠️ {eliminatedAnim} ausgeschieden!
+          </div>
+        </div>
+      )}
 
       {/* Pause Overlay */}
       {gamePaused && <PauseOverlay onResume={() => setGamePaused(false)} />}
@@ -1106,10 +1294,15 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       {/* ===== MOBILE LAYOUT ===== */}
       {isMobileK ? (
         isLandscape ? (
-          /* Landscape: Dart-Slots oben, Player-Card-Buttons voll */
+          /* Landscape: Dart-Slots oben, Player-Card-Buttons in 2-column grid */
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, padding: '2px 6px' }}>
             {renderMobileDartSlots(true)}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0, overflow: 'hidden', marginTop: 2 }}>
+            <div style={{
+              flex: 1, display: 'grid',
+              gridTemplateColumns: players.length >= 2 ? '1fr 1fr' : '1fr',
+              gap: 4, minHeight: 0, overflow: 'hidden', marginTop: 2,
+              alignContent: 'stretch',
+            }}>
               {renderMobilePlayerCards(true)}
             </div>
           </div>
@@ -1161,12 +1354,14 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
                   const color = playerColors[ps.playerId] ?? '#e5e7eb'
                   const name = playerNames[ps.playerId] ?? ps.playerId
                   const isFlashing = eliminatedFlash[ps.playerId]
+                  const isDesktopAttackVictim = attackAnims.some(a => a.to === ps.playerId)
 
                   return (
                     <tr
                       key={ps.playerId}
                       style={{
                         borderBottom: '1px solid #2a2a2a',
+                        position: 'relative',
                         background: isFlashing
                           ? undefined
                           : isActive
@@ -1179,6 +1374,16 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
                         opacity: ps.isEliminated ? 0.45 : 1,
                       }}
                     >
+                      {/* Attack explosion overlay on desktop row */}
+                      {isDesktopAttackVictim && (
+                        <td style={{ position: 'absolute', inset: 0, padding: 0, border: 'none', pointerEvents: 'none', zIndex: 10 }}>
+                          <div style={{
+                            position: 'absolute', inset: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 36, animation: 'explosionPop 0.8s ease-out forwards',
+                          }}>💥</div>
+                        </td>
+                      )}
                       {/* Spieler */}
                       <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
