@@ -177,6 +177,37 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     }
 
     persistKillerEvents(matchId, remote)
+
+    // Animationen für Remote-Events auslösen (alle neuen Events seit letztem Sync)
+    const newEvents = remote.slice(prevLen)
+    for (const evt of newEvents) {
+      if (evt.type === 'KillerTurnAdded') {
+        const turnEvt = evt as any
+        // Killer-Flash bei Gegner
+        if (turnEvt.becameKiller && turnEvt.playerId) {
+          setKillerFlash(turnEvt.playerId)
+          if (!muted) announceKillerQualified(playerNames[turnEvt.playerId] ?? '')
+          setTimeout(() => setKillerFlash(null), 2000)
+        }
+        // Explosionen bei Treffern
+        if (turnEvt.livesChanges?.length > 0) {
+          const attacks = turnEvt.livesChanges
+            .filter((lc: any) => lc.delta < 0 && lc.playerId !== turnEvt.playerId)
+            .map((lc: any) => ({ from: turnEvt.playerId, to: lc.playerId }))
+          if (attacks.length > 0) {
+            setAttackAnims(attacks)
+            setTimeout(() => setAttackAnims([]), 1000)
+          }
+        }
+        // Eliminierungen
+        if (turnEvt.eliminations?.length > 0) {
+          const elimName = playerNames[turnEvt.eliminations[0]] ?? ''
+          setEliminatedAnim(elimName)
+          setTimeout(() => setEliminatedAnim(null), 2000)
+        }
+      }
+    }
+
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'KillerMatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'KillerMatchFinished')
