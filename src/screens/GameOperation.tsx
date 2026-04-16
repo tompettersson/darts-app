@@ -608,12 +608,15 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
   useEffect(() => {
     if (!state.match) return
     if (state.legs.length > 0) return // Leg existiert bereits
+    // Multiplayer-Guest: nicht selbst ein Leg starten (Host sendet es)
+    if (multiplayer?.enabled && !multiplayer.isHost) return
 
     const config = state.match.config
     const legStartEvent = startNewLeg(state, config.targetMode, config.targetNumber)
     const updatedEvents = [...events, legStartEvent]
     setEvents(updatedEvents)
     persistOperationEvents(matchId, updatedEvents)
+    if (multiplayer?.enabled) multiplayer.submitEvents([legStartEvent])
   }, [state.match, state.legs.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zeige Leg-Summary wenn Leg gerade fertig geworden ist (und Match nicht fertig)
@@ -782,8 +785,9 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     const updatedEvents = [...events, legStartEvent]
     setEvents(updatedEvents)
     persistOperationEvents(matchId, updatedEvents)
+    if (multiplayer?.enabled) multiplayer.submitEvents([legStartEvent])
     setShowLegSummary(false)
-  }, [events, state, matchId])
+  }, [events, state, matchId, multiplayer])
 
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {

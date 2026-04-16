@@ -2105,9 +2105,13 @@ export default function App() {
               break
             }
             case 'operation': {
+              // Generate target number upfront so both players get the same one
+              const opTargetNumber = Math.floor(Math.random() * 20) + 1
               initialEvents = [
                 { eventId: genId(), type: 'OperationMatchStarted', ts, matchId, players,
                   config: { targetMode: 'RANDOM_NUMBER', targetNumber: null, rounds: config.operationRounds || 10 } },
+                { eventId: genId(), type: 'OperationLegStarted', ts, matchId,
+                  legIndex: 0, targetMode: 'RANDOM_NUMBER', targetNumber: opTargetNumber },
               ]
               break
             }
