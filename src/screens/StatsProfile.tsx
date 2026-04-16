@@ -51,6 +51,30 @@ export default function StatsProfile({
     return () => { cancelled = true }
   }, [activeTab, minigamesCacheLoaded])
 
+  // Pre-computed minigame match stats per player (avoid repeated filtering on every render)
+  const minigameStats = useMemo(() => {
+    const pid = profiles[cursor]?.id
+    if (!pid) return null
+
+    function computeMode(matches: any[], idField: 'playerId' | 'id' = 'playerId') {
+      const all = matches.filter((m: any) => m.finished && m.players?.some((p: any) => (p[idField] ?? p.playerId ?? p.id) === pid))
+      const multi = all.filter((m: any) => m.players.length > 1)
+      const solo = all.filter((m: any) => m.players.length <= 1)
+      const won = multi.filter((m: any) => m.winnerId === pid).length
+      return { all, multi, solo, won, winRate: multi.length > 0 ? Math.round(won / multi.length * 100) : 0 }
+    }
+
+    return {
+      ctf: computeMode(getCTFMatches()),
+      str: computeMode(getStrMatches()),
+      highscore: computeMode(getHighscoreMatches(), 'id'),
+      shanghai: computeMode(getShanghaiMatches()),
+      killer: computeMode(getKillerMatches()),
+      bobs27: computeMode(getBobs27Matches()),
+      operation: computeMode(getOperationMatches()),
+    }
+  }, [cursor, profiles, minigamesCacheLoaded])
+
   // Theme System
   const { isArcade, colors } = useTheme()
 
@@ -585,37 +609,29 @@ export default function StatsProfile({
               )}
             </div>
 
-            {/* CTF (Capture the Field) - aus LocalStorage */}
-            {(() => {
-              const ctfAll = getCTFMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
-              const ctfMulti = ctfAll.filter(m => m.players.length > 1)
-              const ctfSolo = ctfAll.filter(m => m.players.length <= 1)
-              const ctfWon = ctfMulti.filter(m => m.winnerId === selected.id).length
-              const ctfWinRate = ctfMulti.length > 0 ? Math.round(ctfWon / ctfMulti.length * 100) : 0
+            {/* CTF (Capture the Field) */}
+            {minigameStats?.ctf && minigameStats.ctf.all.length > 0 && (() => {
+              const { multi, solo, won, winRate } = minigameStats.ctf
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Capture the Field</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches (gegen Gegner)</span>
-                    <span style={s.statsValue}>{ctfMulti.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{ctfWon}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {ctfMulti.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <ProgressBar
-                        value={ctfWinRate}
-                        label="Quote"
-                        color="#f59e0b"
-                      />
+                      <ProgressBar value={winRate} label="Quote" color="#f59e0b" />
                     </div>
                   )}
-                  {ctfSolo.length > 0 && (
+                  {solo.length > 0 && (
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                      <span style={{ ...s.statsValue, fontSize: 12 }}>{ctfSolo.length}</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{solo.length}</span>
                     </div>
                   )}
                 </div>
@@ -623,33 +639,28 @@ export default function StatsProfile({
             })()}
 
             {/* Sträußchen */}
-            {(() => {
-              const strAll = getStrMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
-              const strMulti = strAll.filter(m => m.players.length > 1)
-              const strSolo = strAll.filter(m => m.players.length <= 1)
-              const strWon = strMulti.filter(m => m.winnerId === selected.id).length
-              const strWinRate = strMulti.length > 0 ? Math.round(strWon / strMulti.length * 100) : 0
-              if (strAll.length === 0) return null
+            {minigameStats?.str && minigameStats.str.all.length > 0 && (() => {
+              const { multi, solo, won, winRate: strWinRate } = minigameStats.str
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Sträußchen</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches (gegen Gegner)</span>
-                    <span style={s.statsValue}>{strMulti.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{strWon}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {strMulti.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <ProgressBar value={strWinRate} label="Quote" color="#ec4899" />
                     </div>
                   )}
-                  {strSolo.length > 0 && (
+                  {solo.length > 0 && (
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                      <span style={{ ...s.statsValue, fontSize: 12 }}>{strSolo.length}</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{solo.length}</span>
                     </div>
                   )}
                 </div>
@@ -657,33 +668,28 @@ export default function StatsProfile({
             })()}
 
             {/* Highscore */}
-            {(() => {
-              const hsAll = getHighscoreMatches().filter(m => m.finished && m.players.some((p: any) => (p.playerId ?? p.id) === selected.id))
-              const hsMulti = hsAll.filter(m => m.players.length > 1)
-              const hsSolo = hsAll.filter(m => m.players.length <= 1)
-              const hsWon = hsMulti.filter(m => m.winnerId === selected.id).length
-              const hsWinRate = hsMulti.length > 0 ? Math.round(hsWon / hsMulti.length * 100) : 0
-              if (hsAll.length === 0) return null
+            {minigameStats?.highscore && minigameStats.highscore.all.length > 0 && (() => {
+              const { multi, solo, won, winRate: hsWinRate } = minigameStats.highscore
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Highscore</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches (gegen Gegner)</span>
-                    <span style={s.statsValue}>{hsMulti.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{hsWon}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {hsMulti.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <ProgressBar value={hsWinRate} label="Quote" color="#06b6d4" />
                     </div>
                   )}
-                  {hsSolo.length > 0 && (
+                  {solo.length > 0 && (
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                      <span style={{ ...s.statsValue, fontSize: 12 }}>{hsSolo.length}</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{solo.length}</span>
                     </div>
                   )}
                 </div>
@@ -691,33 +697,28 @@ export default function StatsProfile({
             })()}
 
             {/* Shanghai */}
-            {(() => {
-              const shAll = getShanghaiMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
-              const shMulti = shAll.filter(m => m.players.length > 1)
-              const shSolo = shAll.filter(m => m.players.length <= 1)
-              const shWon = shMulti.filter(m => m.winnerId === selected.id).length
-              const shWinRate = shMulti.length > 0 ? Math.round(shWon / shMulti.length * 100) : 0
-              if (shAll.length === 0) return null
+            {minigameStats?.shanghai && minigameStats.shanghai.all.length > 0 && (() => {
+              const { multi, solo, won, winRate: shWinRate } = minigameStats.shanghai
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Shanghai</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches (gegen Gegner)</span>
-                    <span style={s.statsValue}>{shMulti.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{shWon}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {shMulti.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <ProgressBar value={shWinRate} label="Quote" color="#14b8a6" />
                     </div>
                   )}
-                  {shSolo.length > 0 && (
+                  {solo.length > 0 && (
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                      <span style={{ ...s.statsValue, fontSize: 12 }}>{shSolo.length}</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{solo.length}</span>
                     </div>
                   )}
                 </div>
@@ -725,24 +726,20 @@ export default function StatsProfile({
             })()}
 
             {/* Killer */}
-            {(() => {
-              const klAll = getKillerMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
-              const klMulti = klAll.filter(m => m.players.length > 1)
-              const klWon = klMulti.filter(m => m.winnerId === selected.id).length
-              const klWinRate = klMulti.length > 0 ? Math.round(klWon / klMulti.length * 100) : 0
-              if (klAll.length === 0) return null
+            {minigameStats?.killer && minigameStats.killer.all.length > 0 && (() => {
+              const { multi, won, winRate: klWinRate } = minigameStats.killer
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Killer</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches</span>
-                    <span style={s.statsValue}>{klMulti.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{klWon}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {klMulti.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <ProgressBar value={klWinRate} label="Quote" color="#ef4444" />
                     </div>
@@ -752,33 +749,28 @@ export default function StatsProfile({
             })()}
 
             {/* Bob's 27 */}
-            {(() => {
-              const b27All = getBobs27Matches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
-              const b27Multi = b27All.filter(m => m.players.length > 1)
-              const b27Solo = b27All.filter(m => m.players.length <= 1)
-              const b27Won = b27Multi.filter(m => m.winnerId === selected.id).length
-              const b27WinRate = b27Multi.length > 0 ? Math.round(b27Won / b27Multi.length * 100) : 0
-              if (b27All.length === 0) return null
+            {minigameStats?.bobs27 && minigameStats.bobs27.all.length > 0 && (() => {
+              const { multi, solo, won, winRate: b27WinRate } = minigameStats.bobs27
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Bob's 27</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches (gegen Gegner)</span>
-                    <span style={s.statsValue}>{b27Multi.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{b27Won}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {b27Multi.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <ProgressBar value={b27WinRate} label="Quote" color="#a855f7" />
                     </div>
                   )}
-                  {b27Solo.length > 0 && (
+                  {solo.length > 0 && (
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                      <span style={{ ...s.statsValue, fontSize: 12 }}>{b27Solo.length}</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{solo.length}</span>
                     </div>
                   )}
                 </div>
@@ -786,33 +778,28 @@ export default function StatsProfile({
             })()}
 
             {/* Operation */}
-            {(() => {
-              const opAll = getOperationMatches().filter(m => m.finished && m.players.some(p => p.playerId === selected.id))
-              const opMulti = opAll.filter(m => m.players.length > 1)
-              const opSolo = opAll.filter(m => m.players.length <= 1)
-              const opWon = opMulti.filter(m => m.winnerId === selected.id).length
-              const opWinRate = opMulti.length > 0 ? Math.round(opWon / opMulti.length * 100) : 0
-              if (opAll.length === 0) return null
+            {minigameStats?.operation && minigameStats.operation.all.length > 0 && (() => {
+              const { multi, solo, won, winRate: opWinRate } = minigameStats.operation
               return (
                 <div style={s.statsCard}>
                   <div style={s.statsCardTitle as React.CSSProperties}>Operation</div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Matches (gegen Gegner)</span>
-                    <span style={s.statsValue}>{opMulti.length}</span>
+                    <span style={s.statsValue}>{multi.length}</span>
                   </div>
                   <div style={s.statsRow}>
                     <span style={s.statsLabel}>Gewonnen</span>
-                    <span style={s.statsValueGood}>{opWon}</span>
+                    <span style={s.statsValueGood}>{won}</span>
                   </div>
-                  {opMulti.length > 0 && (
+                  {multi.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <ProgressBar value={opWinRate} label="Quote" color="#f97316" />
                     </div>
                   )}
-                  {opSolo.length > 0 && (
+                  {solo.length > 0 && (
                     <div style={{ ...s.statsRow, borderTop: `1px solid ${colors.bgMuted}`, marginTop: 4 }}>
                       <span style={{ ...s.statsLabel, fontSize: 12 }}>Einzelspiele</span>
-                      <span style={{ ...s.statsValue, fontSize: 12 }}>{opSolo.length}</span>
+                      <span style={{ ...s.statsValue, fontSize: 12 }}>{solo.length}</span>
                     </div>
                   )}
                 </div>

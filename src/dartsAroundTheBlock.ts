@@ -1128,7 +1128,7 @@ export function recordATBTurn(
         return players.indexOf(a) - players.indexOf(b)
       })
 
-      const winnerId = sortedByProgress[0].playerId
+      const winnerId = sortedByProgress[0]?.playerId ?? playerId
       const winnerDarts = (state.dartsUsedByPlayer[winnerId] ?? 0)
         + (winnerId === playerId ? darts.length : 0)
       const totalDarts = (state.dartsUsedTotalByPlayer[winnerId] ?? 0)

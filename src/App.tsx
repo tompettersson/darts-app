@@ -1023,7 +1023,7 @@ export default function App() {
               structure: structureEv,
               startingScorePerLeg: score,
               players: matchPlayers,
-              bullThrow: { winnerPlayerId: players[0].id },
+              bullThrow: { winnerPlayerId: players[0]?.id ?? '' },
               version: 1,
               inRule: 'straight-in',
               outRule: 'double-out',
@@ -1048,7 +1048,7 @@ export default function App() {
               matchId,
               legId,
               legIndex: 1,
-              starterPlayerId: players[0].id,
+              starterPlayerId: players[0]?.id ?? '',
             } as DartsEvent)
 
             const title = `${score} – ${players.map(p => p.name).join(' vs ')} (Zufallsspiel)`
