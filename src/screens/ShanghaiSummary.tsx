@@ -28,7 +28,7 @@ function getStatWinnerColors(
 type Props = {
   matchId: string
   onBackToMenu: () => void
-  onRematch: (matchId: string) => void
+  onRematch?: (matchId: string) => void
   onBackToLobby?: () => void
 }
 
@@ -587,12 +587,14 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBa
 
           {/* Aktionen */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8 }}>
-            <button
-              onClick={() => onRematch(matchId)}
-              style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }}
-            >
-              Rematch
-            </button>
+            {onRematch && (
+              <button
+                onClick={() => onRematch(matchId)}
+                style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }}
+              >
+                Rematch
+              </button>
+            )}
             {onBackToLobby && (
               <button
                 onClick={onBackToLobby}

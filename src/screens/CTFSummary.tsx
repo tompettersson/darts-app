@@ -15,7 +15,7 @@ import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 type Props = {
   matchId: string
   onBackToMenu: () => void
-  onRematch: (matchId: string) => void
+  onRematch?: (matchId: string) => void
   onBackToLobby?: () => void
 }
 
@@ -494,12 +494,14 @@ export default function CTFSummary({ matchId, onBackToMenu, onRematch, onBackToL
 
           {/* Aktionen */}
           <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
-            <button
-              onClick={() => onRematch(matchId)}
-              style={{ ...styles.pill, flex: 1 }}
-            >
-              Rematch
-            </button>
+            {onRematch && (
+              <button
+                onClick={() => onRematch(matchId)}
+                style={{ ...styles.pill, flex: 1 }}
+              >
+                Rematch
+              </button>
+            )}
             {onBackToLobby && (
               <button
                 onClick={onBackToLobby}

@@ -28,7 +28,7 @@ function getStatWinnerColors(
 type Props = {
   matchId: string
   onBackToMenu: () => void
-  onRematch: () => void
+  onRematch?: () => void
   onBackToLobby?: () => void
 }
 
@@ -642,20 +642,22 @@ export default function OperationSummary({ matchId, onBackToMenu, onRematch, onB
 
           {/* Buttons */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, marginTop: 8 }}>
-            <button
-              style={{
-                ...styles.pill,
-                flex: 1,
-                borderColor: isArcade ? colors.accent : '#111827',
-                background: isArcade ? colors.accent : '#111827',
-                color: '#fff',
-                fontWeight: 700,
-                minHeight: isMobile ? 44 : undefined,
-              }}
-              onClick={onRematch}
-            >
-              Rematch
-            </button>
+            {onRematch && (
+              <button
+                style={{
+                  ...styles.pill,
+                  flex: 1,
+                  borderColor: isArcade ? colors.accent : '#111827',
+                  background: isArcade ? colors.accent : '#111827',
+                  color: '#fff',
+                  fontWeight: 700,
+                  minHeight: isMobile ? 44 : undefined,
+                }}
+                onClick={() => onRematch()}
+              >
+                Rematch
+              </button>
+            )}
             {onBackToLobby && (
               <button style={{ ...styles.pill, flex: 1, minHeight: isMobile ? 44 : undefined }} onClick={onBackToLobby}>
                 Neues Spiel

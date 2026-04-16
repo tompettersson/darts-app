@@ -33,7 +33,7 @@ function getStatWinnerColors(
 type Props = {
   matchId: string
   onBackToMenu: () => void
-  onRematch: (matchId: string) => void
+  onRematch?: (matchId: string) => void
   onBackToLobby?: () => void
 }
 
@@ -539,19 +539,21 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: isMobile ? 8 : 12, marginTop: isMobile ? 12 : 20, justifyContent: 'center', flexDirection: isMobile ? 'column' : 'row' }}>
-            <button
-              style={{
-                ...styles.button,
-                padding: isMobile ? '10px 16px' : '12px 24px',
-                fontSize: isMobile ? 13 : 14,
-                background: colors.accent,
-                color: '#fff',
-                width: isMobile ? '100%' : undefined,
-              }}
-              onClick={() => onRematch(matchId)}
-            >
-              Revanche
-            </button>
+            {onRematch && (
+              <button
+                style={{
+                  ...styles.button,
+                  padding: isMobile ? '10px 16px' : '12px 24px',
+                  fontSize: isMobile ? 13 : 14,
+                  background: colors.accent,
+                  color: '#fff',
+                  width: isMobile ? '100%' : undefined,
+                }}
+                onClick={() => onRematch(matchId)}
+              >
+                Revanche
+              </button>
+            )}
             {onBackToLobby && (
               <button
                 style={{

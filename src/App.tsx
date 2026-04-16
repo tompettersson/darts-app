@@ -709,14 +709,10 @@ export default function App() {
     }
   }
 
-  // Helper: go back to multiplayer lobby (keep connection, reset room to lobby phase)
-  const mpBackToLobby = multiplayerSummaryActive ? () => {
-    mpActions.resetToLobby()
-    setMultiplayerMatchId(null)
-    setMultiplayerRemoteEvents(null)
-    setMultiplayerSummaryActive(false)
-    setView('multiplayer-lobby-host')
-  } : undefined
+  // Online-Spiel: kein "Neues Spiel" / "Rematch" / "Zurück zur Lobby" — nur "Weiter" zum Menü
+  const mpBackToLobby = undefined
+  // Suppress onRematch in multiplayer summaries
+  const isMpSummary = multiplayerSummaryActive
 
   const openMatch = getOpenMatch()
   const openCricket = getOpenCricketMatch()
@@ -1273,7 +1269,7 @@ export default function App() {
           setSummaryATBId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={(oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
           const oldData = getATBMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1367,7 +1363,7 @@ export default function App() {
           setSummaryStrId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={(oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
           const oldData = getStrMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1460,7 +1456,7 @@ export default function App() {
           setSummaryHighscoreId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={(oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
           const oldData = getHighscoreMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1547,7 +1543,7 @@ export default function App() {
           setSummaryCTFId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={(oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
           const oldData = getCTFMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1633,7 +1629,7 @@ export default function App() {
           setSummaryShanghaiId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={(oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
           const oldData = getShanghaiMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1718,7 +1714,7 @@ export default function App() {
           setSummaryKillerId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={() => {
+        onRematch={isMpSummary ? undefined : () => {
           const oldData = getKillerMatchById(summaryKillerId)
           if (!oldData) {
             setView('menu')
@@ -1783,7 +1779,7 @@ export default function App() {
           setSummaryBobs27Id(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={() => {
+        onRematch={isMpSummary ? undefined : () => {
           const oldData = getBobs27MatchById(summaryBobs27Id)
           if (!oldData) {
             setView('menu')
@@ -1855,7 +1851,7 @@ export default function App() {
           setSummaryOperationId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={() => {
+        onRematch={isMpSummary ? undefined : () => {
           const oldData = getOperationMatchById(summaryOperationId)
           if (!oldData) {
             setView('menu')
@@ -2555,7 +2551,7 @@ export default function App() {
           setSummaryCricketId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={(oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
           const oldData = getCricketMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
