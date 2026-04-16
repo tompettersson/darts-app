@@ -958,6 +958,103 @@ export async function dbGetX01MatchById(matchId: string): Promise<DBX01Match | n
   }
 }
 
+/**
+ * One-time repair: backfill missing *_match_players entries.
+ * Bug: ensureX01MatchExistsAsync (and all other modes) passed events:[] to dbSave*Match,
+ * so startEvt was undefined and no player rows were written for multiplayer matches.
+ * This scans all finished matches with 0 player entries and reconstructs them from events.
+ */
+export async function dbRepairMissingMatchPlayers(): Promise<number> {
+  const flag = await queryOne<{ value: string }>(
+    "SELECT value FROM system_meta WHERE key = 'repair_match_players_v1'"
+  )
+  if (flag) return 0
+
+  console.debug('[DB Repair] Checking for matches with missing match_players...')
+
+  const MODE_TABLES: Array<{
+    matchTable: string
+    eventTable: string
+    playerTable: string
+    startEventType: string
+  }> = [
+    { matchTable: 'x01_matches', eventTable: 'x01_events', playerTable: 'x01_match_players', startEventType: 'MatchStarted' },
+    { matchTable: 'cricket_matches', eventTable: 'cricket_events', playerTable: 'cricket_match_players', startEventType: 'CricketMatchStarted' },
+    { matchTable: 'atb_matches', eventTable: 'atb_events', playerTable: 'atb_match_players', startEventType: 'ATBMatchStarted' },
+    { matchTable: 'str_matches', eventTable: 'str_events', playerTable: 'str_match_players', startEventType: 'StrMatchStarted' },
+    { matchTable: 'highscore_matches', eventTable: 'highscore_events', playerTable: 'highscore_match_players', startEventType: 'HighscoreMatchStarted' },
+    { matchTable: 'ctf_matches', eventTable: 'ctf_events', playerTable: 'ctf_match_players', startEventType: 'CTFMatchStarted' },
+    { matchTable: 'shanghai_matches', eventTable: 'shanghai_events', playerTable: 'shanghai_match_players', startEventType: 'ShanghaiMatchStarted' },
+    { matchTable: 'killer_matches', eventTable: 'killer_events', playerTable: 'killer_match_players', startEventType: 'KillerMatchStarted' },
+    { matchTable: 'bobs27_matches', eventTable: 'bobs27_events', playerTable: 'bobs27_match_players', startEventType: 'Bobs27MatchStarted' },
+    { matchTable: 'operation_matches', eventTable: 'operation_events', playerTable: 'operation_match_players', startEventType: 'OperationMatchStarted' },
+  ]
+
+  let totalRepaired = 0
+
+  for (const { matchTable, eventTable, playerTable, startEventType } of MODE_TABLES) {
+    try {
+      // Find finished matches with 0 player entries
+      const broken = await query<{ id: string }>(`
+        SELECT m.id FROM ${matchTable} m
+        WHERE m.finished = 1
+          AND (SELECT COUNT(*) FROM ${playerTable} WHERE match_id = m.id) = 0
+      `)
+
+      if (broken.length === 0) continue
+
+      console.debug(`[DB Repair] ${matchTable}: ${broken.length} matches with missing players`)
+
+      for (const { id: matchId } of broken) {
+        // Get the start event
+        const startEvtRow = await queryOne<{ data: string }>(`
+          SELECT data FROM ${eventTable}
+          WHERE match_id = ? AND type = ?
+          LIMIT 1
+        `, [matchId, startEventType])
+
+        if (!startEvtRow) continue
+
+        const startEvt = fromJSON<any>(startEvtRow.data)
+        const players: any[] = startEvt?.players ?? []
+        if (players.length === 0) continue
+
+        const statements: Array<{ sql: string; params: unknown[] }> = []
+        for (let i = 0; i < players.length; i++) {
+          const p = players[i]
+          statements.push({
+            sql: `INSERT INTO ${playerTable} (match_id, player_id, position, is_guest)
+                  VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+            params: [matchId, p.playerId, i, p.isGuest ? 1 : 0],
+          })
+        }
+        await transaction(statements)
+        totalRepaired++
+      }
+
+      if (broken.length > 0) {
+        console.debug(`[DB Repair] ${matchTable}: repaired ${broken.length} matches`)
+      }
+    } catch (e) {
+      console.warn(`[DB Repair] ${matchTable} failed:`, e)
+    }
+  }
+
+  // Mark as done
+  await exec(
+    "INSERT INTO system_meta (key, value, updated_at) VALUES ('repair_match_players_v1', 'true', ?) ON CONFLICT (key) DO UPDATE SET value = 'true'",
+    [new Date().toISOString()]
+  )
+
+  if (totalRepaired > 0) {
+    console.debug(`[DB Repair] Done — repaired ${totalRepaired} matches across all modes`)
+  } else {
+    console.debug('[DB Repair] No matches needed repair')
+  }
+
+  return totalRepaired
+}
+
 /** Update match_name and notes for any match table */
 export async function dbUpdateMatchMetadata(
   table: string,

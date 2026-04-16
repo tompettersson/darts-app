@@ -6,6 +6,7 @@ import {
   dbGetProfiles,
   dbGetActiveGames,
   dbMigrateToActiveGames,
+  dbRepairMissingMatchPlayers,
 } from './storage'
 import { warmAllCaches, setActiveGamesCache } from '../storage'
 
@@ -103,8 +104,8 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
         // One-time migration of existing open matches to active_games table
         await safe(dbMigrateToActiveGames(), 0)
 
-        // Repair no longer needed — active_games table is the source of truth
-        // for open matches. Old dbRepairUnfinishedMatches scanned 10 tables (20 queries).
+        // One-time repair: backfill missing *_match_players for multiplayer matches
+        await safe(dbRepairMissingMatchPlayers(), 0)
 
         window.dispatchEvent(new CustomEvent('darts-data-ready'))
       } catch (e) {
