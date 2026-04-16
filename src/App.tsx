@@ -1987,6 +1987,9 @@ export default function App() {
         onTriggerDiceRoll={() => mpActions.triggerDiceRoll()}
         onReady={(pid) => mpActions.playerReady(pid)}
         onStartGame={() => {
+          // Guard: prevent double-start (useEffect fires on phase change after button click)
+          if (multiplayerMatchId) return
+
           const config = mpState.gameConfig
           if (!config) return
 
