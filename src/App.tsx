@@ -389,7 +389,7 @@ export default function App() {
     return () => { mounted = false }
   }, [])
 
-  const [view, setView] = useState<View>(() => {
+  const [view, setViewRaw] = useState<View>(() => {
     // Restore multiplayer game view after disconnect/rotation (5 min window)
     const savedView = sessionStorage.getItem('mp-view')
     const savedTs = sessionStorage.getItem('mp-ts')
@@ -405,6 +405,15 @@ export default function App() {
       return localView as View
     }
 
+    // Restore view after ErrorBoundary auto-retry (5s window)
+    const ebView = sessionStorage.getItem('eb-view')
+    const ebTs = sessionStorage.getItem('eb-ts')
+    if (ebView && ebTs && (Date.now() - parseInt(ebTs, 10)) < 5_000) {
+      sessionStorage.removeItem('eb-view')
+      sessionStorage.removeItem('eb-ts')
+      return ebView as View
+    }
+
     // Stale session — clean up
     sessionStorage.removeItem('mp-view')
     sessionStorage.removeItem('mp-room')
@@ -416,6 +425,15 @@ export default function App() {
     sessionStorage.removeItem('local-game-ts')
     return 'menu'
   })
+  // Wrap setView to persist current view for ErrorBoundary recovery
+  const setView = useCallback((v: View | ((prev: View) => View)) => {
+    setViewRaw(prev => {
+      const next = typeof v === 'function' ? v(prev) : v
+      sessionStorage.setItem('eb-view', next)
+      sessionStorage.setItem('eb-ts', String(Date.now()))
+      return next
+    })
+  }, [])
   const [startOnlineStep, setStartOnlineStep] = useState(false)
 
   // offene Matches (X01 + Cricket)
