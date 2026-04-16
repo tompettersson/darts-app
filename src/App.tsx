@@ -2089,10 +2089,23 @@ export default function App() {
               break
             }
             case 'killer': {
+              // Auto-assign target numbers for each player
+              const killerNumbers = Array.from({ length: 20 }, (_, i) => i + 1)
+              for (let i = killerNumbers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1))
+                ;[killerNumbers[i], killerNumbers[j]] = [killerNumbers[j], killerNumbers[i]]
+              }
+              const killerAssignments = orderedPlayerList.map((p, i) => ({
+                playerId: p.playerId, targetNumber: killerNumbers[i],
+              }))
               initialEvents = [
                 { eventId: genId(), type: 'KillerMatchStarted', ts, matchId, players,
                   config: { lives: config.killerLives || 3 },
                   structure: { kind: 'legs' as const, bestOfLegs: legs } },
+                { eventId: genId(), type: 'KillerLegStarted', ts, matchId,
+                  legIndex: 0, setIndex: 0, startingPlayerIndex: 0 },
+                { eventId: genId(), type: 'KillerTargetsAssigned', ts, matchId,
+                  assignments: killerAssignments },
               ]
               break
             }
