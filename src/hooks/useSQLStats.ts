@@ -201,7 +201,7 @@ const emptyData: SQLStatsData = {
 }
 
 /** Tab types matching StatsProfile */
-export type StatsTab = 'uebersicht' | 'x01' | 'cricketco' | 'insights' | 'trends' | 'analyse' | 'erfolge'
+export type StatsTab = 'uebersicht' | 'x01' | 'cricketco' | 'minigames' | 'insights' | 'trends' | 'analyse' | 'erfolge'
 
 // Track which tab groups have been loaded per player
 type LoadedGroups = Set<string>
@@ -335,7 +335,9 @@ function getGroupsForTab(tab: StatsTab): string[] {
     case 'x01':
       return ['core', 'x01variants', 'x01detail']
     case 'cricketco':
-      return ['core', 'cricket', 'minigames', 'atbvariants']
+      return ['core', 'cricket', 'atbvariants']
+    case 'minigames':
+      return ['core', 'minigames']
     case 'insights':
       return ['core', 'insights', 'playerinsights']
     case 'trends':
