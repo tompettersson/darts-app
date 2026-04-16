@@ -855,7 +855,14 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
   // Mobile: Kombinierte Spieler-Cards (Status + Tipp-Button in einem)
   const renderMobilePlayerCards = (landscape = false) => {
     const activePsState = players.find(p => p.playerId === activePlayerId)
-    const isQualifying = activePsState && !activePsState.isKiller && !activePsState.isEliminated
+    // Check if player became Killer mid-turn (pending darts may qualify them)
+    const qm = config.qualifyingRing === 'TRIPLE' ? 3 : 2
+    const pendingQualHits = activePsState && !activePsState.isKiller
+      ? current.filter(d => d.target == activePsState.targetNumber && Number(d.mult) >= qm).length
+      : 0
+    const becameKillerInTurn = activePsState && !activePsState.isKiller
+      && (activePsState.qualifyingHits + pendingQualHits >= config.hitsToBecomeKiller)
+    const isQualifying = activePsState && !activePsState.isKiller && !activePsState.isEliminated && !becameKillerInTurn
     const pc = players.length
     const sz = landscape
       ? (pc <= 3 ? { font: 12, target: 14, heart: 12, pad: '3px 8px', gap: 5 }
@@ -1064,17 +1071,18 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           )
         })}
       </div>
-      {/* Miss */}
+      {/* Miss — doppelt groß auf Mobile für bessere Tippbarkeit */}
       <button
         disabled={current.length >= 3}
         onClick={addMiss}
         style={{
-          padding: compact ? '3px 10px' : '4px 14px', borderRadius: 6,
+          padding: isMobileK ? '10px 24px' : compact ? '3px 10px' : '4px 14px', borderRadius: 6,
           border: '1.5px solid #555', background: '#2a2a2a',
-          color: '#aaa', fontSize: compact ? 10 : 12, fontWeight: 700,
+          color: '#aaa', fontSize: isMobileK ? 16 : compact ? 10 : 12, fontWeight: 700,
           cursor: current.length >= 3 ? 'not-allowed' : 'pointer',
           opacity: current.length >= 3 ? 0.4 : 1,
           WebkitTapHighlightColor: 'transparent',
+          minHeight: isMobileK ? 44 : undefined,
         }}
       >MISS</button>
       {/* Undo */}
