@@ -339,6 +339,24 @@ export default function App() {
   // Auth
   const auth = useAuth()
 
+  // Show persisted ErrorBoundary errors (survives auto-retry remount)
+  useEffect(() => {
+    const prevError = sessionStorage.getItem('eb-last-error')
+    const prevStack = sessionStorage.getItem('eb-last-stack')
+    const prevTs = sessionStorage.getItem('eb-last-ts')
+    if (prevError && prevTs && (Date.now() - parseInt(prevTs, 10)) < 30_000) {
+      console.warn(
+        '%c[ErrorBoundary] Letzter Fehler (vor ' + Math.round((Date.now() - parseInt(prevTs, 10)) / 1000) + 's):',
+        'color: #f59e0b; font-weight: bold; font-size: 14px',
+      )
+      console.warn('%c' + prevError, 'color: #ef4444; font-weight: bold; font-size: 13px')
+      if (prevStack) console.warn(prevStack)
+    }
+    sessionStorage.removeItem('eb-last-error')
+    sessionStorage.removeItem('eb-last-stack')
+    sessionStorage.removeItem('eb-last-ts')
+  }, [])
+
   // SQLite Loading State
   const [dbLoading, setDbLoading] = useState(true)
 
