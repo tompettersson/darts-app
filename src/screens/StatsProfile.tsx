@@ -2437,15 +2437,18 @@ export default function StatsProfile({
           })()}
 
           {/* Checkout-Doppelfelder (aus Karriere-Stats) */}
-          {x01Career && x01Career.finishingDoubles && Object.keys(x01Career.finishingDoubles).length > 0 && (() => {
-            const entries = Object.entries(x01Career.finishingDoubles)
+          {(() => {
+            const doubles = x01Career?.finishingDoubles ?? {}
+            const entries = Object.entries(doubles)
               .map(([field, count]) => ({ field, count: count as number }))
               .sort((a, b) => b.count - a.count)
             const totalCheckouts = entries.reduce((sum, e) => sum + e.count, 0)
             const top5 = entries.slice(0, 5)
-            if (top5.length === 0) return null
             return (
             <Accordion title="Checkout-Doppelfelder (X01)" defaultOpen={false}>
+              {top5.length === 0 ? (
+                <div style={s.noData as React.CSSProperties}>Noch keine Checkout-Daten vorhanden.</div>
+              ) : (<>
               <div style={s.statsCard}>
                 <div style={s.statsCardTitle as React.CSSProperties}>Meistgenutzte Doppel zum Auschecken</div>
                 {top5.map((d, i) => (
@@ -2466,6 +2469,7 @@ export default function StatsProfile({
                   <span style={s.statsValue}>{entries.length}</span>
                 </div>
               </div>
+              </>)}
             </Accordion>
             )
           })()}
