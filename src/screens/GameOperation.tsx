@@ -332,6 +332,193 @@ type Props = {
   multiplayer?: MultiplayerProp
 }
 
+// ===== Dartboard Segment-Visualisierung =====
+// Zeigt nur das Ziel-Segment (Wedge fuer Zahlen, Bull fuer Bull)
+
+const BOARD_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+
+function OperationTargetSegment({ targetNumber, isBull, hitCounts, size, accentColor }: {
+  targetNumber: number | null
+  isBull: boolean
+  hitCounts: { single: number; double: number; triple: number; singleBull: number; doubleBull: number; noScore: number }
+  size: number
+  accentColor: string
+}) {
+  const cx = size / 2
+  const cy = size / 2
+  const outerR = size * 0.44
+  const segmentAngle = 360 / 20
+
+  // Ring radii (same proportions as StraeusschenDartboard)
+  const doubleOuter = outerR
+  const doubleInner = outerR * 0.88
+  const tripleOuter = outerR * 0.60
+  const tripleInner = outerR * 0.52
+  const singleOuterR = doubleInner
+  const singleInnerR = tripleOuter
+  const innerSingleOuter = tripleInner
+  const innerSingleInner = outerR * 0.18
+  const bullOuterR = outerR * 0.18
+  const bullInnerR = outerR * 0.08
+
+  const toRad = (deg: number) => (deg - 90) * (Math.PI / 180)
+
+  const createArcPath = (innerRadius: number, outerRadius: number, startAngle: number, endAngle: number): string => {
+    const x1 = cx + innerRadius * Math.cos(toRad(startAngle))
+    const y1 = cy + innerRadius * Math.sin(toRad(startAngle))
+    const x2 = cx + outerRadius * Math.cos(toRad(startAngle))
+    const y2 = cy + outerRadius * Math.sin(toRad(startAngle))
+    const x3 = cx + outerRadius * Math.cos(toRad(endAngle))
+    const y3 = cy + outerRadius * Math.sin(toRad(endAngle))
+    const x4 = cx + innerRadius * Math.cos(toRad(endAngle))
+    const y4 = cy + innerRadius * Math.sin(toRad(endAngle))
+    const largeArc = endAngle - startAngle > 180 ? 1 : 0
+    return `M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z`
+  }
+
+  if (isBull) {
+    // Bull target: concentric circles
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
+        <defs>
+          <filter id="op-bull-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="8" result="blur" />
+            <feFlood floodColor={accentColor} floodOpacity="0.5" />
+            <feComposite in2="blur" operator="in" />
+            <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        {/* Background */}
+        <circle cx={cx} cy={cy} r={outerR * 0.5} fill="#111" />
+        {/* Single Bull (outer) */}
+        <circle cx={cx} cy={cy} r={outerR * 0.4} fill="#00a651" stroke="#222" strokeWidth={1.5}
+          opacity={0.9} filter="url(#op-bull-glow)" />
+        {/* Double Bull (inner) */}
+        <circle cx={cx} cy={cy} r={outerR * 0.18} fill="#e31b23" stroke="#222" strokeWidth={1.5}
+          opacity={0.95} filter="url(#op-bull-glow)" />
+        {/* Labels */}
+        <text x={cx} y={cy - outerR * 0.30} textAnchor="middle" dominantBaseline="central"
+          fill="#fff" fontSize={size * 0.07} fontWeight={700}>
+          SB: {hitCounts.singleBull}
+        </text>
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
+          fill="#fff" fontSize={size * 0.07} fontWeight={700}>
+          DB: {hitCounts.doubleBull}
+        </text>
+        <text x={cx} y={cy + outerR * 0.50} textAnchor="middle" dominantBaseline="central"
+          fill="#999" fontSize={size * 0.055}>
+          Miss: {hitCounts.noScore}
+        </text>
+      </svg>
+    )
+  }
+
+  // Number target: show a single wedge segment
+  const boardIdx = targetNumber != null ? BOARD_ORDER.indexOf(targetNumber) : 0
+  const isEven = boardIdx % 2 === 0
+  const singleColor = isEven ? '#1a1a1a' : '#f5f5dc'
+  const doubleColor = isEven ? '#e31b23' : '#00a651'
+  const tripleColor = isEven ? '#e31b23' : '#00a651'
+
+  // Wider wedge for better visibility (3 segments wide, centered)
+  const offset = -segmentAngle / 2
+  const startAngle = boardIdx * segmentAngle + offset - segmentAngle
+  const endAngle = (boardIdx + 1) * segmentAngle + offset + segmentAngle
+
+  // Zoom viewBox to focus on the segment
+  const centerAngle = boardIdx * segmentAngle
+  const focusR = outerR * 0.60
+  const focusRad = (centerAngle - 90) * (Math.PI / 180)
+  const focusX = cx + focusR * Math.cos(focusRad)
+  const focusY = cy + focusR * Math.sin(focusRad)
+  const zoomSize = size * 0.70
+
+  // Helper: label position along center angle at a given radius
+  const labelPos = (r: number) => {
+    const rad = (centerAngle - 90) * (Math.PI / 180)
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+  }
+
+  const doubleCenter = (doubleInner + doubleOuter) / 2
+  const singleOuterCenter = (singleOuterR + singleInnerR) / 2
+  const tripleCenter = (tripleInner + tripleOuter) / 2
+  const singleInnerCenter = (innerSingleOuter + innerSingleInner) / 2
+
+  const dPos = labelPos(doubleCenter)
+  const soPos = labelPos(singleOuterCenter)
+  const tPos = labelPos(tripleCenter)
+
+  const labelFontSize = size * 0.055
+
+  return (
+    <svg width={size} height={size}
+      viewBox={`${focusX - zoomSize / 2} ${focusY - zoomSize / 2} ${zoomSize} ${zoomSize}`}
+      style={{ overflow: 'visible' }}>
+      <defs>
+        <filter id="op-seg-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feFlood floodColor={accentColor} floodOpacity="0.4" />
+          <feComposite in2="blur" operator="in" />
+          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+
+      {/* Double ring */}
+      <path d={createArcPath(doubleInner, doubleOuter, startAngle, endAngle)}
+        fill={doubleColor} stroke="#222" strokeWidth={1} opacity={0.9} filter="url(#op-seg-glow)" />
+      {/* Outer single */}
+      <path d={createArcPath(singleInnerR, singleOuterR, startAngle, endAngle)}
+        fill={singleColor} stroke="#222" strokeWidth={0.8} opacity={0.8} />
+      {/* Triple ring */}
+      <path d={createArcPath(tripleInner, tripleOuter, startAngle, endAngle)}
+        fill={tripleColor} stroke="#222" strokeWidth={1} opacity={0.9} filter="url(#op-seg-glow)" />
+      {/* Inner single */}
+      <path d={createArcPath(innerSingleInner, innerSingleOuter, startAngle, endAngle)}
+        fill={singleColor} stroke="#222" strokeWidth={0.8} opacity={0.8} />
+
+      {/* Ring dividers for center segment only */}
+      {(() => {
+        const sa = boardIdx * segmentAngle + offset
+        const ea = (boardIdx + 1) * segmentAngle + offset
+        return (
+          <>
+            <path d={createArcPath(doubleInner - 1, doubleOuter + 1, sa, ea)}
+              fill="none" stroke={accentColor} strokeWidth={1.5} opacity={0.5} />
+            <path d={createArcPath(tripleInner - 1, tripleOuter + 1, sa, ea)}
+              fill="none" stroke={accentColor} strokeWidth={1.5} opacity={0.5} />
+          </>
+        )
+      })()}
+
+      {/* Hit count labels */}
+      <text x={dPos.x} y={dPos.y} textAnchor="middle" dominantBaseline="central"
+        fill="#fff" fontSize={labelFontSize} fontWeight={700}>
+        D: {hitCounts.double}
+      </text>
+      <text x={soPos.x} y={soPos.y} textAnchor="middle" dominantBaseline="central"
+        fill={isEven ? '#ccc' : '#333'} fontSize={labelFontSize} fontWeight={700}>
+        S: {hitCounts.single}
+      </text>
+      <text x={tPos.x} y={tPos.y} textAnchor="middle" dominantBaseline="central"
+        fill="#fff" fontSize={labelFontSize} fontWeight={700}>
+        T: {hitCounts.triple}
+      </text>
+
+      {/* Number label at outer edge */}
+      {(() => {
+        const labelR = doubleOuter + size * 0.04
+        const p = labelPos(labelR)
+        return (
+          <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central"
+            fill={accentColor} fontSize={size * 0.08} fontWeight={800}>
+            {targetNumber}
+          </text>
+        )
+      })()}
+    </svg>
+  )
+}
+
 export default function GameOperation({ matchId, onExit, onShowSummary, multiplayer }: Props) {
   useDisableScale()
   const { c, isArcade, colors } = useGameColors()
@@ -736,6 +923,38 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
 
   const isMulti = players.length > 1
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
+    }
+    const onOrientation = () => setTimeout(update, 100)
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
+  }, [])
+  const isMobile = Math.min(screenWidth, screenHeight) < 600
+  const isLandscape = isMobile && screenWidth > screenHeight
+
+  // Hit counts for segment visualization
+  const segmentHitCounts = useMemo(() => {
+    if (!activePlayerLegState) return { single: 0, double: 0, triple: 0, singleBull: 0, doubleBull: 0, noScore: 0 }
+    return {
+      single: activePlayerLegState.singleCount,
+      double: activePlayerLegState.doubleCount,
+      triple: activePlayerLegState.tripleCount,
+      singleBull: activePlayerLegState.singleBullCount,
+      doubleBull: activePlayerLegState.doubleBullCount,
+      noScore: activePlayerLegState.noScoreCount,
+    }
+  }, [activePlayerLegState])
+
   // Sidebar-Reihenfolge: naechster Spieler oben
   const sidebarPlayers = useMemo(() => {
     if (!isMulti || !currentLeg) return []
@@ -831,14 +1050,78 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     )
   }
 
+  // Shared mobile hit buttons
+  const renderHitButtons = (compact?: boolean) => {
+    const btnPad = compact ? '14px 0' : '18px 0'
+    const btnFont = compact ? 14 : 16
+    const btnRadius = compact ? 8 : 12
+    const btnGap = compact ? 6 : 8
+
+    if (isBullTarget) {
+      return (
+        <div style={{ display: 'flex', gap: btnGap }}>
+          <button onClick={() => recordDart('NO_SCORE')} style={{
+            flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+            background: c.red + '20', border: `2px solid ${c.red}`,
+            color: c.red, borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+          }}>Miss</button>
+          <button onClick={() => recordDart('SINGLE_BULL')} style={{
+            flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+            background: c.green + '20', border: `2px solid ${c.green}`,
+            color: c.green, borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+          }}>SB<div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>25</div></button>
+          <button onClick={() => recordDart('DOUBLE_BULL')} style={{
+            flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+            background: c.accent + '20', border: `2px solid ${c.accent}`,
+            color: c.accent, borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+          }}>DB<div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>50</div></button>
+        </div>
+      )
+    }
+    return (
+      <div style={{ display: 'flex', gap: btnGap }}>
+        <button onClick={() => recordDart('NO_SCORE')} style={{
+          flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+          background: c.red + '20', border: `2px solid ${c.red}`,
+          color: c.red, borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+        }}>Miss<div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>0</div></button>
+        <button onClick={() => recordDart('SINGLE')} style={{
+          flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+          background: c.green + '20', border: `2px solid ${c.green}`,
+          color: c.green, borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+        }}>S<div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>{targetNumber}</div></button>
+        <button onClick={() => recordDart('DOUBLE')} style={{
+          flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+          background: c.accent + '20', border: `2px solid ${c.accent}`,
+          color: c.accent, borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+        }}>D<div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>{(targetNumber ?? 0) * 2}</div></button>
+        <button onClick={() => recordDart('TRIPLE')} style={{
+          flex: 1, padding: btnPad, fontSize: btnFont, fontWeight: 700,
+          background: '#a855f720', border: '2px solid #a855f7',
+          color: '#a855f7', borderRadius: btnRadius, cursor: 'pointer', touchAction: 'manipulation',
+        }}>T<div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>{(targetNumber ?? 0) * 3}</div></button>
+      </div>
+    )
+  }
+
+  const canShowButtons = currentLeg && !currentLeg.isComplete && !matchEndDelay && activePlayerId
+  const isFinished = state.isComplete || matchEndDelay
+
   return (
-    <div style={{
-      background: playerColorBgEnabled && activePlayerId
-        ? `linear-gradient(180deg, ${playerColor}20 0%, ${playerColor}05 100%)`
-        : c.bg,
-      minHeight: '100dvh', color: c.textBright,
-      transition: 'background 0.5s ease',
-    }}>
+    <div
+      className={isMobile ? 'game-fullscreen' : undefined}
+      style={{
+        background: playerColorBgEnabled && activePlayerId
+          ? `linear-gradient(180deg, ${playerColor}20 0%, ${playerColor}05 100%)`
+          : c.bg,
+        height: isMobile ? '100dvh' : undefined,
+        minHeight: isMobile ? undefined : '100dvh',
+        color: c.textBright,
+        transition: 'background 0.5s ease',
+        display: isMobile ? 'flex' : undefined,
+        flexDirection: isMobile ? 'column' : undefined,
+        overflow: isMobile ? 'hidden' : undefined,
+      }}>
       {/* Pause Overlay */}
       {gamePaused && (
         <PauseOverlay onResume={handleResume} />
@@ -856,487 +1139,678 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
         />
       )}
 
-      {/* Header: Operation + Timer + Controls */}
+      {/* Header */}
+      <GameControls
+        isPaused={gamePaused}
+        onTogglePause={() => {
+          if (gamePaused) handleResume()
+          else handlePause()
+        }}
+        isMuted={muted}
+        onToggleMute={() => setMuted(m => !m)}
+        onExit={handleExitMatch}
+        title={`Operation: EFKG${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
+      />
+
+      {/* Info bar: Timer + Leg info */}
       <div style={{
-        display: 'flex', justifyContent: 'center',
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12,
+        padding: isMobile ? '4px 8px' : '8px 12px',
         borderBottom: `1px solid ${c.border}`,
+        background: c.cardBg, fontSize: 13, flexShrink: 0,
       }}>
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '8px 12px',
-          width: isMulti ? 600 : 440,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, color: c.textDim }}>Operation: Ein Feld, keine Gnade</span>
-            <span style={{ fontSize: 13, fontFamily: 'monospace', color: c.textDim }}>
-              {formatDuration(elapsedMs)}
-            </span>
-            {state.match!.config.legsCount > 1 && (
-              <span style={{ fontSize: 11, color: c.textDim }}>
-                First to {Math.ceil(state.match!.config.legsCount / 2)} · Leg {(state.currentLegIndex + 1)}
-              </span>
-            )}
-          </div>
-          <GameControls
-            isPaused={gamePaused}
-            onTogglePause={() => {
-              if (gamePaused) handleResume()
-              else handlePause()
-            }}
-            isMuted={muted}
-            onToggleMute={() => setMuted(m => !m)}
-            onExit={handleExitMatch}
-            title={`Operation: EFKG${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
-          />
-        </div>
+        {!isMobile && <span style={{ fontSize: 13, color: c.textDim }}>Operation: Ein Feld, keine Gnade</span>}
+        <span style={{ fontFamily: 'monospace', color: c.textDim, fontSize: isMobile ? 12 : 13 }}>
+          {formatDuration(elapsedMs)}
+        </span>
+        {state.match!.config.legsCount > 1 && (
+          <span style={{ fontSize: 11, color: c.textDim }}>
+            First to {Math.ceil(state.match!.config.legsCount / 2)} · Leg {(state.currentLegIndex + 1)}
+          </span>
+        )}
+        {/* Progress compact on mobile */}
+        {isMobile && currentLeg && !currentLeg.isComplete && (
+          <span style={{ fontSize: 11, color: c.textDim }}>
+            {dartsThrown}/{DARTS_PER_LEG}
+          </span>
+        )}
       </div>
 
-      {/* Layout: zentrierte Gruppe aus Content + Sidebar */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        minHeight: 'calc(100dvh - 50px)',
-      }}>
-        {/* Haupt-Content */}
-        <div style={{
-          width: 440,
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '16px 12px', gap: 14,
-        }}>
-          {/* Aktueller Spieler (immer sichtbar) */}
-          {activePlayer && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <div style={{
-                width: 12, height: 12, borderRadius: '50%',
-                background: playerColor,
-              }} />
-              <div style={{ fontSize: 22, fontWeight: 800, color: playerColor }}>
-                {activePlayer.name}
-              </div>
+      {/* ===== MOBILE PORTRAIT ===== */}
+      {isMobile && !isLandscape ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 8px' }}>
+          {/* Player name + Target */}
+          {activePlayer && currentLeg && !currentLeg.isComplete && (
+            <div style={{ textAlign: 'center', flexShrink: 0, marginBottom: 2 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: playerColor }}>{activePlayer.name}</span>
+              <span style={{ fontSize: 12, color: c.textDim, margin: '0 6px' }}>Ziel:</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: c.accent }}>{targetLabel}</span>
             </div>
           )}
 
-          {/* Target-Anzeige */}
-          {currentLeg && !currentLeg.isComplete && (
-            <div style={{
-              background: c.cardBg, border: `2px solid ${c.accent}`,
-              borderRadius: 12, padding: '12px 32px', textAlign: 'center',
-              minWidth: 180,
-            }}>
-              <div style={{ fontSize: 11, color: c.textDim, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
-                Ziel
-              </div>
-              <div style={{ fontSize: 42, fontWeight: 800, color: c.accent }}>
-                {targetLabel}
-              </div>
-            </div>
-          )}
-
-          {/* Score gross mit Flammen-Effekt (~20% groesser) */}
-          {!currentLeg?.isComplete && (
-            <div style={{ position: 'relative', ...scoreFlashStyle, paddingTop: 20 + Math.min(activeStreak / 30, 1) * 80 }}>
+          {/* Score with flame */}
+          {!currentLeg?.isComplete && !isFinished && (
+            <div style={{ textAlign: 'center', flexShrink: 0, position: 'relative', ...scoreFlashStyle, paddingTop: Math.min(10 + Math.min(activeStreak / 30, 1) * 40, 50) }}>
               <OperationFlame streak={activeStreak} totalHits={totalHits}>
-                <div style={{
-                  fontSize: 72, fontWeight: 800, color: playerColor,
-                  lineHeight: 1,
-                }}>
+                <div style={{ fontSize: 48, fontWeight: 800, color: playerColor, lineHeight: 1 }}>
                   {activeScore}
                 </div>
               </OperationFlame>
-
-              {/* Delta-Animation */}
               {deltaFlash && (
                 <div key={deltaFlash.key} style={{
-                  position: 'absolute', top: -8, right: -70,
-                  fontSize: 28, fontWeight: 700,
-                  color: c.green,
+                  position: 'absolute', top: 0, right: '20%',
+                  fontSize: 22, fontWeight: 700, color: c.green,
                   animation: 'fadeUp 1.5s forwards',
-                }}>
-                  +{deltaFlash.value}
-                </div>
+                }}>+{deltaFlash.value}</div>
               )}
             </div>
           )}
 
-          {/* Live Dart-Anzeige: 3 Pfeile im aktuellen Turn */}
-          {currentLeg && !currentLeg.isComplete && activePlayerLegState && (
-            <LiveDartIndicators
-              playerLegState={activePlayerLegState}
-              dartsThrown={dartsThrown}
-              targetLabel={targetLabel}
-              isBullTarget={!!isBullTarget}
-              colors={c}
-            />
-          )}
-
-          {/* Fortschrittsbalken: Darts 0-30 */}
-          {currentLeg && !currentLeg.isComplete && activePlayerLegState && (
-            <div style={{ width: '100%', maxWidth: 440 }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', fontSize: 11,
-                color: c.textDim, marginBottom: 4,
-              }}>
-                <span>Dart {dartsThrown}/{DARTS_PER_LEG}</span>
-                <span>Turn {turnIndex}/10</span>
-              </div>
-              <div style={{
-                width: '100%', height: 8, borderRadius: 4,
-                background: c.border, overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: `${(dartsThrown / DARTS_PER_LEG) * 100}%`,
-                  height: '100%', borderRadius: 4,
-                  background: dartsThrown >= 27
-                    ? c.red
-                    : dartsThrown >= 18
-                      ? '#f59e0b'
-                      : c.accent,
-                  transition: 'width 0.3s ease, background 0.3s ease',
-                }} />
-              </div>
+          {/* Segment visualization */}
+          {currentLeg && !currentLeg.isComplete && !isFinished && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'visible' }}>
+              <OperationTargetSegment
+                targetNumber={targetNumber ?? null}
+                isBull={!!isBullTarget}
+                hitCounts={segmentHitCounts}
+                size={Math.min(screenWidth - 40, screenHeight * 0.32, 260)}
+                accentColor={playerColor}
+              />
             </div>
           )}
 
-          {/* Match beendet */}
-          {(state.isComplete || matchEndDelay) && (
-            <div style={{
-              background: c.cardBg, border: `2px solid ${c.green}`,
-              borderRadius: 12, padding: '16px 24px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>
-                Geschafft!
-              </div>
-              {saving && (
-                <div style={{ fontSize: 13, color: c.textDim, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                  Speichern...
-                </div>
-              )}
-              <button
-                onClick={() => onShowSummary(matchId)}
-                style={{
+          {/* Live dart indicators */}
+          {currentLeg && !currentLeg.isComplete && activePlayerLegState && !isFinished && (
+            <div style={{ flexShrink: 0, marginBottom: 4 }}>
+              <LiveDartIndicators
+                playerLegState={activePlayerLegState}
+                dartsThrown={dartsThrown}
+                targetLabel={targetLabel}
+                isBullTarget={!!isBullTarget}
+                colors={c}
+              />
+            </div>
+          )}
+
+          {/* Progress bar thin */}
+          {currentLeg && !currentLeg.isComplete && activePlayerLegState && !isFinished && (
+            <div style={{ width: '100%', height: 4, borderRadius: 2, background: c.border, overflow: 'hidden', flexShrink: 0, marginBottom: 4 }}>
+              <div style={{
+                width: `${(dartsThrown / DARTS_PER_LEG) * 100}%`, height: '100%', borderRadius: 2,
+                background: dartsThrown >= 27 ? c.red : dartsThrown >= 18 ? '#f59e0b' : c.accent,
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+          )}
+
+          {/* Match finished */}
+          {isFinished && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: c.cardBg, border: `2px solid ${c.green}`, borderRadius: 12, padding: '16px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>Geschafft!</div>
+                {saving && (
+                  <div style={{ fontSize: 13, color: c.textDim, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    Speichern...
+                  </div>
+                )}
+                <button onClick={() => onShowSummary(matchId)} style={{
                   marginTop: 12, padding: '10px 24px', borderRadius: 8,
-                  background: c.green, color: '#fff', border: 'none',
-                  fontWeight: 700, fontSize: 16, cursor: 'pointer',
-                }}
-              >
-                Ergebnis anzeigen
-              </button>
-            </div>
-          )}
-
-          {/* Hit-Type Input Buttons */}
-          {currentLeg && !currentLeg.isComplete && !matchEndDelay && activePlayerId && (
-            <div style={{ width: '100%', maxWidth: 440 }}>
-              {isBullTarget ? (
-                // Bull: 3 Buttons
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => recordDart('NO_SCORE')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: c.red + '20', border: `2px solid ${c.red}`,
-                      color: c.red, borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Daneben
-                  </button>
-                  <button
-                    onClick={() => recordDart('SINGLE_BULL')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: c.green + '20', border: `2px solid ${c.green}`,
-                      color: c.green, borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Single Bull
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>25</div>
-                  </button>
-                  <button
-                    onClick={() => recordDart('DOUBLE_BULL')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: c.accent + '20', border: `2px solid ${c.accent}`,
-                      color: c.accent, borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Double Bull
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>50</div>
-                  </button>
-                </div>
-              ) : (
-                // Zahlen: 4 Buttons
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => recordDart('NO_SCORE')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: c.red + '20', border: `2px solid ${c.red}`,
-                      color: c.red, borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Daneben
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>0</div>
-                  </button>
-                  <button
-                    onClick={() => recordDart('SINGLE')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: c.green + '20', border: `2px solid ${c.green}`,
-                      color: c.green, borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Single
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{targetNumber}</div>
-                  </button>
-                  <button
-                    onClick={() => recordDart('DOUBLE')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: c.accent + '20', border: `2px solid ${c.accent}`,
-                      color: c.accent, borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Double
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{(targetNumber ?? 0) * 2}</div>
-                  </button>
-                  <button
-                    onClick={() => recordDart('TRIPLE')}
-                    style={{
-                      flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
-                      background: '#a855f7' + '20', border: '2px solid #a855f7',
-                      color: '#a855f7', borderRadius: 12, cursor: 'pointer',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    Triple
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{(targetNumber ?? 0) * 3}</div>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Undo Button */}
-          {!state.isComplete && !matchEndDelay && !showLegSummary && events.length > 2 && (
-            <button
-              onClick={undoLast}
-              style={{
-                padding: '6px 16px', fontSize: 12,
-                background: 'transparent', border: `1px solid ${c.border}`,
-                color: c.textDim, borderRadius: 6, cursor: 'pointer',
-              }}
-            >
-              Undo
-            </button>
-          )}
-
-          {/* Verlauf: Multi-Spalten (Spieler nebeneinander) oder Solo */}
-          {maxTurnCount > 0 && currentLeg && (
-            <div style={{
-              width: '100%', maxWidth: isMulti ? 600 : 440, background: c.cardBg,
-              borderRadius: 8, border: `1px solid ${c.border}`,
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                padding: '6px 10px', fontSize: 11, fontWeight: 600,
-                color: c.textDim, borderBottom: `1px solid ${c.border}`,
-              }}>
-                Verlauf
-              </div>
-              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${c.border}` }}>
-                      <th style={{ textAlign: 'center', padding: '4px 6px', color: c.textDim, width: 32 }}>#</th>
-                      {players.map((p, idx) => {
-                        const pColor = playerColors[p.playerId] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
-                        return (
-                          <th key={p.playerId} style={{
-                            textAlign: 'center', padding: '4px 6px',
-                            color: pColor, fontWeight: 700,
-                            borderLeft: idx > 0 ? `1px solid ${c.border}` : undefined,
-                          }}>
-                            {isMulti ? p.name : 'Aufnahme'}
-                          </th>
-                        )
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: maxTurnCount }).map((_, rowIdx) => (
-                      <tr key={rowIdx} style={{ borderBottom: `1px solid ${c.border}` }}>
-                        <td style={{ textAlign: 'center', padding: '4px 6px', color: c.textDim, fontWeight: 500 }}>
-                          {rowIdx + 1}
-                        </td>
-                        {players.map((p, pIdx) => {
-                          const pColor = playerColors[p.playerId] ?? PLAYER_COLORS[pIdx % PLAYER_COLORS.length]
-                          const turns = allPlayerTurns.get(p.playerId) ?? []
-                          const turn = turns[rowIdx]
-                          if (!turn) {
-                            return (
-                              <td key={p.playerId} style={{
-                                textAlign: 'center', padding: '4px 6px',
-                                color: c.textDim, opacity: 0.3,
-                                borderLeft: pIdx > 0 ? `1px solid ${c.border}` : undefined,
-                              }}>
-                                –
-                              </td>
-                            )
-                          }
-                          return (
-                            <td key={p.playerId} style={{
-                              textAlign: 'center', padding: '4px 6px',
-                              borderLeft: pIdx > 0 ? `1px solid ${c.border}` : undefined,
-                            }}>
-                              <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
-                                {turn.darts.map((d, j) => (
-                                  <span key={j} style={{
-                                    fontWeight: 600, fontSize: 11,
-                                    color: d.hitType === 'NO_SCORE' ? c.red : pColor,
-                                  }}>
-                                    {formatDartShort(d.hitType, isBullTarget)}
-                                  </span>
-                                ))}
-                                <span style={{
-                                  fontWeight: 700, fontSize: 11, marginLeft: 4,
-                                  color: turn.totalPoints > 0 ? pColor : c.red,
-                                  opacity: 0.8,
-                                }}>
-                                  {turn.totalPoints > 0 ? `+${turn.totalPoints}` : '0'}
-                                </span>
-                              </div>
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  background: c.green, color: '#fff', border: 'none', fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                }}>Ergebnis anzeigen</button>
               </div>
             </div>
           )}
 
-          {/* Hit-Type Zaehler (kompakte Uebersicht) */}
-          {activePlayerLegState && activePlayerLegState.dartsThrown > 0 && !currentLeg?.isComplete && (
-            <div style={{
-              display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
-              fontSize: 11, color: c.textDim,
-            }}>
-              {isBullTarget ? (
-                <>
-                  <span>SB: <strong style={{ color: c.green }}>{activePlayerLegState.singleBullCount}</strong></span>
-                  <span>DB: <strong style={{ color: c.accent }}>{activePlayerLegState.doubleBullCount}</strong></span>
-                  <span>Miss: <strong style={{ color: c.red }}>{activePlayerLegState.noScoreCount}</strong></span>
-                </>
-              ) : (
-                <>
-                  <span>S: <strong style={{ color: c.green }}>{activePlayerLegState.singleCount}</strong></span>
-                  <span>D: <strong style={{ color: c.accent }}>{activePlayerLegState.doubleCount}</strong></span>
-                  <span>T: <strong style={{ color: '#a855f7' }}>{activePlayerLegState.tripleCount}</strong></span>
-                  <span>Miss: <strong style={{ color: c.red }}>{activePlayerLegState.noScoreCount}</strong></span>
-                </>
-              )}
-              <span>|</span>
-              <span>Treffer: <strong style={{ color: c.textBright }}>
-                {activePlayerLegState.dartsThrown - activePlayerLegState.noScoreCount}/{activePlayerLegState.dartsThrown}
-              </strong></span>
+          {/* Hit buttons */}
+          {canShowButtons && (
+            <div style={{ flexShrink: 0, padding: '2px 0' }}>
+              {renderHitButtons()}
+              {/* Undo row */}
+              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                <button onClick={undoLast} disabled={events.length <= 2}
+                  style={{
+                    flex: 1, height: 32, borderRadius: 6, border: `1px solid ${c.border}`,
+                    background: 'transparent', color: events.length > 2 ? c.textDim : c.border,
+                    fontSize: 11, fontWeight: 600, cursor: events.length > 2 ? 'pointer' : 'not-allowed',
+                  }}>Undo</button>
+              </div>
             </div>
           )}
+        </div>
 
-          {/* Tastatur-Hinweis */}
-          <div style={{ fontSize: 10, color: c.textDim, textAlign: 'center', opacity: 0.6, marginTop: 8 }}>
-            {isBullTarget
-              ? '0 = Daneben | 1/S = Single Bull | 2/D = Double Bull | Backspace = Undo | Esc = Pause'
-              : '0 = Daneben | 1/S = Single | 2/D = Double | 3/T = Triple | Backspace = Undo | Esc = Pause'
-            }
+      ) : isMobile && isLandscape ? (
+        /* ===== MOBILE LANDSCAPE ===== */
+        <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0, overflow: 'hidden', padding: '4px 8px' }}>
+          {/* Left: Segment */}
+          <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+            {currentLeg && !currentLeg.isComplete && !isFinished ? (
+              <OperationTargetSegment
+                targetNumber={targetNumber ?? null}
+                isBull={!!isBullTarget}
+                hitCounts={segmentHitCounts}
+                size={Math.min(screenHeight - 80, 240)}
+                accentColor={playerColor}
+              />
+            ) : isFinished ? (
+              <div style={{ background: c.cardBg, border: `2px solid ${c.green}`, borderRadius: 12, padding: '16px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: c.green }}>Geschafft!</div>
+                <button onClick={() => onShowSummary(matchId)} style={{
+                  marginTop: 8, padding: '8px 16px', borderRadius: 8,
+                  background: c.green, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}>Ergebnis</button>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Right: Score + controls */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, justifyContent: 'center' }}>
+            {/* Player + Target */}
+            {activePlayer && currentLeg && !currentLeg.isComplete && (
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: playerColor }}>{activePlayer.name}</span>
+                <span style={{ fontSize: 11, color: c.textDim, margin: '0 4px' }}>Ziel:</span>
+                <span style={{ fontSize: 22, fontWeight: 900, color: c.accent }}>{targetLabel}</span>
+              </div>
+            )}
+
+            {/* Score */}
+            {!currentLeg?.isComplete && !isFinished && (
+              <div style={{ textAlign: 'center', position: 'relative', ...scoreFlashStyle }}>
+                <OperationFlame streak={activeStreak} totalHits={totalHits}>
+                  <div style={{ fontSize: 40, fontWeight: 800, color: playerColor, lineHeight: 1 }}>
+                    {activeScore}
+                  </div>
+                </OperationFlame>
+                {deltaFlash && (
+                  <div key={deltaFlash.key} style={{
+                    position: 'absolute', top: -4, right: '15%',
+                    fontSize: 18, fontWeight: 700, color: c.green,
+                    animation: 'fadeUp 1.5s forwards',
+                  }}>+{deltaFlash.value}</div>
+                )}
+              </div>
+            )}
+
+            {/* Dart indicators */}
+            {currentLeg && !currentLeg.isComplete && activePlayerLegState && !isFinished && (
+              <LiveDartIndicators
+                playerLegState={activePlayerLegState}
+                dartsThrown={dartsThrown}
+                targetLabel={targetLabel}
+                isBullTarget={!!isBullTarget}
+                colors={c}
+              />
+            )}
+
+            {/* Hit buttons */}
+            {canShowButtons && (
+              <>
+                {renderHitButtons(true)}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button onClick={undoLast} disabled={events.length <= 2}
+                    style={{
+                      flex: 1, height: 28, borderRadius: 4, border: `1px solid ${c.border}`,
+                      background: 'transparent', color: events.length > 2 ? c.textDim : c.border,
+                      fontSize: 10, fontWeight: 600, cursor: events.length > 2 ? 'pointer' : 'not-allowed',
+                    }}>Undo</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Spieler-Sidebar rechts (nur Multiplayer) */}
-        {isMulti && (
+      ) : (
+        /* ===== DESKTOP ===== */
+        <>
+          {/* Layout: zentrierte Gruppe aus Content + Sidebar */}
           <div style={{
-            width: 160,
-            borderLeft: `1px solid ${c.border}`,
-            padding: '12px 8px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: 0,
-            flexShrink: 0,
+            justifyContent: 'center',
+            minHeight: 'calc(100dvh - 90px)',
           }}>
+            {/* Haupt-Content */}
             <div style={{
-              fontSize: 10, fontWeight: 600, color: c.textDim,
-              textTransform: 'uppercase', letterSpacing: 1,
-              marginBottom: 8, textAlign: 'center',
+              width: 440,
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              padding: '16px 12px', gap: 14,
             }}>
-              Spieler
-            </div>
-
-            {sidebarPlayers.map(({ player: p, index: i }) => {
-              const legPs = currentLeg?.players.find(lp => lp.playerId === p.playerId)
-              const totals = state.totalsByPlayer[p.playerId]
-              const color = playerColors[p.playerId] ?? PLAYER_COLORS[i % PLAYER_COLORS.length]
-              const legHitScore = legPs?.hitScore ?? 0
-              const totalHitScore = totals?.totalHitScore ?? 0
-              const legsWon = totals?.legsWon ?? 0
-              const isDone = legPs ? legPs.dartsThrown >= DARTS_PER_LEG : false
-
-              return (
-                <div key={p.playerId} style={{
-                  padding: '8px 10px',
-                  borderBottom: `1px solid ${c.border}`,
-                  opacity: isDone ? 0.5 : 1,
-                  transition: 'all 0.3s ease',
+              {/* Aktueller Spieler (immer sichtbar) */}
+              {activePlayer && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
                 }}>
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    marginBottom: 2,
-                  }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: color, flexShrink: 0,
-                    }} />
-                    <div style={{
-                      fontSize: 13, fontWeight: 600, color: color,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {p.name}
-                    </div>
-                  </div>
-                  <div style={{
-                    fontSize: 22, fontWeight: 800, color: color,
-                    paddingLeft: 14,
-                  }}>
-                    {legHitScore}
-                  </div>
-                  <div style={{
-                    fontSize: 10, color: c.textDim,
-                    paddingLeft: 14,
-                  }}>
-                    {isDone
-                      ? 'Fertig'
-                      : `Dart ${legPs?.dartsThrown ?? 0}/${DARTS_PER_LEG}`
-                    }
-                    {state.match!.config.legsCount > 1 && (
-                      <span style={{ marginLeft: 6 }}>
-                        ({legsWon}L / {totalHitScore + legHitScore} HS)
-                      </span>
-                    )}
+                    width: 12, height: 12, borderRadius: '50%',
+                    background: playerColor,
+                  }} />
+                  <div style={{ fontSize: 22, fontWeight: 800, color: playerColor }}>
+                    {activePlayer.name}
                   </div>
                 </div>
-              )
-            })}
+              )}
+
+              {/* Target-Anzeige */}
+              {currentLeg && !currentLeg.isComplete && (
+                <div style={{
+                  background: c.cardBg, border: `2px solid ${c.accent}`,
+                  borderRadius: 12, padding: '12px 32px', textAlign: 'center',
+                  minWidth: 180,
+                }}>
+                  <div style={{ fontSize: 11, color: c.textDim, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Ziel
+                  </div>
+                  <div style={{ fontSize: 42, fontWeight: 800, color: c.accent }}>
+                    {targetLabel}
+                  </div>
+                </div>
+              )}
+
+              {/* Score gross mit Flammen-Effekt (~20% groesser) */}
+              {!currentLeg?.isComplete && (
+                <div style={{ position: 'relative', ...scoreFlashStyle, paddingTop: 20 + Math.min(activeStreak / 30, 1) * 80 }}>
+                  <OperationFlame streak={activeStreak} totalHits={totalHits}>
+                    <div style={{
+                      fontSize: 72, fontWeight: 800, color: playerColor,
+                      lineHeight: 1,
+                    }}>
+                      {activeScore}
+                    </div>
+                  </OperationFlame>
+
+                  {/* Delta-Animation */}
+                  {deltaFlash && (
+                    <div key={deltaFlash.key} style={{
+                      position: 'absolute', top: -8, right: -70,
+                      fontSize: 28, fontWeight: 700,
+                      color: c.green,
+                      animation: 'fadeUp 1.5s forwards',
+                    }}>
+                      +{deltaFlash.value}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Live Dart-Anzeige: 3 Pfeile im aktuellen Turn */}
+              {currentLeg && !currentLeg.isComplete && activePlayerLegState && (
+                <LiveDartIndicators
+                  playerLegState={activePlayerLegState}
+                  dartsThrown={dartsThrown}
+                  targetLabel={targetLabel}
+                  isBullTarget={!!isBullTarget}
+                  colors={c}
+                />
+              )}
+
+              {/* Fortschrittsbalken: Darts 0-30 */}
+              {currentLeg && !currentLeg.isComplete && activePlayerLegState && (
+                <div style={{ width: '100%', maxWidth: 440 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', fontSize: 11,
+                    color: c.textDim, marginBottom: 4,
+                  }}>
+                    <span>Dart {dartsThrown}/{DARTS_PER_LEG}</span>
+                    <span>Turn {turnIndex}/10</span>
+                  </div>
+                  <div style={{
+                    width: '100%', height: 8, borderRadius: 4,
+                    background: c.border, overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${(dartsThrown / DARTS_PER_LEG) * 100}%`,
+                      height: '100%', borderRadius: 4,
+                      background: dartsThrown >= 27
+                        ? c.red
+                        : dartsThrown >= 18
+                          ? '#f59e0b'
+                          : c.accent,
+                      transition: 'width 0.3s ease, background 0.3s ease',
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Match beendet */}
+              {isFinished && (
+                <div style={{
+                  background: c.cardBg, border: `2px solid ${c.green}`,
+                  borderRadius: 12, padding: '16px 24px', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: c.green }}>
+                    Geschafft!
+                  </div>
+                  {saving && (
+                    <div style={{ fontSize: 13, color: c.textDim, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Speichern...
+                    </div>
+                  )}
+                  <button
+                    onClick={() => onShowSummary(matchId)}
+                    style={{
+                      marginTop: 12, padding: '10px 24px', borderRadius: 8,
+                      background: c.green, color: '#fff', border: 'none',
+                      fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                    }}
+                  >
+                    Ergebnis anzeigen
+                  </button>
+                </div>
+              )}
+
+              {/* Hit-Type Input Buttons */}
+              {currentLeg && !currentLeg.isComplete && !matchEndDelay && activePlayerId && (
+                <div style={{ width: '100%', maxWidth: 440 }}>
+                  {isBullTarget ? (
+                    // Bull: 3 Buttons
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => recordDart('NO_SCORE')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: c.red + '20', border: `2px solid ${c.red}`,
+                          color: c.red, borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Daneben
+                      </button>
+                      <button
+                        onClick={() => recordDart('SINGLE_BULL')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: c.green + '20', border: `2px solid ${c.green}`,
+                          color: c.green, borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Single Bull
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>25</div>
+                      </button>
+                      <button
+                        onClick={() => recordDart('DOUBLE_BULL')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: c.accent + '20', border: `2px solid ${c.accent}`,
+                          color: c.accent, borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Double Bull
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>50</div>
+                      </button>
+                    </div>
+                  ) : (
+                    // Zahlen: 4 Buttons
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => recordDart('NO_SCORE')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: c.red + '20', border: `2px solid ${c.red}`,
+                          color: c.red, borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Daneben
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>0</div>
+                      </button>
+                      <button
+                        onClick={() => recordDart('SINGLE')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: c.green + '20', border: `2px solid ${c.green}`,
+                          color: c.green, borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Single
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{targetNumber}</div>
+                      </button>
+                      <button
+                        onClick={() => recordDart('DOUBLE')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: c.accent + '20', border: `2px solid ${c.accent}`,
+                          color: c.accent, borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Double
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{(targetNumber ?? 0) * 2}</div>
+                      </button>
+                      <button
+                        onClick={() => recordDart('TRIPLE')}
+                        style={{
+                          flex: 1, padding: '18px 0', fontSize: 16, fontWeight: 700,
+                          background: '#a855f7' + '20', border: '2px solid #a855f7',
+                          color: '#a855f7', borderRadius: 12, cursor: 'pointer',
+                          touchAction: 'manipulation',
+                        }}
+                      >
+                        Triple
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{(targetNumber ?? 0) * 3}</div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Undo Button */}
+              {!state.isComplete && !matchEndDelay && !showLegSummary && events.length > 2 && (
+                <button
+                  onClick={undoLast}
+                  style={{
+                    padding: '6px 16px', fontSize: 12,
+                    background: 'transparent', border: `1px solid ${c.border}`,
+                    color: c.textDim, borderRadius: 6, cursor: 'pointer',
+                  }}
+                >
+                  Undo
+                </button>
+              )}
+
+              {/* Verlauf: Multi-Spalten (Spieler nebeneinander) oder Solo */}
+              {maxTurnCount > 0 && currentLeg && (
+                <div style={{
+                  width: '100%', maxWidth: isMulti ? 600 : 440, background: c.cardBg,
+                  borderRadius: 8, border: `1px solid ${c.border}`,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                    color: c.textDim, borderBottom: `1px solid ${c.border}`,
+                  }}>
+                    Verlauf
+                  </div>
+                  <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${c.border}` }}>
+                          <th style={{ textAlign: 'center', padding: '4px 6px', color: c.textDim, width: 32 }}>#</th>
+                          {players.map((p, idx) => {
+                            const pColor = playerColors[p.playerId] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+                            return (
+                              <th key={p.playerId} style={{
+                                textAlign: 'center', padding: '4px 6px',
+                                color: pColor, fontWeight: 700,
+                                borderLeft: idx > 0 ? `1px solid ${c.border}` : undefined,
+                              }}>
+                                {isMulti ? p.name : 'Aufnahme'}
+                              </th>
+                            )
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.from({ length: maxTurnCount }).map((_, rowIdx) => (
+                          <tr key={rowIdx} style={{ borderBottom: `1px solid ${c.border}` }}>
+                            <td style={{ textAlign: 'center', padding: '4px 6px', color: c.textDim, fontWeight: 500 }}>
+                              {rowIdx + 1}
+                            </td>
+                            {players.map((p, pIdx) => {
+                              const pColor = playerColors[p.playerId] ?? PLAYER_COLORS[pIdx % PLAYER_COLORS.length]
+                              const turns = allPlayerTurns.get(p.playerId) ?? []
+                              const turn = turns[rowIdx]
+                              if (!turn) {
+                                return (
+                                  <td key={p.playerId} style={{
+                                    textAlign: 'center', padding: '4px 6px',
+                                    color: c.textDim, opacity: 0.3,
+                                    borderLeft: pIdx > 0 ? `1px solid ${c.border}` : undefined,
+                                  }}>
+                                    –
+                                  </td>
+                                )
+                              }
+                              return (
+                                <td key={p.playerId} style={{
+                                  textAlign: 'center', padding: '4px 6px',
+                                  borderLeft: pIdx > 0 ? `1px solid ${c.border}` : undefined,
+                                }}>
+                                  <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
+                                    {turn.darts.map((d, j) => (
+                                      <span key={j} style={{
+                                        fontWeight: 600, fontSize: 11,
+                                        color: d.hitType === 'NO_SCORE' ? c.red : pColor,
+                                      }}>
+                                        {formatDartShort(d.hitType, isBullTarget)}
+                                      </span>
+                                    ))}
+                                    <span style={{
+                                      fontWeight: 700, fontSize: 11, marginLeft: 4,
+                                      color: turn.totalPoints > 0 ? pColor : c.red,
+                                      opacity: 0.8,
+                                    }}>
+                                      {turn.totalPoints > 0 ? `+${turn.totalPoints}` : '0'}
+                                    </span>
+                                  </div>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Hit-Type Zaehler (kompakte Uebersicht) */}
+              {activePlayerLegState && activePlayerLegState.dartsThrown > 0 && !currentLeg?.isComplete && (
+                <div style={{
+                  display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
+                  fontSize: 11, color: c.textDim,
+                }}>
+                  {isBullTarget ? (
+                    <>
+                      <span>SB: <strong style={{ color: c.green }}>{activePlayerLegState.singleBullCount}</strong></span>
+                      <span>DB: <strong style={{ color: c.accent }}>{activePlayerLegState.doubleBullCount}</strong></span>
+                      <span>Miss: <strong style={{ color: c.red }}>{activePlayerLegState.noScoreCount}</strong></span>
+                    </>
+                  ) : (
+                    <>
+                      <span>S: <strong style={{ color: c.green }}>{activePlayerLegState.singleCount}</strong></span>
+                      <span>D: <strong style={{ color: c.accent }}>{activePlayerLegState.doubleCount}</strong></span>
+                      <span>T: <strong style={{ color: '#a855f7' }}>{activePlayerLegState.tripleCount}</strong></span>
+                      <span>Miss: <strong style={{ color: c.red }}>{activePlayerLegState.noScoreCount}</strong></span>
+                    </>
+                  )}
+                  <span>|</span>
+                  <span>Treffer: <strong style={{ color: c.textBright }}>
+                    {activePlayerLegState.dartsThrown - activePlayerLegState.noScoreCount}/{activePlayerLegState.dartsThrown}
+                  </strong></span>
+                </div>
+              )}
+
+              {/* Tastatur-Hinweis */}
+              <div style={{ fontSize: 10, color: c.textDim, textAlign: 'center', opacity: 0.6, marginTop: 8 }}>
+                {isBullTarget
+                  ? '0 = Daneben | 1/S = Single Bull | 2/D = Double Bull | Backspace = Undo | Esc = Pause'
+                  : '0 = Daneben | 1/S = Single | 2/D = Double | 3/T = Triple | Backspace = Undo | Esc = Pause'
+                }
+              </div>
+            </div>
+
+            {/* Spieler-Sidebar rechts (nur Multiplayer) */}
+            {isMulti && (
+              <div style={{
+                width: 160,
+                borderLeft: `1px solid ${c.border}`,
+                padding: '12px 8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0,
+                flexShrink: 0,
+              }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 600, color: c.textDim,
+                  textTransform: 'uppercase', letterSpacing: 1,
+                  marginBottom: 8, textAlign: 'center',
+                }}>
+                  Spieler
+                </div>
+
+                {sidebarPlayers.map(({ player: p, index: i }) => {
+                  const legPs = currentLeg?.players.find(lp => lp.playerId === p.playerId)
+                  const totals = state.totalsByPlayer[p.playerId]
+                  const color = playerColors[p.playerId] ?? PLAYER_COLORS[i % PLAYER_COLORS.length]
+                  const legHitScore = legPs?.hitScore ?? 0
+                  const totalHitScore = totals?.totalHitScore ?? 0
+                  const legsWon = totals?.legsWon ?? 0
+                  const isDone = legPs ? legPs.dartsThrown >= DARTS_PER_LEG : false
+
+                  return (
+                    <div key={p.playerId} style={{
+                      padding: '8px 10px',
+                      borderBottom: `1px solid ${c.border}`,
+                      opacity: isDone ? 0.5 : 1,
+                      transition: 'all 0.3s ease',
+                    }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        marginBottom: 2,
+                      }}>
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: color, flexShrink: 0,
+                        }} />
+                        <div style={{
+                          fontSize: 13, fontWeight: 600, color: color,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {p.name}
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: 22, fontWeight: 800, color: color,
+                        paddingLeft: 14,
+                      }}>
+                        {legHitScore}
+                      </div>
+                      <div style={{
+                        fontSize: 10, color: c.textDim,
+                        paddingLeft: 14,
+                      }}>
+                        {isDone
+                          ? 'Fertig'
+                          : `Dart ${legPs?.dartsThrown ?? 0}/${DARTS_PER_LEG}`
+                        }
+                        {state.match!.config.legsCount > 1 && (
+                          <span style={{ marginLeft: 6 }}>
+                            ({legsWon}L / {totalHitScore + legHitScore} HS)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* CSS Animationen */}
       <style>{`
