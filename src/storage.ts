@@ -698,6 +698,25 @@ export function ensureATBMatchExists(m: string, e: any[], p: string[]) {
     finished: false,
   } as any), getATBMatches, saveATBMatches, undefined)
 }
+// Helper: merge DB-loaded matches with memory cache — preserves finished status from memory
+// when DB write hasn't caught up yet (race condition between finishMatch and async reload)
+function mergeWithMemoryCache<T extends { id: string; finished?: boolean; finishedAt?: any; winnerId?: any }>(
+  dbMatches: T[], memoryCache: T[] | null
+): T[] {
+  if (!memoryCache || memoryCache.length === 0) return dbMatches
+  for (const m of dbMatches) {
+    if (!m.finished) {
+      const cached = memoryCache.find(c => c.id === m.id)
+      if (cached?.finished) { m.finished = true; m.finishedAt = cached.finishedAt; (m as any).winnerId = cached.winnerId }
+    }
+  }
+  // Add matches that are in memory but not yet in DB
+  for (const cached of memoryCache) {
+    if (!dbMatches.find(m => m.id === cached.id)) dbMatches.push(cached)
+  }
+  return dbMatches
+}
+
 // Helper: extract players + config from start event for cache stubs
 function mpCacheStub(m: string, e: any[], startType: string, title: string, extraFields?: Record<string, any>) {
   const startEvt = e.find((ev: any) => ev.type === startType) as any
@@ -3050,11 +3069,9 @@ export async function getATBMatchesAsync(): Promise<ATBStoredMatch[]> {
         config: m.config,
         generatedSequence: m.generatedSequence,
       }))
-      atbMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, atbMatchesCache)
+      atbMatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
@@ -3741,11 +3758,9 @@ export async function getStrMatchesAsync(): Promise<StrStoredMatch[]> {
     if (useSQLite) {
       const dbMatches = await dbGetStrMatches()
       const matches = dbMatches as any as StrStoredMatch[]
-      strMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, strMatchesCache)
+      strMatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
@@ -4033,11 +4048,9 @@ export async function getCTFMatchesAsync(): Promise<CTFStoredMatch[]> {
     if (useSQLite) {
       const dbMatches = await dbGetCTFMatches()
       const matches = dbMatches as any as CTFStoredMatch[]
-      ctfMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, ctfMatchesCache)
+      ctfMatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
@@ -4338,11 +4351,9 @@ export async function getShanghaiMatchesAsync(): Promise<ShanghaiStoredMatch[]> 
     if (useSQLite) {
       const dbMatches = await dbGetShanghaiMatches()
       const matches = dbMatches as any as ShanghaiStoredMatch[]
-      shanghaiMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, shanghaiMatchesCache)
+      shanghaiMatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
@@ -4603,12 +4614,9 @@ export async function getKillerMatchesAsync(): Promise<KillerStoredMatch[]> {
     const useSQLite = await ensureDB()
     if (useSQLite) {
       const dbMatches = await dbGetKillerMatches()
-      const matches = dbMatches as any as KillerStoredMatch[]
+      const matches = mergeWithMemoryCache(dbMatches as any as KillerStoredMatch[], killerMatchesCache)
+      for (const m of matches) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       killerMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
       return matches
     }
   } catch (e) {
@@ -4864,11 +4872,9 @@ export async function getBobs27MatchesAsync(): Promise<Bobs27StoredMatch[]> {
     if (useSQLite) {
       const dbMatches = await dbGetBobs27Matches()
       const matches = dbMatches as any as Bobs27StoredMatch[]
-      bobs27MatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, bobs27MatchesCache)
+      bobs27MatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
@@ -5213,11 +5219,9 @@ export async function getOperationMatchesAsync(): Promise<OperationStoredMatch[]
     if (useSQLite) {
       const dbMatches = await dbGetOperationMatches()
       const matches = dbMatches as any as OperationStoredMatch[]
-      operationMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, operationMatchesCache)
+      operationMatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
@@ -5985,11 +5989,9 @@ export async function getHighscoreMatchesAsync(): Promise<HighscoreStoredMatch[]
     if (useSQLite) {
       const dbMatches = await dbGetHighscoreMatches()
       const matches = dbMatches as any as HighscoreStoredMatch[]
-      highscoreMatchesCache = matches
-      // Initialize persisted event counts for append-only tracking
-      for (const m of matches) {
-        if (!m.finished) persistedEventCount.set(m.id, m.events.length)
-      }
+      const merged = mergeWithMemoryCache(matches, highscoreMatchesCache)
+      highscoreMatchesCache = merged
+      for (const m of merged) { if (!m.finished) persistedEventCount.set(m.id, m.events.length) }
       return matches
     }
   } catch (e) {
