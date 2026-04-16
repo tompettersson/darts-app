@@ -1030,27 +1030,20 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
             </div>
           )}
 
-          {/* Dartboard-Block: Darts direkt über Scheibe */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
-            {/* Darts direkt über der Scheibe */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-              {[0, 1, 2].map(i => {
-                const dart = current[i]
-                return (
-                  <div key={i} style={{
-                    width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
-                    borderRadius: 6, fontWeight: 700, fontSize: 14, color: dart ? (activePlayerColor || c.ledOn) : '#666',
-                  }}>
-                    {dart ? formatDart(dart) : `${i + 1}.`}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Dartboard */}
-            <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
-              size={Math.min(screenWidth, 380)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
+          {/* Darts */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
+            {[0, 1, 2].map(i => {
+              const dart = current[i]
+              return (
+                <div key={i} style={{
+                  width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
+                  borderRadius: 6, fontWeight: 700, fontSize: 14, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                }}>
+                  {dart ? formatDart(dart) : `${i + 1}.`}
+                </div>
+              )
+            })}
           </div>
 
           {/* Treffer / Miss */}
@@ -1083,6 +1076,12 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
                 color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
               }}>↶ Aufn.</button>
             </div>
+          </div>
+
+          {/* Dartboard */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+            <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
+              size={Math.min(screenWidth, 380)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
           </div>
         </div>
       ) : isMobile && isLandscape ? (

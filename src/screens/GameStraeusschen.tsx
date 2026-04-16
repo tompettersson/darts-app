@@ -679,7 +679,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
             </div>
           )}
 
-          {/* Darts über Scheibe */}
+          {/* Darts */}
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexShrink: 0, marginBottom: 4 }}>
             {Array.from({ length: availableDarts }).map((_, i) => {
               const dart = current[i]
@@ -693,20 +693,6 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
                 </div>
               )
             })}
-          </div>
-
-          {/* Dartboard */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'visible' }}>
-            <StraeusschenDartboard
-              flashVisible={hitFlashVisible}
-              targetNumber={activePlayerState?.currentNumber ?? 20}
-              triplesHit={activePlayerState?.numberProgress[activePlayerState?.currentNumber ?? 20]?.triplesHit ?? 0}
-              size={Math.min(screenWidth, 320)}
-              glowColor={activeColor}
-              ringMode={state.match?.ringMode}
-              bullMode={state.match?.bullMode}
-              zoomed
-            />
           </div>
 
           {/* Treffer / Miss */}
@@ -736,6 +722,20 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
                 fontWeight: 700, fontSize: 11, cursor: current.length > 0 ? 'pointer' : 'not-allowed',
               }}>OK</button>
             </div>
+          </div>
+
+          {/* Dartboard */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'visible' }}>
+            <StraeusschenDartboard
+              flashVisible={hitFlashVisible}
+              targetNumber={activePlayerState?.currentNumber ?? 20}
+              triplesHit={activePlayerState?.numberProgress[activePlayerState?.currentNumber ?? 20]?.triplesHit ?? 0}
+              size={Math.min(screenWidth, 320)}
+              glowColor={activeColor}
+              ringMode={state.match?.ringMode}
+              bullMode={state.match?.bullMode}
+              zoomed
+            />
           </div>
         </div>
       ) : isMobile && isLandscape ? (

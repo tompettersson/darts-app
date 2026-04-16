@@ -999,11 +999,43 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
               </>)
             }
 
-            // PORTRAIT: Dartscheibe groß oben, Zielzahl, S/D/T, Player Cards unten
+            // PORTRAIT: Buttons oben, Dartscheibe unten
             const portBoardSize = Math.min((typeof window !== 'undefined' ? window.innerWidth : 360) - 12, 320)
             return (<>
-              {/* Dartscheibe oben, so groß wie möglich */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'visible', flexShrink: 0 }}>
+              {/* Spielername + Zielzahl */}
+              {activePlayer && (
+                <div style={{ textAlign: 'center', flexShrink: 0, marginTop: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
+                  <span style={{ fontSize: 10, color: isArcade ? c.textDim : colors.fgMuted, margin: '0 6px' }}>→</span>
+                </div>
+              )}
+              <div style={{ textAlign: 'center', flexShrink: 0, marginBottom: 6 }}>{targetNum}</div>
+              {/* Darts */}
+              <div style={{ flexShrink: 0, marginTop: 6 }}>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                  {[0, 1, 2].map(i => {
+                    const dart = current[i]
+                    return <div key={i} style={{ flex: 1, maxWidth: 80, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: dart ? (isArcade ? '#222' : colors.bgCard) : (isArcade ? '#111' : colors.bgMuted),
+                      border: dart ? `2px solid ${activePlayerColor || (isArcade ? c.ledOn : colors.accent)}` : `1px solid ${isArcade ? '#444' : colors.border}`,
+                      borderRadius: 6, fontWeight: 700, fontSize: 13, color: dart ? (activePlayerColor || (isArcade ? c.ledOn : colors.fg)) : (isArcade ? '#666' : colors.fgMuted) }}>
+                      {dart ? formatDart(dart) : `${i + 1}.`}
+                    </div>
+                  })}
+                  {current.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', fontSize: 14, fontWeight: 800, color: isArcade ? c.yellow : '#b45309' }}>
+                      ={current.reduce((sum, d) => sum + (d.target === 'MISS' ? 0 : d.target * d.mult), 0)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* S/D/T + Actions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 5 }}>{singleBtn}{doubleBtn}{tripleBtn}</div>
+                <div style={{ display: 'flex', gap: 5 }}>{undoBtn}{dartBackBtn}{missBtn}{okBtn}</div>
+              </div>
+              {/* Dartboard unten */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'visible', flex: 1, minHeight: 0, justifyContent: 'center' }}>
                 <svg viewBox="0 0 240 240" style={{ width: portBoardSize, height: portBoardSize, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
                   <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
                   <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
@@ -1025,38 +1057,6 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                       fill={isT ? '#22c55e' : '#9ca3af'} style={isT ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}>{num}</text>
                   })}
                 </svg>
-              </div>
-              {/* Spielername + Zielzahl direkt unter Scheibe */}
-              {activePlayer && (
-                <div style={{ textAlign: 'center', flexShrink: 0, marginTop: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
-                  <span style={{ fontSize: 10, color: isArcade ? c.textDim : colors.fgMuted, margin: '0 6px' }}>→</span>
-                </div>
-              )}
-              <div style={{ textAlign: 'center', flexShrink: 0, marginBottom: 6 }}>{targetNum}</div>
-              {/* Darts — größer */}
-              <div style={{ flexShrink: 0, marginTop: 6 }}>
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                  {[0, 1, 2].map(i => {
-                    const dart = current[i]
-                    return <div key={i} style={{ flex: 1, maxWidth: 80, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: dart ? (isArcade ? '#222' : colors.bgCard) : (isArcade ? '#111' : colors.bgMuted),
-                      border: dart ? `2px solid ${activePlayerColor || (isArcade ? c.ledOn : colors.accent)}` : `1px solid ${isArcade ? '#444' : colors.border}`,
-                      borderRadius: 6, fontWeight: 700, fontSize: 13, color: dart ? (activePlayerColor || (isArcade ? c.ledOn : colors.fg)) : (isArcade ? '#666' : colors.fgMuted) }}>
-                      {dart ? formatDart(dart) : `${i + 1}.`}
-                    </div>
-                  })}
-                  {current.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', fontSize: 14, fontWeight: 800, color: isArcade ? c.yellow : '#b45309' }}>
-                      ={current.reduce((sum, d) => sum + (d.target === 'MISS' ? 0 : d.target * d.mult), 0)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {/* S/D/T + Actions — mit Luft */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, flexShrink: 0 }}>
-                <div style={{ display: 'flex', gap: 5 }}>{singleBtn}{doubleBtn}{tripleBtn}</div>
-                <div style={{ display: 'flex', gap: 5 }}>{undoBtn}{dartBackBtn}{missBtn}{okBtn}</div>
               </div>
             </>)
           })()}

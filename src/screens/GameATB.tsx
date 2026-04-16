@@ -1145,9 +1145,9 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             </div>
           )}
 
-          {/* Dartboard-Block: Darts + Scheibe + Buttons eng zusammen */}
+          {/* Dartboard-Block: Buttons oben, Scheibe unten (Mobile: interaktive Elemente weg vom unteren Bildschirmrand) */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
-            {/* Darts direkt über der Scheibe */}
+            {/* Darts-Indikatoren */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
               {[0, 1, 2].map(i => {
                 const dart = current[i]
@@ -1163,16 +1163,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
               })}
             </div>
 
-            {/* Dartboard — volle Breite, Zahlen sichtbar durch erweiterte viewBox */}
-            <ATBDartboard
-              currentTarget={nextTargetNumber}
-              players={dartboardPlayers}
-              size={Math.min(screenWidth, 380)}
-              activePlayerColor={activePlayerColor}
-              pendingMultipliers={pendingMultipliers}
-            />
-
-            {/* Treffer / Miss — direkt unter der Scheibe */}
+            {/* Treffer / Miss — oben, weg vom Bildschirmrand */}
             <div style={{ display: 'flex', gap: 8, marginTop: 2, width: '100%', maxWidth: 340 }}>
               <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
                 flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #22c55e',
@@ -1183,7 +1174,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                 background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>✕ Miss</button>
             </div>
-            {/* S/D/T + Dart zurück + Aufnahme zurück — direkt unter Treffer/Miss */}
+            {/* S/D/T + Dart zurück + Aufnahme zurück */}
             <div style={{ display: 'flex', gap: 3, marginTop: 3, width: '100%', maxWidth: 340 }}>
               {([1, 2, 3] as const).map(m => (
                 <button key={m} onClick={() => setMult(m)} style={{
@@ -1202,6 +1193,15 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                 color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
               }}>↶ Aufn.</button>
             </div>
+
+            {/* Dartboard — unten, nur zum Anschauen */}
+            <ATBDartboard
+              currentTarget={nextTargetNumber}
+              players={dartboardPlayers}
+              size={Math.min(screenWidth, 380)}
+              activePlayerColor={activePlayerColor}
+              pendingMultipliers={pendingMultipliers}
+            />
             {/* Wurfabfolge — letzte Aufnahmen */}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', fontSize: 10, color: c.textDim, marginTop: 6, width: '100%', maxWidth: 360 }}>
               {state.match?.players && (() => {
