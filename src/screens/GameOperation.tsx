@@ -348,8 +348,9 @@ function OperationTargetSegment({ targetNumber, isBull, hitCounts, size, accentC
   const cy = size / 2
   const outerR = size * 0.44
   const segmentAngle = 360 / 20
+  const offset = -segmentAngle / 2
 
-  // Ring radii (same proportions as StraeusschenDartboard)
+  // Ring radii
   const doubleOuter = outerR
   const doubleInner = outerR * 0.88
   const tripleOuter = outerR * 0.60
@@ -360,6 +361,7 @@ function OperationTargetSegment({ targetNumber, isBull, hitCounts, size, accentC
   const innerSingleInner = outerR * 0.18
   const bullOuterR = outerR * 0.18
   const bullInnerR = outerR * 0.08
+  const numberR = outerR + size * 0.04
 
   const toRad = (deg: number) => (deg - 90) * (Math.PI / 180)
 
@@ -376,145 +378,102 @@ function OperationTargetSegment({ targetNumber, isBull, hitCounts, size, accentC
     return `M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z`
   }
 
-  if (isBull) {
-    // Bull target: concentric circles
-    return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
-        <defs>
-          <filter id="op-bull-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="8" result="blur" />
-            <feFlood floodColor={accentColor} floodOpacity="0.5" />
-            <feComposite in2="blur" operator="in" />
-            <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        {/* Background */}
-        <circle cx={cx} cy={cy} r={outerR * 0.5} fill="#111" />
-        {/* Single Bull (outer) */}
-        <circle cx={cx} cy={cy} r={outerR * 0.4} fill="#00a651" stroke="#222" strokeWidth={1.5}
-          opacity={0.9} filter="url(#op-bull-glow)" />
-        {/* Double Bull (inner) */}
-        <circle cx={cx} cy={cy} r={outerR * 0.18} fill="#e31b23" stroke="#222" strokeWidth={1.5}
-          opacity={0.95} filter="url(#op-bull-glow)" />
-        {/* Labels */}
-        <text x={cx} y={cy - outerR * 0.30} textAnchor="middle" dominantBaseline="central"
-          fill="#fff" fontSize={size * 0.07} fontWeight={700}>
-          SB: {hitCounts.singleBull}
-        </text>
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-          fill="#fff" fontSize={size * 0.07} fontWeight={700}>
-          DB: {hitCounts.doubleBull}
-        </text>
-        <text x={cx} y={cy + outerR * 0.50} textAnchor="middle" dominantBaseline="central"
-          fill="#999" fontSize={size * 0.055}>
-          Miss: {hitCounts.noScore}
-        </text>
-      </svg>
-    )
-  }
+  const targetIdx = targetNumber != null ? BOARD_ORDER.indexOf(targetNumber) : -1
 
-  // Number target: show a single wedge segment
-  const boardIdx = targetNumber != null ? BOARD_ORDER.indexOf(targetNumber) : 0
-  const isEven = boardIdx % 2 === 0
-  const singleColor = isEven ? '#1a1a1a' : '#f5f5dc'
-  const doubleColor = isEven ? '#e31b23' : '#00a651'
-  const tripleColor = isEven ? '#e31b23' : '#00a651'
-
-  // Wider wedge for better visibility (3 segments wide, centered)
-  const offset = -segmentAngle / 2
-  const startAngle = boardIdx * segmentAngle + offset - segmentAngle
-  const endAngle = (boardIdx + 1) * segmentAngle + offset + segmentAngle
-
-  // Zoom viewBox to focus on the segment
-  const centerAngle = boardIdx * segmentAngle
-  const focusR = outerR * 0.60
-  const focusRad = (centerAngle - 90) * (Math.PI / 180)
-  const focusX = cx + focusR * Math.cos(focusRad)
-  const focusY = cy + focusR * Math.sin(focusRad)
-  const zoomSize = size * 0.70
-
-  // Helper: label position along center angle at a given radius
-  const labelPos = (r: number) => {
-    const rad = (centerAngle - 90) * (Math.PI / 180)
-    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
-  }
-
-  const doubleCenter = (doubleInner + doubleOuter) / 2
-  const singleOuterCenter = (singleOuterR + singleInnerR) / 2
-  const tripleCenter = (tripleInner + tripleOuter) / 2
-  const singleInnerCenter = (innerSingleOuter + innerSingleInner) / 2
-
-  const dPos = labelPos(doubleCenter)
-  const soPos = labelPos(singleOuterCenter)
-  const tPos = labelPos(tripleCenter)
-
-  const labelFontSize = size * 0.055
-
+  // Volle Dartscheibe mit pulsierendem Zielsegment
   return (
-    <svg width={size} height={size}
-      viewBox={`${focusX - zoomSize / 2} ${focusY - zoomSize / 2} ${zoomSize} ${zoomSize}`}
-      style={{ overflow: 'visible' }}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
       <defs>
-        <filter id="op-seg-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="6" result="blur" />
-          <feFlood floodColor={accentColor} floodOpacity="0.4" />
+        <filter id="op-target-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feFlood floodColor={accentColor} floodOpacity="0.6" />
           <feComposite in2="blur" operator="in" />
           <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
 
-      {/* Double ring */}
-      <path d={createArcPath(doubleInner, doubleOuter, startAngle, endAngle)}
-        fill={doubleColor} stroke="#222" strokeWidth={1} opacity={0.9} filter="url(#op-seg-glow)" />
-      {/* Outer single */}
-      <path d={createArcPath(singleInnerR, singleOuterR, startAngle, endAngle)}
-        fill={singleColor} stroke="#222" strokeWidth={0.8} opacity={0.8} />
-      {/* Triple ring */}
-      <path d={createArcPath(tripleInner, tripleOuter, startAngle, endAngle)}
-        fill={tripleColor} stroke="#222" strokeWidth={1} opacity={0.9} filter="url(#op-seg-glow)" />
-      {/* Inner single */}
-      <path d={createArcPath(innerSingleInner, innerSingleOuter, startAngle, endAngle)}
-        fill={singleColor} stroke="#222" strokeWidth={0.8} opacity={0.8} />
+      {/* Alle 20 Segmente */}
+      {BOARD_ORDER.map((num, idx) => {
+        const isTarget = isBull ? false : idx === targetIdx
+        const isEven = idx % 2 === 0
+        const sa = idx * segmentAngle + offset
+        const ea = (idx + 1) * segmentAngle + offset
+        const dimOpacity = isTarget ? 1 : 0.3
 
-      {/* Ring dividers for center segment only */}
-      {(() => {
-        const sa = boardIdx * segmentAngle + offset
-        const ea = (boardIdx + 1) * segmentAngle + offset
+        const sColor = isEven ? '#1a1a1a' : '#f5f5dc'
+        const dColor = isEven ? '#e31b23' : '#00a651'
+        const tColor = isEven ? '#e31b23' : '#00a651'
+
+        return (
+          <g key={num} style={isTarget ? { animation: 'opSegmentPulse 2s ease-in-out infinite' } : undefined}>
+            {/* Double ring */}
+            <path d={createArcPath(doubleInner, doubleOuter, sa, ea)}
+              fill={dColor} stroke="#111" strokeWidth={0.5} opacity={dimOpacity}
+              filter={isTarget ? 'url(#op-target-glow)' : undefined} />
+            {/* Outer single */}
+            <path d={createArcPath(singleInnerR, singleOuterR, sa, ea)}
+              fill={sColor} stroke="#111" strokeWidth={0.5} opacity={dimOpacity} />
+            {/* Triple ring */}
+            <path d={createArcPath(tripleInner, tripleOuter, sa, ea)}
+              fill={tColor} stroke="#111" strokeWidth={0.5} opacity={dimOpacity}
+              filter={isTarget ? 'url(#op-target-glow)' : undefined} />
+            {/* Inner single */}
+            <path d={createArcPath(innerSingleInner, innerSingleOuter, sa, ea)}
+              fill={sColor} stroke="#111" strokeWidth={0.5} opacity={dimOpacity} />
+            {/* Number label */}
+            {(() => {
+              const a = idx * segmentAngle
+              const rad = toRad(a)
+              const lx = cx + numberR * Math.cos(rad)
+              const ly = cy + numberR * Math.sin(rad)
+              return (
+                <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
+                  fill={isTarget ? accentColor : '#666'} fontSize={size * 0.045}
+                  fontWeight={isTarget ? 800 : 500}>
+                  {num}
+                </text>
+              )
+            })()}
+          </g>
+        )
+      })}
+
+      {/* Bull */}
+      <circle cx={cx} cy={cy} r={bullOuterR} fill="#00a651" stroke="#111" strokeWidth={0.5}
+        opacity={isBull ? 1 : 0.3}
+        filter={isBull ? 'url(#op-target-glow)' : undefined}
+        style={isBull ? { animation: 'opSegmentPulse 2s ease-in-out infinite' } : undefined} />
+      <circle cx={cx} cy={cy} r={bullInnerR} fill="#e31b23" stroke="#111" strokeWidth={0.5}
+        opacity={isBull ? 1 : 0.3}
+        filter={isBull ? 'url(#op-target-glow)' : undefined} />
+
+      {/* Hit count overlay für das Zielsegment */}
+      {!isBull && targetIdx >= 0 && (() => {
+        const centerAngle = targetIdx * segmentAngle
+        const labelAtR = (r: number) => {
+          const rad = toRad(centerAngle)
+          return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+        }
+        const dPos = labelAtR((doubleInner + doubleOuter) / 2)
+        const tPos = labelAtR((tripleInner + tripleOuter) / 2)
+        const fs = size * 0.04
         return (
           <>
-            <path d={createArcPath(doubleInner - 1, doubleOuter + 1, sa, ea)}
-              fill="none" stroke={accentColor} strokeWidth={1.5} opacity={0.5} />
-            <path d={createArcPath(tripleInner - 1, tripleOuter + 1, sa, ea)}
-              fill="none" stroke={accentColor} strokeWidth={1.5} opacity={0.5} />
+            <text x={dPos.x} y={dPos.y} textAnchor="middle" dominantBaseline="central"
+              fill="#fff" fontSize={fs} fontWeight={700}>D:{hitCounts.double}</text>
+            <text x={tPos.x} y={tPos.y} textAnchor="middle" dominantBaseline="central"
+              fill="#fff" fontSize={fs} fontWeight={700}>T:{hitCounts.triple}</text>
           </>
         )
       })()}
-
-      {/* Hit count labels */}
-      <text x={dPos.x} y={dPos.y} textAnchor="middle" dominantBaseline="central"
-        fill="#fff" fontSize={labelFontSize} fontWeight={700}>
-        D: {hitCounts.double}
-      </text>
-      <text x={soPos.x} y={soPos.y} textAnchor="middle" dominantBaseline="central"
-        fill={isEven ? '#ccc' : '#333'} fontSize={labelFontSize} fontWeight={700}>
-        S: {hitCounts.single}
-      </text>
-      <text x={tPos.x} y={tPos.y} textAnchor="middle" dominantBaseline="central"
-        fill="#fff" fontSize={labelFontSize} fontWeight={700}>
-        T: {hitCounts.triple}
-      </text>
-
-      {/* Number label at outer edge */}
-      {(() => {
-        const labelR = doubleOuter + size * 0.04
-        const p = labelPos(labelR)
-        return (
-          <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central"
-            fill={accentColor} fontSize={size * 0.08} fontWeight={800}>
-            {targetNumber}
-          </text>
-        )
-      })()}
+      {isBull && (
+        <>
+          <text x={cx} y={cy - bullOuterR * 0.6} textAnchor="middle" dominantBaseline="central"
+            fill="#fff" fontSize={size * 0.04} fontWeight={700}>SB:{hitCounts.singleBull}</text>
+          <text x={cx} y={cy + bullOuterR * 0.6} textAnchor="middle" dominantBaseline="central"
+            fill="#fff" fontSize={size * 0.04} fontWeight={700}>DB:{hitCounts.doubleBull}</text>
+        </>
+      )}
     </svg>
   )
 }
@@ -749,7 +708,8 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
           if (nextPlayer) {
             const isNextLocalOp = !multiplayer?.enabled || opLocalIds.includes(nextPlayerId)
             if (isNextLocalOp) {
-              debouncedAnnounce(() => announceOperationNextPlayer(nextPlayer.name))
+              // Längerer Delay damit die Score-Ansage fertig gesprochen wird
+              debouncedAnnounce(() => announceOperationNextPlayer(nextPlayer.name), 1200)
             }
           }
         }
@@ -1831,6 +1791,10 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
           60% { transform: translateX(4px); }
           75% { transform: translateX(-2px); }
           90% { transform: translateX(2px); }
+        }
+        @keyframes opSegmentPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
         }
         @keyframes opFlame {
           0% { transform: scaleY(1) scaleX(1) translateY(0); opacity: 0.7; }
