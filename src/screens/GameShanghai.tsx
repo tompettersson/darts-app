@@ -1020,15 +1020,24 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                 </div>
               )}
               <div style={{ textAlign: 'center', flexShrink: 0, marginBottom: 6 }}>{targetNum}</div>
-              {/* Darts */}
+              {/* Darts — Miss = rot, Treffer = grün */}
               <div style={{ flexShrink: 0, marginTop: 6 }}>
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                   {[0, 1, 2].map(i => {
                     const dart = current[i]
+                    const isMiss = dart?.target === 'MISS'
+                    const isHit = !!dart && !isMiss
+                    const dBg = isHit
+                      ? (isArcade ? '#14532d' : colors.successBg)
+                      : isMiss
+                      ? (isArcade ? '#7f1d1d' : colors.errorBg)
+                      : (isArcade ? '#111' : colors.bgMuted)
+                    const dBorder = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#444' : colors.border)
+                    const dText = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#666' : colors.fgMuted)
                     return <div key={i} style={{ flex: 1, maxWidth: 80, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: dart ? (isArcade ? '#222' : colors.bgCard) : (isArcade ? '#111' : colors.bgMuted),
-                      border: dart ? `2px solid ${activePlayerColor || (isArcade ? c.ledOn : colors.accent)}` : `1px solid ${isArcade ? '#444' : colors.border}`,
-                      borderRadius: 6, fontWeight: 700, fontSize: 13, color: dart ? (activePlayerColor || (isArcade ? c.ledOn : colors.fg)) : (isArcade ? '#666' : colors.fgMuted) }}>
+                      background: dBg,
+                      border: dart ? `2px solid ${dBorder}` : `1px solid ${dBorder}`,
+                      borderRadius: 6, fontWeight: 700, fontSize: 13, color: dText }}>
                       {dart ? formatDart(dart) : `${i + 1}.`}
                     </div>
                   })}

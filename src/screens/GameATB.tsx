@@ -1023,7 +1023,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
               return (
                 <div key={p.playerId} style={{
                   flex: `0 0 calc(${100 / Math.max(pLen, 4)}% - 3px)`, minHeight: 0, padding: pLen <= 3 ? '5px 8px' : '3px 5px', borderRadius: 5,
-                  background: isAct ? `${color}20` : '#1a1a1a',
+                  background: isAct ? `${color}20` : (isArcade ? '#1a1a1a' : colors.bgCard),
                   border: isAct ? `2px solid ${color}` : '1px solid #333',
                   opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
                   display: 'flex', flexDirection: 'column', justifyContent: 'center',
@@ -1065,15 +1065,24 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                 {activeSpecialState?.mustUseDouble && <div style={{ fontSize: 9, color: c.yellow }}>🎯 Double!</div>}
               </div>
             )}
-            {/* Darts */}
+            {/* Darts — Miss = rot, Treffer = grün */}
             <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
               {[0, 1, 2].map(i => {
                 const dart = current[i]
+                const isMiss = dart?.target === 'MISS'
+                const isHit = !!dart && !isMiss
+                const bgColor = isHit
+                  ? (isArcade ? '#14532d' : colors.successBg)
+                  : isMiss
+                  ? (isArcade ? '#7f1d1d' : colors.errorBg)
+                  : (isArcade ? '#111' : colors.bgMuted)
+                const borderColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#444' : colors.border)
+                const textColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#666' : colors.fgDim)
                 return (
                   <div key={i} style={{
                     flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
-                    borderRadius: 3, fontWeight: 700, fontSize: 9, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                    background: bgColor, border: dart ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
+                    borderRadius: 3, fontWeight: 700, fontSize: 9, color: textColor,
                   }}>
                     {dart ? formatDart(dart) : `${i + 1}.`}
                   </div>
@@ -1083,34 +1092,42 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             {/* Treffer / Miss */}
             <div style={{ display: 'flex', gap: 4 }}>
               <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '12px 0', borderRadius: 5, border: '2px solid #22c55e',
-                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                flex: 1, padding: '12px 0', borderRadius: 5, border: `2px solid ${colors.success}`,
+                background: isArcade ? '#166534' : colors.successBg, color: colors.success, fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>✓ Treffer</button>
               <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '12px 0', borderRadius: 5, border: '2px solid #ef4444',
-                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                flex: 1, padding: '12px 0', borderRadius: 5, border: `2px solid ${colors.error}`,
+                background: isArcade ? '#7f1d1d' : colors.errorBg, color: colors.error, fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>✕ Miss</button>
             </div>
             {/* S/D/T */}
             <div style={{ display: 'flex', gap: 3 }}>
-              {([1, 2, 3] as const).map(m => (
-                <button key={m} onClick={() => setMult(m)} style={{
-                  flex: 1, height: 34, borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                  border: `1px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
-                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
-                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
-                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
-              ))}
+              {([1, 2, 3] as const).map(m => {
+                const multColor = m === 1 ? '#0ea5e9' : m === 2 ? colors.success : colors.error
+                const multBgActive = isArcade ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : (m === 1 ? '#dbeafe' : m === 2 ? colors.successBg : colors.errorBg)
+                return (
+                  <button key={m} onClick={() => setMult(m)} style={{
+                    flex: 1, height: 34, borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                    border: `1px solid ${mult === m ? multColor : (isArcade ? '#555' : colors.border)}`,
+                    background: mult === m ? multBgActive : (isArcade ? '#222' : colors.bgMuted),
+                    color: mult === m ? multColor : (isArcade ? '#aaa' : colors.fg),
+                  }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+                )
+              })}
             </div>
             {/* Undo */}
             <div style={{ display: 'flex', gap: 3 }}>
               <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
-                flex: 1, height: 32, borderRadius: 4, border: '1px solid #555', background: '#222',
-                color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 11, cursor: 'pointer',
+                flex: 1, height: 32, borderRadius: 4, border: `1px solid ${isArcade ? '#555' : colors.border}`,
+                background: isArcade ? '#222' : colors.bgMuted,
+                color: current.length > 0 ? (isArcade ? '#ddd' : colors.fg) : (isArcade ? '#555' : colors.fgDim),
+                fontWeight: 600, fontSize: 11, cursor: 'pointer',
               }}>← Dart</button>
               <button onClick={undoLastTurn} disabled={!canUndo} style={{
-                flex: 1, height: 32, borderRadius: 4, border: canUndo ? '1px solid #666' : '1px solid #444', background: '#222',
-                color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 11, fontWeight: 600,
+                flex: 1, height: 32, borderRadius: 4, border: `1px solid ${canUndo ? (isArcade ? '#666' : colors.borderStrong) : (isArcade ? '#444' : colors.border)}`,
+                background: isArcade ? '#222' : colors.bgMuted,
+                color: canUndo ? (isArcade ? '#ddd' : colors.fg) : (isArcade ? '#555' : colors.fgDim),
+                cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 11, fontWeight: 600,
               }}>↶ Aufn.</button>
             </div>
           </div>
@@ -1152,7 +1169,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                     <div key={p.playerId} style={{
                       flex: row.length === 1 && pCount > 1 ? '0 0 calc(50% - 2px)' : '1 1 0',
                       minWidth: 0, padding: '5px 6px', borderRadius: 6,
-                      background: isAct ? `${color}20` : '#1a1a1a',
+                      background: isAct ? `${color}20` : (isArcade ? '#1a1a1a' : colors.bgCard),
                       border: isAct ? `2px solid ${color}` : '1px solid #333',
                       opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
                     }}>
@@ -1195,15 +1212,24 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
 
           {/* Dartboard-Block: Buttons oben, Scheibe unten (Mobile: interaktive Elemente weg vom unteren Bildschirmrand) */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            {/* Darts-Indikatoren */}
+            {/* Darts-Indikatoren — Miss = rot, Treffer = grün, leer = neutral */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
               {[0, 1, 2].map(i => {
                 const dart = current[i]
+                const isMiss = dart?.target === 'MISS'
+                const isHit = !!dart && !isMiss
+                const bgColor = isHit
+                  ? (isArcade ? '#14532d' : colors.successBg)
+                  : isMiss
+                  ? (isArcade ? '#7f1d1d' : colors.errorBg)
+                  : (isArcade ? '#111' : colors.bgMuted)
+                const borderColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#444' : colors.border)
+                const textColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#666' : colors.fgDim)
                 return (
                   <div key={i} style={{
                     width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${c.ledOn}` : '1px solid #444',
-                    borderRadius: 6, fontWeight: 700, fontSize: 14, color: dart ? c.ledOn : '#666',
+                    background: bgColor, border: dart ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
+                    borderRadius: 6, fontWeight: 700, fontSize: 14, color: textColor,
                   }}>
                     {dart ? formatDart(dart) : `${i + 1}.`}
                   </div>
@@ -1214,31 +1240,39 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             {/* Treffer / Miss — oben, weg vom Bildschirmrand */}
             <div style={{ display: 'flex', gap: 8, marginTop: 2, width: '100%', maxWidth: 340 }}>
               <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #22c55e',
-                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                flex: 1, padding: '10px 0', borderRadius: 6, border: `2px solid ${colors.success}`,
+                background: isArcade ? '#166534' : colors.successBg, color: colors.success, fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>✓ Treffer</button>
               <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #ef4444',
-                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                flex: 1, padding: '10px 0', borderRadius: 6, border: `2px solid ${colors.error}`,
+                background: isArcade ? '#7f1d1d' : colors.errorBg, color: colors.error, fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>✕ Miss</button>
             </div>
             {/* S/D/T + Dart zurück + Aufnahme zurück */}
             <div style={{ display: 'flex', gap: 3, marginTop: 3, width: '100%', maxWidth: 340 }}>
-              {([1, 2, 3] as const).map(m => (
-                <button key={m} onClick={() => setMult(m)} style={{
-                  flex: 1, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                  border: `1px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
-                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
-                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
-                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
-              ))}
+              {([1, 2, 3] as const).map(m => {
+                const multColor = m === 1 ? '#0ea5e9' : m === 2 ? colors.success : colors.error
+                const multBgActive = isArcade ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : (m === 1 ? '#dbeafe' : m === 2 ? colors.successBg : colors.errorBg)
+                return (
+                  <button key={m} onClick={() => setMult(m)} style={{
+                    flex: 1, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                    border: `1px solid ${mult === m ? multColor : (isArcade ? '#555' : colors.border)}`,
+                    background: mult === m ? multBgActive : (isArcade ? '#222' : colors.bgMuted),
+                    color: mult === m ? multColor : (isArcade ? '#aaa' : colors.fg),
+                  }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+                )
+              })}
               <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
-                flex: 1, height: 28, borderRadius: 4, border: '1px solid #555', background: '#222',
-                color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 9, cursor: current.length > 0 ? 'pointer' : 'not-allowed',
+                flex: 1, height: 28, borderRadius: 4, border: `1px solid ${isArcade ? '#555' : colors.border}`,
+                background: isArcade ? '#222' : colors.bgMuted,
+                color: current.length > 0 ? (isArcade ? '#ddd' : colors.fg) : (isArcade ? '#555' : colors.fgDim),
+                fontWeight: 600, fontSize: 9, cursor: current.length > 0 ? 'pointer' : 'not-allowed',
               }}>← Dart</button>
               <button onClick={undoLastTurn} disabled={!canUndo} style={{
-                flex: 1, height: 28, borderRadius: 4, border: canUndo ? '1px solid #666' : '1px solid #444', background: '#222',
-                color: canUndo ? '#ddd' : '#555', cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
+                flex: 1, height: 28, borderRadius: 4, border: `1px solid ${canUndo ? (isArcade ? '#666' : colors.borderStrong) : (isArcade ? '#444' : colors.border)}`,
+                background: isArcade ? '#222' : colors.bgMuted,
+                color: canUndo ? (isArcade ? '#ddd' : colors.fg) : (isArcade ? '#555' : colors.fgDim),
+                cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
               }}>↶ Aufn.</button>
             </div>
 
