@@ -807,16 +807,6 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
   const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
 
-  if (!storedMatch || !state.match) {
-    return (
-      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
-        <p>Match nicht gefunden.</p>
-        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
-          Zurueck
-        </button>
-      </div>
-    )
-  }
   useEffect(() => {
     const update = () => {
       setScreenWidth(window.innerWidth)
@@ -832,6 +822,17 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     }
   }, [])
   const isMobile = Math.min(screenWidth, screenHeight) < 600
+
+  if (!storedMatch || !state.match) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
+        <p>Match nicht gefunden.</p>
+        <button onClick={onExit} style={{ color: c.textBright, background: '#333', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer' }}>
+          Zurueck
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div
