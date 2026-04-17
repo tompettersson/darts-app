@@ -129,12 +129,33 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
     if (!prevEvents || prevLen === remote.length) {
       if (!prevEvents && remote.length > 0) {
         const startEvt = remote.find((e: any) => e.type === 'StrMatchStarted') as any
-        if (startEvt) ensureStrMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        if (startEvt) {
+          ensureStrMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+          // Host: Match + Events sofort in DB (sonst FK-Fehler bei späteren Event-Writes)
+          if (multiplayer?.isHost) {
+            ;(async () => {
+              try {
+                await ensureStrMatchExistsAsync(matchId, remote as any[], startEvt.players?.map((p: any) => p.playerId) ?? [])
+              } catch (e) { console.warn('[MP] ensureStrMatchExists failed:', e) }
+            })()
+          }
+        }
       }
       return
     }
 
-    persistStrEvents(matchId, remote)
+    // Nur der Host persistiert — ein Gast würde FK-Fehler auslösen.
+    if (multiplayer?.isHost) {
+      ;(async () => {
+        const startEvt = remote.find((e: any) => e.type === 'StrMatchStarted') as any
+        if (!startEvt) return
+        const playerIds = startEvt.players?.map((p: any) => p.playerId) ?? []
+        try {
+          await ensureStrMatchExistsAsync(matchId, remote as any[], playerIds)
+          await persistStrEvents(matchId, remote)
+        } catch (e) { console.warn('[MP] persist failed:', e) }
+      })()
+    }
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'StrMatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'StrMatchFinished')

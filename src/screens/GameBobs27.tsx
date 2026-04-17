@@ -260,12 +260,33 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     if (!prevEvents || prevLen === remote.length) {
       if (!prevEvents && remote.length > 0) {
         const startEvt = remote.find((e: any) => e.type === 'Bobs27MatchStarted') as any
-        if (startEvt) ensureBobs27MatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        if (startEvt) {
+          ensureBobs27MatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+          // Host: Match + Events sofort in DB (sonst FK-Fehler bei späteren Event-Writes)
+          if (multiplayer?.isHost) {
+            ;(async () => {
+              try {
+                await ensureBobs27MatchExistsAsync(matchId, remote as any[], startEvt.players?.map((p: any) => p.playerId) ?? [])
+              } catch (e) { console.warn('[MP] ensureBobs27MatchExists failed:', e) }
+            })()
+          }
+        }
       }
       return
     }
 
-    persistBobs27Events(matchId, remote)
+    // Nur der Host persistiert — ein Gast würde FK-Fehler auslösen.
+    if (multiplayer?.isHost) {
+      ;(async () => {
+        const startEvt = remote.find((e: any) => e.type === 'Bobs27MatchStarted') as any
+        if (!startEvt) return
+        const playerIds = startEvt.players?.map((p: any) => p.playerId) ?? []
+        try {
+          await ensureBobs27MatchExistsAsync(matchId, remote as any[], playerIds)
+          await persistBobs27Events(matchId, remote)
+        } catch (e) { console.warn('[MP] persist failed:', e) }
+      })()
+    }
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'Bobs27MatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'Bobs27MatchFinished')

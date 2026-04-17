@@ -158,12 +158,34 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
     if (!prevEvents || prevLen === remote.length) {
       if (!prevEvents && remote.length > 0) {
         const startEvt = remote.find((e: any) => e.type === 'ShanghaiMatchStarted') as any
-        if (startEvt) ensureShanghaiMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        if (startEvt) {
+          ensureShanghaiMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+          // Host: Match + Events sofort in DB (sonst FK-Fehler bei späteren Event-Writes)
+          if (multiplayer?.isHost) {
+            ;(async () => {
+              try {
+                await ensureShanghaiMatchExistsAsync(matchId, remote as any[], startEvt.players?.map((p: any) => p.playerId) ?? [])
+              } catch (e) { console.warn('[MP] ensureShanghaiMatchExists failed:', e) }
+            })()
+          }
+        }
       }
       return
     }
 
-    persistShanghaiEvents(matchId, remote)
+    // Nur der Host persistiert während des Spiels in die DB — ein Gast würde
+    // einen FK-Fehler auslösen, weil er das Match-Record nicht anlegt.
+    if (multiplayer?.isHost) {
+      ;(async () => {
+        const startEvt = remote.find((e: any) => e.type === 'ShanghaiMatchStarted') as any
+        if (!startEvt) return
+        const playerIds = startEvt.players?.map((p: any) => p.playerId) ?? []
+        try {
+          await ensureShanghaiMatchExistsAsync(matchId, remote as any[], playerIds)
+          await persistShanghaiEvents(matchId, remote)
+        } catch (e) { console.warn('[MP] persist failed:', e) }
+      })()
+    }
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'ShanghaiMatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'ShanghaiMatchFinished')

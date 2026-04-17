@@ -561,12 +561,33 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     if (!prevEvents || prevLen === remote.length) {
       if (!prevEvents && remote.length > 0) {
         const startEvt = remote.find((e: any) => e.type === 'OperationMatchStarted') as any
-        if (startEvt) ensureOperationMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        if (startEvt) {
+          ensureOperationMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+          // Host: Match + Events sofort in DB (sonst FK-Fehler bei späteren Event-Writes)
+          if (multiplayer?.isHost) {
+            ;(async () => {
+              try {
+                await ensureOperationMatchExistsAsync(matchId, remote as any[], startEvt.players?.map((p: any) => p.playerId) ?? [])
+              } catch (e) { console.warn('[MP] ensureOperationMatchExists failed:', e) }
+            })()
+          }
+        }
       }
       return
     }
 
-    persistOperationEvents(matchId, remote)
+    // Nur der Host persistiert — ein Gast würde FK-Fehler auslösen.
+    if (multiplayer?.isHost) {
+      ;(async () => {
+        const startEvt = remote.find((e: any) => e.type === 'OperationMatchStarted') as any
+        if (!startEvt) return
+        const playerIds = startEvt.players?.map((p: any) => p.playerId) ?? []
+        try {
+          await ensureOperationMatchExistsAsync(matchId, remote as any[], playerIds)
+          await persistOperationEvents(matchId, remote)
+        } catch (e) { console.warn('[MP] persist failed:', e) }
+      })()
+    }
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'OperationMatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'OperationMatchFinished')

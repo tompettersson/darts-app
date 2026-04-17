@@ -141,12 +141,33 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
     if (!prevEvents || prevLen === remote.length) {
       if (!prevEvents && remote.length > 0) {
         const startEvt = remote.find((e: any) => e.type === 'CTFMatchStarted') as any
-        if (startEvt) ensureCTFMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        if (startEvt) {
+          ensureCTFMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+          // Host: Match + Events sofort in DB (sonst FK-Fehler bei späteren Event-Writes)
+          if (multiplayer?.isHost) {
+            ;(async () => {
+              try {
+                await ensureCTFMatchExistsAsync(matchId, remote as any[], startEvt.players?.map((p: any) => p.playerId) ?? [])
+              } catch (e) { console.warn('[MP] ensureCTFMatchExists failed:', e) }
+            })()
+          }
+        }
       }
       return
     }
 
-    persistCTFEvents(matchId, remote)
+    // Nur der Host persistiert — ein Gast würde FK-Fehler auslösen.
+    if (multiplayer?.isHost) {
+      ;(async () => {
+        const startEvt = remote.find((e: any) => e.type === 'CTFMatchStarted') as any
+        if (!startEvt) return
+        const playerIds = startEvt.players?.map((p: any) => p.playerId) ?? []
+        try {
+          await ensureCTFMatchExistsAsync(matchId, remote as any[], playerIds)
+          await persistCTFEvents(matchId, remote)
+        } catch (e) { console.warn('[MP] persist failed:', e) }
+      })()
+    }
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'CTFMatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'CTFMatchFinished')
