@@ -678,6 +678,48 @@ let activeGamesTableReady = false
 // Schema-State: Welche optionalen Spalten existieren in active_games?
 let activeGamesHasMultiplayerCols = false
 
+let matchSchemasReady = false
+// Idempotent schema upgrade for the 10 match tables — runs missing ALTER TABLE
+// statements on first DB write. Necessary because the Neon DB may be behind
+// migrations 12/13 which added match_name, notes, miss3_back_variant, etc.
+export async function ensureMatchSchemas(): Promise<void> {
+  if (matchSchemasReady) return
+  try {
+    const alters: string[] = [
+      // v12: match_name + notes auf allen 10 Match-Tabellen
+      'ALTER TABLE x01_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE x01_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE cricket_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE cricket_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE atb_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE atb_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE ctf_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE ctf_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE str_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE str_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE highscore_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE highscore_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE shanghai_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE shanghai_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE killer_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE killer_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE bobs27_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE bobs27_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      'ALTER TABLE operation_matches ADD COLUMN IF NOT EXISTS match_name TEXT',
+      'ALTER TABLE operation_matches ADD COLUMN IF NOT EXISTS notes TEXT',
+      // v13: atb-spezifische Spalte
+      'ALTER TABLE atb_matches ADD COLUMN IF NOT EXISTS miss3_back_variant TEXT',
+    ]
+    for (const sql of alters) {
+      try { await exec(sql) } catch (e) { console.warn('[DB Migration] ALTER skip:', sql, e) }
+    }
+    matchSchemasReady = true
+    console.log('[DB Migration] Match schemas ensured')
+  } catch (e) {
+    console.warn('[DB Migration] ensureMatchSchemas failed:', e)
+  }
+}
+
 async function ensureActiveGamesTable(): Promise<void> {
   if (activeGamesTableReady) return
   try {
@@ -1132,6 +1174,7 @@ export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
     console.warn('[DB] dbSaveX01Match: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
   console.debug('[DB] dbSaveX01Match: Saving match', match.id)
 
   const startEvt = match.events.find((e) => e.type === 'MatchStarted')
@@ -1151,8 +1194,8 @@ export async function dbSaveX01Match(match: DBX01Match): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
+      finished = GREATEST(x01_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN x01_matches.finished = 1 THEN x01_matches.finished_at ELSE EXCLUDED.finished_at END,
       mode = EXCLUDED.mode,
       starting_score = EXCLUDED.starting_score,
       structure_kind = EXCLUDED.structure_kind,
@@ -1353,6 +1396,7 @@ export async function dbGetCricketMatchById(matchId: string): Promise<DBCricketM
 
 export async function dbSaveCricketMatch(match: DBCricketMatch): Promise<void> {
   await ensureDB()
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e) => e.type === 'CricketMatchStarted')
   const finishEvt = match.events.find((e) => e.type === 'CricketMatchFinished')
@@ -1369,8 +1413,8 @@ export async function dbSaveCricketMatch(match: DBCricketMatch): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
+      finished = GREATEST(cricket_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN cricket_matches.finished = 1 THEN cricket_matches.finished_at ELSE EXCLUDED.finished_at END,
       range = EXCLUDED.range,
       style = EXCLUDED.style,
       best_of_games = EXCLUDED.best_of_games,
@@ -1584,6 +1628,7 @@ export async function dbGetATBMatchById(matchId: string): Promise<DBATBMatch | n
 
 export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
   await ensureDB()
+  await ensureMatchSchemas()
 
   const statements: Array<{ sql: string; params: unknown[] }> = []
 
@@ -1598,11 +1643,11 @@ export async function dbSaveATBMatch(match: DBATBMatch): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(atb_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN atb_matches.finished = 1 THEN atb_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN atb_matches.finished = 1 THEN atb_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN atb_matches.finished = 1 THEN atb_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN atb_matches.finished = 1 THEN atb_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       mode = EXCLUDED.mode,
       direction = EXCLUDED.direction,
       structure_kind = EXCLUDED.structure_kind,
@@ -1798,6 +1843,7 @@ export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
     console.warn('[DB] dbSaveCTFMatch: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'CTFMatchStarted')
   const finishEvt = match.events.find((e: any) => e.type === 'CTFMatchFinished')
@@ -1816,11 +1862,11 @@ export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(ctf_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN ctf_matches.finished = 1 THEN ctf_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN ctf_matches.finished = 1 THEN ctf_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN ctf_matches.finished = 1 THEN ctf_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN ctf_matches.finished = 1 THEN ctf_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       multiplier_mode = EXCLUDED.multiplier_mode,
       rotate_order = EXCLUDED.rotate_order,
       bull_position = EXCLUDED.bull_position,
@@ -2015,6 +2061,7 @@ export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
     console.warn('[DB] dbSaveStrMatch: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'StrMatchStarted')
 
@@ -2032,11 +2079,11 @@ export async function dbSaveStrMatch(match: DBStrMatch): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(str_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN str_matches.finished = 1 THEN str_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN str_matches.finished = 1 THEN str_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN str_matches.finished = 1 THEN str_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN str_matches.finished = 1 THEN str_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       mode = EXCLUDED.mode,
       target_number = EXCLUDED.target_number,
       number_order = EXCLUDED.number_order,
@@ -2245,6 +2292,7 @@ export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<voi
     console.warn('[DB] dbSaveHighscoreMatch: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'HighscoreMatchStarted')
 
@@ -2261,11 +2309,11 @@ export async function dbSaveHighscoreMatch(match: DBHighscoreMatch): Promise<voi
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(highscore_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN highscore_matches.finished = 1 THEN highscore_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN highscore_matches.finished = 1 THEN highscore_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN highscore_matches.finished = 1 THEN highscore_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN highscore_matches.finished = 1 THEN highscore_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       target_score = EXCLUDED.target_score,
       structure_kind = EXCLUDED.structure_kind,
       target_legs = EXCLUDED.target_legs,
@@ -2535,6 +2583,7 @@ export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void>
     console.warn('[DB] dbSaveShanghaiMatch: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'ShanghaiMatchStarted')
 
@@ -2551,11 +2600,11 @@ export async function dbSaveShanghaiMatch(match: DBShanghaiMatch): Promise<void>
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(shanghai_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN shanghai_matches.finished = 1 THEN shanghai_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN shanghai_matches.finished = 1 THEN shanghai_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN shanghai_matches.finished = 1 THEN shanghai_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN shanghai_matches.finished = 1 THEN shanghai_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       structure_kind = EXCLUDED.structure_kind,
       best_of_legs = EXCLUDED.best_of_legs,
       legs_per_set = EXCLUDED.legs_per_set,
@@ -2824,6 +2873,7 @@ export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
     console.warn('[DB] dbSaveKillerMatch: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'KillerMatchStarted')
   const config = match.config ?? startEvt?.config
@@ -2844,11 +2894,11 @@ export async function dbSaveKillerMatch(match: DBKillerMatch): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(killer_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN killer_matches.finished = 1 THEN killer_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN killer_matches.finished = 1 THEN killer_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN killer_matches.finished = 1 THEN killer_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN killer_matches.finished = 1 THEN killer_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       hits_to_become_killer = EXCLUDED.hits_to_become_killer,
       qualifying_ring = EXCLUDED.qualifying_ring,
       starting_lives = EXCLUDED.starting_lives,
@@ -3129,6 +3179,7 @@ export async function dbSaveBobs27Match(match: DBBobs27Match): Promise<void> {
     console.warn('[DB] dbSaveBobs27Match: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'Bobs27MatchStarted')
   const config = match.config ?? startEvt?.config ?? {}
@@ -3145,11 +3196,11 @@ export async function dbSaveBobs27Match(match: DBBobs27Match): Promise<void> {
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(bobs27_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN bobs27_matches.finished = 1 THEN bobs27_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN bobs27_matches.finished = 1 THEN bobs27_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN bobs27_matches.finished = 1 THEN bobs27_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN bobs27_matches.finished = 1 THEN bobs27_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       start_score = EXCLUDED.start_score,
       darts_per_target = EXCLUDED.darts_per_target,
       include_bull = EXCLUDED.include_bull,
@@ -3400,6 +3451,7 @@ export async function dbSaveOperationMatch(match: DBOperationMatch): Promise<voi
     console.warn('[DB] dbSaveOperationMatch: DB not ready, skipping SQLite save for', match.id)
     return
   }
+  await ensureMatchSchemas()
 
   const startEvt = match.events.find((e: any) => e.type === 'OperationMatchStarted')
   const config = match.config ?? startEvt?.config ?? {}
@@ -3416,11 +3468,11 @@ export async function dbSaveOperationMatch(match: DBOperationMatch): Promise<voi
       match_name = EXCLUDED.match_name,
       notes = EXCLUDED.notes,
       created_at = EXCLUDED.created_at,
-      finished = EXCLUDED.finished,
-      finished_at = EXCLUDED.finished_at,
-      duration_ms = EXCLUDED.duration_ms,
-      winner_id = EXCLUDED.winner_id,
-      winner_darts = EXCLUDED.winner_darts,
+      finished = GREATEST(operation_matches.finished, EXCLUDED.finished),
+      finished_at = CASE WHEN operation_matches.finished = 1 THEN operation_matches.finished_at ELSE EXCLUDED.finished_at END,
+      duration_ms = CASE WHEN operation_matches.finished = 1 THEN operation_matches.duration_ms ELSE EXCLUDED.duration_ms END,
+      winner_id = CASE WHEN operation_matches.finished = 1 THEN operation_matches.winner_id ELSE EXCLUDED.winner_id END,
+      winner_darts = CASE WHEN operation_matches.finished = 1 THEN operation_matches.winner_darts ELSE EXCLUDED.winner_darts END,
       legs_count = EXCLUDED.legs_count,
       target_mode = EXCLUDED.target_mode,
       final_scores = EXCLUDED.final_scores,

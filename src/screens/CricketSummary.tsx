@@ -23,6 +23,7 @@ type Props = {
   onRematch?: (oldMatchId: string) => void
   onBackToLobby?: () => void
   onHallOfFame?: () => void
+  isMultiplayerGuest?: boolean
 }
 
 function fmtFixed2(n: number | null | undefined): string {
@@ -249,7 +250,7 @@ function computeMarksForLeg(
   return { marksByPlayer, pointsByPlayer }
 }
 
-export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBackToLobby, onHallOfFame }: Props) {
+export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBackToLobby, onHallOfFame, isMultiplayerGuest }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -862,6 +863,10 @@ export default function CricketSummary({ matchId, onBackToMenu, onRematch, onBac
             {!endscreenName && !endscreenNotes && (
               <div style={{ color: colors.fgDim, fontSize: 13 }}>Keine Spielinfo gespeichert</div>
             )}
+          </div>
+        ) : isMultiplayerGuest ? (
+          <div style={{ color: colors.fgDim, fontSize: 13, textAlign: 'center', padding: 12 }}>
+            Spielname & Bemerkungen werden vom Host eingegeben.
           </div>
         ) : (
           // Vor dem Speichern: Eingabefelder

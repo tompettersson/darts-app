@@ -7,6 +7,7 @@ import {
   dbGetActiveGames,
   dbMigrateToActiveGames,
   dbRepairMissingMatchPlayers,
+  ensureMatchSchemas,
 } from './storage'
 import { warmAllCaches, setActiveGamesCache } from '../storage'
 
@@ -101,6 +102,9 @@ export async function loadAllDataFromSQLite(): Promise<AppDataLoaded> {
     // === Phase 2: Background tasks (non-blocking) ===
     setTimeout(async () => {
       try {
+        // Idempotent schema upgrade for missing columns on production DB
+        await safe(ensureMatchSchemas(), undefined as any)
+
         // One-time migration of existing open matches to active_games table
         await safe(dbMigrateToActiveGames(), 0)
 

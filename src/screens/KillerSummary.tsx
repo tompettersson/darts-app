@@ -46,9 +46,10 @@ type Props = {
   onBack: () => void
   onBackToLobby?: () => void
   readOnly?: boolean
+  isMultiplayerGuest?: boolean
 }
 
-export default function KillerSummary({ matchId, onRematch, onBack, onBackToLobby, readOnly }: Props) {
+export default function KillerSummary({ matchId, onRematch, onBack, onBackToLobby, readOnly, isMultiplayerGuest }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -68,7 +69,7 @@ export default function KillerSummary({ matchId, onRematch, onBack, onBackToLobb
     )
   }
 
-  return <KillerSummaryContent match={storedMatch} onRematch={onRematch} onBack={onBack} onBackToLobby={onBackToLobby} readOnly={readOnly} />
+  return <KillerSummaryContent match={storedMatch} onRematch={onRematch} onBack={onBack} onBackToLobby={onBackToLobby} readOnly={readOnly} isMultiplayerGuest={isMultiplayerGuest} />
 }
 
 // ============================================================================
@@ -81,12 +82,14 @@ function KillerSummaryContent({
   onBack,
   onBackToLobby,
   readOnly,
+  isMultiplayerGuest,
 }: {
   match: KillerStoredMatch
   onRematch?: () => void
   onBack: () => void
   onBackToLobby?: () => void
   readOnly?: boolean
+  isMultiplayerGuest?: boolean
 }) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -999,6 +1002,10 @@ function KillerSummaryContent({
                 {!endscreenName && !endscreenNotes && (
                   <div style={{ color: colors.fgDim, fontSize: 13 }}>Keine Spielinfo gespeichert</div>
                 )}
+              </div>
+            ) : isMultiplayerGuest ? (
+              <div style={{ color: colors.fgDim, fontSize: 13, textAlign: 'center', padding: 12 }}>
+                Spielname & Bemerkungen werden vom Host eingegeben.
               </div>
             ) : (
               <div>

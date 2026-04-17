@@ -772,6 +772,9 @@ export default function App() {
   const mpBackToLobby = undefined
   // Suppress onRematch in multiplayer summaries
   const isMpSummary = multiplayerSummaryActive
+  // Nur der Host soll Spielname + Bemerkungen im Endscreen bearbeiten dürfen —
+  // verhindert widersprüchliche Einträge durch mehrere Spieler
+  const isMpGuest = isMpSummary && !mpState.isHost
 
   const openMatch = getOpenMatch()
   const openCricket = getOpenCricketMatch()
@@ -1322,6 +1325,7 @@ export default function App() {
     return (
       <ATBSummary
         matchId={summaryATBId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1416,6 +1420,7 @@ export default function App() {
     return (
       <StraeusschenSummary
         matchId={summaryStrId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1509,6 +1514,7 @@ export default function App() {
     return (
       <HighscoreSummary
         matchId={summaryHighscoreId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1596,6 +1602,7 @@ export default function App() {
     return (
       <CTFSummary
         matchId={summaryCTFId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1682,6 +1689,7 @@ export default function App() {
     return (
       <ShanghaiSummary
         matchId={summaryShanghaiId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1767,6 +1775,7 @@ export default function App() {
     return (
       <KillerSummary
         matchId={summaryKillerId}
+        isMultiplayerGuest={isMpGuest}
         onBack={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1832,6 +1841,7 @@ export default function App() {
     return (
       <Bobs27Summary
         matchId={summaryBobs27Id}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -1904,6 +1914,7 @@ export default function App() {
     return (
       <OperationSummary
         matchId={summaryOperationId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -2634,6 +2645,7 @@ export default function App() {
     return (
       <CricketSummary
         matchId={summaryCricketId}
+        isMultiplayerGuest={isMpGuest}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           // Wenn aus StatsArea gekommen, dorthin zurück
@@ -3068,7 +3080,10 @@ export default function App() {
         }
 
         if (events.length === 0) {
-          showToast('Keine Spieldaten gefunden')
+          // Kein Event in DB — wahrscheinlich ein vor dem Schema-Fix gestarteter Eintrag
+          // oder der Host hat nie speichern können. Eintrag verwerfen und User informieren.
+          try { await discardGame(game.id) } catch {}
+          showToast('Keine Spieldaten gefunden — Eintrag verworfen. Bitte neu starten.')
           setResumeLoading(false)
           return
         }

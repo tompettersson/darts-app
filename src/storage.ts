@@ -647,6 +647,7 @@ export function ensureX01MatchExists(matchId: string, events: any[], playerIds: 
 
 /** Async version that awaits DB write — use when match needs to be saved reliably (e.g., match end) */
 export async function ensureX01MatchExistsAsync(matchId: string, events: any[], playerIds: string[], title: string) {
+  if (getMatches().find(x => x.id === matchId)?.finished) return
   // DB first — if this fails, memory cache stays clean
   // IMPORTANT: pass real events so dbSaveX01Match can read MatchStarted for player records
   await dbSaveX01Match({
@@ -749,6 +750,8 @@ export function ensureOperationMatchExists(m: string, e: any[], p: string[]) {
 /** Async versions — use when match needs to be saved reliably (e.g., match end) */
 
 export async function ensureCricketMatchExistsAsync(matchId: string, events: any[], playerIds: string[]) {
+  // Skip if already finished in memory — prevents race with finishCricketMatch overwriting finished=1 back to 0
+  if (getCricketMatches().find(x => x.id === matchId)?.finished) return
   // DB first — if this fails, memory cache stays clean
   await dbSaveCricketMatch({
     id: matchId, title: 'Cricket – Multiplayer', matchName: null, notes: null,
@@ -771,6 +774,7 @@ export async function ensureCricketMatchExistsAsync(matchId: string, events: any
 }
 
 export async function ensureATBMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getATBMatches().find(x => x.id === m)?.finished) return
   await dbSaveATBMatch({ id: m, title: 'Around the Board – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, mode: '', direction: '', players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('atb_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -780,6 +784,7 @@ export async function ensureATBMatchExistsAsync(m: string, e: any[], p: string[]
 }
 
 export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getStrMatches().find(x => x.id === m)?.finished) return
   await dbSaveStrMatch({ id: m, title: 'Sträußchen – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, mode: '', targetNumber: null, numberOrder: null, turnOrder: null, ringMode: null, bullMode: null, bullPosition: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('str_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -789,6 +794,7 @@ export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]
 }
 
 export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getHighscoreMatches().find(x => x.id === m)?.finished) return
   await dbSaveHighscoreMatch({ id: m, title: 'Highscore – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, targetScore: 0, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('highscore_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -798,6 +804,7 @@ export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: st
 }
 
 export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getCTFMatches().find(x => x.id === m)?.finished) return
   await dbSaveCTFMatch({ id: m, title: 'Capture the Field – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('ctf_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -807,6 +814,7 @@ export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]
 }
 
 export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getShanghaiMatches().find(x => x.id === m)?.finished) return
   await dbSaveShanghaiMatch({ id: m, title: 'Shanghai – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('shanghai_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -816,6 +824,7 @@ export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: str
 }
 
 export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getKillerMatches().find(x => x.id === m)?.finished) return
   await dbSaveKillerMatch({ id: m, title: 'Killer – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('killer_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -825,6 +834,7 @@ export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: strin
 }
 
 export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getBobs27Matches().find(x => x.id === m)?.finished) return
   await dbSaveBobs27Match({ id: m, title: "Bob's 27 – Multiplayer", createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e })
   await dbAppendEvents('bobs27_events', m, e, 0)
   persistedEventCount.set(m, e.length)
@@ -834,6 +844,7 @@ export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: strin
 }
 
 export async function ensureOperationMatchExistsAsync(m: string, e: any[], p: string[]) {
+  if (getOperationMatches().find(x => x.id === m)?.finished) return
   await dbSaveOperationMatch({ id: m, title: 'Operation – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, legsCount: 1, targetMode: 'random', players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e, config: {} })
   await dbAppendEvents('operation_events', m, e, 0)
   persistedEventCount.set(m, e.length)

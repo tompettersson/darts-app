@@ -35,9 +35,10 @@ type Props = {
   onBackToMenu: () => void
   onRematch?: (matchId: string) => void
   onBackToLobby?: () => void
+  isMultiplayerGuest?: boolean
 }
 
-export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onBackToLobby }: Props) {
+export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onBackToLobby, isMultiplayerGuest }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -514,6 +515,10 @@ export default function HighscoreSummary({ matchId, onBackToMenu, onRematch, onB
                 {!endscreenName && !endscreenNotes && (
                   <div style={{ color: colors.fgDim, fontSize: 13 }}>Keine Spielinfo gespeichert</div>
                 )}
+              </div>
+            ) : isMultiplayerGuest ? (
+              <div style={{ color: colors.fgDim, fontSize: 13, textAlign: 'center', padding: 12 }}>
+                Spielname & Bemerkungen werden vom Host eingegeben.
               </div>
             ) : (
               <div>
