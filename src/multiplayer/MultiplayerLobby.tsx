@@ -511,16 +511,29 @@ function StrConfig({ config, onChange }: { config: GameConfig; onChange: (c: Gam
 
 function HighscoreConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
   const targetScore = config.highscoreTargetScore ?? 500
+  const clamp = (n: number) => Math.max(300, Math.min(999, n))
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <label style={configLabel}>Zielpunktzahl</label>
-      <select style={selectStyle} value={targetScore}
-        onChange={e => onChange({ ...config, highscoreTargetScore: parseInt(e.target.value, 10) })}>
-        {[100, 200, 300, 500, 1000].map(n => (
-          <option key={n} value={n}>{n}</option>
+      <label style={configLabel}>Zielpunktzahl (300–999)</label>
+      {/* Presets */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {[300, 500, 750, 999].map(n => (
+          <button key={n} type="button"
+            onClick={() => onChange({ ...config, highscoreTargetScore: n })}
+            style={{
+              padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+              border: `1px solid ${targetScore === n ? '#3b82f6' : '#444'}`,
+              background: targetScore === n ? '#1e3a5f' : '#222',
+              color: targetScore === n ? '#3b82f6' : '#ccc',
+              cursor: 'pointer',
+            }}>{n}</button>
         ))}
-      </select>
+      </div>
+      {/* Custom Input */}
+      <input type="number" min={300} max={999} value={targetScore}
+        onChange={e => onChange({ ...config, highscoreTargetScore: clamp(parseInt(e.target.value, 10) || 500) })}
+        style={{ ...selectStyle, textAlign: 'center' }} />
       <div style={configHint}>Wer zuerst das Ziel erreicht, gewinnt.</div>
 
       <LegsRow config={config} onChange={onChange} />
