@@ -213,6 +213,383 @@ function SimpleLegsConfig({ config, onChange, label }: { config: GameConfig; onC
   )
 }
 
+// ---- Shared primitives for mode-specific configs ----
+
+const configLabel: React.CSSProperties = { fontWeight: 600, fontSize: 13 }
+const configHint: React.CSSProperties = { fontSize: 11, color: '#6b7280' }
+const selectStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid #d1d5db',
+  fontSize: 13,
+  fontWeight: 600,
+  background: '#fff',
+  color: '#111827',
+  cursor: 'pointer',
+  minWidth: 160,
+}
+const checkboxRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 13,
+  cursor: 'pointer',
+  userSelect: 'none',
+}
+
+function LegsRow({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  return (
+    <>
+      <label style={configLabel}>Legs</label>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {[1, 2, 3, 4, 5].map(n => (
+          <button key={n} onClick={() => onChange({ ...config, bestOfLegs: n })}
+            style={pillStyle(config.bestOfLegs === n)}>FT{n}</button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ---- ATB Config ----
+
+function ATBConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const direction = config.atbDirection ?? 'forward'
+  const sequenceMode = config.atbSequenceMode ?? 'ascending'
+  const targetMode = config.atbTargetMode ?? 'any'
+  const multiplierMode = config.atbMultiplierMode ?? 'standard'
+  const specialRule = config.atbSpecialRule ?? 'none'
+  const miss3BackVariant = config.atbMiss3BackVariant ?? 'previous'
+  const bullPosition = config.atbBullPosition ?? 'end'
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={configLabel}>Richtung</label>
+      <select style={selectStyle} value={direction}
+        onChange={e => onChange({ ...config, atbDirection: e.target.value as any })}>
+        <option value="forward">Vorwärts</option>
+        <option value="backward">Rückwärts</option>
+      </select>
+
+      <label style={configLabel}>Reihenfolge</label>
+      <select style={selectStyle} value={sequenceMode}
+        onChange={e => onChange({ ...config, atbSequenceMode: e.target.value as any })}>
+        <option value="ascending">Aufsteigend (1–20)</option>
+        <option value="board">Board-Reihenfolge</option>
+        <option value="random">Zufällig</option>
+      </select>
+
+      <label style={configLabel}>Zielmodus</label>
+      <select style={selectStyle} value={targetMode}
+        onChange={e => onChange({ ...config, atbTargetMode: e.target.value as any })}>
+        <option value="any">Alle (Single/Double/Triple)</option>
+        <option value="single">Nur Single</option>
+        <option value="double">Nur Double</option>
+        <option value="triple">Nur Triple</option>
+        <option value="mixed">S → D → T (fest)</option>
+        <option value="mixedRandom">Mix zufällig</option>
+      </select>
+
+      <label style={configLabel}>Multiplier</label>
+      <select style={selectStyle} value={multiplierMode}
+        onChange={e => onChange({ ...config, atbMultiplierMode: e.target.value as any })}>
+        <option value="standard">Standard (D=2, T=3)</option>
+        <option value="standard2">Spezial (D=2, T=2)</option>
+        <option value="single">Nur Single (1 Feld)</option>
+      </select>
+
+      <label style={configLabel}>Spezialregel</label>
+      <select style={selectStyle} value={specialRule}
+        onChange={e => onChange({ ...config, atbSpecialRule: e.target.value as any })}>
+        <option value="none">Keine</option>
+        <option value="bullHeavy">Bull Heavy</option>
+        <option value="suddenDeath">Sudden Death</option>
+        <option value="noDoubleEscape">No Double Escape</option>
+        <option value="miss3Back">3× Miss zurück</option>
+      </select>
+
+      {specialRule === 'miss3Back' && (
+        <>
+          <label style={configLabel}>Bei 3× Miss</label>
+          <select style={selectStyle} value={miss3BackVariant}
+            onChange={e => onChange({ ...config, atbMiss3BackVariant: e.target.value as any })}>
+            <option value="previous">Vorherige Zahl</option>
+            <option value="start">Zurück zum Start</option>
+          </select>
+        </>
+      )}
+
+      <label style={configLabel}>Bull-Position</label>
+      <select style={selectStyle} value={bullPosition}
+        onChange={e => onChange({ ...config, atbBullPosition: e.target.value as any })}>
+        <option value="start">Am Anfang</option>
+        <option value="end">Am Ende</option>
+        <option value="random">Zufällig</option>
+      </select>
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
+// ---- Killer Config ----
+
+function KillerConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const lives = config.killerLives ?? 3
+  const qualifyingRing = config.killerQualifyingRing ?? 'DOUBLE'
+  const hitsToBecomeKiller = config.killerHitsToBecomeKiller ?? 1
+  const friendlyFire = config.killerFriendlyFire ?? true
+  const selfHeal = config.killerSelfHeal ?? false
+  const noNegativeLives = config.killerNoNegativeLives ?? true
+  const secretNumbers = config.killerSecretNumbers ?? false
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={configLabel}>Leben</label>
+      <select style={selectStyle} value={lives}
+        onChange={e => onChange({ ...config, killerLives: parseInt(e.target.value, 10) })}>
+        {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+      </select>
+
+      <label style={configLabel}>Qualifying-Ring</label>
+      <select style={selectStyle} value={qualifyingRing}
+        onChange={e => onChange({ ...config, killerQualifyingRing: e.target.value as any })}>
+        <option value="DOUBLE">Double</option>
+        <option value="TRIPLE">Triple</option>
+      </select>
+
+      <label style={configLabel}>Treffer zum Killer</label>
+      <select style={selectStyle} value={hitsToBecomeKiller}
+        onChange={e => onChange({ ...config, killerHitsToBecomeKiller: parseInt(e.target.value, 10) })}>
+        {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+      </select>
+
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={friendlyFire}
+          onChange={e => onChange({ ...config, killerFriendlyFire: e.target.checked })} />
+        Friendly Fire
+      </label>
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={selfHeal}
+          onChange={e => onChange({ ...config, killerSelfHeal: e.target.checked })} />
+        Selbstheilung
+      </label>
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={noNegativeLives}
+          onChange={e => onChange({ ...config, killerNoNegativeLives: e.target.checked })} />
+        Keine negativen Leben
+      </label>
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={secretNumbers}
+          onChange={e => onChange({ ...config, killerSecretNumbers: e.target.checked })} />
+        Geheime Zahlen
+      </label>
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
+// ---- CTF Config ----
+
+function CTFConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const rounds = config.ctfRounds ?? 20
+  const sequenceMode = config.ctfSequenceMode ?? 'ascending'
+  const multiplierMode = config.ctfMultiplierMode ?? 'standard'
+  const rotateOrder = config.ctfRotateOrder ?? true
+  const retryZeroDraw = config.ctfRetryZeroDraw ?? false
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={configLabel}>Anzahl Runden</label>
+      <input type="number" min={1} max={50} value={rounds}
+        onChange={e => {
+          const n = parseInt(e.target.value, 10)
+          onChange({ ...config, ctfRounds: isNaN(n) ? 20 : n })
+        }}
+        style={{ ...selectStyle, minWidth: 100, textAlign: 'center' }} />
+
+      <label style={configLabel}>Feldfolge</label>
+      <select style={selectStyle} value={sequenceMode}
+        onChange={e => onChange({ ...config, ctfSequenceMode: e.target.value as any })}>
+        <option value="ascending">Aufsteigend (1→20)</option>
+        <option value="board">Board-Reihenfolge</option>
+        <option value="random">Zufällig</option>
+      </select>
+
+      <label style={configLabel}>Multiplier</label>
+      <select style={selectStyle} value={multiplierMode}
+        onChange={e => onChange({ ...config, ctfMultiplierMode: e.target.value as any })}>
+        <option value="standard">Standard (S=1, D=2, T=3)</option>
+        <option value="standard2">Spezial (S=1, D/T=2)</option>
+        <option value="single">Single (alles × 1)</option>
+      </select>
+
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={rotateOrder}
+          onChange={e => onChange({ ...config, ctfRotateOrder: e.target.checked })} />
+        Wurfreihenfolge rotieren
+      </label>
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={retryZeroDraw}
+          onChange={e => onChange({ ...config, ctfRetryZeroDraw: e.target.checked })} />
+        0-Draw Felder wiederholen
+      </label>
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
+// ---- Sträußchen Config ----
+
+function StrConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const mode = config.strMode ?? 'single'
+  const ringMode = config.strRingMode ?? 'triple'
+  const targetNumber = config.strTargetNumber ?? 20
+  const numberOrder = config.strNumberOrder ?? 'fixed'
+  const bullMode = config.strBullMode ?? 'red-only'
+  const bullPosition = config.strBullPosition ?? 'end'
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={configLabel}>Modus</label>
+      <select style={selectStyle} value={mode}
+        onChange={e => onChange({ ...config, strMode: e.target.value as any })}>
+        <option value="single">Eine Zahl</option>
+        <option value="all">Alle Zahlen</option>
+      </select>
+
+      <label style={configLabel}>Ring</label>
+      <select style={selectStyle} value={ringMode}
+        onChange={e => onChange({ ...config, strRingMode: e.target.value as any })}>
+        <option value="triple">Triple</option>
+        <option value="double">Double</option>
+      </select>
+
+      {mode === 'single' && (
+        <>
+          <label style={configLabel}>Zielzahl</label>
+          <select style={selectStyle} value={targetNumber}
+            onChange={e => onChange({ ...config, strTargetNumber: parseInt(e.target.value, 10) })}>
+            {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </>
+      )}
+
+      <label style={configLabel}>Zahlen-Reihenfolge</label>
+      <select style={selectStyle} value={numberOrder}
+        onChange={e => onChange({ ...config, strNumberOrder: e.target.value as any })}>
+        <option value="fixed">Fest</option>
+        <option value="sequential">Sequentiell</option>
+        <option value="random">Zufällig</option>
+      </select>
+
+      <label style={configLabel}>Bull-Modus</label>
+      <select style={selectStyle} value={bullMode}
+        onChange={e => onChange({ ...config, strBullMode: e.target.value as any })}>
+        <option value="red-only">Nur rote Bull</option>
+        <option value="both">Beide</option>
+      </select>
+
+      <label style={configLabel}>Bull-Position</label>
+      <select style={selectStyle} value={bullPosition}
+        onChange={e => onChange({ ...config, strBullPosition: e.target.value as any })}>
+        <option value="start">Am Anfang</option>
+        <option value="end">Am Ende</option>
+        <option value="random">Zufällig</option>
+      </select>
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
+// ---- Highscore Config ----
+
+function HighscoreConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const targetScore = config.highscoreTargetScore ?? 500
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={configLabel}>Zielpunktzahl</label>
+      <select style={selectStyle} value={targetScore}
+        onChange={e => onChange({ ...config, highscoreTargetScore: parseInt(e.target.value, 10) })}>
+        {[100, 200, 300, 500, 1000].map(n => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+      <div style={configHint}>Wer zuerst das Ziel erreicht, gewinnt.</div>
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
+// ---- Bob's 27 Config ----
+
+function Bobs27Config({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const includeBull = config.bobs27IncludeBull ?? false
+  const allowNegative = config.bobs27AllowNegative ?? false
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={includeBull}
+          onChange={e => onChange({ ...config, bobs27IncludeBull: e.target.checked })} />
+        D-Bull als 21. Ziel
+      </label>
+      <label style={checkboxRowStyle}>
+        <input type="checkbox" checked={allowNegative}
+          onChange={e => onChange({ ...config, bobs27AllowNegative: e.target.checked })} />
+        Minus erlauben
+      </label>
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
+// ---- Operation Config ----
+
+function OperationConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
+  const targetMode = config.operationTargetMode ?? 'RANDOM_NUMBER'
+  const targetNumber = config.operationTargetNumber ?? 20
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <label style={configLabel}>Ziel-Modus</label>
+      <select style={selectStyle} value={targetMode}
+        onChange={e => {
+          const next = e.target.value as GameConfig['operationTargetMode']
+          const cleaned: GameConfig = { ...config, operationTargetMode: next }
+          if (next !== 'MANUAL_NUMBER') delete cleaned.operationTargetNumber
+          onChange(cleaned)
+        }}>
+        <option value="RANDOM_NUMBER">Zufallszahl</option>
+        <option value="MANUAL_NUMBER">Zahl wählen</option>
+        <option value="BULL">Bull</option>
+      </select>
+
+      {targetMode === 'MANUAL_NUMBER' && (
+        <>
+          <label style={configLabel}>Zielzahl</label>
+          <select style={selectStyle} value={targetNumber}
+            onChange={e => onChange({ ...config, operationTargetNumber: parseInt(e.target.value, 10) })}>
+            {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </>
+      )}
+
+      <LegsRow config={config} onChange={onChange} />
+    </div>
+  )
+}
+
 // ---- Pill button style helper ----
 
 function pillStyle(active: boolean): React.CSSProperties {
@@ -384,14 +761,47 @@ export default function MultiplayerLobby({
     const defaults: Record<string, Partial<GameConfig>> = {
       x01: { startScore: 501, outRule: 'double-out', inRule: 'straight-in', bestOfLegs: 3, structureKind: 'legs' },
       cricket: { cricketRange: 'short', cricketStyle: 'standard', cricketLegs: 2 },
-      atb: { bestOfLegs: 1 },
-      ctf: { bestOfLegs: 1 },
+      atb: {
+        bestOfLegs: 1,
+        atbMode: 'standard',
+        atbDirection: 'forward',
+        atbSequenceMode: 'ascending',
+        atbTargetMode: 'any',
+        atbMultiplierMode: 'standard',
+        atbSpecialRule: 'none',
+        atbBullPosition: 'end',
+      },
+      ctf: {
+        bestOfLegs: 1,
+        ctfRounds: 20,
+        ctfSequenceMode: 'ascending',
+        ctfMultiplierMode: 'standard',
+        ctfRotateOrder: true,
+        ctfRetryZeroDraw: false,
+      },
       shanghai: { bestOfLegs: 1 },
-      killer: { bestOfLegs: 1 },
-      str: { bestOfLegs: 1 },
-      highscore: { bestOfLegs: 1 },
-      bobs27: { bestOfLegs: 1 },
-      operation: { bestOfLegs: 1 },
+      killer: {
+        bestOfLegs: 1,
+        killerLives: 3,
+        killerQualifyingRing: 'DOUBLE',
+        killerHitsToBecomeKiller: 1,
+        killerFriendlyFire: true,
+        killerSelfHeal: false,
+        killerNoNegativeLives: true,
+        killerSecretNumbers: false,
+      },
+      str: {
+        bestOfLegs: 1,
+        strMode: 'single',
+        strRingMode: 'triple',
+        strTargetNumber: 20,
+        strNumberOrder: 'fixed',
+        strBullMode: 'red-only',
+        strBullPosition: 'end',
+      },
+      highscore: { bestOfLegs: 1, highscoreTargetScore: 500 },
+      bobs27: { bestOfLegs: 1, bobs27IncludeBull: false, bobs27AllowNegative: false },
+      operation: { bestOfLegs: 1, operationTargetMode: 'RANDOM_NUMBER' },
     }
     const config = { ...(defaults[gameType] || {}), gameType } as GameConfig
     handleConfigChange(config)
@@ -738,9 +1148,14 @@ export default function MultiplayerLobby({
 
               {localConfig.gameType === 'x01' && <X01Config config={localConfig} onChange={handleConfigChange} />}
               {localConfig.gameType === 'cricket' && <CricketConfig config={localConfig} onChange={handleConfigChange} />}
-              {['atb', 'ctf', 'shanghai', 'killer', 'str', 'highscore', 'bobs27', 'operation'].includes(localConfig.gameType) && (
-                <SimpleLegsConfig config={localConfig} onChange={handleConfigChange} />
-              )}
+              {localConfig.gameType === 'atb' && <ATBConfig config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'killer' && <KillerConfig config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'ctf' && <CTFConfig config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'str' && <StrConfig config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'highscore' && <HighscoreConfig config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'shanghai' && <SimpleLegsConfig config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'bobs27' && <Bobs27Config config={localConfig} onChange={handleConfigChange} />}
+              {localConfig.gameType === 'operation' && <OperationConfig config={localConfig} onChange={handleConfigChange} />}
             </div>
           )}
         </div>

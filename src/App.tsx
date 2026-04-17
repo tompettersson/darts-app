@@ -2042,11 +2042,21 @@ export default function App() {
               break
             }
             case 'atb': {
+              const atbConfig: any = {
+                sequenceMode: config.atbSequenceMode || 'ascending',
+                targetMode: config.atbTargetMode || 'any',
+                multiplierMode: config.atbMultiplierMode || 'standard',
+                specialRule: config.atbSpecialRule || 'none',
+                bullPosition: config.atbBullPosition || 'end',
+              }
+              if (atbConfig.specialRule === 'miss3Back') {
+                atbConfig.miss3BackVariant = config.atbMiss3BackVariant || 'previous'
+              }
               initialEvents = [
                 { eventId: genId(), type: 'ATBMatchStarted', ts, matchId, players,
                   mode: config.atbMode || 'standard', direction: config.atbDirection || 'forward',
                   structure: { kind: 'legs' as const, bestOfLegs: legs },
-                  config: {} },
+                  config: atbConfig },
                 { eventId: genId(), type: 'ATBLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
               break
@@ -2055,7 +2065,13 @@ export default function App() {
               initialEvents = [
                 { eventId: genId(), type: 'CTFMatchStarted', ts, matchId, players,
                   structure: { kind: 'legs' as const, bestOfLegs: legs },
-                  config: { rounds: config.ctfRounds || 20 },
+                  config: {
+                    rounds: config.ctfRounds || 20,
+                    sequenceMode: config.ctfSequenceMode || 'ascending',
+                    multiplierMode: config.ctfMultiplierMode || 'standard',
+                    rotateOrder: config.ctfRotateOrder ?? false,
+                    retryZeroDrawFields: config.ctfRetryZeroDraw ?? false,
+                  },
                   generatedSequence: Array.from({ length: config.ctfRounds || 20 }, (_, i) => ({ number: i + 1 })) },
                 { eventId: genId(), type: 'CTFLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
@@ -2064,7 +2080,13 @@ export default function App() {
             case 'str': {
               initialEvents = [
                 { eventId: genId(), type: 'StrMatchStarted', ts, matchId, players,
-                  mode: 'all', ringMode: config.strRingMode || 'triple',
+                  mode: config.strMode || 'all',
+                  ringMode: config.strRingMode || 'triple',
+                  targetNumber: config.strTargetNumber,
+                  numberOrder: config.strNumberOrder || 'sequential',
+                  turnOrder: config.strTurnOrder || 'sequential',
+                  bullMode: config.strBullMode || 'both',
+                  bullPosition: config.strBullPosition || 'end',
                   structure: { kind: 'legs' as const, bestOfLegs: legs } },
                 { eventId: genId(), type: 'StrLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
@@ -2073,7 +2095,7 @@ export default function App() {
             case 'highscore': {
               initialEvents = [
                 { eventId: genId(), type: 'HighscoreMatchStarted', matchId, timestamp: Date.now(),
-                  players, targetScore: 500,
+                  players, targetScore: config.highscoreTargetScore || 500,
                   structure: { kind: 'legs' as const, bestOfLegs: legs } },
                 { eventId: genId(), type: 'HighscoreLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
@@ -2099,13 +2121,13 @@ export default function App() {
               }))
               // Full config matching defaultKillerConfig() — engine expects startingLives, not lives
               const killerConfig = {
-                hitsToBecomeKiller: 1,
-                qualifyingRing: 'DOUBLE' as const,
+                hitsToBecomeKiller: config.killerHitsToBecomeKiller ?? 1,
+                qualifyingRing: config.killerQualifyingRing || 'DOUBLE' as const,
                 startingLives: config.killerLives || 3,
-                friendlyFire: true,
-                selfHeal: false,
-                noNegativeLives: true,
-                secretNumbers: false,
+                friendlyFire: config.killerFriendlyFire ?? true,
+                selfHeal: config.killerSelfHeal ?? false,
+                noNegativeLives: config.killerNoNegativeLives ?? true,
+                secretNumbers: config.killerSecretNumbers ?? false,
                 targetAssignment: 'auto' as const,
               }
               initialEvents = [
@@ -2120,21 +2142,31 @@ export default function App() {
               break
             }
             case 'bobs27': {
-              const targets = Array.from({ length: 20 }, (_, i) => ({ number: i + 1, isDouble: true }))
+              const includeBull = config.bobs27IncludeBull ?? false
+              const bobsTargets: Array<{ number: number; isDouble: boolean }> = Array.from({ length: 20 }, (_, i) => ({ number: i + 1, isDouble: true }))
+              if (includeBull) bobsTargets.push({ number: 25, isDouble: true })
               initialEvents = [
                 { eventId: genId(), type: 'Bobs27MatchStarted', ts, matchId, players,
-                  config: { includeBull: false, allowNegative: false }, targets },
+                  config: {
+                    includeBull,
+                    allowNegative: config.bobs27AllowNegative ?? false,
+                  },
+                  targets: bobsTargets },
               ]
               break
             }
             case 'operation': {
-              // Generate target number upfront so both players get the same one
-              const opTargetNumber = Math.floor(Math.random() * 20) + 1
+              const opTargetMode = config.operationTargetMode || 'RANDOM_NUMBER'
+              const opTargetNumber = opTargetMode === 'MANUAL_NUMBER'
+                ? (config.operationTargetNumber ?? 20)
+                : opTargetMode === 'BULL'
+                  ? undefined
+                  : Math.floor(Math.random() * 20) + 1
               initialEvents = [
                 { eventId: genId(), type: 'OperationMatchStarted', ts, matchId, players,
-                  config: { targetMode: 'RANDOM_NUMBER', targetNumber: null, rounds: config.operationRounds || 10 } },
+                  config: { targetMode: opTargetMode, targetNumber: null, rounds: config.operationRounds || 10 } },
                 { eventId: genId(), type: 'OperationLegStarted', ts, matchId,
-                  legIndex: 0, targetMode: 'RANDOM_NUMBER', targetNumber: opTargetNumber },
+                  legIndex: 0, targetMode: opTargetMode, targetNumber: opTargetNumber },
               ]
               break
             }

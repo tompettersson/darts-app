@@ -30,19 +30,36 @@ export type GameConfig = {
 
   // ATB
   atbMode?: string
-  atbDirection?: string
+  atbDirection?: 'forward' | 'backward'
+  atbSequenceMode?: 'ascending' | 'board' | 'random'
+  atbTargetMode?: 'any' | 'single' | 'double' | 'triple' | 'mixed' | 'mixedRandom'
+  atbMultiplierMode?: 'standard' | 'standard2' | 'single'
+  atbSpecialRule?: 'none' | 'bullHeavy' | 'suddenDeath' | 'noDoubleEscape' | 'miss3Back'
+  atbMiss3BackVariant?: 'previous' | 'start'
+  atbBullPosition?: 'start' | 'end' | 'random'
   atbLives?: number
   atbLegs?: number
 
   // CTF
   ctfRounds?: number
   ctfLegs?: number
+  ctfSequenceMode?: 'ascending' | 'board' | 'random'
+  ctfMultiplierMode?: 'standard' | 'standard2' | 'single'
+  ctfRotateOrder?: boolean
+  ctfRetryZeroDraw?: boolean
 
   // Sträußchen
   strRingMode?: 'triple' | 'double'
+  strMode?: 'single' | 'all'
+  strTargetNumber?: number
+  strNumberOrder?: 'fixed' | 'sequential' | 'random'
+  strTurnOrder?: 'sequential' | 'alternating' | 'fixed'
+  strBullMode?: 'red-only' | 'both'
+  strBullPosition?: 'start' | 'end' | 'random'
   strLegs?: number
 
   // Highscore
+  highscoreTargetScore?: number
   highscoreRounds?: number
   highscoreLegs?: number
 
@@ -51,13 +68,23 @@ export type GameConfig = {
 
   // Killer
   killerLives?: number
+  killerQualifyingRing?: 'DOUBLE' | 'TRIPLE'
+  killerHitsToBecomeKiller?: number
+  killerFriendlyFire?: boolean
+  killerSelfHeal?: boolean
+  killerNoNegativeLives?: boolean
+  killerSecretNumbers?: boolean
   killerLegs?: number
   killerSets?: number
 
   // Bobs 27
+  bobs27IncludeBull?: boolean
+  bobs27AllowNegative?: boolean
   bobs27Legs?: number
 
   // Operation
+  operationTargetMode?: 'MANUAL_NUMBER' | 'RANDOM_NUMBER' | 'BULL'
+  operationTargetNumber?: number
   operationRounds?: number
   operationLegs?: number
 }
