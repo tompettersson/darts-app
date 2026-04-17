@@ -152,19 +152,43 @@ export default function OpenGames({ games, onSelect, onDiscard, onBack }: Props)
                       {info.label}
                     </span>
                     {game.isMultiplayer && (
-                      <span style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        textTransform: 'uppercase' as const,
-                        letterSpacing: '0.05em',
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        background: '#3b82f620',
-                        color: '#3b82f6',
-                        border: '1px solid #3b82f640',
-                      }}>
-                        Online
-                      </span>
+                      <>
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          textTransform: 'uppercase' as const,
+                          letterSpacing: '0.05em',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: '#3b82f620',
+                          color: '#3b82f6',
+                          border: '1px solid #3b82f640',
+                        }}>
+                          Online
+                        </span>
+                        {game.roomCode && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigator.clipboard?.writeText(game.roomCode!).catch(() => {})
+                            }}
+                            title="Raum-Code kopieren"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              background: colors.bgMuted,
+                              color: colors.fg,
+                              border: `1px solid ${colors.border}`,
+                              cursor: 'pointer',
+                              letterSpacing: '0.08em',
+                            }}>
+                            {game.roomCode}
+                          </span>
+                        )}
+                      </>
                     )}
                   </span>
                   <span style={{ fontSize: 12, color: colors.fgMuted }}>

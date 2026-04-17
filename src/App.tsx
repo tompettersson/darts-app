@@ -3019,6 +3019,14 @@ export default function App() {
         setMultiplayerRemoteEvents(events as DartsEvent[])
         setMultiplayerMyPlayerId(auth.user?.profileId ?? '')
 
+        // Room-Code in active_games aktualisieren — damit der Gegner auf seinem Gerät
+        // den NEUEN Code sehen kann (active_games ist shared via Neon DB)
+        registerActiveGame({
+          ...game,
+          roomCode: newRoomCode,
+          startedAt: new Date().toISOString(),
+        })
+
         // Create the room via mpActions
         const myProfile = getProfiles().find(p => p.id === (auth.user?.profileId ?? ''))
         mpActions.createRoom({
