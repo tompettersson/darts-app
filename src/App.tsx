@@ -2387,30 +2387,35 @@ export default function App() {
   }
 
   // MULTIPLAYER GAME (routes to correct game component based on gameType)
-  // Floating abort button for multiplayer games (always accessible)
-  const MultiplayerAbortButton = () => (
-    <button
-      onClick={() => {
-        if (confirm('Online-Spiel wirklich verlassen?')) {
-          mpActions.disconnect()
-          setMultiplayerRoomCode(null)
-          setMultiplayerMatchId(null)
-          setMultiplayerRemoteEvents(null)
-          setActiveMatchId(undefined)
-          setView('menu')
-        }
-      }}
-      style={{
-        position: 'fixed', bottom: 12, left: 12, zIndex: 9999,
-        padding: '8px 14px', borderRadius: 10,
-        border: `1px solid ${colors.error}`, background: `${colors.error}15`,
-        color: colors.error, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-        opacity: 0.7,
-      }}
-    >
-      ✕ Spiel verlassen
-    </button>
-  )
+  // Floating abort button for multiplayer games (Desktop only — auf Mobile liegt
+  // er sonst über der Spielerzeile; dort reicht der X-Button in der Header-Leiste)
+  const MultiplayerAbortButton = () => {
+    const isMobileDevice = typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600
+    if (isMobileDevice) return null
+    return (
+      <button
+        onClick={() => {
+          if (confirm('Online-Spiel wirklich verlassen?')) {
+            mpActions.disconnect()
+            setMultiplayerRoomCode(null)
+            setMultiplayerMatchId(null)
+            setMultiplayerRemoteEvents(null)
+            setActiveMatchId(undefined)
+            setView('menu')
+          }
+        }}
+        style={{
+          position: 'fixed', bottom: 12, left: 12, zIndex: 9999,
+          padding: '8px 14px', borderRadius: 10,
+          border: `1px solid ${colors.error}`, background: `${colors.error}15`,
+          color: colors.error, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          opacity: 0.7,
+        }}
+      >
+        ✕ Spiel verlassen
+      </button>
+    )
+  }
 
   if (view === 'multiplayer-game' && multiplayerMatchId) {
     // Determine all player IDs on this device (primary player + local players sharing device)

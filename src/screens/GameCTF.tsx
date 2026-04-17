@@ -1088,7 +1088,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           </div>
 
           {/* Dartboard */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
               size={Math.min(screenWidth - 20, 300)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
           </div>

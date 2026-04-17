@@ -1008,7 +1008,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
               </>)
             }
 
-            // PORTRAIT: Buttons oben, Dartscheibe unten
+            // PORTRAIT: Buttons oben, Dartscheibe unten — SVG skaliert auf verfügbaren
+            // Platz (via flex + 100%/100%), maxSize deckelt die Breite auf großen Geräten.
             const portBoardSize = Math.min((typeof window !== 'undefined' ? window.innerWidth : 360) - 12, 320)
             return (<>
               {/* Spielername + Zielzahl */}
@@ -1043,9 +1044,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                 <div style={{ display: 'flex', gap: 5 }}>{singleBtn}{doubleBtn}{tripleBtn}</div>
                 <div style={{ display: 'flex', gap: 5 }}>{undoBtn}{dartBackBtn}{missBtn}{okBtn}</div>
               </div>
-              {/* Dartboard unten */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'visible', flex: 1, minHeight: 0, justifyContent: 'center' }}>
-                <svg viewBox="0 0 240 240" style={{ width: portBoardSize, height: portBoardSize, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+              {/* Dartboard unten — skaliert auf verfügbaren Platz, keine Überlappung */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden', flex: 1, minHeight: 0, justifyContent: 'center', width: '100%' }}>
+                <svg viewBox="0 0 240 240" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', maxWidth: portBoardSize, maxHeight: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
                   <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
                   <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
                   <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />

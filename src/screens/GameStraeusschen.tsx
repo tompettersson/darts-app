@@ -734,7 +734,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
           </div>
 
           {/* Dartboard */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'visible' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'hidden' }}>
             <StraeusschenDartboard
               flashVisible={hitFlashVisible}
               targetNumber={activePlayerState?.currentNumber ?? 20}

@@ -1194,7 +1194,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           )}
 
           {/* Dartboard-Block: Buttons oben, Scheibe unten (Mobile: interaktive Elemente weg vom unteren Bildschirmrand) */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {/* Darts-Indikatoren */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
               {[0, 1, 2].map(i => {
