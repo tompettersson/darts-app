@@ -355,12 +355,19 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
     if (multiplayer?.enabled) multiplayer.submitEvents(newEvents.slice(events.length))
   }, [activePlayerId, currentDarts, state, events, matchId, elapsedMs, legStartElapsedMs, onShowSummary, multiplayer, isMyTurn])
 
-  // Auto-Confirm bei 3 Darts
+  // Auto-Confirm bei 3 Darts ODER wenn Target mit diesem Dart erreicht
   useEffect(() => {
-    if (currentDarts.length >= 3) {
-      confirmTurn()
+    if (currentDarts.length === 0) return
+    if (currentDarts.length >= 3) { confirmTurn(); return }
+    // Prüfe ob Target mit den bisher geworfenen Darts erreicht ist
+    if (state.match && activePlayerId) {
+      const currentScore = state.scoreByPlayer[activePlayerId] ?? 0
+      const turnScore = currentDarts.reduce((sum, d) => sum + d.value, 0)
+      if (currentScore + turnScore >= state.match.targetScore) {
+        setTimeout(() => confirmTurn(), 300)
+      }
     }
-  }, [currentDarts.length, confirmTurn])
+  }, [currentDarts, confirmTurn, state, activePlayerId])
 
   // Undo letzter Dart
   const undoLastDart = useCallback(() => {
