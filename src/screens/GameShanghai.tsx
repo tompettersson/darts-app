@@ -34,6 +34,7 @@ import {
 import ATBDartboard from '../components/ATBDartboard'
 import ShanghaiHitChart from '../components/ShanghaiHitChart'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import {
   announceGameStart,
   announceATBHit,
@@ -754,10 +755,10 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         title={`Shanghai${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
-      {/* Info-Leiste (hidden on mobile — info shown in mobile round bar) */}
+      {/* Info-Leiste — Timer darin auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
       <div
         style={{
-          display: isMobile ? 'none' : 'flex',
+          display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           gap: 12,
@@ -826,19 +827,21 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
           </span>
         )}
 
-        {/* Timer */}
-        <div
-          style={{
-            fontFamily: 'monospace',
-            fontSize: 16,
-            fontWeight: 700,
-            color: c.ledOn,
-            textShadow: `0 0 10px ${c.ledGlow}`,
-            marginLeft: 'auto',
-          }}
-        >
-          {formatDuration(elapsedMs)}
-        </div>
+        {/* Timer — auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
+        {!isMobile && (
+          <div
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 16,
+              fontWeight: 700,
+              color: c.ledOn,
+              textShadow: `0 0 10px ${c.ledGlow}`,
+              marginLeft: 'auto',
+            }}
+          >
+            {formatDuration(elapsedMs)}
+          </div>
+        )}
       </div>
 
       {/* Main Content — Mobile */}
@@ -860,7 +863,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                   {shanghaiState.scoreByPlayer[activePlayerId!] ?? 0}
                 </span>
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: 11, color: isArcade ? c.ledOn : colors.fgMuted }}>{formatDuration(elapsedMs)}</div>
+              <div style={{ width: 40 }} aria-hidden="true" />
             </div>
           )}
 
@@ -1506,6 +1509,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
           }}
         />
       )}
+
+      {/* Floating Timer — nur Mobile */}
+      {isMobile && <FloatingTimer elapsedMs={elapsedMs} />}
     </div>
   )
 }

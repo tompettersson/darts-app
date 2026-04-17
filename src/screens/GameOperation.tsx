@@ -38,6 +38,7 @@ import {
   type HitType,
 } from '../dartsOperation'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import {
   playOperationStreakSound,
   announceOperationGameStart,
@@ -1124,9 +1125,11 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
         background: c.cardBg, fontSize: 13, flexShrink: 0,
       }}>
         {!isMobile && <span style={{ fontSize: 13, color: c.textDim }}>Operation: Ein Feld, keine Gnade</span>}
-        <span style={{ fontFamily: 'monospace', color: c.textDim, fontSize: isMobile ? 12 : 13 }}>
-          {formatDuration(elapsedMs)}
-        </span>
+        {!isMobile && (
+          <span style={{ fontFamily: 'monospace', color: c.textDim, fontSize: 13 }}>
+            {formatDuration(elapsedMs)}
+          </span>
+        )}
         {state.match!.config.legsCount > 1 && (
           <span style={{ fontSize: 11, color: c.textDim }}>
             First to {Math.ceil(state.match!.config.legsCount / 2)} · Leg {(state.currentLegIndex + 1)}
@@ -1829,6 +1832,9 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
           100% { transform: translateX(-50%) scale(1); opacity: 1; }
         }
       `}</style>
+
+      {/* Floating Timer — nur Mobile */}
+      {isMobile && <FloatingTimer elapsedMs={elapsedMs} />}
     </div>
   )
 }

@@ -33,6 +33,7 @@ import {
 import type { Bed } from '../darts501'
 import { playTriple20Sound, announceGameStart, announceNextPlayer, announceScore, announceLegDart, announceMatchDart, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import HighscoreStaircaseChart, { type HighscoreVisit } from '../components/HighscoreStaircaseChart'
 import HighscoreProgressionChart from '../components/HighscoreProgressionChart'
 import { PLAYER_COLORS } from '../playerColors'
@@ -865,11 +866,10 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           onExit()
         }}
         title={`Highscore ${targetScore}${legStandStr}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
-        subtitle={formatDuration(elapsedMs)}
+        subtitle={isMobileHS ? undefined : formatDuration(elapsedMs)}
       />
 
-      {/* Timer + Multiplikator Info — im Landscape versteckt (spart Höhe) */}
-      {!(isMobileHS && isLandscapeHS) && (
+      {/* Timer + Multiplikator Info — Timer auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
       <div style={{
         flexShrink: 0,
         background: c.cardBg,
@@ -880,9 +880,11 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
         alignItems: 'center',
         gap: 16,
       }}>
-        <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: c.ledOn }}>
-          {formatDuration(elapsedMs)}
-        </span>
+        {!isMobileHS && (
+          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: c.ledOn }}>
+            {formatDuration(elapsedMs)}
+          </span>
+        )}
         {mult !== 1 && (
           <span style={{
             padding: '3px 8px',
@@ -896,7 +898,6 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           </span>
         )}
       </div>
-      )}
 
       {/* Haupt-Layout */}
       {isMobileHS && isLandscapeHS ? (
@@ -1254,6 +1255,9 @@ export default function GameHighscore({ matchId, onExit, onShowSummary, multipla
           </div>
         )
       })()}
+
+      {/* Floating Timer — nur Mobile */}
+      {isMobileHS && <FloatingTimer elapsedMs={elapsedMs} />}
     </div>
   )
 }

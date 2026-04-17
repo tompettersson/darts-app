@@ -51,6 +51,7 @@ import { useGameState } from '../hooks/useGameState'
 import { computeKillerMatchStats } from '../stats/computeKillerStats'
 import type { KillerStoredMatch } from '../types/killer'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import KillerDartboard from '../components/KillerDartboard'
 import { PLAYER_COLORS } from '../playerColors'
 import { useDisableScale } from '../components/ScaleWrapper'
@@ -1229,11 +1230,11 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           onAbort()
         }}
         title={`Killer${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
-        subtitle={isMobileK ? `${formatDuration(elapsedMs)} · ${state.phase === 'qualifying' ? 'Qualifying' : state.phase === 'killing' ? 'Killing' : 'Beendet'} · ${qualLabel}-Ring${config.selfHeal ? ' · Self-Heal' : ''}${config.friendlyFire ? ' · Friendly Fire' : ''}` : undefined}
+        subtitle={isMobileK ? `${state.phase === 'qualifying' ? 'Qualifying' : state.phase === 'killing' ? 'Killing' : 'Beendet'} · ${qualLabel}-Ring${config.selfHeal ? ' · Self-Heal' : ''}${config.friendlyFire ? ' · Friendly Fire' : ''}` : undefined}
       />
 
-      {/* Info-Leiste — auf Mobile versteckt */}
-      {!isMobileK && (<div
+      {/* Info-Leiste — Timer darin auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
+      <div
         style={{
           display: 'flex',
           justifyContent: 'center',
@@ -1337,20 +1338,22 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           </>
         )}
 
-        {/* Timer */}
-        <div
-          style={{
-            fontFamily: 'monospace',
-            fontSize: 16,
-            fontWeight: 700,
-            color: '#e74c3c',
-            textShadow: '0 0 10px rgba(231, 76, 60, 0.4)',
-            marginLeft: 'auto',
-          }}
-        >
-          {formatDuration(elapsedMs)}
-        </div>
-      </div>)}
+        {/* Timer — auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
+        {!isMobileK && (
+          <div
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#e74c3c',
+              textShadow: '0 0 10px rgba(231, 76, 60, 0.4)',
+              marginLeft: 'auto',
+            }}
+          >
+            {formatDuration(elapsedMs)}
+          </div>
+        )}
+      </div>
 
       {/* ===== MOBILE LAYOUT ===== */}
       {isMobileK ? (
@@ -2170,6 +2173,9 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
           to { opacity: 1; transform: scale(1); }
         }
       `}</style>
+
+      {/* Floating Timer — nur Mobile */}
+      {isMobileK && <FloatingTimer elapsedMs={elapsedMs} />}
     </div>
   )
 }

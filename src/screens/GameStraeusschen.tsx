@@ -34,6 +34,7 @@ import {
 import type { StrTargetNumber, StrRingMode } from '../types/straeusschen'
 import StraeusschenDartboard from '../components/StraeusschenDartboard'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import { computeStrLegStats, type StrPlayerLegStat } from '../stats/computeStraeusschenStats'
 import {
   announceGameStart,
@@ -585,7 +586,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
         title={`${modeLabel}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
-      {/* Info-Leiste */}
+      {/* Info-Leiste — Timer darin auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
       <div
         style={{
           display: 'flex',
@@ -612,18 +613,20 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
             </span>
           </span>
         )}
-        {/* Timer */}
-        <div
-          style={{
-            fontFamily: 'monospace',
-            fontSize: 18,
-            fontWeight: 700,
-            color: c.ledOn,
-            textShadow: `0 0 10px ${c.ledGlow}`,
-          }}
-        >
-          {formatDuration(elapsedMs)}
-        </div>
+        {/* Timer — auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
+        {!isMobile && (
+          <div
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 18,
+              fontWeight: 700,
+              color: c.ledOn,
+              textShadow: `0 0 10px ${c.ledGlow}`,
+            }}
+          >
+            {formatDuration(elapsedMs)}
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -1215,6 +1218,9 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
           }}
         />
       )}
+
+      {/* Floating Timer — nur Mobile */}
+      {isMobile && <FloatingTimer elapsedMs={elapsedMs} />}
     </div>
   )
 }

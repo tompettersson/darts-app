@@ -34,6 +34,7 @@ import {
 } from '../dartsAroundTheBlock'
 import ATBDartboard from '../components/ATBDartboard'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import {
   announceGameStart,
   announceATBHit,
@@ -844,7 +845,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         title={`ATB - ${getModeLabel(state.match.mode)} - ${getDirectionLabel(state.match.direction)}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
-      {/* Info-Leiste */}
+      {/* Info-Leiste — Timer darin auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
       <div
         style={{
           display: 'flex',
@@ -945,19 +946,21 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           </span>
         )}
 
-        {/* Timer */}
-        <div
-          style={{
-            fontFamily: 'monospace',
-            fontSize: 16,
-            fontWeight: 700,
-            color: c.ledOn,
-            textShadow: `0 0 10px ${c.ledGlow}`,
-            marginLeft: 'auto',
-          }}
-        >
-          {formatDuration(elapsedMs)}
-        </div>
+        {/* Timer — auf Mobile versteckt (FloatingTimer ersetzt Timer) */}
+        {!isMobile && (
+          <div
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 16,
+              fontWeight: 700,
+              color: c.ledOn,
+              textShadow: `0 0 10px ${c.ledGlow}`,
+              marginLeft: 'auto',
+            }}
+          >
+            {formatDuration(elapsedMs)}
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -1498,6 +1501,9 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           }}
         />
       )}
+
+      {/* Floating Timer — nur Mobile */}
+      {isMobile && <FloatingTimer elapsedMs={elapsedMs} />}
     </div>
   )
 }

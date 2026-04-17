@@ -29,6 +29,7 @@ import {
   type Bobs27ThrowResult,
 } from '../dartsBobs27'
 import GameControls, { PauseOverlay } from '../components/GameControls'
+import FloatingTimer from '../components/FloatingTimer'
 import { announceBobs27PlayerTurn, announceBobs27MustScore, announceGameStart, cancelDebouncedAnnounce, debouncedAnnounce } from '../speech'
 import { PLAYER_COLORS } from '../playerColors'
 import { useDisableScale } from '../components/ScaleWrapper'
@@ -662,7 +663,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
               {(state.match?.config.legsCount ?? 1) > 1 && (
                 <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
               )}
-              <span style={{ fontSize: 11, fontFamily: 'monospace', color: c.textDim }}>{formatDuration(elapsedMs)}</span>
             </div>
             <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch}
               title={b27Title} />
@@ -785,6 +785,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
             @keyframes fadeUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
             @keyframes spin { to { transform: rotate(360deg); } }
           `}</style>
+          <FloatingTimer elapsedMs={elapsedMs} />
         </div>
       )
     }
@@ -800,7 +801,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
             {(state.match?.config.legsCount ?? 1) > 1 && (
               <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
             )}
-            <span style={{ fontSize: 11, fontFamily: 'monospace', color: c.textDim }}>{formatDuration(elapsedMs)}</span>
           </div>
           <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch}
             title={b27Title} />
@@ -963,6 +963,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
           @keyframes fadeUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
           @keyframes spin { to { transform: rotate(360deg); } }
         `}</style>
+        <FloatingTimer elapsedMs={elapsedMs} />
       </div>
     )
   }
