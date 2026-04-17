@@ -224,11 +224,24 @@ export default {
     try {
       switch (msg.type) {
         case 'create-room': {
+          const hp = msg.hostPlayer as PlayerRef
+          // Idempotent: Wenn Raum existiert und der User der Host ist → Rejoin
           if (state.players.length > 0) {
+            const existingHost = state.players.find(p => p.isHost)
+            if (existingHost && existingHost.playerId === hp.playerId) {
+              // Host Rejoin — Verbindung wiederherstellen
+              existingHost.connected = true
+              existingHost.deviceId = conn.id
+              conn.setState({ deviceId: conn.id, playerIds: [existingHost.playerId] } as ConnState)
+              sendSync(conn)
+              broadcastPlayers(room)
+              await save(room)
+              break
+            }
+            // Jemand anderes will Raum erstellen obwohl schon einer existiert → error
             send(conn, { type: 'error', message: 'Room already created', code: 'ROOM_EXISTS' })
             return
           }
-          const hp = msg.hostPlayer as PlayerRef
           const hostPlayer: RoomPlayer = {
             playerId: hp.playerId, name: hp.name ?? hp.playerId,
             color: hp.color, isHost: true, isReady: false,

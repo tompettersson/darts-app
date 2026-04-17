@@ -700,6 +700,39 @@ export default function App() {
     }
   }, [view, mpState.phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Host Rejoin: Wenn der Host in die Lobby kommt und das Spiel läuft bereits (Rejoin-Szenario),
+  // direkt ins Spiel weiter statt in der Lobby warten
+  useEffect(() => {
+    if (view !== 'multiplayer-lobby-host') return
+    if (mpState.phase !== 'playing') return
+    const events = mpEventsRef.current
+    if (!events || events.length === 0) return
+
+    const firstEvent = events[0] as any
+    const matchId = firstEvent?.matchId
+    if (!matchId) return
+
+    const gameType = mpConfigRef.current?.gameType || (() => {
+      const eventType: string = firstEvent?.type ?? ''
+      if (eventType.startsWith('Cricket')) return 'cricket'
+      if (eventType.startsWith('ATB')) return 'atb'
+      if (eventType.startsWith('CTF')) return 'ctf'
+      if (eventType.startsWith('Str')) return 'str'
+      if (eventType.startsWith('Shanghai')) return 'shanghai'
+      if (eventType.startsWith('Killer')) return 'killer'
+      if (eventType.startsWith('Bobs27')) return 'bobs27'
+      if (eventType.startsWith('Operation')) return 'operation'
+      if (eventType.startsWith('Highscore')) return 'highscore'
+      return 'x01'
+    })()
+
+    setMultiplayerMatchId(matchId)
+    setMultiplayerGameType(gameType)
+    setMultiplayerRemoteEvents(events)
+    setActiveMatchId(matchId)
+    setView('multiplayer-game')
+  }, [view, mpState.phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Helper: clean up multiplayer state when leaving a summary screen that was reached from MP
   const mpSummaryDisconnect = () => {
     if (multiplayerSummaryActive) {
