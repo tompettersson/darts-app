@@ -412,7 +412,13 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     if (config.specialRule === 'bullHeavy' && targetNum === 'BULL') {
       bullAutoConfirmRef.current = true
     }
-  }, [activePlayerId, current, state, multiplayer, isMyTurn, config.specialRule])
+
+    // Auto-Confirm wenn Leg/Match mit diesem Dart gewonnen wurde
+    const seqLength = extSeq ? extSeq.length : state.match.sequence.length
+    if (newIndex >= seqLength) {
+      bullAutoConfirmRef.current = true
+    }
+  }, [activePlayerId, current, state, multiplayer, isMyTurn, config.specialRule, extSeq])
 
   // Miss hinzufügen
   const addMiss = useCallback(() => {

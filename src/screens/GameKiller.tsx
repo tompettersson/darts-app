@@ -659,12 +659,21 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     return () => window.removeEventListener('keydown', handler)
   }, [intermission, continueNextLeg, state.playerOrder, legManualTargets])
 
-  // Auto-Confirm bei 3 Darts
+  // Auto-Confirm bei 3 Darts ODER wenn Match/Leg mit aktuellem Dart gewonnen würde
   useEffect(() => {
-    if (current.length === 3) {
-      confirmTurn()
+    if (current.length === 0) return
+    if (current.length === 3) { confirmTurn(); return }
+    // Simuliere Turn mit nur den bisherigen Darts
+    if (activePlayerId && current.length > 0) {
+      try {
+        const result = recordKillerTurn(state, activePlayerId, [...current])
+        if (result.matchFinished || result.legFinished) {
+          // Sieg-Dart geworfen — sofort bestätigen (mit kurzem Delay für UX)
+          setTimeout(() => confirmTurn(), 300)
+        }
+      } catch { /* ignore */ }
     }
-  }, [current.length, confirmTurn])
+  }, [current, confirmTurn, activePlayerId, state])
 
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {
