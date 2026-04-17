@@ -845,7 +845,20 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
       </div>
 
       {/* Main Content — Mobile */}
-      {isMobile ? (
+      {isMobile ? (() => {
+        // Kartenreihen basierend auf Spielerzahl:
+        // 1-2 Spieler → 1 Reihe, 3-4 → 2 Reihen, 5-6 → 3 Reihen, 7-8 → 4 Reihen.
+        // Bei ungerader Zahl ab 3 steht ein Einzelspieler in der OBEREN Reihe, darunter Paare.
+        const pCount = players.length
+        const playerRowCount: 1 | 2 | 3 | 4 = pCount <= 2 ? 1 : Math.min(4, Math.ceil(pCount / 2)) as 1 | 2 | 3 | 4
+        // 4 Größen-Presets — je mehr Kartenreihen, desto kleiner Dartscheibe, Zielzahl und Buttons
+        const SIZE = {
+          1: { board: 320, target: 88, sdt: 46, card: { pad: '6px 10px', name: 16, score: 20, mini: 14 } },
+          2: { board: 280, target: 72, sdt: 42, card: { pad: '5px 9px',  name: 15, score: 18, mini: 13 } },
+          3: { board: 230, target: 56, sdt: 38, card: { pad: '4px 8px',  name: 13, score: 16, mini: 12 } },
+          4: { board: 190, target: 44, sdt: 34, card: { pad: '3px 7px',  name: 12, score: 14, mini: 11 } },
+        }[playerRowCount]
+        return (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
           paddingTop: 'calc(0px + env(safe-area-inset-top, 0px))',
@@ -895,7 +908,7 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
               </svg>
             )
             const targetNum = (
-              <div style={{ fontSize: isLandscape ? 72 : 88, fontWeight: 900, lineHeight: 1, minWidth: isLandscape ? 60 : 80, textAlign: 'center',
+              <div style={{ fontSize: isLandscape ? 72 : SIZE.target, fontWeight: 900, lineHeight: 1, minWidth: isLandscape ? 60 : 80, textAlign: 'center',
                 color: isArcade ? c.ledOn : colors.accent, textShadow: isArcade ? `0 0 30px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)' }}>
                 {targetNumber}
               </div>
@@ -926,9 +939,9 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             const btnT = { ...btnS, border: `2px solid ${tCol}`, background: isArcade ? '#7f1d1d' : '#fee2e2', color: isArcade ? tCol : '#b91c1c' }
             const actBtnStyle = (enabled: boolean) => ({ flex: 1, height: 36, borderRadius: 6, border: `1.5px solid ${isArcade ? (enabled ? '#555' : '#333') : colors.border}`, background: isArcade ? '#222' : colors.bgCard, color: enabled ? (isArcade ? c.textBright : colors.fg) : (isArcade ? c.textDim : colors.fgMuted), fontWeight: 700 as const, fontSize: 12, cursor: enabled ? 'pointer' as const : 'not-allowed' as const, opacity: enabled ? 1 : 0.3 })
 
-            const singleBtn = <button onClick={() => { multRef.current = 1; setMult(1); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: isLandscape ? 36 : 46, ...btnS }}>Single</button>
-            const doubleBtn = <button onClick={() => { multRef.current = 2; setMult(2); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: isLandscape ? 36 : 46, ...btnD }}>Double</button>
-            const tripleBtn = <button onClick={() => { multRef.current = 3; setMult(3); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: isLandscape ? 36 : 46, ...btnT }}>Triple</button>
+            const singleBtn = <button onClick={() => { multRef.current = 1; setMult(1); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: isLandscape ? 36 : SIZE.sdt, ...btnS }}>Single</button>
+            const doubleBtn = <button onClick={() => { multRef.current = 2; setMult(2); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: isLandscape ? 36 : SIZE.sdt, ...btnD }}>Double</button>
+            const tripleBtn = <button onClick={() => { multRef.current = 3; setMult(3); addDart(targetNumber as any) }} disabled={dis} style={{ flex: 1, height: isLandscape ? 36 : SIZE.sdt, ...btnT }}>Triple</button>
             const undoBtn = <button onClick={undoLastTurn} disabled={!canUndo} style={actBtnStyle(canUndo)}>↩ Undo</button>
             const dartBackBtn = <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={actBtnStyle(current.length > 0)}>← Dart</button>
             const missBtn = <button onClick={addMiss} disabled={dis} style={{ flex: 1.5, height: 36, borderRadius: 6, border: `1.5px solid ${isArcade ? '#666' : '#dc262680'}`, background: isArcade ? '#2a1a1a' : '#fef2f2', color: isArcade ? c.red : '#dc2626', fontWeight: 800, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1 }}>✕ Miss</button>
@@ -1009,8 +1022,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             }
 
             // PORTRAIT: Buttons oben, Dartscheibe unten — SVG skaliert auf verfügbaren
-            // Platz (via flex + 100%/100%), maxSize deckelt die Breite auf großen Geräten.
-            const portBoardSize = Math.min((typeof window !== 'undefined' ? window.innerWidth : 360) - 12, 320)
+            // Platz (via flex + 100%/100%), maxSize richtet sich nach Spieleranzahl.
+            const portBoardSize = Math.min((typeof window !== 'undefined' ? window.innerWidth : 360) - 12, SIZE.board)
             return (<>
               {/* Spielername + Zielzahl */}
               {activePlayer && (
@@ -1080,9 +1093,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             </>)
           })()}
 
-          {/* Player Cards unten — Portrait: max 4 Zeilen, Landscape: max 2 Zeilen */}
+          {/* Player Cards — Portrait: 2 pro Reihe; ungerader Spieler steht einzeln in der OBEREN Reihe */}
           {(() => {
-            const pCount = players.length
             const rows: typeof players[] = []
             if (isLandscape) {
               // Landscape: max 2 Zeilen (wie vorher)
@@ -1090,11 +1102,15 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
               rows.push(players.slice(0, topCount))
               if (topCount < pCount) rows.push(players.slice(topCount))
             } else {
-              // Portrait: 1-4 eigene Zeile, 5+ 2 pro Zeile
-              if (pCount <= 4) {
-                players.forEach(p => rows.push([p]))
+              // Portrait: stets 2 pro Reihe; bei ungerader Anzahl ≥ 3 steht Spieler 1
+              //   allein in der obersten Reihe, die Paare folgen darunter.
+              if (pCount <= 2) {
+                rows.push([...players])
+              } else if (pCount % 2 === 1) {
+                rows.push([players[0]])
+                for (let i = 1; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
               } else {
-                for (let i = 0; i < pCount; i += 2) rows.push(players.slice(i, Math.min(i + 2, pCount)))
+                for (let i = 0; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
               }
             }
             const renderPlayerRow = (row: typeof players) => (
@@ -1109,19 +1125,19 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                   const roundScore = roundTurn?.score ?? 0
                   return (
                     <div key={p.playerId} style={{
-                      flex: row.length === 1 && pCount > 1 ? '0 0 calc(50% - 2px)' : '1 1 0',
-                      minWidth: 0, padding: '6px 10px', borderRadius: 8,
+                      flex: '1 1 0',
+                      minWidth: 0, padding: SIZE.card.pad, borderRadius: 8,
                       background: isActive ? (isArcade ? '#1a1a1a' : `${color}10`) : 'transparent',
                       borderLeft: `4px solid ${color}`,
                       boxShadow: isActive ? `0 0 8px ${color}30` : 'none',
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: isActive ? 700 : 500, fontSize: 16, color: isActive ? color : (isArcade ? c.textBright : colors.fg), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: isActive ? 700 : 500, fontSize: SIZE.card.name, color: isActive ? color : (isArcade ? c.textBright : colors.fg), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {p.name}
                         </span>
-                        <span style={{ fontSize: 20, color: isArcade ? c.yellow : '#b45309', fontWeight: 800, marginLeft: 6 }}>
+                        <span style={{ fontSize: SIZE.card.score, color: isArcade ? c.yellow : '#b45309', fontWeight: 800, marginLeft: 6 }}>
                           {totalScore}
-                          {hasThrownThisRound && <span style={{ fontSize: 14, color: roundScore > 0 ? (isArcade ? c.green : '#16a34a') : (isArcade ? c.red : '#dc2626'), marginLeft: 4 }}>+{roundScore}</span>}
+                          {hasThrownThisRound && <span style={{ fontSize: SIZE.card.mini, color: roundScore > 0 ? (isArcade ? c.green : '#16a34a') : (isArcade ? c.red : '#dc2626'), marginLeft: 4 }}>+{roundScore}</span>}
                         </span>
                       </div>
                     </div>
@@ -1142,7 +1158,8 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
             )
           })()}
         </div>
-      ) : (
+        )
+      })() : (
       /* Main Content — Desktop (unchanged) */
       <div
         style={{
