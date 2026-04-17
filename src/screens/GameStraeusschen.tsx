@@ -630,7 +630,12 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
       </div>
 
       {/* Main Content */}
-      {isMobile && !isLandscape ? (
+      {isMobile && !isLandscape ? (() => {
+        const pList = state.match?.players ?? []
+        const pCount = pList.length
+        const playerRowCount: 1 | 2 | 3 | 4 = pCount <= 2 ? 1 : Math.min(4, Math.ceil(pCount / 2)) as 1 | 2 | 3 | 4
+        const SIZE_BOARD = { 1: 280, 2: 250, 3: 210, 4: 180 }[playerRowCount]
+        return (
         /* ===== MOBILE PORTRAIT ===== */
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
@@ -639,13 +644,16 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
           paddingLeft: 'calc(6px + env(safe-area-inset-left, 0px))',
           paddingRight: 'calc(6px + env(safe-area-inset-right, 0px))',
         }}>
-          {/* Spieler kompakt oben */}
+          {/* Spieler kompakt oben — stets 2 pro Reihe; ungerader Spieler allein oben */}
           {(() => {
-            const pList = state.match?.players ?? []
-            const pCount = pList.length
             const rows: typeof pList[] = []
-            if (pCount <= 4) { pList.forEach(p => rows.push([p])) }
-            else { for (let i = 0; i < pCount; i += 2) rows.push(pList.slice(i, Math.min(i + 2, pCount))) }
+            if (pCount <= 2) { rows.push([...pList]) }
+            else if (pCount % 2 === 1) {
+              rows.push([pList[0]])
+              for (let i = 1; i < pCount; i += 2) rows.push(pList.slice(i, i + 2))
+            } else {
+              for (let i = 0; i < pCount; i += 2) rows.push(pList.slice(i, i + 2))
+            }
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0, marginBottom: 2 }}>
                 {rows.map((row, ri) => (
@@ -660,10 +668,10 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
                       const done = total - remaining
                       return (
                         <div key={p.playerId} style={{
-                          flex: row.length === 1 && pCount > 1 ? '0 0 calc(50% - 2px)' : '1 1 0',
+                          flex: '1 1 0',
                           minWidth: 0, padding: '5px 6px', borderRadius: 6,
-                          background: isAct ? `${color}20` : '#374151',
-                          border: isAct ? `2px solid ${color}` : '1px solid #4b5563', overflow: 'hidden',
+                          background: isAct ? `${color}20` : (isArcade ? '#374151' : colors.bgCard),
+                          border: isAct ? `2px solid ${color}` : `1px solid ${isArcade ? '#4b5563' : colors.border}`, overflow: 'hidden',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <span style={{ width: 5, height: 5, borderRadius: 99, background: color, flexShrink: 0 }} />
@@ -733,13 +741,13 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
             </div>
           </div>
 
-          {/* Dartboard */}
+          {/* Dartboard — Größe abhängig von Spielerkarten-Reihen (1-4) */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'hidden' }}>
             <StraeusschenDartboard
               flashVisible={hitFlashVisible}
               targetNumber={activePlayerState?.currentNumber ?? 20}
               triplesHit={activePlayerState?.numberProgress[activePlayerState?.currentNumber ?? 20]?.triplesHit ?? 0}
-              size={Math.min(screenWidth - 20, 280)}
+              size={Math.min(screenWidth - 20, SIZE_BOARD)}
               glowColor={activeColor}
               ringMode={state.match?.ringMode}
               bullMode={state.match?.bullMode}
@@ -747,7 +755,8 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
             />
           </div>
         </div>
-      ) : isMobile && isLandscape ? (
+        )
+      })() : isMobile && isLandscape ? (
         /* ===== MOBILE LANDSCAPE ===== */
         <div style={{ flex: 1, display: 'flex', gap: 6, minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
           {/* Links: Spieler */}

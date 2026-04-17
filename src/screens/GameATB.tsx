@@ -1132,8 +1132,14 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             </div>
           </div>
         </div>
-      ) : isMobile ? (
-        /* ===== MOBILE PORTRAIT ===== */
+      ) : isMobile ? (() => {
+        const players = state.match?.players ?? []
+        const pCount = players.length
+        // Reihenanzahl: 1-2 = 1, 3-4 = 2, 5-6 = 3, 7-8 = 4
+        const playerRowCount: 1 | 2 | 3 | 4 = pCount <= 2 ? 1 : Math.min(4, Math.ceil(pCount / 2)) as 1 | 2 | 3 | 4
+        // 4 Größen-Presets: Dartscheibe schrumpft, je mehr Kartenreihen
+        const SIZE_BOARD = { 1: 300, 2: 270, 3: 230, 4: 190 }[playerRowCount]
+        return (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
           paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))',
@@ -1141,20 +1147,17 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
           paddingLeft: 'calc(6px + env(safe-area-inset-left, 0px))',
           paddingRight: 'calc(6px + env(safe-area-inset-right, 0px))',
         }}>
-          {/* Spieler kompakt oben — 1-4: eine Zeile, 5+: zwei Zeilen */}
+          {/* Spieler kompakt oben — stets 2 pro Reihe; ungerader Spieler allein oben */}
           {(() => {
-            const players = state.match?.players ?? []
-            const pCount = players.length
-            // 1-4: eigene Zeile, 5+: max 2 pro Zeile
             const rows: typeof players[] = []
-            if (pCount <= 4) {
-              players.forEach(p => rows.push([p]))
+            if (pCount <= 2) {
+              rows.push([...players])
+            } else if (pCount % 2 === 1) {
+              rows.push([players[0]])
+              for (let i = 1; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
             } else {
-              for (let i = 0; i < pCount; i += 2) {
-                rows.push(players.slice(i, Math.min(i + 2, pCount)))
-              }
+              for (let i = 0; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
             }
-            const topCount = 0 // unused now
             const renderRow = (row: typeof players) => (
               <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
                 {row.map((p, index) => {
@@ -1167,10 +1170,10 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                   const playerSpecial = state.specialStateByPlayer[p.playerId]
                   return (
                     <div key={p.playerId} style={{
-                      flex: row.length === 1 && pCount > 1 ? '0 0 calc(50% - 2px)' : '1 1 0',
+                      flex: '1 1 0',
                       minWidth: 0, padding: '5px 6px', borderRadius: 6,
                       background: isAct ? `${color}20` : (isArcade ? '#1a1a1a' : colors.bgCard),
-                      border: isAct ? `2px solid ${color}` : '1px solid #333',
+                      border: isAct ? `2px solid ${color}` : `1px solid ${isArcade ? '#333' : colors.border}`,
                       opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1276,12 +1279,12 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
               }}>↶ Aufn.</button>
             </div>
 
-            {/* Dartboard — unten, nur zum Anschauen (kleiner für mehr Platz) */}
+            {/* Dartboard — unten, Größe abhängig von Kartenreihen (1-4) */}
             <div style={{ marginTop: 4, flexShrink: 0 }}>
               <ATBDartboard
                 currentTarget={nextTargetNumber}
                 players={dartboardPlayers}
-                size={Math.min(screenWidth - 20, 300)}
+                size={Math.min(screenWidth - 20, SIZE_BOARD)}
                 activePlayerColor={activePlayerColor}
                 pendingMultipliers={pendingMultipliers}
               />
@@ -1307,7 +1310,8 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             </div>
           </div>
         </div>
-      ) : (
+        )
+      })() : (
       /* ===== DESKTOP ===== */
       <div
         style={{
