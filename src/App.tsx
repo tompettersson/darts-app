@@ -596,6 +596,9 @@ export default function App() {
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
   // Vorausgefüllter Raum-Code für Guest beim Resume (aus "Offene Spiele")
   const [prefillJoinCode, setPrefillJoinCode] = useState<string>('')
+  // Pending-Events für Host-Resume: Wenn der Raum frisch erstellt wird (nicht idempotent rejoined),
+  // müssen die Events aus der DB an PartyKit hochgeladen werden
+  const [resumePendingEvents, setResumePendingEvents] = useState<{ matchId: string; gameType: string; events: any[] } | null>(null)
   const [multiplayerGameType, setMultiplayerGameType] = useState<string>(() => sessionStorage.getItem('mp-gametype') || 'x01')
   // Track if summary screen was reached from a multiplayer game (connection still alive)
   const [multiplayerSummaryActive, setMultiplayerSummaryActive] = useState(false)
@@ -699,6 +702,27 @@ export default function App() {
       return () => { clearInterval(timer); clearTimeout(timeout) }
     }
   }, [view, mpState.phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Host-Resume: Wenn der Raum frisch erstellt wurde (Events leer am Server) und wir haben
+  // DB-Events die hochgeladen werden müssen, dann startGame mit den Events senden
+  useEffect(() => {
+    if (!resumePendingEvents) return
+    if (view !== 'multiplayer-lobby-host') return
+    if (mpState.status !== 'connected') return
+
+    // Warte kurz auf ersten Sync vom Server um zu sehen ob Events schon existieren
+    const timer = setTimeout(() => {
+      // Wenn Server bereits Events hat (Rejoin-Fall), nichts tun
+      if (mpEventsRef.current && mpEventsRef.current.length > 0) {
+        setResumePendingEvents(null)
+        return
+      }
+      // Server hat leeren State → Events hochladen
+      mpActions.startGame(resumePendingEvents.matchId, resumePendingEvents.gameType, resumePendingEvents.events)
+      setResumePendingEvents(null)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [resumePendingEvents, view, mpState.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Host Rejoin: Wenn der Host in die Lobby kommt und das Spiel läuft bereits (Rejoin-Szenario),
   // direkt ins Spiel weiter statt in der Lobby warten
@@ -3067,12 +3091,14 @@ export default function App() {
         mpActions.disconnect()
 
         if (isOriginalHost) {
-          // Host: Raum mit altem Code erstellen, Events werden beim nächsten Sync geladen
+          // Host: Raum mit altem Code erstellen
           setMultiplayerRoomCode(roomCode)
           setMultiplayerMatchId(game.id)
           setMultiplayerGameType(game.gameType)
           setMultiplayerRemoteEvents(events as DartsEvent[])
           setMultiplayerMyPlayerId(userProfileId)
+          // Falls Raum abgelaufen → Events müssen hochgeladen werden wenn Server noch leer ist
+          setResumePendingEvents({ matchId: game.id, gameType: game.gameType, events })
           const myProfile = getProfiles().find(p => p.id === userProfileId)
           mpActions.createRoom({
             playerId: userProfileId,
