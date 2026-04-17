@@ -99,6 +99,7 @@ const LoginScreen = React.lazy(() =>
 
 // X01 Engine Types
 import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501'
+import { generateATBSequence } from './dartsAroundTheBlock'
 
 // Types (erased at compile time)
 import type { Preset } from './screens/NewGameStart'
@@ -2112,8 +2113,10 @@ export default function App() {
               break
             }
             case 'atb': {
+              const sequenceMode = config.atbSequenceMode || 'ascending'
+              const direction = config.atbDirection || 'forward'
               const atbConfig: any = {
-                sequenceMode: config.atbSequenceMode || 'ascending',
+                sequenceMode,
                 targetMode: config.atbTargetMode || 'any',
                 multiplierMode: config.atbMultiplierMode || 'standard',
                 specialRule: config.atbSpecialRule || 'none',
@@ -2122,11 +2125,18 @@ export default function App() {
               if (atbConfig.specialRule === 'miss3Back') {
                 atbConfig.miss3BackVariant = config.atbMiss3BackVariant || 'previous'
               }
+              // Legacy-Mode: wird für getSequence() und den Match-Titel benutzt.
+              // 'random' fällt auf 'ascending' zurück wie in NewGameATB.
+              const atbMode = sequenceMode === 'random' ? 'ascending' : sequenceMode
+              // Host generiert die Ziel-Sequenz einmalig — Gäste übernehmen sie aus dem Event,
+              // damit beide Seiten identische Reihenfolgen/Multiplier haben (auch bei zufälligen Modi).
+              const generatedSequence = generateATBSequence(atbConfig, direction)
               initialEvents = [
                 { eventId: genId(), type: 'ATBMatchStarted', ts, matchId, players,
-                  mode: config.atbMode || 'standard', direction: config.atbDirection || 'forward',
+                  mode: atbMode, direction,
                   structure: { kind: 'legs' as const, bestOfLegs: legs },
-                  config: atbConfig },
+                  config: atbConfig,
+                  generatedSequence },
                 { eventId: genId(), type: 'ATBLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
               break
