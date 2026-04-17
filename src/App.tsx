@@ -2183,12 +2183,13 @@ export default function App() {
           mpActions.startGame(matchId, config.gameType, initialEvents)
 
           // Register multiplayer game as active (for resume + cross-device)
+          // roomCode auch in config mitschreiben — Fallback falls DB-Spalte fehlt
           registerActiveGame({
             id: matchId,
             playerId: multiplayerMyPlayerId,
             gameType: config.gameType,
             title: `${config.gameType === 'x01' ? (config.startScore || 501) : config.gameType.toUpperCase()} – ${orderedPlayerList.map(p => p.name).join(' vs ')}`,
-            config: { ...config, isMultiplayer: true },
+            config: { ...config, isMultiplayer: true, roomCode: multiplayerRoomCode },
             players: orderedPlayerList.map(p => ({ id: p.playerId, name: p.name, color: p.color })),
             startedAt: new Date().toISOString(),
             isMultiplayer: true,
@@ -3011,31 +3012,21 @@ export default function App() {
           return
         }
 
-        // Create new room and open lobby
-        const newRoomCode = generateRoomCode()
-        setMultiplayerRoomCode(newRoomCode)
-        setMultiplayerMatchId(game.id)
-        setMultiplayerGameType(game.gameType)
-        setMultiplayerRemoteEvents(events as DartsEvent[])
+        // Online-Spiel fortsetzen: Raum-Code in Zwischenablage kopieren und zu "Raum beitreten" navigieren
+        // Der User tippt den Code dort ein (oder fügt ihn ein). Beide Spieler nutzen denselben Weg —
+        // der Server erkennt die playerId und stellt Host/Gast-Rolle wieder her.
+        const roomCode = game.roomCode
+        if (roomCode) {
+          try { await navigator.clipboard?.writeText(roomCode) } catch {}
+          showToast(`Raum-Code ${roomCode} kopiert — in "Raum beitreten" einfügen`)
+        }
+        // Clean slate + zu Join-Lobby
+        mpActions.disconnect()
+        setMultiplayerRoomCode(null)
+        setMultiplayerMatchId(null)
+        setMultiplayerRemoteEvents(null)
         setMultiplayerMyPlayerId(auth.user?.profileId ?? '')
-
-        // Room-Code in active_games aktualisieren — damit der Gegner auf seinem Gerät
-        // den NEUEN Code sehen kann (active_games ist shared via Neon DB)
-        registerActiveGame({
-          ...game,
-          roomCode: newRoomCode,
-          startedAt: new Date().toISOString(),
-        })
-
-        // Create the room via mpActions
-        const myProfile = getProfiles().find(p => p.id === (auth.user?.profileId ?? ''))
-        mpActions.createRoom({
-          playerId: auth.user?.profileId ?? '',
-          name: myProfile?.name ?? '',
-          color: myProfile?.color,
-        })
-
-        setView('multiplayer-lobby-host')
+        setView('multiplayer-lobby-join')
         setResumeLoading(false)
         return
       }

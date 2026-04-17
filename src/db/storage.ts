@@ -787,8 +787,10 @@ export async function dbGetActiveGames(): Promise<ActiveGame[]> {
       config: r.config,
       players: r.players,
       startedAt: r.started_at,
-      isMultiplayer: r.is_multiplayer === 1,
-      roomCode: r.room_code ?? null,
+      // Postgres gibt integer teilweise als string zurück — Number() für robusten Vergleich
+      // Fallback auf config-Feld falls Migration für neue Spalten noch nicht durch ist
+      isMultiplayer: Number(r.is_multiplayer) === 1 || (r.config as any)?.isMultiplayer === true,
+      roomCode: r.room_code ?? (r.config as any)?.roomCode ?? null,
     }))
   } catch (e) {
     console.warn('[DB] dbGetActiveGames failed:', e)
