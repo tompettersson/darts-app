@@ -40,6 +40,7 @@ type Props = {
   debugLog?: string[]
   spectatorCount?: number
   diceRollTrigger?: number
+  prefillCode?: string
 }
 
 // ---- Game mode labels ----
@@ -639,12 +640,12 @@ export default function MultiplayerLobby({
   mode, status, players, phase, error, myPlayerId, roomCode,
   gameConfig, playerOrder, orderType, localProfiles,
   onCreateRoom, onJoinRoom, onAddLocalPlayers, onRemovePlayer,
-  onSetGameConfig, onSetPlayerOrder, onTriggerDiceRoll, onStartGame, onReady, onBack, debugLog, spectatorCount = 0, diceRollTrigger = 0,
+  onSetGameConfig, onSetPlayerOrder, onTriggerDiceRoll, onStartGame, onReady, onBack, debugLog, spectatorCount = 0, diceRollTrigger = 0, prefillCode = '',
 }: Props) {
   const { colors, isArcade } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
-  const [joinCode, setJoinCode] = useState('')
+  const [joinCode, setJoinCode] = useState(prefillCode)
   const [copied, setCopied] = useState(false)
   const [showAddPlayer, setShowAddPlayer] = useState(false)
   const [showConfig, setShowConfig] = useState(false)

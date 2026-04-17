@@ -594,6 +594,8 @@ export default function App() {
     () => mpSessionFresh ? (sessionStorage.getItem('mp-player') || '') : ''
   )
   const [multiplayerRemoteEvents, setMultiplayerRemoteEvents] = useState<DartsEventType[] | null>(null)
+  // Vorausgefüllter Raum-Code für Guest beim Resume (aus "Offene Spiele")
+  const [prefillJoinCode, setPrefillJoinCode] = useState<string>('')
   const [multiplayerGameType, setMultiplayerGameType] = useState<string>(() => sessionStorage.getItem('mp-gametype') || 'x01')
   // Track if summary screen was reached from a multiplayer game (connection still alive)
   const [multiplayerSummaryActive, setMultiplayerSummaryActive] = useState(false)
@@ -2241,6 +2243,7 @@ export default function App() {
         phase={mpState.phase}
         error={mpState.error}
         myPlayerId={multiplayerMyPlayerId}
+        prefillCode={prefillJoinCode}
         roomCode={multiplayerRoomCode ?? ''}
         gameConfig={mpState.gameConfig}
         playerOrder={mpState.playerOrder}
@@ -2273,6 +2276,7 @@ export default function App() {
           setMultiplayerRoomCode(null)
           setMultiplayerMatchId(null)
           setMultiplayerRemoteEvents(null)
+          setPrefillJoinCode('')
           setView('menu')
         }}
       />
@@ -3012,21 +3016,48 @@ export default function App() {
           return
         }
 
-        // Online-Spiel fortsetzen: Raum-Code in Zwischenablage kopieren und zu "Raum beitreten" navigieren
-        // Der User tippt den Code dort ein (oder fügt ihn ein). Beide Spieler nutzen denselben Weg —
-        // der Server erkennt die playerId und stellt Host/Gast-Rolle wieder her.
+        // Online-Spiel fortsetzen — zwei Pfade:
+        // - Ursprünglicher Host → erstellt Raum (oder rejoined falls noch aktiv) mit altem Code
+        //   und sendet die geladenen Events an PartyKit
+        // - Gast → öffnet "Raum beitreten" mit vorausgefülltem Code
         const roomCode = game.roomCode
-        if (roomCode) {
-          try { await navigator.clipboard?.writeText(roomCode) } catch {}
-          showToast(`Raum-Code ${roomCode} kopiert — in "Raum beitreten" einfügen`)
+        if (!roomCode) {
+          showToast('Kein Raum-Code gespeichert — Spiel kann nicht fortgesetzt werden')
+          setResumeLoading(false)
+          return
         }
-        // Clean slate + zu Join-Lobby
+
+        const userProfileId = auth.user?.profileId ?? ''
+        const isOriginalHost = game.playerId === userProfileId
+
+        // Clean slate bevor wir neu verbinden
         mpActions.disconnect()
-        setMultiplayerRoomCode(null)
-        setMultiplayerMatchId(null)
-        setMultiplayerRemoteEvents(null)
-        setMultiplayerMyPlayerId(auth.user?.profileId ?? '')
-        setView('multiplayer-lobby-join')
+
+        if (isOriginalHost) {
+          // Host: Raum mit altem Code erstellen, Events werden beim nächsten Sync geladen
+          setMultiplayerRoomCode(roomCode)
+          setMultiplayerMatchId(game.id)
+          setMultiplayerGameType(game.gameType)
+          setMultiplayerRemoteEvents(events as DartsEvent[])
+          setMultiplayerMyPlayerId(userProfileId)
+          const myProfile = getProfiles().find(p => p.id === userProfileId)
+          mpActions.createRoom({
+            playerId: userProfileId,
+            name: myProfile?.name ?? '',
+            color: myProfile?.color,
+          })
+          setView('multiplayer-lobby-host')
+          showToast(`Raum ${roomCode} wird wieder eröffnet — Gegner kann jetzt beitreten`)
+        } else {
+          // Gast: Zu Join-Lobby mit vorausgefülltem Code
+          setMultiplayerRoomCode(null)
+          setMultiplayerMatchId(null)
+          setMultiplayerRemoteEvents(null)
+          setMultiplayerMyPlayerId(userProfileId)
+          setPrefillJoinCode(roomCode)
+          setView('multiplayer-lobby-join')
+          showToast(`Raum-Code ${roomCode} — einfach auf Beitreten klicken`)
+        }
         setResumeLoading(false)
         return
       }
