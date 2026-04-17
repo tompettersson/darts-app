@@ -259,14 +259,28 @@ function getATBInfo(m: ATBStoredMatch) {
     }
 
     if (isSets) {
+      // Deduplizieren per setIndex, falls wegen alter Doppel-Emission-Bugs mehrere
+      // ATBSetFinished-Events für dasselbe Set im Log stehen.
+      const seenSetKeys = new Set<string>()
       const setEvents = (m.events || []).filter((e: any) => e.type === 'ATBSetFinished')
       for (const ev of setEvents) {
+        const key = String((ev as any).setIndex ?? (ev as any).eventId)
+        if (seenSetKeys.has(key)) continue
+        seenSetKeys.add(key)
         const wid = (ev as any).winnerId
         if (wid in winsPerPlayer) winsPerPlayer[wid]++
       }
     } else {
+      // Deduplizieren per legId — historisch hat GameATB bei Siegesdart am 3. Wurf
+      // zwei ATBLegFinished-Events mit unterschiedlichen eventIds aber gleichem
+      // legId emittiert. Dieser Filter sorgt dafür, dass die Matchhistorie alte
+      // Einträge korrekt zählt.
+      const seenLegIds = new Set<string>()
       const legEvents = (m.events || []).filter((e: any) => e.type === 'ATBLegFinished')
       for (const ev of legEvents) {
+        const key = (ev as any).legId ?? (ev as any).eventId
+        if (seenLegIds.has(key)) continue
+        seenLegIds.add(key)
         const wid = (ev as any).winnerId
         if (wid in winsPerPlayer) winsPerPlayer[wid]++
       }

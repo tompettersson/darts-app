@@ -459,6 +459,10 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
   const confirmTurn = useCallback(() => {
     if (gamePaused) return
     if (!activePlayerId || current.length === 0) return
+    // Match bereits beendet — kein weiteres recordATBTurn, sonst werden Leg/Match-
+    // Finished-Events mit neuen eventIds doppelt emittiert (PartyKit dedupliziert
+    // nur per eventId und würde die Duplikate durchlassen).
+    if (state.finished) return
     // Multiplayer: Nur eigene Turns bestätigen
     if (multiplayer?.enabled && !isMyTurn) return
 
@@ -644,11 +648,17 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     }
   }, [current.length, confirmTurn])
 
-  // Bull Heavy Auto-Confirm: wenn Bull getroffen, sofort bestätigen
+  // Bull Heavy / Winning-Dart Auto-Confirm: wenn Bull getroffen oder Leg gewonnen,
+  // sofort bestätigen — aber NICHT wenn current.length === 3, weil das der
+  // "3-Darts-Auto-Confirm" oben bereits erledigt. Sonst wird confirmTurn zweimal
+  // angestoßen und emittiert doppelte Leg/Match-Finished-Events mit neuen eventIds.
   useEffect(() => {
-    if (bullAutoConfirmRef.current && current.length > 0) {
+    if (bullAutoConfirmRef.current && current.length > 0 && current.length < 3) {
       bullAutoConfirmRef.current = false
       setTimeout(() => confirmTurn(), 50)
+    } else if (bullAutoConfirmRef.current && current.length === 3) {
+      // Flag zurücksetzen, damit ein späterer, reguläre Turn den Flag nicht erbt
+      bullAutoConfirmRef.current = false
     }
   }, [current.length, confirmTurn])
 
