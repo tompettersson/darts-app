@@ -675,50 +675,94 @@ export type ActiveGame = {
 
 let activeGamesTableReady = false
 
+// Schema-State: Welche optionalen Spalten existieren in active_games?
+let activeGamesHasMultiplayerCols = false
+
 async function ensureActiveGamesTable(): Promise<void> {
   if (activeGamesTableReady) return
-  // Try SELECT first — if table exists, skip DDL (saves 1-2 roundtrips)
   try {
-    await query('SELECT 1 FROM active_games LIMIT 0')
-    // Ensure new columns exist (idempotent ALTER)
-    await exec('ALTER TABLE active_games ADD COLUMN IF NOT EXISTS is_multiplayer INTEGER DEFAULT 0').catch(() => {})
-    await exec('ALTER TABLE active_games ADD COLUMN IF NOT EXISTS room_code TEXT').catch(() => {})
+    // Prüfe Spalten direkt statt nur Tabelle
+    const cols = await query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'active_games'`
+    )
+    const colNames = new Set(cols.map(c => c.column_name))
+
+    if (colNames.size === 0) {
+      // Tabelle existiert nicht — anlegen mit allen Spalten
+      await exec(`
+        CREATE TABLE IF NOT EXISTS active_games (
+          id              TEXT PRIMARY KEY,
+          player_id       TEXT NOT NULL,
+          game_type       TEXT NOT NULL,
+          title           TEXT NOT NULL,
+          config          JSONB,
+          players         JSONB,
+          started_at      TEXT NOT NULL,
+          is_multiplayer  INTEGER DEFAULT 0,
+          room_code       TEXT
+        )`)
+      await exec('CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)')
+      activeGamesHasMultiplayerCols = true
+      activeGamesTableReady = true
+      return
+    }
+
+    // Tabelle existiert — fehlende Spalten hinzufügen
+    if (!colNames.has('is_multiplayer')) {
+      try {
+        await exec('ALTER TABLE active_games ADD COLUMN is_multiplayer INTEGER DEFAULT 0')
+        colNames.add('is_multiplayer')
+        console.log('[DB Migration] Added is_multiplayer column to active_games')
+      } catch (e) {
+        console.warn('[DB Migration] Failed to add is_multiplayer:', e)
+      }
+    }
+    if (!colNames.has('room_code')) {
+      try {
+        await exec('ALTER TABLE active_games ADD COLUMN room_code TEXT')
+        colNames.add('room_code')
+        console.log('[DB Migration] Added room_code column to active_games')
+      } catch (e) {
+        console.warn('[DB Migration] Failed to add room_code:', e)
+      }
+    }
+
+    activeGamesHasMultiplayerCols = colNames.has('is_multiplayer') && colNames.has('room_code')
     activeGamesTableReady = true
-    return
-  } catch {
-    // Table doesn't exist yet — create it
+  } catch (e) {
+    console.warn('[DB Migration] ensureActiveGamesTable failed:', e)
   }
-  await exec(`
-    CREATE TABLE IF NOT EXISTS active_games (
-      id              TEXT PRIMARY KEY,
-      player_id       TEXT NOT NULL,
-      game_type       TEXT NOT NULL,
-      title           TEXT NOT NULL,
-      config          JSONB,
-      players         JSONB,
-      started_at      TEXT NOT NULL,
-      is_multiplayer  INTEGER DEFAULT 0,
-      room_code       TEXT
-    )`)
-  await exec('CREATE INDEX IF NOT EXISTS idx_active_games_player ON active_games(player_id)')
-  activeGamesTableReady = true
 }
 
 export async function dbInsertActiveGame(game: ActiveGame): Promise<void> {
   await ensureActiveGamesTable()
-  await exec(
-    `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at, is_multiplayer, room_code)
-     VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET
-       title = EXCLUDED.title,
-       config = EXCLUDED.config,
-       players = EXCLUDED.players,
-       is_multiplayer = EXCLUDED.is_multiplayer,
-       room_code = EXCLUDED.room_code`,
-    [game.id, game.playerId, game.gameType, game.title,
-     JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt,
-     game.isMultiplayer ? 1 : 0, game.roomCode ?? null]
-  )
+  if (activeGamesHasMultiplayerCols) {
+    await exec(
+      `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at, is_multiplayer, room_code)
+       VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET
+         title = EXCLUDED.title,
+         config = EXCLUDED.config,
+         players = EXCLUDED.players,
+         is_multiplayer = EXCLUDED.is_multiplayer,
+         room_code = EXCLUDED.room_code`,
+      [game.id, game.playerId, game.gameType, game.title,
+       JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt,
+       game.isMultiplayer ? 1 : 0, game.roomCode ?? null]
+    )
+  } else {
+    // Fallback: Tabelle ohne neue Spalten (Migration noch nicht durch)
+    await exec(
+      `INSERT INTO active_games (id, player_id, game_type, title, config, players, started_at)
+       VALUES (?, ?, ?, ?, ?::text::jsonb, ?::text::jsonb, ?)
+       ON CONFLICT (id) DO UPDATE SET
+         title = EXCLUDED.title,
+         config = EXCLUDED.config,
+         players = EXCLUDED.players`,
+      [game.id, game.playerId, game.gameType, game.title,
+       JSON.stringify(game.config), JSON.stringify(game.players), game.startedAt]
+    )
+  }
 }
 
 export async function dbDeleteActiveGame(matchId: string): Promise<void> {
@@ -727,7 +771,7 @@ export async function dbDeleteActiveGame(matchId: string): Promise<void> {
 }
 
 export async function dbGetActiveGames(): Promise<ActiveGame[]> {
-  // Try direct query first — avoids DDL roundtrip when table already exists
+  await ensureActiveGamesTable() // Stellt sicher dass Schema aktuell ist
   try {
     const rows = await query<{
       id: string; player_id: string; game_type: string; title: string;
@@ -735,7 +779,6 @@ export async function dbGetActiveGames(): Promise<ActiveGame[]> {
       is_multiplayer?: number; room_code?: string | null
     }>('SELECT * FROM active_games ORDER BY started_at DESC')
 
-    activeGamesTableReady = true
     return rows.map(r => ({
       id: r.id,
       playerId: r.player_id,
@@ -747,9 +790,8 @@ export async function dbGetActiveGames(): Promise<ActiveGame[]> {
       isMultiplayer: r.is_multiplayer === 1,
       roomCode: r.room_code ?? null,
     }))
-  } catch {
-    // Table doesn't exist yet — create it and return empty
-    await ensureActiveGamesTable()
+  } catch (e) {
+    console.warn('[DB] dbGetActiveGames failed:', e)
     return []
   }
 }
