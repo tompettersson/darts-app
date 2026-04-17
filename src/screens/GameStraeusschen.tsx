@@ -460,6 +460,26 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
     )
   }, [events, activePlayerId])
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    const onOrientation = () => setTimeout(update, 100)
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
+  }, [])
+  const isMobile = Math.min(screenWidth, screenHeight) < 600
+
   if (!storedMatch || !state.match) {
     return (
       <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
@@ -488,26 +508,6 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
   const activeColor = activePlayerIndex >= 0
     ? (playerColors[state.match.players[activePlayerIndex]?.playerId] ?? PLAYER_COLORS[activePlayerIndex % PLAYER_COLORS.length])
     : '#f97316'
-
-  // Mobile detection
-  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
-  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
-  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
-  useEffect(() => {
-    const update = () => {
-      setScreenWidth(window.innerWidth)
-      setScreenHeight(window.innerHeight)
-      setIsLandscape(window.innerWidth > window.innerHeight)
-    }
-    const onOrientation = () => setTimeout(update, 100)
-    window.addEventListener('resize', update)
-    window.addEventListener('orientationchange', onOrientation)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('orientationchange', onOrientation)
-    }
-  }, [])
-  const isMobile = Math.min(screenWidth, screenHeight) < 600
 
   const formatDart = (d: StrDart) => d === 'hit' ? '✓' : '✕'
 

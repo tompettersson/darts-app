@@ -791,6 +791,26 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
     return colorMap
   }, [players, profiles, state.playerOrder])
 
+  // Mobile detection
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+  useEffect(() => {
+    const update = () => {
+      setScreenWidth(window.innerWidth)
+      setScreenHeight(window.innerHeight)
+      setIsLandscape(window.innerWidth > window.innerHeight)
+    }
+    const onOrientation = () => setTimeout(update, 100)
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', onOrientation)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
+  }, [])
+  const isMobileK = Math.min(screenWidth, screenHeight) < 600
+
   if (!storedMatch) {
     return (
       <div style={{ background: '#181c20', minHeight: '100dvh', color: '#e5e7eb', padding: 20 }}>
@@ -847,26 +867,6 @@ export default function GameKiller({ matchId, onFinish, onAbort, multiplayer }: 
       </span>
     )
   }
-
-  // Mobile detection
-  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
-  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
-  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
-  useEffect(() => {
-    const update = () => {
-      setScreenWidth(window.innerWidth)
-      setScreenHeight(window.innerHeight)
-      setIsLandscape(window.innerWidth > window.innerHeight)
-    }
-    const onOrientation = () => setTimeout(update, 100)
-    window.addEventListener('resize', update)
-    window.addEventListener('orientationchange', onOrientation)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('orientationchange', onOrientation)
-    }
-  }, [])
-  const isMobileK = Math.min(screenWidth, screenHeight) < 600
 
   // Qualifying ring multiplier — der einzige Mult der zählt
   const qualMult = config.qualifyingRing === 'TRIPLE' ? 3 : 2

@@ -159,12 +159,34 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     if (!prevEvents || prevLen === remote.length) {
       if (!prevEvents && remote.length > 0) {
         const startEvt = remote.find((e: any) => e.type === 'ATBMatchStarted') as any
-        if (startEvt) ensureATBMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+        if (startEvt) {
+          ensureATBMatchExists(matchId, remote, startEvt.players?.map((p: any) => p.playerId) ?? [])
+          // Host: Match + Events sofort in DB (verhindert FK-Fehler bei späteren Event-Writes)
+          if (multiplayer?.isHost) {
+            ;(async () => {
+              try {
+                await ensureATBMatchExistsAsync(matchId, remote as any[], startEvt.players?.map((p: any) => p.playerId) ?? [])
+              } catch (e) { console.warn('[MP] ensureATBMatchExists failed:', e) }
+            })()
+          }
+        }
       }
       return
     }
 
-    persistATBEvents(matchId, remote)
+    // Host: Events persistieren — Match wurde bereits beim ersten Sync angelegt
+    // Guest persistiert NICHT (würde FK-Fehler verursachen weil Match-Eintrag fehlt)
+    if (multiplayer?.isHost) {
+      ;(async () => {
+        const startEvt = remote.find((e: any) => e.type === 'ATBMatchStarted') as any
+        if (!startEvt) return
+        const playerIds = startEvt.players?.map((p: any) => p.playerId) ?? []
+        try {
+          // ensureATBMatchExistsAsync ist idempotent (ON CONFLICT) und schreibt Match + Events atomar
+          await ensureATBMatchExistsAsync(matchId, remote as any[], playerIds)
+        } catch (e) { console.warn('[MP] persist failed:', e) }
+      })()
+    }
     // Detect MatchFinished: only trigger when NEW
     const matchFinishedEvt = remote.find((e: any) => e.type === 'ATBMatchFinished') as any
     const prevHadFinished = prevEvents.some((e: any) => e.type === 'ATBMatchFinished')
@@ -780,6 +802,11 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
     return `${prefix}${dart.target}`
   }
 
+  // Mobile detection (MUSS vor early returns stehen — Hooks-Reihenfolge!)
+  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
+  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
+  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
+
   if (!storedMatch || !state.match) {
     return (
       <div style={{ background: c.bg, minHeight: '100dvh', color: c.textBright, padding: 20 }}>
@@ -790,11 +817,6 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
       </div>
     )
   }
-
-  // Mobile detection
-  const [screenWidth, setScreenWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 800)
-  const [screenHeight, setScreenHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 800)
-  const [isLandscape, setIsLandscape] = useState(() => typeof window !== 'undefined' && window.innerWidth > window.innerHeight)
   useEffect(() => {
     const update = () => {
       setScreenWidth(window.innerWidth)
