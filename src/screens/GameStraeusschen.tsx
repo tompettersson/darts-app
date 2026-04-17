@@ -629,7 +629,13 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
       {/* Main Content */}
       {isMobile && !isLandscape ? (
         /* ===== MOBILE PORTRAIT ===== */
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+          paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'calc(6px + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(6px + env(safe-area-inset-right, 0px))',
+        }}>
           {/* Spieler kompakt oben */}
           {(() => {
             const pList = state.match?.players ?? []
@@ -730,7 +736,7 @@ export default function GameStraeusschen({ matchId, onExit, onShowSummary, multi
               flashVisible={hitFlashVisible}
               targetNumber={activePlayerState?.currentNumber ?? 20}
               triplesHit={activePlayerState?.numberProgress[activePlayerState?.currentNumber ?? 20]?.triplesHit ?? 0}
-              size={Math.min(screenWidth, 320)}
+              size={Math.min(screenWidth - 20, 280)}
               glowColor={activeColor}
               ringMode={state.match?.ringMode}
               bullMode={state.match?.bullMode}

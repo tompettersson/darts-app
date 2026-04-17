@@ -843,7 +843,13 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
 
       {/* Main Content — Mobile */}
       {isMobile ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 8px 0', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+          paddingTop: 'calc(0px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(0px + env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'calc(8px + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(8px + env(safe-area-inset-right, 0px))',
+        }}>
           {/* Header: Runde + Spieler + Timer */}
           {activePlayer && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px', marginBottom: 4 }}>

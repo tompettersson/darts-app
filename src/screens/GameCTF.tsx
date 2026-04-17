@@ -976,7 +976,13 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
       {/* Main Content */}
       {isMobile && !isLandscape ? (
         /* ===== MOBILE PORTRAIT ===== */
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+          paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'calc(6px + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(6px + env(safe-area-inset-right, 0px))',
+        }}>
           {/* Spieler kompakt oben */}
           {(() => {
             const pList = state.match?.players ?? []
@@ -1081,7 +1087,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           {/* Dartboard */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
             <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
-              size={Math.min(screenWidth, 380)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
+              size={Math.min(screenWidth - 20, 300)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
           </div>
         </div>
       ) : isMobile && isLandscape ? (

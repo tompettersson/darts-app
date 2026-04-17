@@ -1075,7 +1075,13 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         </div>
       ) : isMobile ? (
         /* ===== MOBILE PORTRAIT ===== */
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 6px' }}>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+          paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'calc(6px + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(6px + env(safe-area-inset-right, 0px))',
+        }}>
           {/* Spieler kompakt oben — 1-4: eine Zeile, 5+: zwei Zeilen */}
           {(() => {
             const players = state.match?.players ?? []
@@ -1131,16 +1137,16 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             )
           })()}
 
-          {/* Spieler-Ziel — Name + Ziel in Spielerfarbe */}
+          {/* Spieler-Ziel — kompakt (Platz für Warnungen) */}
           {activePlayer && nextTargetLabel && (
-            <div style={{ textAlign: 'center', flexShrink: 0, margin: '6px 0' }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
-              <span style={{ fontSize: 14, color: c.textDim, margin: '0 6px' }}>→</span>
-              <span style={{ fontSize: 34, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 14px ${activePlayerColor}60` }}>{nextTargetLabel}</span>
-              {activeSpecialState?.needsBull && <span style={{ fontSize: 10, color: c.yellow, marginLeft: 6 }}>🎯 Bull!</span>}
-              {activeSpecialState?.mustUseDouble && <span style={{ fontSize: 10, color: c.yellow, marginLeft: 6 }}>🎯 Double!</span>}
+            <div style={{ textAlign: 'center', flexShrink: 0, margin: '2px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
+              <span style={{ fontSize: 11, color: c.textDim }}>→</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: activePlayerColor }}>{nextTargetLabel}</span>
+              {activeSpecialState?.needsBull && <span style={{ fontSize: 10, color: c.yellow }}>🎯 Bull!</span>}
+              {activeSpecialState?.mustUseDouble && <span style={{ fontSize: 10, color: c.yellow }}>🎯 Double!</span>}
               {activeSpecialState?.consecutiveMisses !== undefined && activeSpecialState.consecutiveMisses > 0 && (
-                <span style={{ fontSize: 9, color: c.red, marginLeft: 6 }}>⚠️ {activeSpecialState.consecutiveMisses}/3</span>
+                <span style={{ fontSize: 9, color: c.red }}>⚠️ {activeSpecialState.consecutiveMisses}/3</span>
               )}
             </div>
           )}
@@ -1194,14 +1200,16 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
               }}>↶ Aufn.</button>
             </div>
 
-            {/* Dartboard — unten, nur zum Anschauen */}
-            <ATBDartboard
-              currentTarget={nextTargetNumber}
-              players={dartboardPlayers}
-              size={Math.min(screenWidth, 380)}
-              activePlayerColor={activePlayerColor}
-              pendingMultipliers={pendingMultipliers}
-            />
+            {/* Dartboard — unten, nur zum Anschauen (kleiner für mehr Platz) */}
+            <div style={{ marginTop: 4, flexShrink: 0 }}>
+              <ATBDartboard
+                currentTarget={nextTargetNumber}
+                players={dartboardPlayers}
+                size={Math.min(screenWidth - 20, 300)}
+                activePlayerColor={activePlayerColor}
+                pendingMultipliers={pendingMultipliers}
+              />
+            </div>
             {/* Wurfabfolge — letzte Aufnahmen */}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', fontSize: 10, color: c.textDim, marginTop: 6, width: '100%', maxWidth: 360 }}>
               {state.match?.players && (() => {
