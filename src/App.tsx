@@ -2180,11 +2180,16 @@ export default function App() {
               break
             }
             case 'highscore': {
+              // HighscoreStructure erwartet targetLegs (nicht bestOfLegs) und
+              // HighscoreLegStartedEvent erwartet starterIndex (nicht starterPlayerId).
+              // Mit falschen Feldnamen: legs enden nie, Spielerreihenfolge undefined.
+              const starterIdx = orderedPlayerList.findIndex(p => p.playerId === starter)
               initialEvents = [
                 { eventId: genId(), type: 'HighscoreMatchStarted', matchId, timestamp: Date.now(),
                   players, targetScore: config.highscoreTargetScore || 500,
-                  structure: { kind: 'legs' as const, bestOfLegs: legs } },
-                { eventId: genId(), type: 'HighscoreLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
+                  structure: { kind: 'legs' as const, targetLegs: firstTo } },
+                { eventId: genId(), type: 'HighscoreLegStarted', ts, matchId, legId, legIndex: 1,
+                  starterIndex: starterIdx >= 0 ? starterIdx : 0, timestamp: Date.now() },
               ]
               break
             }
