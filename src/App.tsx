@@ -2953,6 +2953,7 @@ export default function App() {
       ...(auth.isAdmin ? [
         { id: 'admin', label: 'Admin', sub: 'Spieler & Passwörter verwalten', icon: <span style={{ fontSize: 20 }}>{'\u{1F6E0}\uFE0F'}</span> },
       ] : []),
+      { id: 'logout', label: 'Abmelden', sub: 'Zurück zum Login', icon: <span style={{ fontSize: 20 }}>{'\u{1F6AA}'}</span> },
     ]
 
     const handleProfilesConfirm = (index: number) => {

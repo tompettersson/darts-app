@@ -1394,6 +1394,20 @@ export async function dbGetCricketMatchById(matchId: string): Promise<DBCricketM
   }
 }
 
+export async function dbFinishCricketMatch(
+  matchId: string,
+  finishedAt: string,
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(
+    `UPDATE cricket_matches
+     SET finished = 1, finished_at = ?
+     WHERE id = ?`,
+    [finishedAt, matchId]
+  )
+}
+
 export async function dbSaveCricketMatch(match: DBCricketMatch): Promise<void> {
   await ensureDB()
   await ensureMatchSchemas()
@@ -1835,6 +1849,33 @@ export async function dbGetCTFMatches(): Promise<DBCTFMatch[]> {
       captureTotalScores: m.capture_total_scores ? (fromJSON<any>(m.capture_total_scores) ?? undefined) : undefined,
     }
   })
+}
+
+export async function dbFinishCTFMatch(
+  matchId: string,
+  winnerId: string | null,
+  winnerDarts: number,
+  durationMs: number,
+  captureFieldWinners?: Record<string, string | null>,
+  captureTotalScores?: Record<string, number>,
+  captureFieldPoints?: Record<string, number>,
+): Promise<void> {
+  const ready = await ensureDB()
+  if (!ready) return
+  await exec(
+    `UPDATE ctf_matches
+     SET finished = 1, finished_at = ?, winner_id = ?, winner_darts = ?, duration_ms = ?,
+         capture_field_winners = COALESCE(?, capture_field_winners),
+         capture_total_scores = COALESCE(?, capture_total_scores)
+     WHERE id = ?`,
+    [nowISO(), winnerId, winnerDarts, durationMs,
+     captureFieldWinners ? toJSON(captureFieldWinners) : null,
+     captureTotalScores ? toJSON(captureTotalScores) : null,
+     matchId]
+  )
+  // captureFieldPoints wird derzeit nicht in ctf_matches persistiert (Feld existiert nicht in Schema),
+  // nur in der LocalStorage-Kopie. Wenn die Spalte später hinzugefügt wird, hier ergänzen.
+  void captureFieldPoints
 }
 
 export async function dbSaveCTFMatch(match: DBCTFMatch): Promise<void> {

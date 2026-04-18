@@ -799,9 +799,10 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     }
   }, [events, gamePaused, state.isComplete, matchEndDelay, showLegSummary, matchId, multiplayer])
 
-  // Naechstes Leg starten (aus dem LegSummary Modal)
+  // Naechstes Leg starten (aus dem LegSummary Modal) — im Multiplayer nur der Host
   const handleStartNextLeg = useCallback((targetMode: typeof state.match extends null ? never : NonNullable<typeof state.match>['config']['targetMode'], targetNumber?: number) => {
     if (!state.match) return
+    if (multiplayer?.enabled && !multiplayer.isHost) return
 
     const legStartEvent = startNewLeg(state, targetMode, targetNumber)
     const updatedEvents = [...events, legStartEvent]
@@ -810,6 +811,14 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     if (multiplayer?.enabled) multiplayer.submitEvents([legStartEvent])
     setShowLegSummary(false)
   }, [events, state, matchId, multiplayer])
+
+  // Multiplayer-Guest: LegSummary schließen, sobald Host neuen Leg gestartet hat
+  useEffect(() => {
+    if (!multiplayer?.enabled || multiplayer.isHost) return
+    if (!showLegSummary) return
+    if (!currentLeg) return
+    if (!currentLeg.isComplete) setShowLegSummary(false)
+  }, [currentLeg?.isComplete, multiplayer?.enabled, multiplayer?.isHost, showLegSummary])
 
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {
@@ -1122,6 +1131,8 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
           totalLegs={state.match.config.legsCount}
           targetMode={state.match.config.targetMode}
           onNextLeg={(targetNumber) => handleStartNextLeg(state.match!.config.targetMode, targetNumber)}
+          isGuest={!!multiplayer?.enabled && !multiplayer.isHost}
+          legsWonByPlayer={Object.fromEntries(Object.entries(state.totalsByPlayer).map(([pid, t]) => [pid, t.legsWon]))}
         />
       )}
 
@@ -1152,11 +1163,21 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
             {formatDuration(elapsedMs)}
           </span>
         )}
-        {state.match!.config.legsCount > 1 && (
-          <span style={{ fontSize: 11, color: c.textDim }}>
-            First to {Math.ceil(state.match!.config.legsCount / 2)} · Leg {(state.currentLegIndex + 1)}
-          </span>
-        )}
+        {state.match!.config.legsCount > 1 && (() => {
+          const legsCount = state.match!.config.legsCount
+          const winsNeeded = Math.ceil(legsCount / 2)
+          const scorePairs = state.match!.players.map(p => {
+            const won = state.totalsByPlayer[p.playerId]?.legsWon ?? 0
+            return `${p.name.slice(0, 6)} ${won}`
+          }).join(' · ')
+          return (
+            <span style={{ fontSize: 11, color: c.textDim, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <span style={{ fontWeight: 600 }}>First to {winsNeeded}</span>
+              <span>· Leg {(state.currentLegIndex + 1)}/{legsCount}</span>
+              <span style={{ color: c.accent, fontWeight: 600 }}>· {scorePairs}</span>
+            </span>
+          )
+        })()}
         {/* Progress compact on mobile */}
         {isMobile && currentLeg && !currentLeg.isComplete && (
           <span style={{ fontSize: 11, color: c.textDim }}>

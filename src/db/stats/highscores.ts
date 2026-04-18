@@ -1301,6 +1301,1176 @@ export async function getCricketHighscoreMostBullsInLeg(limit: number = 5): Prom
 }
 
 // ============================================================================
+// Shanghai Highscores
+// ============================================================================
+
+export async function getHighscoreShanghaiMostWins(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_wins: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*) as total_wins
+    FROM shanghai_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY total_wins DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_wins }))
+}
+
+export async function getHighscoreShanghaiMostFinishs(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_finishs: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'winnerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*) as total_finishs
+    FROM shanghai_events e
+    JOIN shanghai_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'winnerId'
+    WHERE e.type = 'ShanghaiLegFinished'
+      AND (e.data::jsonb->>'shanghaiWin')::boolean = true
+      AND e.data::jsonb->>'winnerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'winnerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'winnerId', p.name, p.color
+    ORDER BY total_finishs DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_finishs }))
+}
+
+export async function getHighscoreShanghaiHighestLegScore(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    score: number
+  }>(`
+    WITH leg_scores AS (
+      SELECT
+        e.match_id,
+        m.created_at as match_date,
+        kv.key as player_id,
+        (kv.value)::integer as score
+      FROM shanghai_events e
+      JOIN shanghai_matches m ON m.id = e.match_id AND m.finished = 1
+      CROSS JOIN LATERAL jsonb_each_text(e.data::jsonb->'finalScores') kv
+      WHERE e.type = 'ShanghaiLegFinished'
+    )
+    SELECT
+      ls.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      ls.match_id,
+      ls.match_date,
+      ls.score
+    FROM leg_scores ls
+    JOIN profiles p ON p.id = ls.player_id
+    WHERE ls.score IS NOT NULL
+      AND ls.player_id NOT LIKE 'guest-%'
+      AND ls.player_id NOT LIKE 'temp-%'
+    ORDER BY ls.score DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.score, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreShanghaiFewestDarts(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    best_darts: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      MIN(m.winner_darts) as best_darts
+    FROM shanghai_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_darts IS NOT NULL
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY best_darts ASC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.best_darts }))
+}
+
+export async function getHighscoreShanghaiHighestTurn(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    score: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      e.match_id,
+      m.created_at as match_date,
+      (e.data::jsonb->>'turnScore')::integer as score
+    FROM shanghai_events e
+    JOIN shanghai_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'ShanghaiTurnAdded'
+      AND e.data::jsonb->>'turnScore' IS NOT NULL
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    ORDER BY score DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.score, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreShanghaiPerfectTurns(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    perfect_turns: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as perfect_turns
+    FROM shanghai_events e
+    JOIN shanghai_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'ShanghaiTurnAdded'
+      AND jsonb_array_length(e.data::jsonb->'darts') = 3
+      AND (e.data::jsonb->'darts'->0->>'target') = (e.data::jsonb->>'targetNumber')
+      AND (e.data::jsonb->'darts'->1->>'target') = (e.data::jsonb->>'targetNumber')
+      AND (e.data::jsonb->'darts'->2->>'target') = (e.data::jsonb->>'targetNumber')
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    ORDER BY perfect_turns DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.perfect_turns }))
+}
+
+export async function getHighscoreShanghaiBiggestMargin(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    margin: number
+  }>(`
+    WITH winners AS (
+      SELECT
+        m.id as match_id,
+        m.created_at as match_date,
+        m.winner_id,
+        (m.final_scores::jsonb->>m.winner_id)::integer as winner_score,
+        (SELECT MAX((kv.value)::integer) FROM jsonb_each_text(m.final_scores::jsonb) kv WHERE kv.key != m.winner_id) as runner_up
+      FROM shanghai_matches m
+      WHERE m.finished = 1
+        AND m.winner_id IS NOT NULL
+        AND m.final_scores IS NOT NULL
+        AND m.winner_id NOT LIKE 'guest-%'
+        AND m.winner_id NOT LIKE 'temp-%'
+    )
+    SELECT
+      w.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      w.match_id,
+      w.match_date,
+      (w.winner_score - COALESCE(w.runner_up, 0))::integer as margin
+    FROM winners w
+    JOIN profiles p ON p.id = w.winner_id
+    WHERE w.runner_up IS NOT NULL
+      AND w.winner_score IS NOT NULL
+    ORDER BY margin DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.margin, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreShanghaiFocusedMatch(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    focused_matches: number
+  }>(`
+    WITH turn_hits AS (
+      SELECT
+        e.match_id,
+        e.data::jsonb->>'playerId' as player_id,
+        CASE WHEN (
+          SELECT COUNT(*) FROM jsonb_array_elements(e.data::jsonb->'darts') d
+          WHERE d->>'target' = e.data::jsonb->>'targetNumber'
+        ) > 0 THEN 1 ELSE 0 END as has_hit
+      FROM shanghai_events e
+      JOIN shanghai_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'ShanghaiTurnAdded'
+    ),
+    match_summary AS (
+      SELECT match_id, player_id, COUNT(*) as turns, SUM(has_hit) as hit_turns
+      FROM turn_hits
+      GROUP BY match_id, player_id
+    )
+    SELECT
+      ms.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as focused_matches
+    FROM match_summary ms
+    JOIN profiles p ON p.id = ms.player_id
+    WHERE ms.turns >= 5
+      AND ms.turns = ms.hit_turns
+      AND ms.player_id NOT LIKE 'guest-%'
+      AND ms.player_id NOT LIKE 'temp-%'
+    GROUP BY ms.player_id, p.name, p.color
+    ORDER BY focused_matches DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.focused_matches }))
+}
+
+export async function getHighscoreShanghaiTripleMaster(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    triple_rate: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      SUM((
+        SELECT COUNT(*) FROM jsonb_array_elements(e.data::jsonb->'darts') d
+        WHERE d->>'target' = e.data::jsonb->>'targetNumber'
+          AND (d->>'mult')::integer = 3
+      ))::real
+      / NULLIF(SUM(jsonb_array_length(e.data::jsonb->'darts'))::real, 0) * 100 as triple_rate
+    FROM shanghai_events e
+    JOIN shanghai_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'ShanghaiTurnAdded'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    HAVING SUM(jsonb_array_length(e.data::jsonb->'darts')) >= 30
+    ORDER BY triple_rate DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: Math.round(r.triple_rate * 10) / 10 }))
+}
+
+// ============================================================================
+// CTF Highscores
+// ============================================================================
+
+export async function getHighscoreCTFMostWins(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_wins: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*) as total_wins
+    FROM ctf_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY total_wins DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_wins }))
+}
+
+export async function getHighscoreCTFHighestMatchScore(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    score: number
+  }>(`
+    SELECT
+      mp.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      m.id as match_id,
+      m.created_at as match_date,
+      (m.capture_total_scores::jsonb->>mp.player_id)::integer as score
+    FROM ctf_matches m
+    JOIN ctf_match_players mp ON mp.match_id = m.id
+    JOIN profiles p ON p.id = mp.player_id
+    WHERE m.finished = 1
+      AND m.capture_total_scores IS NOT NULL
+      AND (m.capture_total_scores::jsonb->>mp.player_id) IS NOT NULL
+      AND mp.player_id NOT LIKE 'guest-%'
+      AND mp.player_id NOT LIKE 'temp-%'
+    ORDER BY score DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.score, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreCTFMostFields(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    field_count: number
+  }>(`
+    SELECT
+      mp.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      m.id as match_id,
+      m.created_at as match_date,
+      (SELECT COUNT(*) FROM jsonb_each_text(m.capture_field_winners::jsonb) cw WHERE cw.value = mp.player_id)::integer as field_count
+    FROM ctf_matches m
+    JOIN ctf_match_players mp ON mp.match_id = m.id
+    JOIN profiles p ON p.id = mp.player_id
+    WHERE m.finished = 1
+      AND m.capture_field_winners IS NOT NULL
+      AND mp.player_id NOT LIKE 'guest-%'
+      AND mp.player_id NOT LIKE 'temp-%'
+    ORDER BY field_count DESC
+    LIMIT ?
+  `, [limit])
+  return results
+    .filter(r => r.field_count > 0)
+    .map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.field_count, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreCTFLongestStreak(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    streak: number
+  }>(`
+    WITH round_events AS (
+      SELECT
+        e.match_id,
+        e.data::jsonb->>'winnerId' as winner_id,
+        e.seq,
+        ROW_NUMBER() OVER (PARTITION BY e.match_id ORDER BY e.seq) as round_rn
+      FROM ctf_events e
+      JOIN ctf_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'CTFRoundFinished'
+        AND e.data::jsonb->>'winnerId' IS NOT NULL
+    ),
+    player_wins AS (
+      SELECT
+        match_id,
+        winner_id,
+        round_rn,
+        ROW_NUMBER() OVER (PARTITION BY match_id, winner_id ORDER BY round_rn) as win_rn
+      FROM round_events
+    ),
+    streaks AS (
+      SELECT
+        winner_id as player_id,
+        match_id,
+        COUNT(*) as streak_len
+      FROM player_wins
+      GROUP BY match_id, winner_id, (round_rn - win_rn)
+    )
+    SELECT
+      s.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      s.match_id,
+      m.created_at as match_date,
+      s.streak_len as streak
+    FROM streaks s
+    JOIN profiles p ON p.id = s.player_id
+    JOIN ctf_matches m ON m.id = s.match_id
+    WHERE s.player_id NOT LIKE 'guest-%'
+      AND s.player_id NOT LIKE 'temp-%'
+      AND s.streak_len >= 2
+    ORDER BY s.streak_len DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.streak, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreCTFBestTurn(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    turn_score: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      e.match_id,
+      m.created_at as match_date,
+      (e.data::jsonb->>'captureScore')::integer as turn_score
+    FROM ctf_events e
+    JOIN ctf_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'CTFTurnAdded'
+      AND e.data::jsonb->>'captureScore' IS NOT NULL
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    ORDER BY turn_score DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.turn_score, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreCTFPerfectMatch(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    perfect_matches: number
+  }>(`
+    SELECT
+      mp.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(DISTINCT m.id)::integer as perfect_matches
+    FROM ctf_matches m
+    JOIN ctf_match_players mp ON mp.match_id = m.id
+    JOIN profiles p ON p.id = mp.player_id
+    WHERE m.finished = 1
+      AND m.capture_field_winners IS NOT NULL
+      AND mp.player_id NOT LIKE 'guest-%'
+      AND mp.player_id NOT LIKE 'temp-%'
+      AND (SELECT COUNT(*) FROM jsonb_each_text(m.capture_field_winners::jsonb)) > 0
+      AND (
+        SELECT COUNT(*) FROM jsonb_each_text(m.capture_field_winners::jsonb) cw
+        WHERE cw.value = mp.player_id
+      ) = (
+        SELECT COUNT(*) FROM jsonb_each_text(m.capture_field_winners::jsonb)
+      )
+    GROUP BY mp.player_id, p.name, p.color
+    ORDER BY perfect_matches DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.perfect_matches }))
+}
+
+export async function getHighscoreCTFBullSniper(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    bull_hits: number
+  }>(`
+    WITH bulls_per_turn AS (
+      SELECT
+        e.data::jsonb->>'playerId' as player_id,
+        (SELECT COUNT(*) FROM jsonb_array_elements(e.data::jsonb->'darts') d WHERE d->>'target' = 'BULL')::integer as bulls
+      FROM ctf_events e
+      JOIN ctf_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'CTFTurnAdded'
+    )
+    SELECT
+      bpt.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      SUM(bpt.bulls)::integer as bull_hits
+    FROM bulls_per_turn bpt
+    JOIN profiles p ON p.id = bpt.player_id
+    WHERE bpt.player_id NOT LIKE 'guest-%'
+      AND bpt.player_id NOT LIKE 'temp-%'
+    GROUP BY bpt.player_id, p.name, p.color
+    HAVING SUM(bpt.bulls) > 0
+    ORDER BY bull_hits DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.bull_hits }))
+}
+
+export async function getHighscoreCTFFocusedMatch(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    focused_matches: number
+  }>(`
+    WITH turn_hits AS (
+      SELECT
+        e.match_id,
+        e.data::jsonb->>'playerId' as player_id,
+        CASE WHEN (
+          SELECT COUNT(*) FROM jsonb_array_elements(e.data::jsonb->'darts') d
+          WHERE d->>'target' != 'MISS'
+        ) > 0 THEN 1 ELSE 0 END as has_hit
+      FROM ctf_events e
+      JOIN ctf_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'CTFTurnAdded'
+    ),
+    match_summary AS (
+      SELECT match_id, player_id, COUNT(*) as turns, SUM(has_hit) as hit_turns
+      FROM turn_hits
+      GROUP BY match_id, player_id
+    )
+    SELECT
+      ms.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as focused_matches
+    FROM match_summary ms
+    JOIN profiles p ON p.id = ms.player_id
+    WHERE ms.turns >= 5
+      AND ms.turns = ms.hit_turns
+      AND ms.player_id NOT LIKE 'guest-%'
+      AND ms.player_id NOT LIKE 'temp-%'
+    GROUP BY ms.player_id, p.name, p.color
+    ORDER BY focused_matches DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.focused_matches }))
+}
+
+export async function getHighscoreCTFTripleThrees(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    triple_turns: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as triple_turns
+    FROM ctf_events e
+    JOIN ctf_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'CTFTurnAdded'
+      AND jsonb_array_length(e.data::jsonb->'darts') = 3
+      AND (
+        SELECT COUNT(*) FROM jsonb_array_elements(e.data::jsonb->'darts') d
+        WHERE d->>'target' != 'MISS'
+      ) = 3
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    ORDER BY triple_turns DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.triple_turns }))
+}
+
+export async function getHighscoreCTFCleanSheet(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    clean_matches: number
+  }>(`
+    WITH round_points AS (
+      SELECT
+        e.match_id,
+        kv.key as player_id,
+        (kv.value)::integer as points
+      FROM ctf_events e
+      JOIN ctf_matches m ON m.id = e.match_id AND m.finished = 1
+      CROSS JOIN LATERAL jsonb_each_text(e.data::jsonb->'fieldPoints') kv
+      WHERE e.type = 'CTFRoundFinished'
+    ),
+    match_player_stats AS (
+      SELECT
+        match_id,
+        player_id,
+        COUNT(*) as rounds,
+        SUM(CASE WHEN points = 0 THEN 1 ELSE 0 END) as zero_rounds
+      FROM round_points
+      GROUP BY match_id, player_id
+    )
+    SELECT
+      mps.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as clean_matches
+    FROM match_player_stats mps
+    JOIN profiles p ON p.id = mps.player_id
+    WHERE mps.zero_rounds = 0
+      AND mps.rounds >= 3
+      AND mps.player_id NOT LIKE 'guest-%'
+      AND mps.player_id NOT LIKE 'temp-%'
+    GROUP BY mps.player_id, p.name, p.color
+    ORDER BY clean_matches DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.clean_matches }))
+}
+
+// ============================================================================
+// Sträußchen Highscores
+// ============================================================================
+
+export async function getHighscoreStrMostWins(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_wins: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*) as total_wins
+    FROM str_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY total_wins DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_wins }))
+}
+
+export async function getHighscoreStrFastestTime(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    best_time: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      MIN(m.duration_ms) as best_time
+    FROM str_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.duration_ms IS NOT NULL
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY best_time ASC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.best_time }))
+}
+
+export async function getHighscoreStrFewestDarts(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    best_darts: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      MIN(m.winner_darts) as best_darts
+    FROM str_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_darts IS NOT NULL
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY best_darts ASC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.best_darts }))
+}
+
+export async function getHighscoreStrHitStreak(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    streak: number
+  }>(`
+    WITH all_darts AS (
+      SELECT
+        e.match_id,
+        e.data::jsonb->>'playerId' as player_id,
+        e.seq as turn_seq,
+        d.ord as dart_ord,
+        d.val::text as dart_status
+      FROM str_events e
+      JOIN str_matches m ON m.id = e.match_id AND m.finished = 1
+      CROSS JOIN LATERAL jsonb_array_elements_text(e.data::jsonb->'darts') WITH ORDINALITY d(val, ord)
+      WHERE e.type = 'StrTurnAdded'
+    ),
+    dart_rn AS (
+      SELECT
+        match_id, player_id, dart_status,
+        ROW_NUMBER() OVER (PARTITION BY match_id, player_id ORDER BY turn_seq, dart_ord) as full_rn,
+        ROW_NUMBER() OVER (PARTITION BY match_id, player_id, dart_status ORDER BY turn_seq, dart_ord) as status_rn
+      FROM all_darts
+    ),
+    hit_streaks AS (
+      SELECT match_id, player_id, COUNT(*)::integer as streak_len
+      FROM dart_rn
+      WHERE dart_status = 'hit'
+      GROUP BY match_id, player_id, (full_rn - status_rn)
+    )
+    SELECT
+      hs.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      hs.match_id,
+      m.created_at as match_date,
+      hs.streak_len as streak
+    FROM hit_streaks hs
+    JOIN str_matches m ON m.id = hs.match_id
+    JOIN profiles p ON p.id = hs.player_id
+    WHERE hs.player_id NOT LIKE 'guest-%'
+      AND hs.player_id NOT LIKE 'temp-%'
+      AND hs.streak_len >= 3
+    ORDER BY hs.streak_len DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.streak, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreStrBestHitRate(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    hit_rate: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      SUM((e.data::jsonb->>'hits')::integer)::real / NULLIF(SUM(jsonb_array_length(e.data::jsonb->'darts'))::real, 0) * 100 as hit_rate
+    FROM str_events e
+    JOIN str_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'StrTurnAdded'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    HAVING COUNT(*) >= 10 AND SUM(jsonb_array_length(e.data::jsonb->'darts')) > 0
+    ORDER BY hit_rate DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: Math.round(r.hit_rate * 10) / 10 }))
+}
+
+// ============================================================================
+// Killer Highscores
+// ============================================================================
+
+export async function getHighscoreKillerMostWins(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_wins: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*) as total_wins
+    FROM killer_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY total_wins DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_wins }))
+}
+
+export async function getHighscoreKillerEliminationsMatch(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    total_kills: number
+  }>(`
+    WITH elim_turns AS (
+      SELECT
+        e.match_id,
+        m.created_at as match_date,
+        e.data::jsonb->>'playerId' as player_id,
+        jsonb_array_length(e.data::jsonb->'eliminations') as kills
+      FROM killer_events e
+      JOIN killer_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'KillerTurnAdded'
+        AND e.data::jsonb->'eliminations' IS NOT NULL
+        AND jsonb_typeof(e.data::jsonb->'eliminations') = 'array'
+    )
+    SELECT
+      et.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      et.match_id,
+      et.match_date,
+      SUM(et.kills)::integer as total_kills
+    FROM elim_turns et
+    JOIN profiles p ON p.id = et.player_id
+    WHERE et.player_id NOT LIKE 'guest-%'
+      AND et.player_id NOT LIKE 'temp-%'
+    GROUP BY et.player_id, p.name, p.color, et.match_id, et.match_date
+    HAVING SUM(et.kills) > 0
+    ORDER BY total_kills DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_kills, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreKillerEliminationsCareer(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_kills: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      SUM(jsonb_array_length(e.data::jsonb->'eliminations'))::integer as total_kills
+    FROM killer_events e
+    JOIN killer_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'KillerTurnAdded'
+      AND e.data::jsonb->'eliminations' IS NOT NULL
+      AND jsonb_typeof(e.data::jsonb->'eliminations') = 'array'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    HAVING SUM(jsonb_array_length(e.data::jsonb->'eliminations')) > 0
+    ORDER BY total_kills DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_kills }))
+}
+
+export async function getHighscoreKillerMultiKill(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    kills: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      e.match_id,
+      m.created_at as match_date,
+      jsonb_array_length(e.data::jsonb->'eliminations')::integer as kills
+    FROM killer_events e
+    JOIN killer_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'KillerTurnAdded'
+      AND e.data::jsonb->'eliminations' IS NOT NULL
+      AND jsonb_typeof(e.data::jsonb->'eliminations') = 'array'
+      AND jsonb_array_length(e.data::jsonb->'eliminations') >= 2
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    ORDER BY kills DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.kills, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreKillerFlawlessWins(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    flawless_wins: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as flawless_wins
+    FROM killer_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_id IS NOT NULL
+      AND m.final_standings IS NOT NULL
+      AND m.starting_lives IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+      AND (
+        SELECT (fs->>'lives')::integer
+        FROM jsonb_array_elements(m.final_standings::jsonb) fs
+        WHERE fs->>'playerId' = m.winner_id
+        LIMIT 1
+      ) = m.starting_lives
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY flawless_wins DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.flawless_wins }))
+}
+
+// ============================================================================
+// Highscore-Modus Highscores
+// ============================================================================
+
+export async function getHighscoreModeMostWins(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_wins: number
+  }>(`
+    SELECT
+      m.winner_id as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*) as total_wins
+    FROM highscore_matches m
+    JOIN profiles p ON p.id = m.winner_id
+    WHERE m.finished = 1
+      AND m.winner_id IS NOT NULL
+      AND m.winner_id NOT LIKE 'guest-%'
+      AND m.winner_id NOT LIKE 'temp-%'
+    GROUP BY m.winner_id, p.name, p.color
+    ORDER BY total_wins DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_wins }))
+}
+
+export async function getHighscoreModeHighestLegScore(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    score: number
+  }>(`
+    WITH leg_finals AS (
+      SELECT
+        e.match_id,
+        m.created_at as match_date,
+        ranking->>'playerId' as player_id,
+        (ranking->>'finalScore')::integer as score
+      FROM highscore_events e
+      JOIN highscore_matches m ON m.id = e.match_id AND m.finished = 1
+      CROSS JOIN LATERAL jsonb_array_elements(e.data::jsonb->'rankings') ranking
+      WHERE e.type = 'HighscoreLegFinished'
+    )
+    SELECT
+      lf.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      lf.match_id,
+      lf.match_date,
+      lf.score
+    FROM leg_finals lf
+    JOIN profiles p ON p.id = lf.player_id
+    WHERE lf.score IS NOT NULL
+      AND lf.player_id NOT LIKE 'guest-%'
+      AND lf.player_id NOT LIKE 'temp-%'
+    ORDER BY lf.score DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.score, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreModeMost180s(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    count_180s: number
+  }>(`
+    WITH match_180s AS (
+      SELECT
+        e.data::jsonb->>'playerId' as player_id,
+        e.match_id,
+        m.created_at as match_date,
+        COUNT(*) as count_180s
+      FROM highscore_events e
+      JOIN highscore_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'HighscoreTurnAdded'
+        AND (e.data::jsonb->>'turnScore')::integer = 180
+      GROUP BY e.data::jsonb->>'playerId', e.match_id, m.created_at
+    )
+    SELECT
+      m180.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      m180.match_id,
+      m180.match_date,
+      m180.count_180s
+    FROM match_180s m180
+    JOIN profiles p ON p.id = m180.player_id
+    WHERE m180.player_id NOT LIKE 'guest-%'
+      AND m180.player_id NOT LIKE 'temp-%'
+    ORDER BY m180.count_180s DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.count_180s, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreModeFastestLeg(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    match_id: string
+    match_date: string
+    darts: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'winnerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      e.match_id,
+      m.created_at as match_date,
+      (e.data::jsonb->>'winnerDarts')::integer as darts
+    FROM highscore_events e
+    JOIN highscore_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'winnerId'
+    WHERE e.type = 'HighscoreLegFinished'
+      AND e.data::jsonb->>'winnerDarts' IS NOT NULL
+      AND e.data::jsonb->>'winnerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'winnerId' NOT LIKE 'temp-%'
+    ORDER BY darts ASC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.darts, matchId: r.match_id, matchDate: r.match_date }))
+}
+
+export async function getHighscoreModeCareer180s(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    total_180s: number
+  }>(`
+    SELECT
+      e.data::jsonb->>'playerId' as player_id,
+      p.name as player_name,
+      p.color as player_color,
+      COUNT(*)::integer as total_180s
+    FROM highscore_events e
+    JOIN highscore_matches m ON m.id = e.match_id AND m.finished = 1
+    JOIN profiles p ON p.id = e.data::jsonb->>'playerId'
+    WHERE e.type = 'HighscoreTurnAdded'
+      AND (e.data::jsonb->>'turnScore')::integer = 180
+      AND e.data::jsonb->>'playerId' NOT LIKE 'guest-%'
+      AND e.data::jsonb->>'playerId' NOT LIKE 'temp-%'
+    GROUP BY e.data::jsonb->>'playerId', p.name, p.color
+    ORDER BY total_180s DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: r.total_180s }))
+}
+
+export async function getHighscoreModeBestCareerAvg(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const results = await query<{
+    player_id: string
+    player_name: string
+    player_color: string | null
+    career_avg: number
+  }>(`
+    WITH player_totals AS (
+      SELECT
+        e.data::jsonb->>'playerId' as player_id,
+        SUM((e.data::jsonb->>'turnScore')::integer)::real as total_score,
+        SUM(jsonb_array_length(e.data::jsonb->'darts'))::real as total_darts
+      FROM highscore_events e
+      JOIN highscore_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'HighscoreTurnAdded'
+      GROUP BY e.data::jsonb->>'playerId'
+    ),
+    match_count AS (
+      SELECT
+        mp.player_id,
+        COUNT(DISTINCT m.id)::integer as matches
+      FROM highscore_matches m
+      JOIN highscore_match_players mp ON mp.match_id = m.id
+      WHERE m.finished = 1
+      GROUP BY mp.player_id
+    )
+    SELECT
+      pt.player_id,
+      p.name as player_name,
+      p.color as player_color,
+      (pt.total_score / pt.total_darts * 3) as career_avg
+    FROM player_totals pt
+    JOIN profiles p ON p.id = pt.player_id
+    JOIN match_count mc ON mc.player_id = pt.player_id
+    WHERE pt.player_id NOT LIKE 'guest-%'
+      AND pt.player_id NOT LIKE 'temp-%'
+      AND mc.matches >= 5
+      AND pt.total_darts > 0
+    ORDER BY career_avg DESC
+    LIMIT ?
+  `, [limit])
+  return results.map((r, i) => ({ rank: i + 1, playerId: r.player_id, playerName: r.player_name ?? 'Unbekannt', playerColor: r.player_color ?? undefined, value: Math.round(r.career_avg * 100) / 100 }))
+}
+
+// ============================================================================
 // Highscore Orchestration
 // ============================================================================
 
@@ -1349,6 +2519,46 @@ export async function getAllHighscoresSQL(): Promise<HighscoreCategory[]> {
         case 'operation-best-hitrate': entries = await getHighscoreOperationBestHitRate(); break
         case 'operation-most-wins': entries = await getHighscoreOperationMostWins(); break
         case 'operation-longest-streak': entries = await getHighscoreOperationLongestStreak(); break
+        // Shanghai
+        case 'shanghai-most-wins': entries = await getHighscoreShanghaiMostWins(); break
+        case 'shanghai-most-finishs': entries = await getHighscoreShanghaiMostFinishs(); break
+        case 'shanghai-highest-leg-score': entries = await getHighscoreShanghaiHighestLegScore(); break
+        case 'shanghai-fewest-darts': entries = await getHighscoreShanghaiFewestDarts(); break
+        case 'shanghai-highest-turn': entries = await getHighscoreShanghaiHighestTurn(); break
+        case 'shanghai-perfect-turns': entries = await getHighscoreShanghaiPerfectTurns(); break
+        case 'shanghai-biggest-margin': entries = await getHighscoreShanghaiBiggestMargin(); break
+        case 'shanghai-focused-match': entries = await getHighscoreShanghaiFocusedMatch(); break
+        case 'shanghai-triple-master': entries = await getHighscoreShanghaiTripleMaster(); break
+        // CTF
+        case 'ctf-most-wins': entries = await getHighscoreCTFMostWins(); break
+        case 'ctf-highest-match-score': entries = await getHighscoreCTFHighestMatchScore(); break
+        case 'ctf-most-fields': entries = await getHighscoreCTFMostFields(); break
+        case 'ctf-longest-streak': entries = await getHighscoreCTFLongestStreak(); break
+        case 'ctf-best-turn': entries = await getHighscoreCTFBestTurn(); break
+        case 'ctf-perfect-match': entries = await getHighscoreCTFPerfectMatch(); break
+        case 'ctf-bull-sniper': entries = await getHighscoreCTFBullSniper(); break
+        case 'ctf-focused-match': entries = await getHighscoreCTFFocusedMatch(); break
+        case 'ctf-triple-threes': entries = await getHighscoreCTFTripleThrees(); break
+        case 'ctf-clean-sheet': entries = await getHighscoreCTFCleanSheet(); break
+        // Sträußchen
+        case 'str-most-wins': entries = await getHighscoreStrMostWins(); break
+        case 'str-fastest-time': entries = await getHighscoreStrFastestTime(); break
+        case 'str-fewest-darts': entries = await getHighscoreStrFewestDarts(); break
+        case 'str-hit-streak': entries = await getHighscoreStrHitStreak(); break
+        case 'str-best-hit-rate': entries = await getHighscoreStrBestHitRate(); break
+        // Killer
+        case 'killer-most-wins': entries = await getHighscoreKillerMostWins(); break
+        case 'killer-most-eliminations-match': entries = await getHighscoreKillerEliminationsMatch(); break
+        case 'killer-most-eliminations-career': entries = await getHighscoreKillerEliminationsCareer(); break
+        case 'killer-multi-kill': entries = await getHighscoreKillerMultiKill(); break
+        case 'killer-flawless-wins': entries = await getHighscoreKillerFlawlessWins(); break
+        // Highscore-Modus
+        case 'highscore-most-wins': entries = await getHighscoreModeMostWins(); break
+        case 'highscore-highest-leg-score': entries = await getHighscoreModeHighestLegScore(); break
+        case 'highscore-most-180s': entries = await getHighscoreModeMost180s(); break
+        case 'highscore-fastest-leg': entries = await getHighscoreModeFastestLeg(); break
+        case 'highscore-career-180s': entries = await getHighscoreModeCareer180s(); break
+        case 'highscore-best-career-avg': entries = await getHighscoreModeBestCareerAvg(); break
       }
     } catch (err) {
       console.error(`Highscore-Kategorie ${catConfig.id} fehlgeschlagen:`, err)

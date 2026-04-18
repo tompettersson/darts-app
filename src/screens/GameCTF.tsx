@@ -1002,7 +1002,9 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
         const pList = state.match?.players ?? []
         const pCount = pList.length
         const playerRowCount: 1 | 2 | 3 | 4 = pCount <= 2 ? 1 : Math.min(4, Math.ceil(pCount / 2)) as 1 | 2 | 3 | 4
-        const SIZE_BOARD = { 1: 300, 2: 270, 3: 230, 4: 190 }[playerRowCount]
+        // Dartscheibe skaliert mit Viewport; Reserve wächst mit Kartenreihen
+        const boardReserve = 260 + playerRowCount * 45
+        const SIZE_BOARD = Math.max(170, Math.min(screenWidth - 20, screenHeight - boardReserve))
         return (
         /* ===== MOBILE PORTRAIT ===== */
         <div style={{
@@ -1064,7 +1066,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
               <div style={{ fontSize: 10, color: c.textDim }}>Runde {currentFieldIndex + 1}/{seqLen}</div>
               <span style={{ fontSize: 16, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
               <span style={{ fontSize: 14, color: c.textDim, margin: '0 6px' }}>→</span>
-              <span style={{ fontSize: 46, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 16px ${activePlayerColor}60` }}>{currentTargetLabel}</span>
+              <span style={{ fontSize: 48, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 16px ${activePlayerColor}60` }}>{currentTargetLabel}</span>
             </div>
           )}
 
@@ -1072,11 +1074,15 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
             {[0, 1, 2].map(i => {
               const dart = current[i]
+              const hasDart = !!dart
+              const accent = activePlayerColor || (isArcade ? c.ledOn : colors.accent)
               return (
                 <div key={i} style={{
                   width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
-                  borderRadius: 6, fontWeight: 700, fontSize: 14, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                  background: hasDart ? (isArcade ? '#222' : colors.bgCard) : (isArcade ? '#111' : colors.bgMuted),
+                  border: hasDart ? `2px solid ${accent}` : `1px solid ${isArcade ? '#444' : colors.border}`,
+                  borderRadius: 6, fontWeight: 700, fontSize: 14,
+                  color: hasDart ? accent : (isArcade ? '#666' : colors.fgDim),
                 }}>
                   {dart ? formatDart(dart) : `${i + 1}.`}
                 </div>
@@ -1183,7 +1189,7 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
           {/* Mitte: Dartboard */}
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
             <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
-              size={Math.min(typeof window !== 'undefined' ? window.innerHeight - 60 : 300, 320)}
+              size={Math.max(200, Math.min(screenWidth * 0.45, screenHeight - 40))}
               activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
           </div>
           {/* Rechts: Ziel + Darts + Buttons */}
@@ -1192,17 +1198,21 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
               <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
                 <div style={{ fontSize: 12, color: c.textDim }}>Runde {currentFieldIndex + 1}/{seqLen}</div>
                 <div style={{ fontSize: 14, color: activePlayerColor, fontWeight: 700 }}>{activePlayer.name}</div>
-                <div style={{ fontSize: 80, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 20px ${activePlayerColor}60`, lineHeight: 1 }}>{currentTargetLabel}</div>
+                <div style={{ fontSize: 84, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 20px ${activePlayerColor}60`, lineHeight: 1 }}>{currentTargetLabel}</div>
               </div>
             )}
             <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
               {[0, 1, 2].map(i => {
                 const dart = current[i]
+                const hasDart = !!dart
+                const accent = activePlayerColor || (isArcade ? c.ledOn : colors.accent)
                 return (
                   <div key={i} style={{
                     flex: 1, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: dart ? '#222' : '#111', border: dart ? `2px solid ${activePlayerColor || c.ledOn}` : '1px solid #444',
-                    borderRadius: 4, fontWeight: 700, fontSize: 13, color: dart ? (activePlayerColor || c.ledOn) : '#666',
+                    background: hasDart ? (isArcade ? '#222' : colors.bgCard) : (isArcade ? '#111' : colors.bgMuted),
+                    border: hasDart ? `2px solid ${accent}` : `1px solid ${isArcade ? '#444' : colors.border}`,
+                    borderRadius: 4, fontWeight: 700, fontSize: 13,
+                    color: hasDart ? accent : (isArcade ? '#666' : colors.fgDim),
                   }}>
                     {dart ? formatDart(dart) : `${i + 1}.`}
                   </div>

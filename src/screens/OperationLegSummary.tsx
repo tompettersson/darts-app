@@ -26,6 +26,8 @@ type Props = {
   totalLegs: number
   targetMode: OperationTargetMode
   onNextLeg: (targetNumber?: number) => void
+  isGuest?: boolean
+  legsWonByPlayer?: Record<string, number>
 }
 
 // ===== Hilfsfunktionen =====
@@ -47,6 +49,8 @@ export default function OperationLegSummary({
   totalLegs,
   targetMode,
   onNextLeg,
+  isGuest = false,
+  legsWonByPlayer,
 }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
@@ -254,6 +258,37 @@ export default function OperationLegSummary({
             <div style={{ fontSize: isMobile ? 11 : 12, color: colors.fgMuted, marginBottom: 2 }}>Leg-Gewinner</div>
             <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: colors.success }}>
               {winnerPlayer.name}
+            </div>
+          </div>
+        )}
+
+        {/* Zwischenstand: Leg-Wins pro Spieler */}
+        {totalLegs > 1 && legsWonByPlayer && (
+          <div style={{
+            padding: isMobile ? '8px 10px' : '10px 14px',
+            borderRadius: 10,
+            background: colors.bgMuted,
+            border: `1px solid ${colors.border}`,
+            marginBottom: isMobile ? 10 : 14,
+          }}>
+            <div style={{ fontSize: isMobile ? 11 : 12, color: colors.fgMuted, marginBottom: 6, textAlign: 'center' }}>
+              Zwischenstand · First to {Math.ceil(totalLegs / 2)}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {players.map((p, idx) => {
+                const won = legsWonByPlayer[p.playerId] ?? 0
+                const pColor = PLAYER_COLORS[idx % PLAYER_COLORS.length]
+                return (
+                  <div key={p.playerId} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '4px 10px', borderRadius: 99,
+                    background: colors.bgCard, border: `1px solid ${pColor}`,
+                  }}>
+                    <span style={{ fontSize: isMobile ? 12 : 13, color: colors.fg, fontWeight: 600 }}>{p.name}</span>
+                    <span style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: pColor }}>{won}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -490,8 +525,27 @@ export default function OperationLegSummary({
           </div>
         )}
 
+        {/* Multiplayer-Guest: keine Auswahl, auf Host warten */}
+        {!isLastLeg && isGuest && (
+          <div style={{
+            marginBottom: 8,
+            padding: '16px 14px',
+            borderRadius: 10,
+            background: colors.bgMuted,
+            border: `1px solid ${colors.border}`,
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.fg, marginBottom: 4 }}>
+              Warte auf Host…
+            </div>
+            <div style={{ fontSize: 12, color: colors.fgMuted }}>
+              Der Host wählt das Ziel für das nächste Leg.
+            </div>
+          </div>
+        )}
+
         {/* Target Selection / CTA */}
-        {!isLastLeg && (
+        {!isLastLeg && !isGuest && (
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: colors.fgMuted, marginBottom: 10 }}>
               Naechstes Leg &middot; Ziel waehlen

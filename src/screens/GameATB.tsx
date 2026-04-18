@@ -1048,7 +1048,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             <ATBDartboard
               currentTarget={nextTargetNumber}
               players={dartboardPlayers}
-              size={Math.min(typeof window !== 'undefined' ? window.innerHeight - 60 : 300, 320)}
+              size={Math.max(200, Math.min(screenWidth * 0.45, screenHeight - 40))}
               activePlayerColor={activePlayerColor}
               pendingMultipliers={pendingMultipliers}
             />
@@ -1060,7 +1060,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             {activePlayer && nextTargetLabel && (
               <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
                 <div style={{ fontSize: 11, color: activePlayerColor, fontWeight: 700 }}>{activePlayer.name}</div>
-                <div style={{ fontSize: 72, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 18px ${activePlayerColor}60`, lineHeight: 1 }}>{nextTargetLabel}</div>
+                <div style={{ fontSize: 76, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 18px ${activePlayerColor}60`, lineHeight: 1 }}>{nextTargetLabel}</div>
                 {activeSpecialState?.needsBull && <div style={{ fontSize: 9, color: c.yellow }}>🎯 Bull!</div>}
                 {activeSpecialState?.mustUseDouble && <div style={{ fontSize: 9, color: c.yellow }}>🎯 Double!</div>}
               </div>
@@ -1132,8 +1132,9 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         const pCount = players.length
         // Reihenanzahl: 1-2 = 1, 3-4 = 2, 5-6 = 3, 7-8 = 4
         const playerRowCount: 1 | 2 | 3 | 4 = pCount <= 2 ? 1 : Math.min(4, Math.ceil(pCount / 2)) as 1 | 2 | 3 | 4
-        // 4 Größen-Presets: Dartscheibe schrumpft, je mehr Kartenreihen
-        const SIZE_BOARD = { 1: 300, 2: 270, 3: 230, 4: 190 }[playerRowCount]
+        // Dartscheibe skaliert mit Viewport; Reserve wächst mit Kartenreihen
+        const boardReserve = 260 + playerRowCount * 45
+        const SIZE_BOARD = Math.max(170, Math.min(screenWidth - 20, screenHeight - boardReserve))
         return (
         /* ===== MOBILE PORTRAIT ===== */
         <div style={{
@@ -1203,7 +1204,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             <div style={{ textAlign: 'center', flexShrink: 0, margin: '6px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
               <span style={{ fontSize: 14, color: c.textDim, margin: '0 6px' }}>→</span>
-              <span style={{ fontSize: 46, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 16px ${activePlayerColor}60` }}>{nextTargetLabel}</span>
+              <span style={{ fontSize: 48, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 16px ${activePlayerColor}60` }}>{nextTargetLabel}</span>
               {activeSpecialState?.needsBull && <span style={{ fontSize: 11, color: c.yellow }}>🎯 Bull!</span>}
               {activeSpecialState?.mustUseDouble && <span style={{ fontSize: 11, color: c.yellow }}>🎯 Double!</span>}
               {activeSpecialState?.consecutiveMisses !== undefined && activeSpecialState.consecutiveMisses > 0 && (

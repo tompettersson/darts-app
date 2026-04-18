@@ -1,7 +1,18 @@
 // src/types/highscores.ts
 // Typen für die neue Highscores / Hall of Fame Seite
 
-export type HighscoreGameType = 'all' | 'x01' | 'cricket' | 'atb' | 'bobs27' | 'operation'
+export type HighscoreGameType =
+  | 'all'
+  | 'x01'
+  | 'cricket'
+  | 'atb'
+  | 'bobs27'
+  | 'operation'
+  | 'shanghai'
+  | 'ctf'
+  | 'str'
+  | 'killer'
+  | 'highscore'
 
 export type HighscoreCategory = {
   id: string
@@ -66,6 +77,46 @@ export type HighscoreCategoryId =
   | 'operation-best-hitrate'
   | 'operation-most-wins'
   | 'operation-longest-streak'
+  // Shanghai
+  | 'shanghai-most-wins'
+  | 'shanghai-most-finishs'
+  | 'shanghai-highest-leg-score'
+  | 'shanghai-fewest-darts'
+  | 'shanghai-highest-turn'
+  | 'shanghai-perfect-turns'
+  | 'shanghai-biggest-margin'
+  | 'shanghai-focused-match'
+  | 'shanghai-triple-master'
+  // CTF
+  | 'ctf-most-wins'
+  | 'ctf-highest-match-score'
+  | 'ctf-most-fields'
+  | 'ctf-longest-streak'
+  | 'ctf-best-turn'
+  | 'ctf-perfect-match'
+  | 'ctf-bull-sniper'
+  | 'ctf-focused-match'
+  | 'ctf-triple-threes'
+  | 'ctf-clean-sheet'
+  // Sträußchen
+  | 'str-most-wins'
+  | 'str-fastest-time'
+  | 'str-fewest-darts'
+  | 'str-hit-streak'
+  | 'str-best-hit-rate'
+  // Killer
+  | 'killer-most-wins'
+  | 'killer-most-eliminations-match'
+  | 'killer-most-eliminations-career'
+  | 'killer-multi-kill'
+  | 'killer-flawless-wins'
+  // Highscore-Modus
+  | 'highscore-most-wins'
+  | 'highscore-highest-leg-score'
+  | 'highscore-most-180s'
+  | 'highscore-fastest-leg'
+  | 'highscore-career-180s'
+  | 'highscore-best-career-avg'
 
 // Konfiguration für alle Kategorien
 export const HIGHSCORE_CATEGORIES: {
@@ -123,4 +174,49 @@ export const HIGHSCORE_CATEGORIES: {
   { id: 'operation-best-hitrate', title: 'Beste Hit-Rate', subtitle: 'Karriere', gameType: 'operation', sortOrder: 'desc', format: 'percent', minRequirement: 'min. 5 Matches' },
   { id: 'operation-most-wins', title: 'Meiste Siege', subtitle: 'Operation: EFKG', gameType: 'operation', sortOrder: 'desc', format: 'number' },
   { id: 'operation-longest-streak', title: 'Längster Streak', subtitle: 'Operation: EFKG', gameType: 'operation', sortOrder: 'desc', format: 'number' },
+
+  // Shanghai
+  { id: 'shanghai-most-wins', title: 'Meiste Siege', icon: '🏯', subtitle: 'Shanghai', gameType: 'shanghai', sortOrder: 'desc', format: 'number' },
+  { id: 'shanghai-most-finishs', title: 'Meiste Shanghai-Finishs', icon: '🐉', subtitle: 'S + D + T einer Zahl', gameType: 'shanghai', sortOrder: 'desc', format: 'number' },
+  { id: 'shanghai-highest-leg-score', title: 'Höchste Leg-Punktzahl', icon: '💎', subtitle: 'Einzel-Leg', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'shanghai-fewest-darts', title: 'Wenigste Darts bis Sieg', icon: '⚡', subtitle: 'Match', gameType: 'shanghai', sortOrder: 'asc', format: 'darts' },
+  { id: 'shanghai-highest-turn', title: 'Höchste Aufnahme', icon: '🔥', subtitle: 'Einzel-Turn', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'shanghai-perfect-turns', title: 'Perfekte Runden', icon: '💫', subtitle: '3 Darts auf Ziel', gameType: 'shanghai', sortOrder: 'desc', format: 'number' },
+  { id: 'shanghai-biggest-margin', title: 'Größter Sieg-Abstand', icon: '👑', subtitle: 'Punkte vor 2.', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'shanghai-focused-match', title: 'Fokussierte Matches', icon: '🎯', subtitle: 'Jede Aufnahme trifft', gameType: 'shanghai', sortOrder: 'desc', format: 'number' },
+  { id: 'shanghai-triple-master', title: 'Triple-Magier', icon: '🌟', subtitle: 'Triple-Quote auf Ziel', gameType: 'shanghai', sortOrder: 'desc', format: 'percent', minRequirement: 'min. 30 Darts' },
+
+  // Capture the Field
+  { id: 'ctf-most-wins', title: 'Meiste Siege', icon: '🚩', subtitle: 'Capture the Field', gameType: 'ctf', sortOrder: 'desc', format: 'number' },
+  { id: 'ctf-highest-match-score', title: 'Höchste Matchpunkte', icon: '💎', subtitle: 'Einzel-Match', gameType: 'ctf', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'ctf-most-fields', title: 'Meiste eroberte Felder', icon: '🏴', subtitle: 'Einzel-Match', gameType: 'ctf', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'ctf-longest-streak', title: 'Längste Siegesserie', icon: '🔥', subtitle: 'Felder in Folge', gameType: 'ctf', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'ctf-best-turn', title: 'Beste Aufnahme', icon: '💥', subtitle: 'Einzel-Turn', gameType: 'ctf', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'ctf-perfect-match', title: 'Blanke Matches', icon: '⭐', subtitle: 'Alle Felder erobert', gameType: 'ctf', sortOrder: 'desc', format: 'number' },
+  { id: 'ctf-bull-sniper', title: 'Bull-Schütze', icon: '🎯', subtitle: 'Bull-Treffer gesamt', gameType: 'ctf', sortOrder: 'desc', format: 'number' },
+  { id: 'ctf-focused-match', title: 'Fokussierte Matches', icon: '🎯', subtitle: 'Jede Aufnahme trifft', gameType: 'ctf', sortOrder: 'desc', format: 'number' },
+  { id: 'ctf-triple-threes', title: '3-von-3 Aufnahmen', icon: '💯', subtitle: 'Alle Darts Treffer', gameType: 'ctf', sortOrder: 'desc', format: 'number' },
+  { id: 'ctf-clean-sheet', title: 'Saubere Weste', icon: '🛡️', subtitle: 'Kein Feld verloren', gameType: 'ctf', sortOrder: 'desc', format: 'number' },
+
+  // Sträußchen
+  { id: 'str-most-wins', title: 'Meiste Siege', icon: '💐', subtitle: 'Sträußchen', gameType: 'str', sortOrder: 'desc', format: 'number' },
+  { id: 'str-fastest-time', title: 'Schnellste Zeit', icon: '⏱️', subtitle: 'Match', gameType: 'str', sortOrder: 'asc', format: 'time' },
+  { id: 'str-fewest-darts', title: 'Wenigste Darts', icon: '⚡', subtitle: 'Match', gameType: 'str', sortOrder: 'asc', format: 'darts' },
+  { id: 'str-hit-streak', title: 'Treffer in Folge', icon: '🔥', subtitle: 'Einzel-Match', gameType: 'str', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'str-best-hit-rate', title: 'Beste Trefferquote', icon: '🎯', subtitle: 'Karriere', gameType: 'str', sortOrder: 'desc', format: 'percent', minRequirement: 'min. 10 Turns' },
+
+  // Killer
+  { id: 'killer-most-wins', title: 'Meiste Siege', icon: '🗡️', subtitle: 'Killer', gameType: 'killer', sortOrder: 'desc', format: 'number' },
+  { id: 'killer-most-eliminations-match', title: 'Meiste Eliminationen', icon: '💀', subtitle: 'Einzel-Match', gameType: 'killer', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'killer-most-eliminations-career', title: 'Killer-Karriere', icon: '☠️', subtitle: 'Gesamt-Eliminationen', gameType: 'killer', sortOrder: 'desc', format: 'number' },
+  { id: 'killer-multi-kill', title: 'Multi-Kill', icon: '💥', subtitle: 'Eliminationen in einer Aufnahme', gameType: 'killer', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'killer-flawless-wins', title: 'Makellose Siege', icon: '🛡️', subtitle: 'Ohne Leben-Verlust', gameType: 'killer', sortOrder: 'desc', format: 'number' },
+
+  // Highscore (Spielmodus)
+  { id: 'highscore-most-wins', title: 'Meiste Siege', icon: '🏆', subtitle: 'Highscore-Modus', gameType: 'highscore', sortOrder: 'desc', format: 'number' },
+  { id: 'highscore-highest-leg-score', title: 'Höchster Leg-Score', icon: '💎', subtitle: 'Einzel-Leg', gameType: 'highscore', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'highscore-most-180s', title: 'Meiste 180er', icon: '🎯', subtitle: 'Einzel-Match', gameType: 'highscore', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'highscore-fastest-leg', title: 'Wenigste Darts bis Finish', icon: '⚡', subtitle: 'Leg', gameType: 'highscore', sortOrder: 'asc', format: 'darts', multiPerPlayer: true },
+  { id: 'highscore-career-180s', title: '180er-Karriere', icon: '🎯', subtitle: 'Gesamt', gameType: 'highscore', sortOrder: 'desc', format: 'number' },
+  { id: 'highscore-best-career-avg', title: 'Bester Karriere-Ø', icon: '📊', subtitle: 'Punkte pro 3 Darts', gameType: 'highscore', sortOrder: 'desc', format: 'decimal', minRequirement: 'min. 5 Matches' },
 ]

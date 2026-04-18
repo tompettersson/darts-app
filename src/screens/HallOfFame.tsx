@@ -19,6 +19,11 @@ const GAME_TYPE_LABELS: Record<HighscoreGameType, string> = {
   atb: 'ATB',
   bobs27: "Bob's 27",
   operation: 'Operation: EFKG',
+  shanghai: 'Shanghai',
+  ctf: 'CTF',
+  str: 'Sträußchen',
+  killer: 'Killer',
+  highscore: 'Highscore',
 }
 
 // Deduplizierung: gleicher Spieler + gleicher Wert → nur einmal
@@ -415,7 +420,7 @@ export default function HallOfFame({ onBack }: Props) {
 
         {/* Tab Bar */}
         <div style={s.tabBar} className="hide-scrollbar" role="tablist" aria-label="Spielmodus-Filter">
-          {(['all', 'x01', 'cricket', 'atb', 'bobs27', 'operation'] as HighscoreGameType[]).map(tab => (
+          {(['all', 'x01', 'cricket', 'atb', 'bobs27', 'operation', 'shanghai', 'ctf', 'str', 'killer', 'highscore'] as HighscoreGameType[]).map(tab => (
             <button
               key={tab}
               style={s.tab(activeTab === tab)}
