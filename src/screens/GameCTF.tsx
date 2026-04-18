@@ -1084,27 +1084,26 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
             })}
           </div>
 
-          {/* Treffer / Miss */}
+          {/* Single / Double / Triple — direkter Wurf (Shanghai-Logik) */}
           <div style={{ flexShrink: 0, padding: '2px 0' }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-              <button onClick={addHitOnTarget} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #22c55e',
-                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}>✓ Treffer</button>
-              <button onClick={addMiss} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '10px 0', borderRadius: 6, border: '2px solid #ef4444',
-                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}>✕ Miss</button>
+              {([1, 2, 3] as const).map(m => {
+                const multColor = m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444'
+                const multBg = m === 1 ? '#1e3a5f' : m === 2 ? '#166534' : '#7f1d1d'
+                const dis = current.length >= 3 || gamePaused
+                return (
+                  <button key={m} onClick={() => { multRef.current = m; setMult(m); if (currentTargetNumber) addDart(currentTargetNumber) }} disabled={dis} style={{
+                    flex: 1, padding: '10px 0', borderRadius: 6, border: `2px solid ${multColor}`,
+                    background: multBg, color: multColor, fontWeight: 700, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1,
+                  }}>{m === 1 ? 'Single' : m === 2 ? 'Double' : 'Triple'}</button>
+                )
+              })}
             </div>
             <div style={{ display: 'flex', gap: 3 }}>
-              {([1, 2, 3] as const).map(m => (
-                <button key={m} onClick={() => setMult(m)} style={{
-                  flex: 1, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                  border: `1px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
-                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
-                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
-                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
-              ))}
+              <button onClick={addMiss} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, height: 28, borderRadius: 4, border: '2px solid #ef4444',
+                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              }}>✕ Miss</button>
               <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
                 flex: 1, height: 28, borderRadius: 4, border: '1px solid #555', background: '#222',
                 color: current.length > 0 ? '#ddd' : '#555', fontWeight: 600, fontSize: 9, cursor: 'pointer',
@@ -1116,10 +1115,35 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
             </div>
           </div>
 
-          {/* Dartboard — Größe abhängig von Spielerkarten-Reihen (1-4) */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
-              size={Math.min(screenWidth - 20, SIZE_BOARD)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
+          {/* Dartboard + Wurfabfolge — Größe abhängig von Spielerkarten-Reihen (1-4) */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ATBDartboard currentTarget={currentTargetNumber} players={dartboardPlayers}
+                size={Math.min(screenWidth - 20, SIZE_BOARD)} activePlayerColor={activePlayerColor} fieldOwners={fieldOwners} />
+            </div>
+            {/* Wurfabfolge — letzte Aufnahmen */}
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', fontSize: 10, color: c.textDim, padding: '4px 0 0', flexShrink: 0 }}>
+              {state.match?.players && (() => {
+                const turnEvents = events.filter((e: any) => e.type === 'CTFTurnAdded').slice(-6) as any[]
+                return turnEvents.map((t: any, i: number) => {
+                  const pName = state.match!.players.find(p => p.playerId === t.playerId)?.name ?? '?'
+                  const pIdx = state.match!.players.findIndex(p => p.playerId === t.playerId)
+                  const pColor = playerColors[t.playerId] ?? PLAYER_COLORS[pIdx % PLAYER_COLORS.length]
+                  const darts = t.darts?.map((d: any) => {
+                    if (d.target === 'MISS') return 'X'
+                    const prefix = d.mult === 2 ? 'D' : d.mult === 3 ? 'T' : ''
+                    const tgt = d.target === 'BULL' ? 'B' : d.target
+                    return `${prefix}${tgt}`
+                  }).join(' ') ?? '—'
+                  return (
+                    <span key={i} style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ width: 4, height: 4, borderRadius: 99, background: pColor, display: 'inline-block', marginRight: 2 }} />
+                      <span style={{ color: '#777' }}>{pName.slice(0, 4)}</span> <span style={{ color: '#ccc' }}>{darts}</span>
+                    </span>
+                  )
+                })
+              })()}
+            </div>
           </div>
         </div>
         )
@@ -1185,25 +1209,25 @@ export default function GameCTF({ matchId, onExit, onShowSummary, multiplayer }:
                 )
               })}
             </div>
+            {/* Single / Double / Triple — direkter Wurf (Shanghai-Logik) */}
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={addHitOnTarget} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '14px 0', borderRadius: 6, border: '2px solid #22c55e',
-                background: '#166534', color: '#22c55e', fontWeight: 700, fontSize: 16, cursor: 'pointer',
-              }}>✓ Treffer</button>
-              <button onClick={addMiss} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '14px 0', borderRadius: 6, border: '2px solid #ef4444',
-                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 16, cursor: 'pointer',
-              }}>✕ Miss</button>
+              {([1, 2, 3] as const).map(m => {
+                const multColor = m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444'
+                const multBg = m === 1 ? '#1e3a5f' : m === 2 ? '#166534' : '#7f1d1d'
+                const dis = current.length >= 3 || gamePaused
+                return (
+                  <button key={m} onClick={() => { multRef.current = m; setMult(m); if (currentTargetNumber) addDart(currentTargetNumber) }} disabled={dis} style={{
+                    flex: 1, padding: '14px 0', borderRadius: 6, border: `2px solid ${multColor}`,
+                    background: multBg, color: multColor, fontWeight: 700, fontSize: 16, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1,
+                  }}>{m === 1 ? 'Single' : m === 2 ? 'Double' : 'Triple'}</button>
+                )
+              })}
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
-              {([1, 2, 3] as const).map(m => (
-                <button key={m} onClick={() => setMult(m)} style={{
-                  flex: 1, height: 38, borderRadius: 5, fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                  border: `2px solid ${mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#555'}`,
-                  background: mult === m ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : '#222',
-                  color: mult === m ? (m === 1 ? '#0ea5e9' : m === 2 ? '#22c55e' : '#ef4444') : '#aaa',
-                }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
-              ))}
+              <button onClick={addMiss} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, height: 38, borderRadius: 5, border: '2px solid #ef4444',
+                background: '#7f1d1d', color: '#fca5a5', fontWeight: 700, fontSize: 15, cursor: 'pointer',
+              }}>✕ Miss</button>
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{

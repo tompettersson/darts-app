@@ -904,31 +904,6 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
 
           {/* Shared components for portrait + landscape */}
           {(() => {
-            const SEGS = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5]
-            const boardSize = isLandscape ? 120 : 95
-            const dartBoard = (
-              <svg viewBox="0 0 240 240" style={{ width: boardSize, height: boardSize, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
-                <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
-                <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
-                <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />
-                {SEGS.map((num, i) => {
-                  const a1 = (i * 18 - 99) * Math.PI / 180, a2 = ((i + 1) * 18 - 99) * Math.PI / 180
-                  const isT = num === targetNumber, r1 = 28, r2 = 88
-                  return <path key={num} d={`M${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} L${120+r2*Math.cos(a1)},${120+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${120+r2*Math.cos(a2)},${120+r2*Math.sin(a2)} L${120+r1*Math.cos(a2)},${120+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} Z`}
-                    fill={isT ? '#22c55e' : (i % 2 === 0 ? '#1f2937' : '#111827')} stroke="#374151" strokeWidth="0.5"
-                    opacity={isT ? 1 : 0.7} style={isT ? { filter: 'drop-shadow(0 0 6px #22c55e80)' } : undefined} />
-                })}
-                <circle cx="120" cy="120" r="16" fill="#14532d" stroke="#374151" strokeWidth="0.5" />
-                <circle cx="120" cy="120" r="7" fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
-                <circle cx="120" cy="120" r="88" fill="none" stroke="#4b5563" strokeWidth="0.5" />
-                {SEGS.map((num, i) => {
-                  const angle = (i * 18 - 90) * Math.PI / 180, r = 99, isT = num === targetNumber
-                  return <text key={num} x={120 + r * Math.cos(angle)} y={120 + r * Math.sin(angle) + 3.5}
-                    textAnchor="middle" fontSize={isT ? 11 : 8} fontWeight={isT ? 900 : 500}
-                    fill={isT ? '#22c55e' : '#9ca3af'} style={isT ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}>{num}</text>
-                })}
-              </svg>
-            )
             const targetNum = (
               <div style={{ fontSize: isLandscape ? 72 : SIZE.target, fontWeight: 900, lineHeight: 1, minWidth: isLandscape ? 60 : 80, textAlign: 'center',
                 color: isArcade ? c.ledOn : colors.accent, textShadow: isArcade ? `0 0 30px ${c.ledGlow}` : '0 2px 8px rgba(0,0,0,0.1)' }}>
@@ -977,27 +952,12 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
                 <div style={{ display: 'flex', gap: 4, flex: 1, minHeight: 0 }}>
                   {/* Links: Dartboard */}
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start' }}>
-                    <svg viewBox="0 0 240 240" style={{ width: lsBoardSize, height: lsBoardSize, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
-                      <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
-                      <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
-                      <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />
-                      {SEGS.map((num, i) => {
-                        const a1 = (i * 18 - 99) * Math.PI / 180, a2 = ((i + 1) * 18 - 99) * Math.PI / 180
-                        const isT = num === targetNumber, r1 = 28, r2 = 88
-                        return <path key={num} d={`M${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} L${120+r2*Math.cos(a1)},${120+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${120+r2*Math.cos(a2)},${120+r2*Math.sin(a2)} L${120+r1*Math.cos(a2)},${120+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} Z`}
-                          fill={isT ? '#22c55e' : (i % 2 === 0 ? '#1f2937' : '#111827')} stroke="#374151" strokeWidth="0.5"
-                          opacity={isT ? 1 : 0.7} style={isT ? { filter: 'drop-shadow(0 0 6px #22c55e80)' } : undefined} />
-                      })}
-                      <circle cx="120" cy="120" r="16" fill="#14532d" stroke="#374151" strokeWidth="0.5" />
-                      <circle cx="120" cy="120" r="7" fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
-                      <circle cx="120" cy="120" r="88" fill="none" stroke="#4b5563" strokeWidth="0.5" />
-                      {SEGS.map((num, i) => {
-                        const angle = (i * 18 - 90) * Math.PI / 180, r = 99, isT = num === targetNumber
-                        return <text key={num} x={120 + r * Math.cos(angle)} y={120 + r * Math.sin(angle) + 3.5}
-                          textAnchor="middle" fontSize={isT ? 11 : 8} fontWeight={isT ? 900 : 500}
-                          fill={isT ? '#22c55e' : '#9ca3af'} style={isT ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}>{num}</text>
-                      })}
-                    </svg>
+                    <ATBDartboard
+                      currentTarget={targetNumber}
+                      players={dartboardPlayers}
+                      size={lsBoardSize}
+                      activePlayerColor={activePlayerColor}
+                    />
                   </div>
 
                   {/* Rechts: Zielzahl + S/D/T + Actions + Darts ganz rechts */}
@@ -1090,27 +1050,12 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
               </div>
               {/* Dartboard unten — skaliert auf verfügbaren Platz, keine Überlappung */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden', flex: 1, minHeight: 0, justifyContent: 'center', width: '100%' }}>
-                <svg viewBox="0 0 240 240" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', maxWidth: portBoardSize, maxHeight: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
-                  <circle cx="120" cy="120" r="115" fill={isArcade ? '#111' : '#1a1a2e'} />
-                  <circle cx="120" cy="120" r="110" fill={isArcade ? '#0a0a0a' : '#111827'} />
-                  <circle cx="120" cy="120" r="108" fill="none" stroke={isArcade ? '#333' : '#374151'} strokeWidth="1" />
-                  {SEGS.map((num, i) => {
-                    const a1 = (i * 18 - 99) * Math.PI / 180, a2 = ((i + 1) * 18 - 99) * Math.PI / 180
-                    const isT = num === targetNumber, r1 = 28, r2 = 88
-                    return <path key={num} d={`M${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} L${120+r2*Math.cos(a1)},${120+r2*Math.sin(a1)} A${r2},${r2} 0 0,1 ${120+r2*Math.cos(a2)},${120+r2*Math.sin(a2)} L${120+r1*Math.cos(a2)},${120+r1*Math.sin(a2)} A${r1},${r1} 0 0,0 ${120+r1*Math.cos(a1)},${120+r1*Math.sin(a1)} Z`}
-                      fill={isT ? '#22c55e' : (i % 2 === 0 ? '#1f2937' : '#111827')} stroke="#374151" strokeWidth="0.5"
-                      opacity={isT ? 1 : 0.7} style={isT ? { filter: 'drop-shadow(0 0 6px #22c55e80)' } : undefined} />
-                  })}
-                  <circle cx="120" cy="120" r="16" fill="#14532d" stroke="#374151" strokeWidth="0.5" />
-                  <circle cx="120" cy="120" r="7" fill="#dc2626" stroke="#374151" strokeWidth="0.5" />
-                  <circle cx="120" cy="120" r="88" fill="none" stroke="#4b5563" strokeWidth="0.5" />
-                  {SEGS.map((num, i) => {
-                    const angle = (i * 18 - 90) * Math.PI / 180, r = 99, isT = num === targetNumber
-                    return <text key={num} x={120 + r * Math.cos(angle)} y={120 + r * Math.sin(angle) + 3.5}
-                      textAnchor="middle" fontSize={isT ? 11 : 8} fontWeight={isT ? 900 : 500}
-                      fill={isT ? '#22c55e' : '#9ca3af'} style={isT ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined}>{num}</text>
-                  })}
-                </svg>
+                <ATBDartboard
+                  currentTarget={targetNumber}
+                  players={dartboardPlayers}
+                  size={portBoardSize}
+                  activePlayerColor={activePlayerColor}
+                />
               </div>
             </>)
           })()}

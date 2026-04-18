@@ -1089,31 +1089,26 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                 )
               })}
             </div>
-            {/* Treffer / Miss */}
+            {/* Single / Double / Triple — direkter Wurf (Shanghai-Logik) */}
             <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '12px 0', borderRadius: 5, border: `2px solid ${colors.success}`,
-                background: isArcade ? '#166534' : colors.successBg, color: colors.success, fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}>✓ Treffer</button>
-              <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '12px 0', borderRadius: 5, border: `2px solid ${colors.error}`,
-                background: isArcade ? '#7f1d1d' : colors.errorBg, color: colors.error, fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}>✕ Miss</button>
-            </div>
-            {/* S/D/T */}
-            <div style={{ display: 'flex', gap: 3 }}>
               {([1, 2, 3] as const).map(m => {
                 const multColor = m === 1 ? '#0ea5e9' : m === 2 ? colors.success : colors.error
-                const multBgActive = isArcade ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : (m === 1 ? '#dbeafe' : m === 2 ? colors.successBg : colors.errorBg)
+                const multBg = isArcade ? (m === 1 ? '#1e3a5f' : m === 2 ? '#166534' : '#7f1d1d') : (m === 1 ? '#dbeafe' : m === 2 ? colors.successBg : colors.errorBg)
+                const dis = current.length >= 3 || gamePaused
                 return (
-                  <button key={m} onClick={() => setMult(m)} style={{
-                    flex: 1, height: 34, borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                    border: `1px solid ${mult === m ? multColor : (isArcade ? '#555' : colors.border)}`,
-                    background: mult === m ? multBgActive : (isArcade ? '#222' : colors.bgMuted),
-                    color: mult === m ? multColor : (isArcade ? '#aaa' : colors.fg),
-                  }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+                  <button key={m} onClick={() => { multRef.current = m; setMult(m); addHit() }} disabled={dis} style={{
+                    flex: 1, padding: '12px 0', borderRadius: 5, border: `2px solid ${multColor}`,
+                    background: multBg, color: multColor, fontWeight: 700, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1,
+                  }}>{m === 1 ? 'Single' : m === 2 ? 'Double' : 'Triple'}</button>
                 )
               })}
+            </div>
+            {/* Miss */}
+            <div style={{ display: 'flex', gap: 3 }}>
+              <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, height: 34, borderRadius: 4, border: `2px solid ${colors.error}`,
+                background: isArcade ? '#7f1d1d' : colors.errorBg, color: colors.error, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              }}>✕ Miss</button>
             </div>
             {/* Undo */}
             <div style={{ display: 'flex', gap: 3 }}>
@@ -1140,6 +1135,7 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
         // 4 Größen-Presets: Dartscheibe schrumpft, je mehr Kartenreihen
         const SIZE_BOARD = { 1: 300, 2: 270, 3: 230, 4: 190 }[playerRowCount]
         return (
+        /* ===== MOBILE PORTRAIT ===== */
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
           paddingTop: 'calc(4px + env(safe-area-inset-top, 0px))',
@@ -1158,113 +1154,109 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
             } else {
               for (let i = 0; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
             }
-            const renderRow = (row: typeof players) => (
-              <div style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
-                {row.map((p, index) => {
-                  const realIdx = players.indexOf(p)
-                  const isAct = p.playerId === activePlayerId
-                  const progress = getPreviewIndex(p.playerId)
-                  const targetLbl = getPreviewTargetLabel(p.playerId)
-                  const color = playerColors[p.playerId] ?? PLAYER_COLORS[realIdx % PLAYER_COLORS.length]
-                  const percent = (progress / totalFields) * 100
-                  const playerSpecial = state.specialStateByPlayer[p.playerId]
-                  return (
-                    <div key={p.playerId} style={{
-                      flex: '1 1 0',
-                      minWidth: 0, padding: '5px 6px', borderRadius: 6,
-                      background: isAct ? `${color}20` : (isArcade ? '#1a1a1a' : colors.bgCard),
-                      border: isAct ? `2px solid ${color}` : `1px solid ${isArcade ? '#333' : colors.border}`,
-                      opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <span style={{ width: 5, height: 5, borderRadius: 99, background: color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 8, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                        <span style={{ fontSize: 8, fontWeight: 700, color, marginLeft: 'auto', minWidth: 24, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {playerSpecial?.eliminated ? '✗' : targetLbl ?? '✓'}
-                        </span>
-                        <span style={{ fontSize: 7, color: c.textDim, whiteSpace: 'nowrap', minWidth: 22, textAlign: 'right' }}>{progress}/{totalFields}</span>
-                      </div>
-                      <div style={{ height: 2, background: '#333', borderRadius: 1, overflow: 'hidden', marginTop: 2 }}>
-                        <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.3s' }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0, marginBottom: 2 }}>
-                {rows.map((row, ri) => <React.Fragment key={ri}>{renderRow(row)}</React.Fragment>)}
+                {rows.map((row, ri) => (
+                  <div key={ri} style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                    {row.map((p) => {
+                      const realIdx = players.indexOf(p)
+                      const isAct = p.playerId === activePlayerId
+                      const progress = getPreviewIndex(p.playerId)
+                      const targetLbl = getPreviewTargetLabel(p.playerId)
+                      const color = playerColors[p.playerId] ?? PLAYER_COLORS[realIdx % PLAYER_COLORS.length]
+                      const percent = (progress / totalFields) * 100
+                      const playerSpecial = state.specialStateByPlayer[p.playerId]
+                      const nameFz = pCount <= 2 ? 14 : pCount <= 4 ? 12 : pCount <= 6 ? 11 : 10
+                      const targetFz = pCount <= 2 ? 14 : pCount <= 4 ? 12 : pCount <= 6 ? 11 : 10
+                      const progFz = pCount <= 2 ? 11 : pCount <= 4 ? 10 : pCount <= 6 ? 9 : 8
+                      const dotSz = pCount <= 4 ? 7 : 5
+                      return (
+                        <div key={p.playerId} style={{
+                          flex: '1 1 0',
+                          minWidth: 0, padding: pCount <= 4 ? '6px 8px' : '5px 6px', borderRadius: 6,
+                          background: isAct ? `${color}20` : (isArcade ? '#1a1a1a' : colors.bgCard),
+                          border: isAct ? `2px solid ${color}` : `1px solid ${isArcade ? '#333' : colors.border}`,
+                          opacity: playerSpecial?.eliminated ? 0.4 : 1, overflow: 'hidden',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: pCount <= 4 ? 5 : 3 }}>
+                            <span style={{ width: dotSz, height: dotSz, borderRadius: 99, background: color, flexShrink: 0 }} />
+                            <span style={{ fontSize: nameFz, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                            <span style={{ fontSize: targetFz, fontWeight: 700, color, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                              {playerSpecial?.eliminated ? '✗' : targetLbl ?? '✓'}
+                            </span>
+                            <span style={{ fontSize: progFz, color: c.textDim, whiteSpace: 'nowrap' }}>{progress}/{totalFields}</span>
+                          </div>
+                          <div style={{ height: 2, background: '#333', borderRadius: 1, overflow: 'hidden', marginTop: 2 }}>
+                            <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
             )
           })()}
 
-          {/* Spieler-Ziel — kompakt (Platz für Warnungen) */}
+          {/* Ziel: zwischen Player Cards und Darts */}
           {activePlayer && nextTargetLabel && (
-            <div style={{ textAlign: 'center', flexShrink: 0, margin: '2px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
-              <span style={{ fontSize: 11, color: c.textDim }}>→</span>
-              <span style={{ fontSize: 20, fontWeight: 900, color: activePlayerColor }}>{nextTargetLabel}</span>
-              {activeSpecialState?.needsBull && <span style={{ fontSize: 10, color: c.yellow }}>🎯 Bull!</span>}
-              {activeSpecialState?.mustUseDouble && <span style={{ fontSize: 10, color: c.yellow }}>🎯 Double!</span>}
+            <div style={{ textAlign: 'center', flexShrink: 0, margin: '6px 0', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: activePlayerColor }}>{activePlayer.name}</span>
+              <span style={{ fontSize: 14, color: c.textDim, margin: '0 6px' }}>→</span>
+              <span style={{ fontSize: 46, fontWeight: 900, color: activePlayerColor, textShadow: `0 0 16px ${activePlayerColor}60` }}>{nextTargetLabel}</span>
+              {activeSpecialState?.needsBull && <span style={{ fontSize: 11, color: c.yellow }}>🎯 Bull!</span>}
+              {activeSpecialState?.mustUseDouble && <span style={{ fontSize: 11, color: c.yellow }}>🎯 Double!</span>}
               {activeSpecialState?.consecutiveMisses !== undefined && activeSpecialState.consecutiveMisses > 0 && (
-                <span style={{ fontSize: 9, color: c.red }}>⚠️ {activeSpecialState.consecutiveMisses}/3</span>
+                <span style={{ fontSize: 10, color: c.red }}>⚠️ {activeSpecialState.consecutiveMisses}/3</span>
               )}
             </div>
           )}
 
-          {/* Dartboard-Block: Buttons oben, Scheibe unten (Mobile: interaktive Elemente weg vom unteren Bildschirmrand) */}
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            {/* Darts-Indikatoren — Miss = rot, Treffer = grün, leer = neutral */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-              {[0, 1, 2].map(i => {
-                const dart = current[i]
-                const isMiss = dart?.target === 'MISS'
-                const isHit = !!dart && !isMiss
-                const bgColor = isHit
-                  ? (isArcade ? '#14532d' : colors.successBg)
-                  : isMiss
-                  ? (isArcade ? '#7f1d1d' : colors.errorBg)
-                  : (isArcade ? '#111' : colors.bgMuted)
-                const borderColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#444' : colors.border)
-                const textColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#666' : colors.fgDim)
-                return (
-                  <div key={i} style={{
-                    width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: bgColor, border: dart ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
-                    borderRadius: 6, fontWeight: 700, fontSize: 14, color: textColor,
-                  }}>
-                    {dart ? formatDart(dart) : `${i + 1}.`}
-                  </div>
-                )
-              })}
-            </div>
+          {/* Darts */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
+            {[0, 1, 2].map(i => {
+              const dart = current[i]
+              const isMiss = dart?.target === 'MISS'
+              const isHit = !!dart && !isMiss
+              const bgColor = isHit
+                ? (isArcade ? '#14532d' : colors.successBg)
+                : isMiss
+                ? (isArcade ? '#7f1d1d' : colors.errorBg)
+                : (isArcade ? '#111' : colors.bgMuted)
+              const borderColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#444' : colors.border)
+              const textColor = isHit ? colors.success : isMiss ? colors.error : (isArcade ? '#666' : colors.fgDim)
+              return (
+                <div key={i} style={{
+                  width: 64, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: bgColor, border: dart ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
+                  borderRadius: 6, fontWeight: 700, fontSize: 14, color: textColor,
+                }}>
+                  {dart ? formatDart(dart) : `${i + 1}.`}
+                </div>
+              )
+            })}
+          </div>
 
-            {/* Treffer / Miss — oben, weg vom Bildschirmrand */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 2, width: '100%', maxWidth: 340 }}>
-              <button onClick={() => addHit()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '10px 0', borderRadius: 6, border: `2px solid ${colors.success}`,
-                background: isArcade ? '#166534' : colors.successBg, color: colors.success, fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}>✓ Treffer</button>
-              <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
-                flex: 1, padding: '10px 0', borderRadius: 6, border: `2px solid ${colors.error}`,
-                background: isArcade ? '#7f1d1d' : colors.errorBg, color: colors.error, fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              }}>✕ Miss</button>
-            </div>
-            {/* S/D/T + Dart zurück + Aufnahme zurück */}
-            <div style={{ display: 'flex', gap: 3, marginTop: 3, width: '100%', maxWidth: 340 }}>
+          {/* Single / Double / Triple — direkter Wurf (Shanghai-Logik) */}
+          <div style={{ flexShrink: 0, padding: '2px 0' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
               {([1, 2, 3] as const).map(m => {
                 const multColor = m === 1 ? '#0ea5e9' : m === 2 ? colors.success : colors.error
-                const multBgActive = isArcade ? (m === 1 ? '#1e3a5f' : m === 2 ? '#14532d' : '#7f1d1d') : (m === 1 ? '#dbeafe' : m === 2 ? colors.successBg : colors.errorBg)
+                const multBg = isArcade ? (m === 1 ? '#1e3a5f' : m === 2 ? '#166534' : '#7f1d1d') : (m === 1 ? '#dbeafe' : m === 2 ? colors.successBg : colors.errorBg)
+                const dis = current.length >= 3 || gamePaused
                 return (
-                  <button key={m} onClick={() => setMult(m)} style={{
-                    flex: 1, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                    border: `1px solid ${mult === m ? multColor : (isArcade ? '#555' : colors.border)}`,
-                    background: mult === m ? multBgActive : (isArcade ? '#222' : colors.bgMuted),
-                    color: mult === m ? multColor : (isArcade ? '#aaa' : colors.fg),
-                  }}>{m === 1 ? 'S' : m === 2 ? 'D' : 'T'}</button>
+                  <button key={m} onClick={() => { multRef.current = m; setMult(m); addHit() }} disabled={dis} style={{
+                    flex: 1, padding: '10px 0', borderRadius: 6, border: `2px solid ${multColor}`,
+                    background: multBg, color: multColor, fontWeight: 700, fontSize: 14, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? 0.4 : 1,
+                  }}>{m === 1 ? 'Single' : m === 2 ? 'Double' : 'Triple'}</button>
                 )
               })}
+            </div>
+            <div style={{ display: 'flex', gap: 3 }}>
+              <button onClick={() => addMiss()} disabled={current.length >= 3 || gamePaused} style={{
+                flex: 1, height: 28, borderRadius: 4, border: `2px solid ${colors.error}`,
+                background: isArcade ? '#7f1d1d' : colors.errorBg, color: colors.error, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              }}>✕ Miss</button>
               <button onClick={() => setCurrent(prev => prev.slice(0, -1))} disabled={current.length === 0} style={{
                 flex: 1, height: 28, borderRadius: 4, border: `1px solid ${isArcade ? '#555' : colors.border}`,
                 background: isArcade ? '#222' : colors.bgMuted,
@@ -1278,9 +1270,11 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
                 cursor: canUndo ? 'pointer' : 'not-allowed', fontSize: 9, fontWeight: 600,
               }}>↶ Aufn.</button>
             </div>
+          </div>
 
-            {/* Dartboard — unten, Größe abhängig von Kartenreihen (1-4) */}
-            <div style={{ marginTop: 4, flexShrink: 0 }}>
+          {/* Dartboard + Wurfabfolge — Größe abhängig von Spielerkarten-Reihen (1-4) */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ATBDartboard
                 currentTarget={nextTargetNumber}
                 players={dartboardPlayers}
@@ -1290,9 +1284,8 @@ export default function GameATB({ matchId, onExit, onShowSummary, multiplayer }:
               />
             </div>
             {/* Wurfabfolge — letzte Aufnahmen */}
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', fontSize: 10, color: c.textDim, marginTop: 6, width: '100%', maxWidth: 360 }}>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', fontSize: 10, color: c.textDim, padding: '4px 0 0', flexShrink: 0 }}>
               {state.match?.players && (() => {
-                // Letzte Turns aus Events extrahieren
                 const turnEvents = events.filter((e: any) => e.type === 'ATBTurnAdded').slice(-6) as any[]
                 return turnEvents.map((t: any, i: number) => {
                   const pName = state.match!.players.find(p => p.playerId === t.playerId)?.name ?? '?'

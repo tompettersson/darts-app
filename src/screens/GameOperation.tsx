@@ -1135,6 +1135,7 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
         isMuted={muted}
         onToggleMute={() => setMuted(m => !m)}
         onExit={handleExitMatch}
+        onCancel={handleDeleteMatch}
         title={`Operation: EFKG · Feld ${targetLabel}${multiplayer?.enabled && multiplayer.roomCode ? ` · ${multiplayer.roomCode}` : ''}`}
       />
 
@@ -1167,6 +1168,64 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
       {/* ===== MOBILE PORTRAIT ===== */}
       {isMobile && !isLandscape ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: '4px 8px' }}>
+          {/* Spielerkarten — stets 2 pro Reihe; ungerader Spieler allein oben (CTF/ATB-Logik) */}
+          {isMulti && currentLeg && (() => {
+            const pCount = players.length
+            const rows: typeof players[] = []
+            if (pCount <= 2) { rows.push([...players]) }
+            else if (pCount % 2 === 1) {
+              rows.push([players[0]])
+              for (let i = 1; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
+            } else {
+              for (let i = 0; i < pCount; i += 2) rows.push(players.slice(i, i + 2))
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0, marginBottom: 4 }}>
+                {rows.map((row, ri) => (
+                  <div key={ri} style={{ display: 'flex', gap: 3, justifyContent: 'center' }}>
+                    {row.map((p) => {
+                      const realIdx = players.indexOf(p)
+                      const isAct = p.playerId === activePlayerId
+                      const legPs = currentLeg.players.find(lp => lp.playerId === p.playerId)
+                      const totals = state.totalsByPlayer[p.playerId]
+                      const color = playerColors[p.playerId] ?? PLAYER_COLORS[realIdx % PLAYER_COLORS.length]
+                      const score = legPs?.hitScore ?? 0
+                      const dt = legPs?.dartsThrown ?? 0
+                      const isDone = dt >= DARTS_PER_LEG
+                      const legsWon = totals?.legsWon ?? 0
+                      const showLegs = state.match!.config.legsCount > 1
+                      const percent = (dt / DARTS_PER_LEG) * 100
+                      const nameFz = pCount <= 2 ? 14 : pCount <= 4 ? 12 : pCount <= 6 ? 11 : 10
+                      const scoreFz = pCount <= 2 ? 16 : pCount <= 4 ? 14 : pCount <= 6 ? 13 : 12
+                      const dartFz = pCount <= 2 ? 11 : pCount <= 4 ? 10 : pCount <= 6 ? 9 : 8
+                      const dotSz = pCount <= 4 ? 7 : 5
+                      return (
+                        <div key={p.playerId} style={{
+                          flex: '1 1 0',
+                          minWidth: 0, padding: pCount <= 4 ? '6px 8px' : '5px 6px', borderRadius: 6,
+                          background: isAct ? `${color}20` : c.cardBg,
+                          border: isAct ? `2px solid ${color}` : `1px solid ${c.border}`,
+                          opacity: isDone ? 0.5 : 1, overflow: 'hidden',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: pCount <= 4 ? 5 : 3 }}>
+                            <span style={{ width: dotSz, height: dotSz, borderRadius: 99, background: color, flexShrink: 0 }} />
+                            <span style={{ fontSize: nameFz, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                            <span style={{ fontSize: scoreFz, fontWeight: 800, color, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{score}</span>
+                            <span style={{ fontSize: dartFz, color: c.textDim, whiteSpace: 'nowrap' }}>{dt}/{DARTS_PER_LEG}</span>
+                            {showLegs && <span style={{ fontSize: dartFz, color: c.accent, whiteSpace: 'nowrap' }}>{legsWon}L</span>}
+                          </div>
+                          <div style={{ height: 2, background: c.border, borderRadius: 1, overflow: 'hidden', marginTop: 2 }}>
+                            <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
           {/* Player name + Target */}
           {activePlayer && currentLeg && !currentLeg.isComplete && (
             <div style={{ textAlign: 'center', flexShrink: 0, marginBottom: 2 }}>
@@ -1270,6 +1329,45 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
       ) : isMobile && isLandscape ? (
         /* ===== MOBILE LANDSCAPE ===== */
         <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0, overflow: 'hidden', padding: '4px 8px' }}>
+          {/* Left: Spielerkarten (nur Multiplayer) */}
+          {isMulti && currentLeg && (
+            <div style={{ flex: '0 0 auto', width: 110, display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden', justifyContent: 'center' }}>
+              {players.map((p, idx) => {
+                const isAct = p.playerId === activePlayerId
+                const legPs = currentLeg.players.find(lp => lp.playerId === p.playerId)
+                const totals = state.totalsByPlayer[p.playerId]
+                const color = playerColors[p.playerId] ?? PLAYER_COLORS[idx % PLAYER_COLORS.length]
+                const score = legPs?.hitScore ?? 0
+                const dt = legPs?.dartsThrown ?? 0
+                const isDone = dt >= DARTS_PER_LEG
+                const legsWon = totals?.legsWon ?? 0
+                const showLegs = state.match!.config.legsCount > 1
+                const percent = (dt / DARTS_PER_LEG) * 100
+                return (
+                  <div key={p.playerId} style={{
+                    padding: '4px 6px', borderRadius: 5,
+                    background: isAct ? `${color}20` : c.cardBg,
+                    border: isAct ? `2px solid ${color}` : `1px solid ${c.border}`,
+                    opacity: isDone ? 0.5 : 1, overflow: 'hidden', flexShrink: 0,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 99, background: color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isAct ? color : c.textBright, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color }}>{score}</span>
+                      <span style={{ fontSize: 9, color: c.textDim, marginLeft: 'auto' }}>{dt}/{DARTS_PER_LEG}</span>
+                      {showLegs && <span style={{ fontSize: 9, color: c.accent }}>{legsWon}L</span>}
+                    </div>
+                    <div style={{ height: 2, background: c.border, borderRadius: 1, overflow: 'hidden', marginTop: 2 }}>
+                      <div style={{ height: '100%', width: `${percent}%`, background: color, transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Left: Segment */}
           <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
             {currentLeg && !currentLeg.isComplete && !isFinished ? (
