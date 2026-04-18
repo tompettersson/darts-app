@@ -220,38 +220,60 @@ function enqueueQuery(sql: string, params: unknown[] | undefined, mode: 'all' | 
   })
 }
 
+// Deduplicate queries by (sql, params, mode). Multiple callers that want the
+// same data in the same 5ms window run the query ONCE and broadcast the result.
+// Key insight: components mounting in the same tick often fetch identical data.
+function dedupKey(q: PendingQuery): string {
+  return `${q.mode}::${q.sql}::${JSON.stringify(q.params ?? null)}`
+}
+
 async function flushBatch() {
   flushTimer = null
   const batch = pendingBatch
   pendingBatch = null
   if (!batch || batch.length === 0) return
 
+  // Group by dedup key — identical queries collapse into one network call
+  const groups = new Map<string, PendingQuery[]>()
+  for (const q of batch) {
+    const key = dedupKey(q)
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(q)
+    else groups.set(key, [q])
+  }
+
+  const uniqueQueries = Array.from(groups.values()).map(bucket => bucket[0])
+
   // Single query — no need for batch overhead
-  if (batch.length === 1) {
-    const q = batch[0]
+  if (uniqueQueries.length === 1) {
+    const q = uniqueQueries[0]
+    const waiters = groups.get(dedupKey(q))!
     try {
       const type = q.mode === 'one' ? 'queryOne' : 'query'
       const result = await apiRequest({ type, sql: q.sql, params: q.params })
-      q.resolve(result)
+      for (const w of waiters) w.resolve(result)
     } catch (e) {
-      q.reject(e)
+      for (const w of waiters) w.reject(e)
     }
     return
   }
 
-  // Multiple queries — send as batch
+  // Multiple unique queries — send as batch
   try {
     const results = await apiRequest<Array<{ data: unknown; error?: string }>>({
       type: 'batch',
-      queries: batch.map(q => ({ sql: q.sql, params: q.params, mode: q.mode })),
+      queries: uniqueQueries.map(q => ({ sql: q.sql, params: q.params, mode: q.mode })),
     })
 
-    for (let i = 0; i < batch.length; i++) {
+    for (let i = 0; i < uniqueQueries.length; i++) {
+      const q = uniqueQueries[i]
+      const waiters = groups.get(dedupKey(q))!
       const r = results[i]
       if (r?.error) {
-        batch[i].reject(new Error(`[DB API] ${r.error}`))
+        const err = new Error(`[DB API] ${r.error}`)
+        for (const w of waiters) w.reject(err)
       } else {
-        batch[i].resolve(r?.data)
+        for (const w of waiters) w.resolve(r?.data)
       }
     }
   } catch (e) {

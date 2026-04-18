@@ -142,7 +142,8 @@ export async function refreshPlayerStatsAfterMatch(
 /**
  * Queue stats refresh for all players in a match.
  * Non-blocking — fires and forgets.
- * Also invalidates global highscores cache.
+ * Also proactively recomputes the global highscores cache in the background,
+ * so the next HallOfFame view doesn't have to pay the ~10s cold-compute cost.
  */
 export function queueStatsRefresh(
   playerIds: string[],
@@ -154,10 +155,11 @@ export function queueStatsRefresh(
       console.warn(`[StatsCache] Background refresh failed for ${pid}:`, err)
     )
   }
-  // Invalidate global highscores cache (will be recomputed on next HallOfFame visit)
-  exec('DELETE FROM player_stats_cache WHERE player_id = ? AND stat_group = ?',
-    ['_global', 'highscores']
-  ).catch(() => {})
+  // Proactively recompute global highscores in the background.
+  // Dynamic import to avoid circular dep with stats/highscores.ts.
+  import('./stats/highscores')
+    .then((mod) => mod.refreshHighscoresCacheBackground())
+    .catch((err) => console.warn('[StatsCache] Global highscores refresh failed:', err))
 }
 
 // ============================================================================

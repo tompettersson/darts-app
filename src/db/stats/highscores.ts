@@ -2617,6 +2617,28 @@ export async function invalidateHighscoresCache(): Promise<void> {
 }
 
 /**
+ * Proactively recompute + write the global highscores cache.
+ * Intended for fire-and-forget after match-finish so the next HallOfFame
+ * view hits a warm cache instead of paying the full ~10s compute cost.
+ * Silent on error — next view will lazily recompute via getAllHighscoresCached.
+ */
+let inflightHighscoresRefresh: Promise<void> | null = null
+export function refreshHighscoresCacheBackground(): Promise<void> {
+  if (inflightHighscoresRefresh) return inflightHighscoresRefresh
+  inflightHighscoresRefresh = (async () => {
+    try {
+      const result = await getAllHighscoresSQL()
+      await setCachedGroup(GLOBAL_PLAYER_ID, 'highscores', result)
+    } catch (err) {
+      console.warn('[Highscores] Background refresh failed:', err)
+    } finally {
+      inflightHighscoresRefresh = null
+    }
+  })()
+  return inflightHighscoresRefresh
+}
+
+/**
  * Alle Highscore-Kategorien für einen Spieler (für Achievements)
  */
 export async function getPlayerAchievements(playerId: string): Promise<{

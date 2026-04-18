@@ -144,25 +144,71 @@ export async function getX01HeadToHead(player1Id: string, player2Id: string): Pr
 }
 
 /**
- * Alle Head-to-Head Paarungen für einen Spieler
+ * Alle Head-to-Head Paarungen für einen Spieler.
+ * Single-query aggregation across all opponents — replaces earlier N+1 loop
+ * that called getX01HeadToHead() once per opponent.
  */
 export async function getAllHeadToHeadForPlayer(playerId: string): Promise<HeadToHead[]> {
-  const opponents = await query<{ opponent_id: string }>(`
-    SELECT DISTINCT mp2.player_id as opponent_id
-    FROM x01_match_players mp1
-    JOIN x01_match_players mp2 ON mp2.match_id = mp1.match_id AND mp2.player_id != mp1.player_id
-    WHERE mp1.player_id = ?
-  `, [playerId])
+  const rows = await query<{
+    opponent_id: string
+    opponent_name: string
+    total_matches: number
+    player1_wins: number
+    player2_wins: number
+    player1_legs: number
+    player2_legs: number
+    last_played: string
+    player1_name: string
+  }>(`
+    WITH match_pairs AS (
+      SELECT
+        m.id,
+        m.created_at,
+        mp_opp.player_id AS opponent_id,
+        (SELECT COUNT(*) FROM x01_events e
+         WHERE e.match_id = m.id
+         AND e.type = 'LegFinished'
+         AND e.data::jsonb->>'winnerPlayerId' = ?) AS my_legs,
+        (SELECT COUNT(*) FROM x01_events e
+         WHERE e.match_id = m.id
+         AND e.type = 'LegFinished'
+         AND e.data::jsonb->>'winnerPlayerId' = mp_opp.player_id) AS opp_legs
+      FROM x01_matches m
+      JOIN x01_match_players mp_me
+        ON mp_me.match_id = m.id AND mp_me.player_id = ?
+      JOIN x01_match_players mp_opp
+        ON mp_opp.match_id = m.id AND mp_opp.player_id != ?
+      WHERE m.finished = 1
+    )
+    SELECT
+      mp.opponent_id,
+      p.name AS opponent_name,
+      COUNT(*) AS total_matches,
+      SUM(CASE WHEN mp.my_legs > mp.opp_legs THEN 1 ELSE 0 END) AS player1_wins,
+      SUM(CASE WHEN mp.opp_legs > mp.my_legs THEN 1 ELSE 0 END) AS player2_wins,
+      SUM(mp.my_legs) AS player1_legs,
+      SUM(mp.opp_legs) AS player2_legs,
+      MAX(mp.created_at) AS last_played,
+      (SELECT name FROM profiles WHERE id = ?) AS player1_name
+    FROM match_pairs mp
+    JOIN profiles p ON p.id = mp.opponent_id
+    GROUP BY mp.opponent_id, p.name
+    HAVING COUNT(*) > 0
+    ORDER BY total_matches DESC
+  `, [playerId, playerId, playerId, playerId])
 
-  const results: HeadToHead[] = []
-  for (const opp of opponents) {
-    const h2h = await getX01HeadToHead(playerId, opp.opponent_id)
-    if (h2h && h2h.totalMatches > 0) {
-      results.push(h2h)
-    }
-  }
-
-  return results.sort((a, b) => b.totalMatches - a.totalMatches)
+  return rows.map((r) => ({
+    player1Id: playerId,
+    player1Name: r.player1_name ?? playerId,
+    player2Id: r.opponent_id,
+    player2Name: r.opponent_name ?? r.opponent_id,
+    totalMatches: r.total_matches,
+    player1Wins: r.player1_wins,
+    player2Wins: r.player2_wins,
+    player1LegsWon: r.player1_legs,
+    player2LegsWon: r.player2_legs,
+    lastPlayed: r.last_played,
+  }))
 }
 
 // ============================================================================
