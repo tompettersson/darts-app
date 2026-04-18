@@ -2242,9 +2242,16 @@ export default function App() {
                 : opTargetMode === 'BULL'
                   ? undefined
                   : Math.floor(Math.random() * 20) + 1
+              // Match-Config muss OperationConfig-Shape haben (legsCount + targetMode [+ targetNumber bei MANUAL]).
+              // Sonst zeigt der Header "First to NaN · Leg 1/" und die Match-End-Logik greift nicht.
+              const opConfig: { legsCount: number; targetMode: typeof opTargetMode; targetNumber?: number } = {
+                legsCount: legs,
+                targetMode: opTargetMode,
+              }
+              if (opTargetMode === 'MANUAL_NUMBER') opConfig.targetNumber = config.operationTargetNumber ?? 20
               initialEvents = [
                 { eventId: genId(), type: 'OperationMatchStarted', ts, matchId, players,
-                  config: { targetMode: opTargetMode, targetNumber: null, rounds: config.operationRounds || 10 } },
+                  config: opConfig },
                 { eventId: genId(), type: 'OperationLegStarted', ts, matchId,
                   legIndex: 0, targetMode: opTargetMode, targetNumber: opTargetNumber },
               ]
