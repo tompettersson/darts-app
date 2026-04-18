@@ -195,7 +195,7 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
   })
 
   // --- Start handler ---
-  const handleStartConfirmed = () => {
+  const handleStartConfirmed = async () => {
     if (!canStart) return
 
     const players: KillerPlayer[] = orderedSelected.map((pid) => {
@@ -233,7 +233,7 @@ export default function NewGameKiller({ profiles, onStart, onBack }: Props) {
       ? { kind: 'sets', bestOfSets, legsPerSet }
       : { kind: 'legs', bestOfLegs }
 
-    const stored = createKillerMatchShell(players, config, assignments, structure)
+    const stored = await createKillerMatchShell(players, config, assignments, structure)
     onStart(stored.id)
   }
 

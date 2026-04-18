@@ -2147,7 +2147,7 @@ export function setLastOpenCricketMatchId(idStr?: string) {
  * Cricket-Äquivalent zu createNewMatch().
  * bestOfGames: z. B. 3 → First to 2; 5 → First to 3
  */
-export function createCricketMatchShell(args: {
+export async function createCricketMatchShell(args: {
   id?: string
   title: string
   players: { id: string; name: string; isGuest?: boolean }[]
@@ -2159,7 +2159,7 @@ export function createCricketMatchShell(args: {
   crazyWithPoints?: boolean
   crazySameForAll?: boolean
   crazyScoringMode?: 'standard' | 'cutthroat' | 'simple'
-}): CricketStoredMatch {
+}): Promise<CricketStoredMatch> {
   const matchId = args.id ?? cricketId()
   const targetWins = Math.floor(args.bestOfGames / 2) + 1
 
@@ -2207,18 +2207,22 @@ export function createCricketMatchShell(args: {
   saveCricketMatches(list)
   setLastOpenCricketMatchId(matchId)
 
-  // Async SQLite save
-  dbSaveCricketMatch({
-    id: stored.id,
-    title: stored.title,
-    matchName: stored.matchName ?? null,
-    notes: stored.notes ?? null,
-    createdAt: stored.createdAt,
-    finished: stored.finished ?? false,
-    finishedAt: null,
-    events: stored.events,
-    playerIds: stored.playerIds,
-  }).catch(err => trackDBError('cricket-create', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveCricketMatch({
+      id: stored.id,
+      title: stored.title,
+      matchName: stored.matchName ?? null,
+      notes: stored.notes ?? null,
+      createdAt: stored.createdAt,
+      finished: stored.finished ?? false,
+      finishedAt: null,
+      events: stored.events,
+      playerIds: stored.playerIds,
+    })
+  } catch (err) {
+    trackDBError('cricket-create', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -2802,9 +2806,9 @@ function x01LbToUI(lb: Leaderboards): X01LeaderboardsUI {
 /* -------------------------------------------------
    Rematch-Helfer für Cricket
 ------------------------------------------------- */
-export function createCricketRematchFromMatch(
+export async function createCricketRematchFromMatch(
   originalMatchId: string
-): string | null {
+): Promise<string | null> {
   const original =
     getCricketMatch(originalMatchId)
   if (!original) return null
@@ -2850,14 +2854,13 @@ export function createCricketRematchFromMatch(
     .map(p => p.name)
     .join(' vs ')} (Rematch)`
 
-  const newStored =
-    createCricketMatchShell({
-      title,
-      players: playersInput,
-      range: startEvt.range,
-      style: startEvt.style,
-      bestOfGames,
-    })
+  const newStored = await createCricketMatchShell({
+    title,
+    players: playersInput,
+    range: startEvt.range,
+    style: startEvt.style,
+    bestOfGames,
+  })
 
   return newStored.id
 }
@@ -3136,13 +3139,13 @@ export function setLastOpenATBMatchId(matchId: string) {
   localStorage.setItem(LS_ATB.lastOpenMatchId, matchId)
 }
 
-export function createATBMatchShell(args: {
+export async function createATBMatchShell(args: {
   players: ATBPlayer[]
   mode: ATBMode
   direction: ATBDirection
   structure?: ATBStructure
   config?: ATBMatchConfig
-}): ATBStoredMatch {
+}): Promise<ATBStoredMatch> {
   const matchId = id()
   const structure: ATBStructure = args.structure ?? { kind: 'legs', bestOfLegs: 1 }
 
@@ -3206,24 +3209,28 @@ export function createATBMatchShell(args: {
   atbMatchesCache = all
 
 
-  // Async SQLite save
-  dbSaveATBMatch({
-    id: stored.id,
-    title: stored.title,
-    createdAt: stored.createdAt,
-    finished: stored.finished ?? false,
-    finishedAt: stored.finishedAt ?? null,
-    durationMs: stored.durationMs ?? null,
-    winnerId: stored.winnerId ?? null,
-    winnerDarts: stored.winnerDarts ?? null,
-    mode: stored.mode,
-    direction: stored.direction,
-    players: stored.players,
-    events: stored.events,
-    structure: stored.structure,
-    config: stored.config,
-    generatedSequence: stored.generatedSequence,
-  }).catch(err => trackDBError('atb-create', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveATBMatch({
+      id: stored.id,
+      title: stored.title,
+      createdAt: stored.createdAt,
+      finished: stored.finished ?? false,
+      finishedAt: stored.finishedAt ?? null,
+      durationMs: stored.durationMs ?? null,
+      winnerId: stored.winnerId ?? null,
+      winnerDarts: stored.winnerDarts ?? null,
+      mode: stored.mode,
+      direction: stored.direction,
+      players: stored.players,
+      events: stored.events,
+      structure: stored.structure,
+      config: stored.config,
+      generatedSequence: stored.generatedSequence,
+    })
+  } catch (err) {
+    trackDBError('atb-create', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -3826,7 +3833,7 @@ export function setLastOpenStrMatchId(matchId: string) {
   localStorage.setItem(LS_STR.lastOpenMatchId, matchId)
 }
 
-export function createStrMatchShell(args: {
+export async function createStrMatchShell(args: {
   players: StrPlayer[]
   mode: StrMode
   targetNumber?: StrTargetNumber
@@ -3836,7 +3843,7 @@ export function createStrMatchShell(args: {
   ringMode?: StrRingMode
   bullMode?: StrBullMode
   bullPosition?: StrBullPosition
-}): StrStoredMatch {
+}): Promise<StrStoredMatch> {
   const matchId = strId()
   const structure: StrStructure = args.structure ?? { kind: 'legs', bestOfLegs: 1 }
   const ringMode: StrRingMode = args.ringMode ?? 'triple'
@@ -3936,7 +3943,8 @@ export function createStrMatchShell(args: {
     structure: stored.structure,
     generatedOrder: stored.generatedOrder,
   }
-  dbSaveStrMatch(dbMatch).catch(err => trackDBError('str-create', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try { await dbSaveStrMatch(dbMatch) } catch (err) { trackDBError('str-create', stored.id, err) }
 
   registerActiveGame({
     id: matchId,
@@ -4117,11 +4125,11 @@ export function setLastOpenCTFMatchId(matchId: string) {
   localStorage.setItem(LS_CTF.lastOpenMatchId, matchId)
 }
 
-export function createCTFMatchShell(args: {
+export async function createCTFMatchShell(args: {
   players: CTFPlayer[]
   structure?: CTFStructure
   config: CTFMatchConfig
-}): CTFStoredMatch {
+}): Promise<CTFStoredMatch> {
   const matchId = ctfId()
   const structure: CTFStructure = args.structure ?? { kind: 'legs', bestOfLegs: 1 }
 
@@ -4176,22 +4184,26 @@ export function createCTFMatchShell(args: {
   ctfMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbSaveCTFMatch({
-    id: stored.id,
-    title: stored.title,
-    createdAt: stored.createdAt,
-    finished: false,
-    finishedAt: null,
-    durationMs: null,
-    winnerId: null,
-    winnerDarts: null,
-    players: stored.players,
-    events: stored.events,
-    structure: stored.structure,
-    config: stored.config,
-    generatedSequence: stored.generatedSequence,
-  }).catch(err => trackDBError('ctf-save', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveCTFMatch({
+      id: stored.id,
+      title: stored.title,
+      createdAt: stored.createdAt,
+      finished: false,
+      finishedAt: null,
+      durationMs: null,
+      winnerId: null,
+      winnerDarts: null,
+      players: stored.players,
+      events: stored.events,
+      structure: stored.structure,
+      config: stored.config,
+      generatedSequence: stored.generatedSequence,
+    })
+  } catch (err) {
+    trackDBError('ctf-save', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -4414,11 +4426,11 @@ export function setLastOpenShanghaiMatchId(matchId: string) {
   localStorage.setItem(LS_SHANGHAI.lastOpenMatchId, matchId)
 }
 
-export function createShanghaiMatchShell(args: {
+export async function createShanghaiMatchShell(args: {
   players: ShanghaiPlayer[]
   structure?: ShanghaiStructure
   config?: ShanghaiMatchConfig
-}): ShanghaiStoredMatch {
+}): Promise<ShanghaiStoredMatch> {
   const matchId = shanghaiId()
   const structure: ShanghaiStructure = args.structure ?? { kind: 'legs', bestOfLegs: 1 }
   const config: ShanghaiMatchConfig = args.config ?? {}
@@ -4469,21 +4481,25 @@ export function createShanghaiMatchShell(args: {
   shanghaiMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbSaveShanghaiMatch({
-    id: stored.id,
-    title: stored.title,
-    createdAt: stored.createdAt,
-    finished: false,
-    finishedAt: null,
-    durationMs: null,
-    winnerId: null,
-    winnerDarts: null,
-    players: stored.players,
-    events: stored.events,
-    structure: stored.structure,
-    config: stored.config,
-  }).catch(err => trackDBError('shanghai-save', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveShanghaiMatch({
+      id: stored.id,
+      title: stored.title,
+      createdAt: stored.createdAt,
+      finished: false,
+      finishedAt: null,
+      durationMs: null,
+      winnerId: null,
+      winnerDarts: null,
+      players: stored.players,
+      events: stored.events,
+      structure: stored.structure,
+      config: stored.config,
+    })
+  } catch (err) {
+    trackDBError('shanghai-save', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -4672,12 +4688,12 @@ export function getOpenKillerMatch(): KillerStoredMatch | undefined {
   return undefined
 }
 
-export function createKillerMatchShell(
+export async function createKillerMatchShell(
   players: KillerPlayer[],
   config: KillerMatchConfig,
   assignments: { playerId: string; targetNumber: number }[],
   structure?: KillerStructure
-): KillerStoredMatch {
+): Promise<KillerStoredMatch> {
   const matchId = killerId()
   const tsNow = killerNow()
   const resolvedStructure = structure ?? defaultKillerStructure()
@@ -4727,21 +4743,25 @@ export function createKillerMatchShell(
   killerMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbSaveKillerMatch({
-    id: stored.id,
-    title: stored.title,
-    createdAt: stored.createdAt,
-    finished: false,
-    finishedAt: null,
-    durationMs: null,
-    winnerId: null,
-    winnerDarts: null,
-    players: stored.players,
-    events: stored.events,
-    config: stored.config,
-    structure: resolvedStructure,
-  }).catch(err => trackDBError('killer-save', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveKillerMatch({
+      id: stored.id,
+      title: stored.title,
+      createdAt: stored.createdAt,
+      finished: false,
+      finishedAt: null,
+      durationMs: null,
+      winnerId: null,
+      winnerDarts: null,
+      players: stored.players,
+      events: stored.events,
+      config: stored.config,
+      structure: resolvedStructure,
+    })
+  } catch (err) {
+    trackDBError('killer-save', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -4937,10 +4957,10 @@ export function setLastOpenBobs27MatchId(matchId: string) {
   localStorage.setItem(LS_BOBS27.lastOpenMatchId, matchId)
 }
 
-export function createBobs27MatchShell(args: {
+export async function createBobs27MatchShell(args: {
   players: Bobs27Player[]
   config?: Partial<Bobs27Config>
-}): Bobs27StoredMatch {
+}): Promise<Bobs27StoredMatch> {
   const matchId = bobs27Id()
   const config: Bobs27Config = {
     ...BOBS27_DEFAULT_CONFIG,
@@ -4975,21 +4995,25 @@ export function createBobs27MatchShell(args: {
   bobs27MatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbSaveBobs27Match({
-    id: stored.id,
-    title: stored.title,
-    createdAt: stored.createdAt,
-    finished: false,
-    finishedAt: null,
-    durationMs: null,
-    winnerId: null,
-    winnerDarts: null,
-    players: stored.players,
-    events: stored.events,
-    config: stored.config,
-    targets: stored.targets,
-  }).catch(err => trackDBError('bobs27-save', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveBobs27Match({
+      id: stored.id,
+      title: stored.title,
+      createdAt: stored.createdAt,
+      finished: false,
+      finishedAt: null,
+      durationMs: null,
+      winnerId: null,
+      winnerDarts: null,
+      players: stored.players,
+      events: stored.events,
+      config: stored.config,
+      targets: stored.targets,
+    })
+  } catch (err) {
+    trackDBError('bobs27-save', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -5285,10 +5309,10 @@ export function setLastOpenOperationMatchId(matchId: string) {
   localStorage.setItem(LS_OPERATION.lastOpenMatchId, matchId)
 }
 
-export function createOperationMatchShell(args: {
+export async function createOperationMatchShell(args: {
   players: OperationPlayer[]
   config: OperationConfig
-}): OperationStoredMatch {
+}): Promise<OperationStoredMatch> {
   const matchId = operationId()
   const config = args.config
 
@@ -5317,22 +5341,26 @@ export function createOperationMatchShell(args: {
   operationMatchesCache = all
 
 
-  // SQLite Dual-Write
-  dbSaveOperationMatch({
-    id: stored.id,
-    title: stored.title,
-    createdAt: stored.createdAt,
-    finished: false,
-    finishedAt: null,
-    durationMs: null,
-    winnerId: null,
-    winnerDarts: null,
-    legsCount: config.legsCount,
-    targetMode: config.targetMode,
-    players: stored.players,
-    events: stored.events,
-    config: stored.config,
-  }).catch(err => trackDBError('operation-save', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try {
+    await dbSaveOperationMatch({
+      id: stored.id,
+      title: stored.title,
+      createdAt: stored.createdAt,
+      finished: false,
+      finishedAt: null,
+      durationMs: null,
+      winnerId: null,
+      winnerDarts: null,
+      legsCount: config.legsCount,
+      targetMode: config.targetMode,
+      players: stored.players,
+      events: stored.events,
+      config: stored.config,
+    })
+  } catch (err) {
+    trackDBError('operation-save', stored.id, err)
+  }
 
   registerActiveGame({
     id: matchId,
@@ -6057,11 +6085,11 @@ export function setLastOpenHighscoreMatchId(matchId: string) {
   localStorage.setItem(LS_HIGHSCORE.lastOpenMatchId, matchId)
 }
 
-export function createHighscoreMatchShell(args: {
+export async function createHighscoreMatchShell(args: {
   players: HighscorePlayer[]
   targetScore: number
   structure?: HighscoreStructure
-}): HighscoreStoredMatch {
+}): Promise<HighscoreStoredMatch> {
   const structure: HighscoreStructure = args.structure ?? { kind: 'legs', targetLegs: 1 }
 
   // Titel mit Legs/Sets Info
@@ -6107,7 +6135,8 @@ export function createHighscoreMatchShell(args: {
     events: stored.events as any[],
     structure: stored.structure,
   }
-  dbSaveHighscoreMatch(dbMatch).catch(err => trackDBError('highscore-create', stored.id, err))
+  // Await DB write to ensure match row exists before gameplay starts (prevents FK errors)
+  try { await dbSaveHighscoreMatch(dbMatch) } catch (err) { trackDBError('highscore-create', stored.id, err) }
 
   registerActiveGame({
     id: stored.id,

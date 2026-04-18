@@ -1156,7 +1156,7 @@ export default function App() {
             const styleLabel = result.config.style === 'cutthroat' ? 'Cutthroat' : 'Standard'
             const title = `Cricket ${result.config.range === 'short' ? 'Short' : 'Long'} · ${styleLabel} – ${players.map(p => p.name).join(' vs ')} (Zufallsspiel)`
 
-            const stored = createCricketMatchShell({
+            const stored = await createCricketMatchShell({
               title,
               players: players.map(p => ({ id: p.id, name: p.name, isGuest: !!p.isGuest })),
               range: result.config.range,
@@ -1178,7 +1178,7 @@ export default function App() {
               ? { kind: 'legs' as const, bestOfLegs: structure.bestOfLegs }
               : { kind: 'sets' as const, bestOfSets: structure.bestOfSets, legsPerSet: structure.legsPerSet }
 
-            const stored = createATBMatchShell({
+            const stored = await createATBMatchShell({
               players: players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
               mode: result.config.mode,
               direction: result.config.direction,
@@ -1234,7 +1234,7 @@ export default function App() {
     return (
       <NewGameCricket
         onCancel={() => setView('new-start')}
-        onStart={({ cfg, players, targetWins }) => {
+        onStart={async ({ cfg, players, targetWins }) => {
           const bestOfGames = targetWins * 2 - 1
 
           const styleLabel = cfg.style === 'cutthroat' ? 'Cutthroat'
@@ -1243,7 +1243,7 @@ export default function App() {
             : 'Standard'
           const title = `Cricket ${cfg.range === 'short' ? 'Short' : 'Long'} · ${styleLabel} – ${players.map((p) => p.name).join(' vs ')} (First to ${targetWins})`
 
-          const stored = createCricketMatchShell({
+          const stored = await createCricketMatchShell({
             title,
             players: players.map((p) => ({ id: p.id, name: p.name, isGuest: !!p.isGuest })),
             range: cfg.range,
@@ -1278,8 +1278,8 @@ export default function App() {
     return (
       <NewGameATB
         onCancel={() => setView('new-start')}
-        onStart={({ mode, direction, players, structure, config }) => {
-          const stored = createATBMatchShell({
+        onStart={async ({ mode, direction, players, structure, config }) => {
+          const stored = await createATBMatchShell({
             players: players.map((p) => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             mode,
             direction,
@@ -1333,7 +1333,7 @@ export default function App() {
           setSummaryATBId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : async (oldMatchId: string) => {
           const oldData = getATBMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1348,7 +1348,7 @@ export default function App() {
           // Rotiere Spieler für Rematch
           const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
 
-          const newStored = createATBMatchShell({
+          const newStored = await createATBMatchShell({
             players: rotatedPlayers.map((p) => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
             mode: oldData.mode,
             direction: oldData.direction,
@@ -1369,8 +1369,8 @@ export default function App() {
     return (
       <NewGameStraeusschen
         onCancel={() => setView('new-start')}
-        onStart={({ mode, targetNumber, numberOrder, turnOrder, players, structure, ringMode, bullMode, bullPosition }) => {
-          const stored = createStrMatchShell({
+        onStart={async ({ mode, targetNumber, numberOrder, turnOrder, players, structure, ringMode, bullMode, bullPosition }) => {
+          const stored = await createStrMatchShell({
             players,
             mode,
             targetNumber,
@@ -1428,7 +1428,7 @@ export default function App() {
           setSummaryStrId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : async (oldMatchId: string) => {
           const oldData = getStrMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1442,7 +1442,7 @@ export default function App() {
           }
           const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
 
-          const newStored = createStrMatchShell({
+          const newStored = await createStrMatchShell({
             players: rotatedPlayers,
             mode: oldData.mode,
             targetNumber: oldData.targetNumber,
@@ -1469,8 +1469,8 @@ export default function App() {
     return (
       <NewGameHighscore
         onCancel={() => setView('new-start')}
-        onStart={({ players, targetScore, structure }) => {
-          const stored = createHighscoreMatchShell({
+        onStart={async ({ players, targetScore, structure }) => {
+          const stored = await createHighscoreMatchShell({
             players,
             targetScore,
             structure,
@@ -1522,7 +1522,7 @@ export default function App() {
           setSummaryHighscoreId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : async (oldMatchId: string) => {
           const oldData = getHighscoreMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1536,7 +1536,7 @@ export default function App() {
           }
           const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
 
-          const newStored = createHighscoreMatchShell({
+          const newStored = await createHighscoreMatchShell({
             players: rotatedPlayers,
             targetScore: oldData.targetScore,
             structure: oldData.structure,
@@ -1557,8 +1557,8 @@ export default function App() {
     return (
       <NewGameCTF
         onCancel={() => setView('new-start')}
-        onStart={({ players, structure, config }) => {
-          const stored = createCTFMatchShell({
+        onStart={async ({ players, structure, config }) => {
+          const stored = await createCTFMatchShell({
             players: players.map((p) => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             structure,
             config,
@@ -1610,7 +1610,7 @@ export default function App() {
           setSummaryCTFId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : async (oldMatchId: string) => {
           const oldData = getCTFMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1624,7 +1624,7 @@ export default function App() {
           }
           const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
 
-          const newStored = createCTFMatchShell({
+          const newStored = await createCTFMatchShell({
             players: rotatedPlayers.map((p) => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
             structure: oldData.structure,
             config: oldData.config,
@@ -1645,8 +1645,8 @@ export default function App() {
     return (
       <NewGameShanghai
         onCancel={() => setView('new-start')}
-        onStart={({ players, structure }) => {
-          const stored = createShanghaiMatchShell({
+        onStart={async ({ players, structure }) => {
+          const stored = await createShanghaiMatchShell({
             players: players.map((p) => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             structure,
           })
@@ -1697,7 +1697,7 @@ export default function App() {
           setSummaryShanghaiId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : async (oldMatchId: string) => {
           const oldData = getShanghaiMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -1711,7 +1711,7 @@ export default function App() {
           }
           const rotatedPlayers = [...prevPlayers.slice(1), prevPlayers[0]]
 
-          const newStored = createShanghaiMatchShell({
+          const newStored = await createShanghaiMatchShell({
             players: rotatedPlayers.map((p) => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
             structure: oldData.structure,
           })
@@ -1801,8 +1801,8 @@ export default function App() {
     return (
       <NewGameBobs27
         onCancel={() => setView('new-start')}
-        onStart={(data) => {
-          const match = createBobs27MatchShell({
+        onStart={async (data) => {
+          const match = await createBobs27MatchShell({
             players: data.players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             config: data.config,
           })
@@ -1849,13 +1849,13 @@ export default function App() {
           setSummaryBobs27Id(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : () => {
+        onRematch={isMpSummary ? undefined : async () => {
           const oldData = getBobs27MatchById(summaryBobs27Id)
           if (!oldData) {
             setView('menu')
             return
           }
-          const match = createBobs27MatchShell({
+          const match = await createBobs27MatchShell({
             players: oldData.players.map(p => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
             config: oldData.config,
           })
@@ -1874,8 +1874,8 @@ export default function App() {
     return (
       <NewGameOperation
         onCancel={() => setView('new-start')}
-        onStart={(data) => {
-          const match = createOperationMatchShell({
+        onStart={async (data) => {
+          const match = await createOperationMatchShell({
             players: data.players.map(p => ({ playerId: p.id, name: p.name, isGuest: p.isGuest })),
             config: data.config,
           })
@@ -1922,13 +1922,13 @@ export default function App() {
           setSummaryOperationId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : () => {
+        onRematch={isMpSummary ? undefined : async () => {
           const oldData = getOperationMatchById(summaryOperationId)
           if (!oldData) {
             setView('menu')
             return
           }
-          const match = createOperationMatchShell({
+          const match = await createOperationMatchShell({
             players: oldData.players.map(p => ({ playerId: p.playerId, name: p.name, isGuest: p.isGuest })),
             config: oldData.config,
           })
@@ -2672,7 +2672,7 @@ export default function App() {
           setSummaryCricketId(undefined)
         }}
         onBackToLobby={mpBackToLobby}
-        onRematch={isMpSummary ? undefined : (oldMatchId: string) => {
+        onRematch={isMpSummary ? undefined : async (oldMatchId: string) => {
           const oldData = getCricketMatchById(oldMatchId)
           if (!oldData) {
             setView('menu')
@@ -2694,7 +2694,7 @@ export default function App() {
             : 'Standard'
           const title = `Cricket ${oldData.range === 'short' ? 'Short' : 'Long'} · ${rematchStyleLabel} – ${rotatedPlayers.map((p) => p.name).join(' vs ')} (First to ${oldData.targetWins})`
 
-          const newStored = createCricketMatchShell({
+          const newStored = await createCricketMatchShell({
             title,
             players: rotatedPlayers.map((p) => ({ id: p.id, name: p.name, isGuest: false })),
             range: oldData.range,
