@@ -776,9 +776,12 @@ async function withEnsureGuard(key: string, fn: () => Promise<void>): Promise<vo
 
 export async function ensureCricketMatchExistsAsync(matchId: string, events: any[], playerIds: string[]) {
   if (getCricketMatches().find(x => x.id === matchId)?.finished) return
-  if (getCricketMatches().some(x => x.id === matchId)) return
+  // NICHT den Memory-Cache als Skip-Check nutzen: die sync-Variante ensureCricketMatchExists
+  // fügt das Match zum Cache hinzu, OHNE die DB zu schreiben. Skip nur wenn DB tatsächlich
+  // schon geschrieben wurde — persistedEventCount wird erst NACH erfolgreichem dbSave gesetzt.
+  if (persistedEventCount.has(matchId)) return
   return withEnsureGuard(`cricket-${matchId}`, async () => {
-    if (getCricketMatches().some(x => x.id === matchId)) return
+    if (persistedEventCount.has(matchId)) return
     // Route through queueWrite so persistCricketEvents (same key) is serialized
     // behind the match-row insert — prevents FK violations on racing appends.
     await queueWrite(`cricket-${matchId}`, () => dbSaveCricketMatch({
@@ -798,9 +801,9 @@ export async function ensureCricketMatchExistsAsync(matchId: string, events: any
 
 export async function ensureATBMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getATBMatches().find(x => x.id === m)?.finished) return
-  if (getATBMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`atb-${m}`, async () => {
-    if (getATBMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`atb-${m}`, () => dbSaveATBMatch({ id: m, title: 'Around the Board – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, mode: '', direction: '', players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getATBMatches()
@@ -810,9 +813,9 @@ export async function ensureATBMatchExistsAsync(m: string, e: any[], p: string[]
 
 export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getStrMatches().find(x => x.id === m)?.finished) return
-  if (getStrMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`str-${m}`, async () => {
-    if (getStrMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`str-${m}`, () => dbSaveStrMatch({ id: m, title: 'Sträußchen – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, mode: '', targetNumber: null, numberOrder: null, turnOrder: null, ringMode: null, bullMode: null, bullPosition: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getStrMatches()
@@ -822,9 +825,9 @@ export async function ensureStrMatchExistsAsync(m: string, e: any[], p: string[]
 
 export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getHighscoreMatches().find(x => x.id === m)?.finished) return
-  if (getHighscoreMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`highscore-${m}`, async () => {
-    if (getHighscoreMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`highscore-${m}`, () => dbSaveHighscoreMatch({ id: m, title: 'Highscore – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, targetScore: 0, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getHighscoreMatches()
@@ -834,9 +837,9 @@ export async function ensureHighscoreMatchExistsAsync(m: string, e: any[], p: st
 
 export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getCTFMatches().find(x => x.id === m)?.finished) return
-  if (getCTFMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`ctf-${m}`, async () => {
-    if (getCTFMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`ctf-${m}`, () => dbSaveCTFMatch({ id: m, title: 'Capture the Field – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getCTFMatches()
@@ -846,9 +849,9 @@ export async function ensureCTFMatchExistsAsync(m: string, e: any[], p: string[]
 
 export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getShanghaiMatches().find(x => x.id === m)?.finished) return
-  if (getShanghaiMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`shanghai-${m}`, async () => {
-    if (getShanghaiMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`shanghai-${m}`, () => dbSaveShanghaiMatch({ id: m, title: 'Shanghai – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getShanghaiMatches()
@@ -858,9 +861,9 @@ export async function ensureShanghaiMatchExistsAsync(m: string, e: any[], p: str
 
 export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getKillerMatches().find(x => x.id === m)?.finished) return
-  if (getKillerMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`killer-${m}`, async () => {
-    if (getKillerMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`killer-${m}`, () => dbSaveKillerMatch({ id: m, title: 'Killer – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getKillerMatches()
@@ -870,9 +873,9 @@ export async function ensureKillerMatchExistsAsync(m: string, e: any[], p: strin
 
 export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getBobs27Matches().find(x => x.id === m)?.finished) return
-  if (getBobs27Matches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`bobs27-${m}`, async () => {
-    if (getBobs27Matches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`bobs27-${m}`, () => dbSaveBobs27Match({ id: m, title: "Bob's 27 – Multiplayer", createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e }))
     persistedEventCount.set(m, e.length)
     const list = getBobs27Matches()
@@ -882,9 +885,9 @@ export async function ensureBobs27MatchExistsAsync(m: string, e: any[], p: strin
 
 export async function ensureOperationMatchExistsAsync(m: string, e: any[], p: string[]) {
   if (getOperationMatches().find(x => x.id === m)?.finished) return
-  if (getOperationMatches().some(x => x.id === m)) return
+  if (persistedEventCount.has(m)) return
   return withEnsureGuard(`operation-${m}`, async () => {
-    if (getOperationMatches().some(x => x.id === m)) return
+    if (persistedEventCount.has(m)) return
     await queueWrite(`operation-${m}`, () => dbSaveOperationMatch({ id: m, title: 'Operation – Multiplayer', createdAt: e[0]?.ts ?? now(), finished: false, finishedAt: null, durationMs: null, winnerId: null, winnerDarts: null, legsCount: 1, targetMode: 'random', players: p.map((id, i) => ({ playerId: id, name: id, position: i })), events: e, config: {} }))
     persistedEventCount.set(m, e.length)
     const list = getOperationMatches()
