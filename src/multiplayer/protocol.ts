@@ -41,7 +41,6 @@ export type GameConfig = {
   atbLegs?: number
 
   // CTF
-  ctfRounds?: number
   ctfLegs?: number
   ctfSequenceMode?: 'ascending' | 'board' | 'random'
   ctfMultiplierMode?: 'standard' | 'standard2' | 'single'

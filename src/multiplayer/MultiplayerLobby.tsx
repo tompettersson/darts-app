@@ -394,7 +394,6 @@ function KillerConfig({ config, onChange }: { config: GameConfig; onChange: (c: 
 // ---- CTF Config ----
 
 function CTFConfig({ config, onChange }: { config: GameConfig; onChange: (c: GameConfig) => void }) {
-  const rounds = config.ctfRounds ?? 20
   const sequenceMode = config.ctfSequenceMode ?? 'ascending'
   const multiplierMode = config.ctfMultiplierMode ?? 'standard'
   const rotateOrder = config.ctfRotateOrder ?? true
@@ -402,14 +401,6 @@ function CTFConfig({ config, onChange }: { config: GameConfig; onChange: (c: Gam
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <label style={configLabel}>Anzahl Runden</label>
-      <input type="number" min={1} max={50} value={rounds}
-        onChange={e => {
-          const n = parseInt(e.target.value, 10)
-          onChange({ ...config, ctfRounds: isNaN(n) ? 20 : n })
-        }}
-        style={{ ...selectStyle, minWidth: 100, textAlign: 'center' }} />
-
       <label style={configLabel}>Feldfolge</label>
       <select style={selectStyle} value={sequenceMode}
         onChange={e => onChange({ ...config, ctfSequenceMode: e.target.value as any })}>
@@ -787,7 +778,6 @@ export default function MultiplayerLobby({
       },
       ctf: {
         bestOfLegs: 1,
-        ctfRounds: 20,
         ctfSequenceMode: 'ascending',
         ctfMultiplierMode: 'standard',
         ctfRotateOrder: true,

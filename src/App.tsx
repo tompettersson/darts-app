@@ -100,6 +100,7 @@ const LoginScreen = React.lazy(() =>
 // X01 Engine Types
 import { id as genId, now, type MatchStarted, type DartsEvent } from './darts501'
 import { generateATBSequence } from './dartsAroundTheBlock'
+import { generateCTFSequence } from './dartsCaptureTheField'
 
 // Types (erased at compile time)
 import type { Preset } from './screens/NewGameStart'
@@ -2142,17 +2143,23 @@ export default function App() {
               break
             }
             case 'ctf': {
+              // Immer 21 Felder: alle Zahlen 1-20 + Bull. Sequenzmodus bestimmt die Reihenfolge.
+              // Protocol-Type kennt 'board' als Alias für 'clockwise' (board = Board-Reihenfolge).
+              const rawMode = config.ctfSequenceMode || 'ascending'
+              const ctfSequenceMode: import('./types/captureTheField').CTFSequenceMode =
+                rawMode === 'board' ? 'clockwise' : rawMode
+              const ctfGeneratedSequence = generateCTFSequence('end', ctfSequenceMode)
               initialEvents = [
                 { eventId: genId(), type: 'CTFMatchStarted', ts, matchId, players,
                   structure: { kind: 'legs' as const, bestOfLegs: legs },
                   config: {
-                    rounds: config.ctfRounds || 20,
-                    sequenceMode: config.ctfSequenceMode || 'ascending',
+                    sequenceMode: ctfSequenceMode,
+                    bullPosition: 'end' as const,
                     multiplierMode: config.ctfMultiplierMode || 'standard',
                     rotateOrder: config.ctfRotateOrder ?? false,
                     retryZeroDrawFields: config.ctfRetryZeroDraw ?? false,
                   },
-                  generatedSequence: Array.from({ length: config.ctfRounds || 20 }, (_, i) => ({ number: i + 1 })) },
+                  generatedSequence: ctfGeneratedSequence },
                 { eventId: genId(), type: 'CTFLegStarted', ts, matchId, legId, legIndex: 1, starterPlayerId: starter },
               ]
               break
