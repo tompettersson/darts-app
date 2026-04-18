@@ -303,7 +303,14 @@ export function applyStrEvents(events: StrEvent[]): StrState {
     events,
   }
 
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen
+  const seenEventIds = new Set<string>()
+
   for (const ev of events) {
+    if (ev.eventId) {
+      if (seenEventIds.has(ev.eventId)) continue
+      seenEventIds.add(ev.eventId)
+    }
     switch (ev.type) {
       case 'StrMatchStarted': {
         const ringMode: StrRingMode = ev.ringMode ?? 'triple'

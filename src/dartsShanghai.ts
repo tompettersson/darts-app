@@ -116,7 +116,14 @@ export function applyShanghaiEvents(events: ShanghaiEvent[]): ShanghaiState {
     },
   }
 
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen
+  const seenEventIds = new Set<string>()
+
   for (const event of events) {
+    if (event.eventId) {
+      if (seenEventIds.has(event.eventId)) continue
+      seenEventIds.add(event.eventId)
+    }
     switch (event.type) {
       case 'ShanghaiMatchStarted': {
         state.match = {

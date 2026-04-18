@@ -68,7 +68,15 @@ export function applyHighscoreEvents(events: HighscoreEvent[]): HighscoreState {
     startTimestamp: null,
   }
 
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen
+  const seenEventIds = new Set<string>()
+
   for (const ev of events) {
+    const evId = (ev as any).eventId
+    if (evId) {
+      if (seenEventIds.has(evId)) continue
+      seenEventIds.add(evId)
+    }
     switch (ev.type) {
       case 'HighscoreMatchStarted': {
         state.match = {

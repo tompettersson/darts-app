@@ -126,7 +126,15 @@ export function applyOperationEvents(events: OperationEvent[]): OperationState {
     events,
   }
 
+  // Deduplizierung nach eventId — MP-Sync kann Events doppelt zurückspielen.
+  // Ohne dedup würden LegFinished/MatchFinished doppelt angewendet → legsWon=2 nach 1 Leg.
+  const seenEventIds = new Set<string>()
+
   for (const event of events) {
+    if (event.eventId) {
+      if (seenEventIds.has(event.eventId)) continue
+      seenEventIds.add(event.eventId)
+    }
     switch (event.type) {
       case 'OperationMatchStarted': {
         state.match = {

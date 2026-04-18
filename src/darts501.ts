@@ -371,7 +371,14 @@ export function applyEvents(all: DartsEvent[]): DerivedMatchState {
     return s
   }
 
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen, sonst legsWon doppelt gezählt
+  const seenEventIds = new Set<ULID>()
+
   for (const ev of events) {
+    if (ev.eventId) {
+      if (seenEventIds.has(ev.eventId)) continue
+      seenEventIds.add(ev.eventId)
+    }
     switch (ev.type) {
       case 'MatchStarted':
         state.match = ev

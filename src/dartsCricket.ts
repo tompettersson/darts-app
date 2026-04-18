@@ -358,7 +358,14 @@ export function applyCricketEvents(all: CricketEvent[]): CricketState {
     s.players.length > 0 ? (baseStarter + s.finishedLegs) % s.players.length : 0
 
   let turnIndex = 0
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen
+  const seenEventIds = new Set<string>()
   for (const ev of all) {
+    const anyEv = ev as any
+    if (anyEv.eventId) {
+      if (seenEventIds.has(anyEv.eventId)) continue
+      seenEventIds.add(anyEv.eventId)
+    }
     if (ev.type === 'CricketLegFinished') {
       // Leg-Sieg eintragen
       s.legWinsByPlayer[ev.winnerPlayerId] =

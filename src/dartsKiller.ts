@@ -122,7 +122,14 @@ export function applyKillerEvents(events: KillerEvent[]): KillerState {
   // Runden-Tracking: wenn ein Spieler erneut dran ist, hat eine neue Runde begonnen
   let playedThisRound = new Set<string>()
 
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen
+  const seenEventIds = new Set<string>()
+
   for (const event of events) {
+    if (event.eventId) {
+      if (seenEventIds.has(event.eventId)) continue
+      seenEventIds.add(event.eventId)
+    }
     switch (event.type) {
       case 'KillerMatchStarted': {
         state.matchId = event.matchId

@@ -641,13 +641,18 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
     if (multiplayer?.enabled) multiplayer.submitEvents([legStartEvent])
   }, [state.match, state.legs.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Zeige Leg-Summary wenn Leg gerade fertig geworden ist (und Match nicht fertig)
+  // Zeige Leg-Summary wenn Leg gerade fertig geworden ist (und Match nicht fertig).
+  // Beim letzten Leg (legIndex+1 >= legsCount) niemals LegSummary — nach einem First-to-1-Leg
+  // gibt es kein "nächstes Leg" mehr, und der User sollte direkt zum Match-Summary.
   useEffect(() => {
     if (!currentLeg) return
+    if (!state.match) return
+    const isLastLeg = currentLeg.legIndex + 1 >= state.match.config.legsCount
+    if (isLastLeg) return
     if (currentLeg.isComplete && !state.isComplete && !showLegSummary && !matchEndDelay) {
       setShowLegSummary(true)
     }
-  }, [currentLeg?.isComplete, state.isComplete, showLegSummary, matchEndDelay]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentLeg?.isComplete, state.isComplete, showLegSummary, matchEndDelay, state.match?.config.legsCount, currentLeg?.legIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dart aufnehmen
   const recordDart = useCallback((hitType: HitType) => {
@@ -1163,18 +1168,22 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
             {formatDuration(elapsedMs)}
           </span>
         )}
-        {state.match!.config.legsCount > 1 && (() => {
+        {(() => {
           const legsCount = state.match!.config.legsCount
           const winsNeeded = Math.ceil(legsCount / 2)
           const scorePairs = state.match!.players.map(p => {
             const won = state.totalsByPlayer[p.playerId]?.legsWon ?? 0
             return `${p.name.slice(0, 6)} ${won}`
           }).join(' · ')
+          const targetModeLabel = state.match!.config.targetMode === 'RANDOM_NUMBER'
+            ? 'Zufall'
+            : state.match!.config.targetMode === 'MANUAL_NUMBER' ? 'Manuell' : 'Bull'
           return (
             <span style={{ fontSize: 11, color: c.textDim, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
               <span style={{ fontWeight: 600 }}>First to {winsNeeded}</span>
               <span>· Leg {(state.currentLegIndex + 1)}/{legsCount}</span>
-              <span style={{ color: c.accent, fontWeight: 600 }}>· {scorePairs}</span>
+              <span style={{ opacity: 0.7 }}>· {targetModeLabel}</span>
+              {legsCount > 1 && <span style={{ color: c.accent, fontWeight: 600 }}>· {scorePairs}</span>}
             </span>
           )
         })()}

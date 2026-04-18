@@ -144,7 +144,14 @@ export function applyCTFEvents(events: CTFEvent[]): CTFState {
     },
   }
 
+  // Dedup nach eventId — MP-Sync kann Events doppelt zurückspielen
+  const seenEventIds = new Set<string>()
+
   for (const event of events) {
+    if (event.eventId) {
+      if (seenEventIds.has(event.eventId)) continue
+      seenEventIds.add(event.eventId)
+    }
     switch (event.type) {
       case 'CTFMatchStarted': {
         state.match = {
