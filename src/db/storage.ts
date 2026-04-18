@@ -922,8 +922,9 @@ export async function dbMigrateToActiveGames(): Promise<number> {
 
 /**
  * Append new events to a match's event table.
- * Only inserts events that don't already exist (ON CONFLICT DO NOTHING).
- * This is O(1) per new event — no DELETE+INSERT ALL.
+ * Uses multi-row INSERT to collapse N events into 1 round-trip per chunk.
+ * Chunked at 500 rows (6 params each = 3000 params, well below Postgres' 65535 limit).
+ * Idempotent via ON CONFLICT (id) DO NOTHING — safe to retry.
  */
 export async function dbAppendEvents(
   table: string,
@@ -935,17 +936,36 @@ export async function dbAppendEvents(
   const ready = await ensureDB()
   if (!ready) return
 
+  const CHUNK = 500
   const statements: Array<{ sql: string; params: unknown[] }> = []
-  for (let i = 0; i < events.length; i++) {
-    const ev = events[i]
+  for (let chunkStart = 0; chunkStart < events.length; chunkStart += CHUNK) {
+    const chunk = events.slice(chunkStart, chunkStart + CHUNK)
+    const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')
+    const params: unknown[] = []
+    for (let i = 0; i < chunk.length; i++) {
+      const ev = chunk[i]
+      params.push(
+        ev.eventId ?? generateId(),
+        matchId,
+        ev.type,
+        ev.ts,
+        startSeq + chunkStart + i,
+        toJSON(ev),
+      )
+    }
     statements.push({
       sql: `INSERT INTO ${table} (id, match_id, type, ts, seq, data)
-            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
-      params: [ev.eventId ?? generateId(), matchId, ev.type, ev.ts, startSeq + i, toJSON(ev)],
+            VALUES ${placeholders}
+            ON CONFLICT (id) DO NOTHING`,
+      params,
     })
   }
 
-  await transaction(statements)
+  if (statements.length === 1) {
+    await exec(statements[0].sql, statements[0].params)
+  } else {
+    await transaction(statements)
+  }
 }
 
 /**
