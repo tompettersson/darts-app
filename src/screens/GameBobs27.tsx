@@ -98,6 +98,16 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
   const [matchEndDelay, setMatchEndDelay] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Fallback: sobald state.finished (z.B. durch Matchfinished-Event im MP-Sync)
+  // wahr ist, stellen wir sicher, dass der Wechsel zur Summary nach max. 2.5s
+  // passiert. Deckt Edge-Cases ab, in denen der andere Trigger nicht feuert.
+  useEffect(() => {
+    if (!state.finished) return
+    if (!onShowSummary) return
+    const timer = setTimeout(() => onShowSummary(matchId), 2500)
+    return () => clearTimeout(timer)
+  }, [state.finished, matchId, onShowSummary])
+
   const players = state.match?.players ?? []
   const activePlayerId = getActivePlayerId(state)
   const activePlayer = players.find(p => p.playerId === activePlayerId)
