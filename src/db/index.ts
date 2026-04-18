@@ -35,23 +35,113 @@ function getSessionToken(): string {
   return ''
 }
 
+// Slow-query logging threshold (ms). Tune at runtime via:
+//   localStorage.setItem('db-slow-ms', '200')  // lower = more verbose
+//   localStorage.removeItem('db-slow-ms')      // back to default
+function getSlowThresholdMs(): number {
+  try {
+    const v = Number(localStorage.getItem('db-slow-ms'))
+    if (Number.isFinite(v) && v > 0) return v
+  } catch {}
+  return 500
+}
+
+function sqlPreview(sql: unknown, max = 140): string {
+  if (typeof sql !== 'string') return '<?>'
+  const s = sql.replace(/\s+/g, ' ').trim()
+  return s.length > max ? s.slice(0, max) + '…' : s
+}
+
+function summarizeBody(body: Record<string, unknown>): { label: string; detail: Record<string, unknown> } {
+  const type = String(body.type ?? '?')
+  if (type === 'transaction' || type === 'execMany') {
+    const stmts = (body.statements as Array<{ sql: string; params?: unknown[] }>) || []
+    return {
+      label: `${type} × ${stmts.length}`,
+      detail: {
+        statements: stmts.length,
+        firstSQL: sqlPreview(stmts[0]?.sql),
+        sample: stmts.slice(0, 3).map(s => sqlPreview(s.sql, 80)),
+      },
+    }
+  }
+  if (type === 'batch') {
+    const qs = (body.queries as Array<{ sql: string }>) || []
+    return {
+      label: `batch × ${qs.length}`,
+      detail: { queries: qs.length, sample: qs.slice(0, 3).map(q => sqlPreview(q.sql, 80)) },
+    }
+  }
+  if (type === 'repo') {
+    return {
+      label: `repo ${body.entity ?? ''}.${body.method ?? ''}`,
+      detail: { entity: body.entity, mode: body.mode, method: body.method },
+    }
+  }
+  if (type === 'schema') {
+    const stmts = (body.statements as string[]) || []
+    return { label: `schema × ${stmts.length}`, detail: { statements: stmts.length } }
+  }
+  return { label: type, detail: { sql: sqlPreview(body.sql) } }
+}
+
 async function apiRequest<T = unknown>(body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(getApiUrl(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Api-Key': API_KEY,
-      'X-Session-Token': getSessionToken(),
-    },
-    body: JSON.stringify(body),
-  })
+  const t0 = performance.now()
+  const payload = JSON.stringify(body)
+
+  let response: Response
+  let errorThrown: unknown = null
+  try {
+    response = await fetch(getApiUrl(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': API_KEY,
+        'X-Session-Token': getSessionToken(),
+      },
+      body: payload,
+    })
+  } catch (e) {
+    errorThrown = e
+    const ms = Math.round(performance.now() - t0)
+    const { label, detail } = summarizeBody(body)
+    console.warn(
+      `%c[DB ${ms}ms] network error · ${label}`,
+      'color:#e33;font-weight:bold',
+      { ...detail, bodyBytes: payload.length, error: e },
+    )
+    throw e
+  }
+
+  const ms = Math.round(performance.now() - t0)
+  const threshold = getSlowThresholdMs()
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }))
+    const { label, detail } = summarizeBody(body)
+    console.warn(
+      `%c[DB ${ms}ms] HTTP ${response.status} · ${label}`,
+      'color:#e33;font-weight:bold',
+      { ...detail, bodyBytes: payload.length, message: error.error || response.statusText },
+    )
     throw new Error(`[DB API] ${error.error || response.statusText}`)
   }
 
   const result = await response.json()
+
+  if (ms >= threshold) {
+    const { label, detail } = summarizeBody(body)
+    console.groupCollapsed(
+      `%c⏱ [DB ${ms}ms] ${label}`,
+      ms >= threshold * 4 ? 'color:#e33;font-weight:bold' : 'color:#f80;font-weight:bold',
+    )
+    console.log('body:', body)
+    console.log('detail:', detail)
+    console.log('bodyBytes:', payload.length)
+    console.groupEnd()
+  }
+
+  void errorThrown
   return result.data as T
 }
 
