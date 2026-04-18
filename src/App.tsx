@@ -2232,9 +2232,15 @@ export default function App() {
               const includeBull = config.bobs27IncludeBull ?? false
               const bobsTargets: Array<{ number: number; isDouble: boolean }> = Array.from({ length: 20 }, (_, i) => ({ number: i + 1, isDouble: true }))
               if (includeBull) bobsTargets.push({ number: 25, isDouble: true })
+              // Bobs27Config braucht startScore + dartsPerTarget + legsCount — sonst triggert
+              // die Target-Finished-Logik nie (3 >= undefined === false) und die Darts zählen
+              // endlos weiter.
               initialEvents = [
                 { eventId: genId(), type: 'Bobs27MatchStarted', ts, matchId, players,
                   config: {
+                    startScore: 27,
+                    dartsPerTarget: 3,
+                    legsCount: legs,
                     includeBull,
                     allowNegative: config.bobs27AllowNegative ?? false,
                   },
