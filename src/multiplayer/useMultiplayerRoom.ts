@@ -83,6 +83,10 @@ export function useMultiplayerRoom(
   })
 
   const socketRef = useRef<PartySocket | null>(null)
+  // After the first successful socket open we flip any queued `create-room`
+  // into `join-room` so reconnects (including PartySocket's auto-retry) don't
+  // get rejected with "Room already created" if the server state has drifted.
+  const hasConnectedOnceRef = useRef(false)
   const onRemoteEventsRef = useRef(onRemoteEvents)
   const onRemoteUndoRef = useRef(onRemoteUndo)
 
@@ -121,8 +125,19 @@ export function useMultiplayerRoom(
     socket.addEventListener('open', () => {
       setStatus('connected')
       setError(null)
-      addDebug(`Sending: ${initMessage.type}`)
-      socket.send(JSON.stringify(initMessage))
+
+      // On reconnect (not first open), a host's stored `create-room` would be
+      // rejected if the server-side idempotency check can't match the host by
+      // playerId (server restart, state eviction, etc.). Switch to `join-room`
+      // which just looks up the existing player and reconnects them.
+      let outgoing: ClientMessage = initMessage
+      if (hasConnectedOnceRef.current && initMessage.type === 'create-room') {
+        outgoing = { type: 'join-room', player: initMessage.hostPlayer }
+      }
+
+      addDebug(`Sending: ${outgoing.type}`)
+      socket.send(JSON.stringify(outgoing))
+      hasConnectedOnceRef.current = true
     })
 
     socket.addEventListener('message', (evt) => {
@@ -191,6 +206,16 @@ export function useMultiplayerRoom(
             setSpectatorCount((msg as any).count ?? 0)
             break
           case 'error':
+            // Recovery: if we got "Room already created" while trying to
+            // create, the server thinks we're not the owner. Fall through to
+            // join-room with the same hostPlayer — the server's join branch
+            // looks up existing players by playerId and re-attaches.
+            if ((msg as any).code === 'ROOM_EXISTS' && initMessage?.type === 'create-room') {
+              addDebug('Room exists → retry as join-room')
+              const rejoin: ClientMessage = { type: 'join-room', player: initMessage.hostPlayer }
+              socket.send(JSON.stringify(rejoin))
+              break
+            }
             setError(msg.message)
             addDebug(`Error: ${msg.message}`)
             break
@@ -241,16 +266,19 @@ export function useMultiplayerRoom(
   const createRoom = useCallback((hostPlayer: PlayerRef) => {
     addDebug('createRoom called')
     setIsHost(true)
+    hasConnectedOnceRef.current = false
     setInitMessage({ type: 'create-room', hostPlayer })
   }, [addDebug])
 
   const joinRoom = useCallback((player: PlayerRef) => {
     addDebug('joinRoom called')
+    hasConnectedOnceRef.current = false
     setInitMessage({ type: 'join-room', player })
   }, [addDebug])
 
   const joinAsSpectator = useCallback(() => {
     addDebug('joinAsSpectator called')
+    hasConnectedOnceRef.current = false
     setInitMessage({ type: 'join-spectator' })
   }, [addDebug])
 
@@ -321,6 +349,7 @@ export function useMultiplayerRoom(
   const disconnect = useCallback(() => {
     socketRef.current?.close()
     socketRef.current = null
+    hasConnectedOnceRef.current = false
     setInitMessage(null)
     setIsHost(false)
     setStatus('disconnected')
