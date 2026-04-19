@@ -11,6 +11,7 @@ import { PLAYER_COLORS } from '../playerColors'
 import { generateShanghaiReport } from '../narratives/generateModeReports'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import ShanghaiAggregateSection from '../components/ShanghaiAggregateSection'
+import { listShanghaiLegIndices } from '../stats/computeShanghaiLegStats'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -151,6 +152,8 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBa
 
   // Gespielte Runden
   const roundsPlayed = roundBreakdown.length
+  const legsPlayed = listShanghaiLegIndices(storedMatch).length
+  const isMultiLeg = legsPlayed > 1
 
   // Struktur-Info
   const structureLabel = match.structure.kind === 'legs'
@@ -371,8 +374,9 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBa
             </div>
           )}
 
-          {/* Spieler-Stats Tabelle */}
-          <div style={{ ...styles.card, marginBottom: 16 }}>
+          {/* Spieler-Stats Tabelle — nur bei Single-Leg-Matches, sonst deckt das
+              Match-Aggregat + Leg-Liste unten die Summierung ab. */}
+          {!isMultiLeg && <div style={{ ...styles.card, marginBottom: 16 }}>
             <div style={{ ...styles.sub, marginBottom: 8 }}>Spieler-Statistiken</div>
             <div style={{ overflowX: 'auto' }}>
               {(() => {
@@ -456,10 +460,10 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBa
                 )
               })()}
             </div>
-          </div>
+          </div>}
 
-          {/* Runden-Uebersicht */}
-          {roundBreakdown.length > 0 && (
+          {/* Runden-Uebersicht — aus demselben Grund nur bei Single-Leg. */}
+          {!isMultiLeg && roundBreakdown.length > 0 && (
             <div style={{ ...styles.card, marginBottom: 16 }}>
               <div style={{ ...styles.sub, marginBottom: 8 }}>Runden-Uebersicht</div>
               <div style={{ overflowX: 'auto' }}>
