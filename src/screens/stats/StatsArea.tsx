@@ -35,6 +35,7 @@ const StrMatchDetails = lazyRetry(() => import('../StrMatchDetails'))
 const HighscoreMatchDetails = lazyRetry(() => import('../HighscoreMatchDetails'))
 const CTFMatchDetails = lazyRetry(() => import('../CTFMatchDetails'))
 const ShanghaiMatchDetails = lazyRetry(() => import('../ShanghaiMatchDetails'))
+const ShanghaiLegSummary = lazyRetry(() => import('../ShanghaiLegSummary'))
 const KillerSummary = lazyRetry(() => import('../KillerSummary'))
 const CricketMatchDetails = lazyRetry(() => import('../CricketMatchDetails'))
 const Bobs27MatchDetails = lazyRetry(() => import('../Bobs27MatchDetails'))
@@ -56,6 +57,7 @@ type View =
   | 'highscore-match-details'
   | 'ctf-match-details'
   | 'shanghai-match-details'
+  | 'shanghai-leg-summary'
   | 'killer-match-details'
   | 'bobs27-match-details'
   | 'bobs27-leg-summary'
@@ -85,6 +87,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   const [highscoreDetailMatchId, setHighscoreDetailMatchId] = useState<string | undefined>(undefined)
   const [ctfDetailMatchId, setCtfDetailMatchId] = useState<string | undefined>(undefined)
   const [shanghaiDetailMatchId, setShanghaiDetailMatchId] = useState<string | undefined>(undefined)
+  const [shanghaiLegSummaryLeg, setShanghaiLegSummaryLeg] = useState<number | undefined>(undefined)
   const [killerDetailMatchId, setKillerDetailMatchId] = useState<string | undefined>(undefined)
   const [bobs27DetailMatchId, setBobs27DetailMatchId] = useState<string | undefined>(undefined)
   const [bobs27LegSummaryLeg, setBobs27LegSummaryLeg] = useState<number | undefined>(undefined)
@@ -115,6 +118,8 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
         setView(returnFromMatchDetails)
       } else if (view === 'bobs27-leg-summary') {
         setView('bobs27-match-details')
+      } else if (view === 'shanghai-leg-summary') {
+        setView('shanghai-match-details')
       } else {
         setView('stats-menu')
       }
@@ -393,7 +398,27 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
 
   // ---------- SHANGHAI MATCH DETAILS ----------
   if (view === 'shanghai-match-details' && shanghaiDetailMatchId) {
-    return <Suspense fallback={suspenseFallback}><ShanghaiMatchDetails matchId={shanghaiDetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
+    return <Suspense fallback={suspenseFallback}>
+      <ShanghaiMatchDetails
+        matchId={shanghaiDetailMatchId}
+        onBack={() => setView(returnFromMatchDetails)}
+        onOpenLegSummary={(_mid, legIdx) => {
+          setShanghaiLegSummaryLeg(legIdx)
+          setView('shanghai-leg-summary')
+        }}
+      />
+    </Suspense>
+  }
+
+  // ---------- SHANGHAI LEG SUMMARY (aus History) ----------
+  if (view === 'shanghai-leg-summary' && shanghaiDetailMatchId && shanghaiLegSummaryLeg !== undefined) {
+    return <Suspense fallback={suspenseFallback}>
+      <ShanghaiLegSummary
+        matchId={shanghaiDetailMatchId}
+        legIndex={shanghaiLegSummaryLeg}
+        onBack={() => setView('shanghai-match-details')}
+      />
+    </Suspense>
   }
 
   // ---------- KILLER MATCH DETAILS ----------

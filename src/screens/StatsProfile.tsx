@@ -1833,6 +1833,13 @@ export default function StatsProfile({
                     </div>
                   )}
                 </div>
+
+                {/* Erweiterte Langzeit-Stats + Heatmap (Phase 4) */}
+                {sqlStats.data.shanghaiExtended && <ShanghaiExtendedBlock
+                  ext={sqlStats.data.shanghaiExtended}
+                  heatmap={sqlStats.data.shanghaiHeatmap}
+                  s={s}
+                />}
               </>
               )
             })()}
@@ -2668,6 +2675,170 @@ function HeatmapRow({ row, extra }: {
         background: rateColor(row.hitRatePerVisit), borderRadius: 4,
       }}>{row.hitRatePerVisit.toFixed(1)}%</td>
       <td style={{ padding: '4px 8px', textAlign: 'right', opacity: 0.7 }}>{row.attempts}</td>
+    </tr>
+  )
+}
+
+// ============================================================================
+// Shanghai Extended-Block (Phase 4)
+// ============================================================================
+function ShanghaiExtendedBlock({
+  ext, heatmap, s,
+}: {
+  ext: import('../db/stats').ShanghaiExtendedStats
+  heatmap: import('../db/stats').ShanghaiNumberHeatmapRow[]
+  s: any
+}) {
+  const fmtPct = (v: number) => `${v.toFixed(1)}%`
+
+  return (
+    <>
+      <div style={s.statsCard}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Langzeit (pro Leg)</div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Legs gespielt</span>
+          <span style={s.statsValueHighlight}>{ext.totalLegs}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Score</span>
+          <span style={s.statsValueHighlight}>{ext.avgScore.toFixed(1)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Score %</span>
+          <span style={s.statsValueHighlight}>{fmtPct(ext.avgScorePercent)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Bester Endscore</span>
+          <span style={s.statsValueGood}>{ext.bestLegScore}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Trefferquote (Dart)</span>
+          <span style={s.statsValueHighlight}>{fmtPct(ext.avgHitRatePerDart)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Aufnahme-Quote</span>
+          <span style={s.statsValueHighlight}>{fmtPct(ext.avgVisitHitRate)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Triple Rate</span>
+          <span style={s.statsValue}>{fmtPct(ext.avgTripleRate)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Effizienz</span>
+          <span style={s.statsValue}>{ext.avgEfficiency.toFixed(1)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Aggressions-Index</span>
+          <span style={s.statsValue}>{fmtPct(ext.avgAggressionIndex)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Clutch Score (15-20)</span>
+          <span style={s.statsValue}>{ext.avgClutchScore.toFixed(1)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Konsistenz</span>
+          <span style={s.statsValue}>{fmtPct(ext.avgConsistencyRate)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Zero Round Rate</span>
+          <span style={s.statsValue}>{fmtPct(ext.avgZeroRoundRate)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Entwicklung Score (letzte 5 − erste 5)</span>
+          <span style={ext.scoreProgression >= 0 ? s.statsValueGood : s.statsValueBad}>
+            {ext.scoreProgression >= 0 ? `+${ext.scoreProgression.toFixed(1)}` : ext.scoreProgression.toFixed(1)}
+          </span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Schwächste Zahl</span>
+          <span style={s.statsValueBad}>{ext.weakestNumber ? `${ext.weakestNumber.number} · Ø ${ext.weakestNumber.avgScore}` : '\u2013'}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Stärkste Zahl</span>
+          <span style={s.statsValueGood}>{ext.strongestNumber ? `${ext.strongestNumber.number} · Ø ${ext.strongestNumber.avgScore}` : '\u2013'}</span>
+        </div>
+        <div style={s.statsRowLast}>
+          <span style={s.statsLabel}>Shanghais gesamt</span>
+          <span style={{ ...s.statsValueHighlight, color: '#fbbf24' }}>{ext.totalShanghais}</span>
+        </div>
+      </div>
+
+      {/* Siegquoten getrennt */}
+      <div style={s.statsCard}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Siegquoten (Solo / Multiplayer)</div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Solo Matches</span>
+          <span style={s.statsValue}>{ext.soloMatchesPlayed}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Solo ≥50% Score</span>
+          <span style={ext.soloMatchesPlayed > 0 ? s.statsValueHighlight : s.statsValue}>
+            {ext.soloMatchesPlayed > 0 ? fmtPct(ext.soloCompletionRate) : '\u2013'}
+          </span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Multiplayer Matches</span>
+          <span style={s.statsValue}>{ext.mpMatchesPlayed}</span>
+        </div>
+        <div style={s.statsRowLast}>
+          <span style={s.statsLabel}>Multiplayer Siegquote</span>
+          <span style={ext.mpMatchesPlayed > 0 ? s.statsValueHighlight : s.statsValue}>
+            {ext.mpMatchesPlayed > 0 ? fmtPct(ext.mpWinRate) : '\u2013'}
+          </span>
+        </div>
+      </div>
+
+      {/* Zahlen-Heatmap */}
+      {heatmap.length > 0 && (
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Zahlen-Heatmap</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', opacity: 0.7 }}>Zahl</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', opacity: 0.7 }}>Ø Pkt</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', opacity: 0.7 }}>Treffer %</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', opacity: 0.7 }}>Aufnahme %</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', opacity: 0.7 }}>Triple %</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', opacity: 0.7 }}>Eff.</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', opacity: 0.7 }}>Shanghai %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {heatmap.map(r => <ShanghaiHeatmapRow key={r.number} row={r} />)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function ShanghaiHeatmapRow({ row }: {
+  row: import('../db/stats').ShanghaiNumberHeatmapRow
+}) {
+  const rateColor = (v: number) =>
+    v >= 50 ? 'rgba(34,197,94,0.28)' :
+    v >= 30 ? 'rgba(234,179,8,0.28)' :
+    v > 0   ? 'rgba(239,68,68,0.22)' :
+              'transparent'
+  return (
+    <tr>
+      <td style={{ padding: '4px 6px', fontWeight: 600 }}>{row.number}</td>
+      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{row.avgScore.toFixed(1)}</td>
+      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, background: rateColor(row.hitRatePerDart), borderRadius: 4 }}>
+        {row.hitRatePerDart.toFixed(1)}%
+      </td>
+      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 700, background: rateColor(row.visitHitRate), borderRadius: 4 }}>
+        {row.visitHitRate.toFixed(1)}%
+      </td>
+      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{row.tripleRate.toFixed(1)}%</td>
+      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{row.efficiency.toFixed(1)}</td>
+      <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600, color: row.shanghaiRate > 0 ? '#fbbf24' : undefined }}>
+        {row.shanghaiRate.toFixed(1)}%
+      </td>
     </tr>
   )
 }

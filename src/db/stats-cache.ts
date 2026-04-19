@@ -108,7 +108,7 @@ const GROUPS_BY_GAME_TYPE: Record<string, string[]> = {
   atb:        ['core', 'atbvariants', 'achievements'],
   str:        ['core'],
   ctf:        ['core'],
-  shanghai:   ['core'],
+  shanghai:   ['core', 'minigames'],
   killer:     ['core', 'minigames'],
   bobs27:     ['core', 'minigames', 'achievements'],
   operation:  ['core', 'minigames'],

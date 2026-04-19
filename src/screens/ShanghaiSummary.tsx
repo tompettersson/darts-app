@@ -10,6 +10,7 @@ import { computeShanghaiMatchStats } from '../stats/computeShanghaiStats'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateShanghaiReport } from '../narratives/generateModeReports'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
+import ShanghaiAggregateSection from '../components/ShanghaiAggregateSection'
 
 // Bestimmt Spielerfarbe für den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -30,10 +31,11 @@ type Props = {
   onBackToMenu: () => void
   onRematch?: (matchId: string) => void
   onBackToLobby?: () => void
+  onOpenLegSummary?: (matchId: string, legIndex: number) => void
   isMultiplayerGuest?: boolean
 }
 
-export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBackToLobby, isMultiplayerGuest }: Props) {
+export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBackToLobby, onOpenLegSummary, isMultiplayerGuest }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -589,6 +591,16 @@ export default function ShanghaiSummary({ matchId, onBackToMenu, onRematch, onBa
               </div>
             )}
           </div>
+
+          {/* Match-Aggregat + Leg-Liste (nur bei > 1 Leg) */}
+          <ShanghaiAggregateSection
+            match={storedMatch}
+            players={players}
+            playerColor={(pid) => rankings.find(r => r.playerId === pid)?.color ?? PLAYER_COLORS[0]}
+            colors={colors}
+            styles={styles}
+            onOpenLeg={onOpenLegSummary ? (idx) => onOpenLegSummary(matchId, idx) : undefined}
+          />
 
           {/* Aktionen */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8 }}>

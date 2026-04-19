@@ -163,6 +163,7 @@ const StraeusschenSummary = lazyRetry(() => import('./screens/StraeusschenSummar
 const HighscoreSummary = lazyRetry(() => import('./screens/HighscoreSummary'))
 const CTFSummary = lazyRetry(() => import('./screens/CTFSummary'))
 const ShanghaiSummary = lazyRetry(() => import('./screens/ShanghaiSummary'))
+const ShanghaiLegSummary = lazyRetry(() => import('./screens/ShanghaiLegSummary'))
 const KillerSummary = lazyRetry(() => import('./screens/KillerSummary'))
 const Bobs27Summary = lazyRetry(() => import('./screens/Bobs27Summary'))
 const Bobs27LegSummary = lazyRetry(() => import('./screens/Bobs27LegSummary'))
@@ -326,6 +327,7 @@ type View =
   | 'new-shanghai'
   | 'game-shanghai'
   | 'summary-shanghai'
+  | 'leg-summary-shanghai'
   | 'new-killer'
   | 'game-killer'
   | 'summary-killer'
@@ -564,6 +566,9 @@ export default function App() {
   // Shanghai Match IDs
   const [activeShanghaiId, setActiveShanghaiId] = useState<string | undefined>(() => getOpenShanghaiMatch()?.id)
   const [summaryShanghaiId, setSummaryShanghaiId] = useState<string | undefined>(undefined)
+  const [legSummaryShanghaiId, setLegSummaryShanghaiId] = useState<string | undefined>(undefined)
+  const [legSummaryShanghaiLeg, setLegSummaryShanghaiLeg] = useState<number | undefined>(undefined)
+  const [legSummaryShanghaiReturn, setLegSummaryShanghaiReturn] = useState<View>('menu')
 
   // Killer Match IDs
   const [activeKillerId, setActiveKillerId] = useState<string | undefined>(() => getOpenKillerMatch()?.id)
@@ -1688,6 +1693,34 @@ export default function App() {
           setSummaryShanghaiId(id)
           setView('summary-shanghai')
         }}
+        onLegFinished={(id, legIdx) => {
+          setLegSummaryShanghaiId(id)
+          setLegSummaryShanghaiLeg(legIdx)
+          setLegSummaryShanghaiReturn('game-shanghai')
+          setView('leg-summary-shanghai')
+        }}
+      />
+    )
+  }
+
+  // SHANGHAI LEG SUMMARY
+  if (view === 'leg-summary-shanghai' && legSummaryShanghaiId !== undefined && legSummaryShanghaiLeg !== undefined) {
+    const isActiveMatch = activeShanghaiId === legSummaryShanghaiId || multiplayerMatchId === legSummaryShanghaiId
+    return (
+      <ShanghaiLegSummary
+        matchId={legSummaryShanghaiId}
+        legIndex={legSummaryShanghaiLeg}
+        onBack={() => {
+          setView(legSummaryShanghaiReturn)
+          setLegSummaryShanghaiId(undefined)
+          setLegSummaryShanghaiLeg(undefined)
+        }}
+        onNextLeg={isActiveMatch ? () => {
+          // GameShanghai erkennt beim Mount, dass currentLegId fertig ist, und startet naechstes Leg selbst
+          setView(multiplayerMatchId === legSummaryShanghaiId ? 'multiplayer-game' : 'game-shanghai')
+          setLegSummaryShanghaiId(undefined)
+          setLegSummaryShanghaiLeg(undefined)
+        } : undefined}
       />
     )
   }
@@ -1698,6 +1731,12 @@ export default function App() {
       <ShanghaiSummary
         matchId={summaryShanghaiId}
         isMultiplayerGuest={isMpGuest}
+        onOpenLegSummary={(mid, legIdx) => {
+          setLegSummaryShanghaiId(mid)
+          setLegSummaryShanghaiLeg(legIdx)
+          setLegSummaryShanghaiReturn('summary-shanghai')
+          setView('leg-summary-shanghai')
+        }}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -2617,6 +2656,12 @@ export default function App() {
             setMultiplayerSummaryActive(true)
             setSummaryShanghaiId(id)
             setView('summary-shanghai')
+          }}
+          onLegFinished={(id, legIdx) => {
+            setLegSummaryShanghaiId(id)
+            setLegSummaryShanghaiLeg(legIdx)
+            setLegSummaryShanghaiReturn('multiplayer-game')
+            setView('leg-summary-shanghai')
           }}
           multiplayer={mpProps}
         /></>

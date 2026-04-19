@@ -19,10 +19,12 @@ import LegHeader from '../components/LegHeader'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { PLAYER_COLORS } from '../playerColors'
 import { generateShanghaiReport } from '../narratives/generateModeReports'
+import ShanghaiAggregateSection from '../components/ShanghaiAggregateSection'
 
 type Props = {
   matchId: string
   onBack: () => void
+  onOpenLegSummary?: (matchId: string, legIndex: number) => void
 }
 
 type LegInfo = {
@@ -274,7 +276,7 @@ function ShanghaiRoundBarChart({
   )
 }
 
-export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
+export default function ShanghaiMatchDetails({ matchId, onBack, onOpenLegSummary }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -871,6 +873,16 @@ export default function ShanghaiMatchDetails({ matchId, onBack }: Props) {
             durationMs={match.durationMs}
             playedAt={match.createdAt}
             onBack={onBack}
+          />
+
+          {/* Match-Aggregat + Leg-Liste (nur bei > 1 Leg) */}
+          <ShanghaiAggregateSection
+            match={match}
+            players={match.players}
+            playerColor={(pid) => playerColors[pid] ?? PLAYER_COLORS[0]}
+            colors={colors}
+            styles={styles}
+            onOpenLeg={onOpenLegSummary ? (idx) => onOpenLegSummary(matchId, idx) : undefined}
           />
 
           {/* Match-Info Kacheln */}

@@ -1588,7 +1588,6 @@ export default function GameCricket({ matchId, onExit, onShowCricketSummary, mul
             </span>
           ) : (
             <>
-              {!isMobileScreen && <span style={{ color: colors.fg }}>Cricket</span>}
               {!isMobileScreen && <span
                 style={{
                   fontSize: 12,

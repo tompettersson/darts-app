@@ -11,6 +11,12 @@ import {
   listBobs27LegIndices,
   type Bobs27LegStats,
 } from '../../stats/computeBobs27LegStats'
+import type { ShanghaiEvent, ShanghaiStoredMatch } from '../../types/shanghai'
+import {
+  computeShanghaiLegStats,
+  listShanghaiLegIndices,
+  type ShanghaiLegStats,
+} from '../../stats/computeShanghaiLegStats'
 
 // ============================================================================
 // Types
@@ -1037,6 +1043,177 @@ export async function getHighscoreBobs27MostBullsLeg(limit: number = 10): Promis
     r => r.stats.bullHits !== null,  // nur Legs mit Bull
     'desc', limit,
   )
+}
+
+// ============================================================================
+// Shanghai Leg-Level Highscores (Phase 5)
+// ============================================================================
+
+type ShanghaiLegRecord = {
+  matchId: string
+  matchDate: string
+  playerId: string
+  playerName: string
+  playerColor?: string
+  legIndex: number
+  stats: ShanghaiLegStats
+}
+
+let _shanghaiLegCache: { ts: number; data: ShanghaiLegRecord[] } | null = null
+const SHANGHAI_LEG_CACHE_TTL_MS = 10_000
+
+async function getShanghaiLegRecords(): Promise<ShanghaiLegRecord[]> {
+  const now = Date.now()
+  if (_shanghaiLegCache && now - _shanghaiLegCache.ts < SHANGHAI_LEG_CACHE_TTL_MS) {
+    return _shanghaiLegCache.data
+  }
+
+  try {
+    const matchRows = await query<{
+      id: string
+      created_at: string
+      players: any
+      structure: any
+      events: any
+    }>(`
+      SELECT id, created_at, players, structure, events
+      FROM shanghai_matches
+      WHERE finished = 1
+    `, [])
+
+    if (matchRows.length === 0) {
+      _shanghaiLegCache = { ts: now, data: [] }
+      return []
+    }
+
+    const playerRows = await query<{
+      match_id: string
+      player_id: string
+      player_name: string
+      player_color: string | null
+    }>(`
+      SELECT mp.match_id, mp.player_id, p.name as player_name, p.color as player_color
+      FROM shanghai_match_players mp
+      JOIN profiles p ON p.id = mp.player_id
+      JOIN shanghai_matches m ON m.id = mp.match_id
+      WHERE m.finished = 1
+        AND mp.player_id NOT LIKE 'guest-%'
+        AND mp.player_id NOT LIKE 'temp-%'
+    `, [])
+
+    const playersByMatch = new Map<string, typeof playerRows>()
+    for (const p of playerRows) {
+      if (!playersByMatch.has(p.match_id)) playersByMatch.set(p.match_id, [])
+      playersByMatch.get(p.match_id)!.push(p)
+    }
+
+    const records: ShanghaiLegRecord[] = []
+    for (const m of matchRows) {
+      const matchPlayers = playersByMatch.get(m.id) ?? []
+      if (matchPlayers.length === 0) continue
+      const events = parseJSONLoose(m.events) ?? []
+      const structure = parseJSONLoose(m.structure) ?? { kind: 'legs', bestOfLegs: 1 }
+      const players = parseJSONLoose(m.players) ?? []
+      const fakeMatch: ShanghaiStoredMatch = {
+        id: m.id,
+        title: 'Shanghai',
+        createdAt: m.created_at,
+        players,
+        structure,
+        config: {},
+        events: events as ShanghaiEvent[],
+        finished: true,
+      }
+      const legIndices = listShanghaiLegIndices(fakeMatch)
+      for (const legIdx of legIndices) {
+        for (const p of matchPlayers) {
+          const stats = computeShanghaiLegStats(fakeMatch, p.player_id, legIdx)
+          if (!stats) continue
+          records.push({
+            matchId: m.id,
+            matchDate: m.created_at,
+            playerId: p.player_id,
+            playerName: p.player_name,
+            playerColor: p.player_color ?? undefined,
+            legIndex: legIdx,
+            stats,
+          })
+        }
+      }
+    }
+
+    _shanghaiLegCache = { ts: now, data: records }
+    return records
+  } catch (e) {
+    console.warn('[Highscores] getShanghaiLegRecords failed:', e)
+    return []
+  }
+}
+
+function parseJSONLoose(v: any): any {
+  if (v === null || v === undefined) return null
+  if (typeof v === 'string') { try { return JSON.parse(v) } catch { return null } }
+  return v
+}
+
+function topNShanghai(
+  records: ShanghaiLegRecord[],
+  value: (r: ShanghaiLegRecord) => number,
+  keep: (r: ShanghaiLegRecord) => boolean,
+  order: 'desc' | 'asc',
+  limit: number,
+): HighscoreEntrySQL[] {
+  const filtered = records.filter(keep).map(r => ({ record: r, v: value(r) }))
+  filtered.sort((a, b) => order === 'desc' ? b.v - a.v : a.v - b.v)
+  return filtered.slice(0, limit).map((x, i) => ({
+    rank: i + 1,
+    playerId: x.record.playerId,
+    playerName: x.record.playerName,
+    playerColor: x.record.playerColor,
+    value: Math.round(x.v * 10) / 10,
+    matchId: x.record.matchId,
+    matchDate: x.record.matchDate,
+  }))
+}
+
+export async function getHighscoreShanghaiBestScorePercent(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.scorePercent, () => true, 'desc', limit)
+}
+
+export async function getHighscoreShanghaiBestHitRate(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.hitRatePerDart, r => r.stats.totalDarts >= 30, 'desc', limit)
+}
+
+export async function getHighscoreShanghaiBestVisitRate(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.visitHitRate, r => r.stats.rounds.length >= 15, 'desc', limit)
+}
+
+export async function getHighscoreShanghaiBestEfficiency(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.efficiency, r => r.stats.totalHits >= 10, 'desc', limit)
+}
+
+export async function getHighscoreShanghaiHighestClutch(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.clutchScore, () => true, 'desc', limit)
+}
+
+export async function getHighscoreShanghaiMostTriplesLeg(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.triples, () => true, 'desc', limit)
+}
+
+export async function getHighscoreShanghaiFewestZeroRounds(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.zeroRounds, r => r.stats.rounds.length >= 20, 'asc', limit)
+}
+
+export async function getHighscoreShanghaiLongestHitStreak(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const recs = await getShanghaiLegRecords()
+  return topNShanghai(recs, r => r.stats.longestHitStreak, () => true, 'desc', limit)
 }
 
 // ============================================================================
@@ -2783,6 +2960,14 @@ export async function getAllHighscoresSQL(): Promise<HighscoreCategory[]> {
         case 'shanghai-biggest-margin': entries = await getHighscoreShanghaiBiggestMargin(); break
         case 'shanghai-focused-match': entries = await getHighscoreShanghaiFocusedMatch(); break
         case 'shanghai-triple-master': entries = await getHighscoreShanghaiTripleMaster(); break
+        case 'shanghai-best-score-percent': entries = await getHighscoreShanghaiBestScorePercent(); break
+        case 'shanghai-best-hit-rate': entries = await getHighscoreShanghaiBestHitRate(); break
+        case 'shanghai-best-visit-rate': entries = await getHighscoreShanghaiBestVisitRate(); break
+        case 'shanghai-best-efficiency': entries = await getHighscoreShanghaiBestEfficiency(); break
+        case 'shanghai-highest-clutch': entries = await getHighscoreShanghaiHighestClutch(); break
+        case 'shanghai-most-triples-leg': entries = await getHighscoreShanghaiMostTriplesLeg(); break
+        case 'shanghai-fewest-zero-rounds': entries = await getHighscoreShanghaiFewestZeroRounds(); break
+        case 'shanghai-longest-hit-streak': entries = await getHighscoreShanghaiLongestHitStreak(); break
         // CTF
         case 'ctf-most-wins': entries = await getHighscoreCTFMostWins(); break
         case 'ctf-highest-match-score': entries = await getHighscoreCTFHighestMatchScore(); break

@@ -88,10 +88,11 @@ type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  onLegFinished?: (matchId: string, legIndex: number) => void
   multiplayer?: MultiplayerProp
 }
 
-export default function GameShanghai({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+export default function GameShanghai({ matchId, onExit, onShowSummary, onLegFinished, multiplayer }: Props) {
   useDisableScale()
   // Shared theme colors
   const { c, isArcade, colors } = useGameColors()
@@ -454,12 +455,25 @@ export default function GameShanghai({ matchId, onExit, onShowSummary, multiplay
         return
       }
 
-      // Leg fertig aber Match nicht - Intermission zeigen
+      // Leg fertig aber Match nicht
       if (result.nextLegStart) {
         const legWinnerId = result.legFinished.winnerId
         const legWinnerPlayer = legWinnerId ? players.find(p => p.playerId === legWinnerId) : null
         const winnerName = legWinnerPlayer ? legWinnerPlayer.name : 'Unentschieden'
 
+        if (onLegFinished) {
+          // Neuer Flow: LegStart sofort persistieren + zur Leg-Summary navigieren
+          const allEvents = [...newEvents, result.nextLegStart]
+          persistShanghaiEvents(matchId, allEvents)
+          setEvents(allEvents)
+          setCurrent([])
+          setMult(1)
+          if (multiplayer?.enabled) multiplayer.submitEvents(allEvents.slice(events.length))
+          onLegFinished(matchId, state.currentLegIndex)
+          return
+        }
+
+        // Fallback: Intermission-Modal (z.B. wenn onLegFinished nicht gesetzt)
         persistShanghaiEvents(matchId, newEvents)
         setEvents(newEvents)
         setCurrent([])

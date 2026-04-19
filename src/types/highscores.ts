@@ -95,6 +95,14 @@ export type HighscoreCategoryId =
   | 'shanghai-biggest-margin'
   | 'shanghai-focused-match'
   | 'shanghai-triple-master'
+  | 'shanghai-best-score-percent'
+  | 'shanghai-best-hit-rate'
+  | 'shanghai-best-visit-rate'
+  | 'shanghai-best-efficiency'
+  | 'shanghai-highest-clutch'
+  | 'shanghai-most-triples-leg'
+  | 'shanghai-fewest-zero-rounds'
+  | 'shanghai-longest-hit-streak'
   // CTF
   | 'ctf-most-wins'
   | 'ctf-highest-match-score'
@@ -201,6 +209,14 @@ export const HIGHSCORE_CATEGORIES: {
   { id: 'shanghai-biggest-margin', title: 'Größter Sieg-Abstand', icon: '👑', subtitle: 'Punkte vor 2.', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
   { id: 'shanghai-focused-match', title: 'Fokussierte Matches', icon: '🎯', subtitle: 'Jede Aufnahme trifft', gameType: 'shanghai', sortOrder: 'desc', format: 'number' },
   { id: 'shanghai-triple-master', title: 'Triple-Magier', icon: '🌟', subtitle: 'Triple-Quote auf Ziel', gameType: 'shanghai', sortOrder: 'desc', format: 'percent', minRequirement: 'min. 30 Darts' },
+  { id: 'shanghai-best-score-percent', title: 'Beste Score %', subtitle: 'Einzel-Leg', gameType: 'shanghai', sortOrder: 'desc', format: 'percent', multiPerPlayer: true },
+  { id: 'shanghai-best-hit-rate', title: 'Beste Trefferquote (Leg)', subtitle: 'Treffer / Darts', gameType: 'shanghai', sortOrder: 'desc', format: 'percent', multiPerPlayer: true },
+  { id: 'shanghai-best-visit-rate', title: 'Beste Aufnahme-Quote (Leg)', subtitle: 'Runden mit \u22651 Treffer', gameType: 'shanghai', sortOrder: 'desc', format: 'percent', multiPerPlayer: true },
+  { id: 'shanghai-best-efficiency', title: 'Beste Effizienz (Leg)', subtitle: 'Punkte / Treffer', gameType: 'shanghai', sortOrder: 'desc', format: 'decimal', multiPerPlayer: true, minRequirement: 'min. 10 Treffer' },
+  { id: 'shanghai-highest-clutch', title: 'Höchster Clutch Score', subtitle: 'Runden 15\u201320', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'shanghai-most-triples-leg', title: 'Meiste Triple in einem Leg', subtitle: 'Einzel-Leg', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'shanghai-fewest-zero-rounds', title: 'Wenigste Zero Rounds (Leg)', subtitle: 'Vollst. Leg', gameType: 'shanghai', sortOrder: 'asc', format: 'number', multiPerPlayer: true },
+  { id: 'shanghai-longest-hit-streak', title: 'Laengste Treffer-Serie', subtitle: 'Einzel-Leg', gameType: 'shanghai', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
 
   // Capture the Field
   { id: 'ctf-most-wins', title: 'Meiste Siege', icon: '🚩', subtitle: 'Capture the Field', gameType: 'ctf', sortOrder: 'desc', format: 'number' },

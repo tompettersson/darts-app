@@ -1162,7 +1162,6 @@ export default function GameOperation({ matchId, onExit, onShowSummary, multipla
         borderBottom: `1px solid ${c.border}`,
         background: c.cardBg, fontSize: 13, flexShrink: 0,
       }}>
-        {!isMobile && <span style={{ fontSize: 13, color: c.textDim }}>Operation: Ein Feld, keine Gnade</span>}
         {!isMobile && (
           <span style={{ fontFamily: 'monospace', color: c.textDim, fontSize: 13 }}>
             {formatDuration(elapsedMs)}

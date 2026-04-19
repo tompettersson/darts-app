@@ -738,7 +738,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, onLegFinish
           {/* Compact Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', borderBottom: `1px solid ${c.border}`, flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, color: c.textDim }}>Bob's 27</span>
               {(state.match?.config.legsCount ?? 1) > 1 && (
                 <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
               )}
@@ -887,7 +886,6 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, onLegFinish
         {/* Compact Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', borderBottom: `1px solid ${c.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: c.textDim }}>Bob's 27</span>
             {(state.match?.config.legsCount ?? 1) > 1 && (
               <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
             )}

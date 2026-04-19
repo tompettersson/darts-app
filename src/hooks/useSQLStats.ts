@@ -20,6 +20,8 @@ import {
   getBobs27FullStats,
   getBobs27DoubleHeatmap,
   getBobs27ExtendedStats,
+  getShanghaiExtendedStats,
+  getShanghaiNumberHeatmap,
   getOperationFullStats,
   getKillerFullStats,
   // New Stats (Tasks 16-25)
@@ -50,6 +52,8 @@ import {
   type Bobs27FullStats,
   type Bobs27DoubleHeatmapRow,
   type Bobs27ExtendedStats,
+  type ShanghaiExtendedStats,
+  type ShanghaiNumberHeatmapRow,
   type OperationFullStats,
   type KillerFullStats,
   type CrossGameDashboard,
@@ -122,6 +126,8 @@ export type SQLStatsData = {
   bobs27: Bobs27FullStats | null
   bobs27Extended: Bobs27ExtendedStats | null
   bobs27Heatmap: Bobs27DoubleHeatmapRow[]
+  shanghaiExtended: ShanghaiExtendedStats | null
+  shanghaiHeatmap: ShanghaiNumberHeatmapRow[]
   operation: OperationFullStats | null
   killer: KillerFullStats | null
   // New Stats (Tasks 16-25)
@@ -176,6 +182,8 @@ const emptyData: SQLStatsData = {
   bobs27: null,
   bobs27Extended: null,
   bobs27Heatmap: [],
+  shanghaiExtended: null,
+  shanghaiHeatmap: [],
   operation: null,
   killer: null,
   // New Stats
@@ -429,14 +437,16 @@ export async function loadGroup(pid: string, group: string, out: Partial<SQLStat
       break
     }
     case 'minigames': {
-      const [bobs27, bobs27Extended, bobs27Heatmap, operation, killer] = await Promise.all([
+      const [bobs27, bobs27Extended, bobs27Heatmap, shanghaiExtended, shanghaiHeatmap, operation, killer] = await Promise.all([
         safe(getBobs27FullStats(pid), null),
         safe(getBobs27ExtendedStats(pid), null),
         safe(getBobs27DoubleHeatmap(pid), []),
+        safe(getShanghaiExtendedStats(pid), null),
+        safe(getShanghaiNumberHeatmap(pid), []),
         safe(getOperationFullStats(pid), null),
         safe(getKillerFullStats(pid), null),
       ])
-      Object.assign(out, { bobs27, bobs27Extended, bobs27Heatmap, operation, killer })
+      Object.assign(out, { bobs27, bobs27Extended, bobs27Heatmap, shanghaiExtended, shanghaiHeatmap, operation, killer })
       break
     }
     case 'insights': {
