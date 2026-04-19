@@ -51,10 +51,11 @@ type Props = {
   matchId: string
   onExit: () => void
   onShowSummary: (matchId: string) => void
+  onLegFinished?: (matchId: string, legIndex: number) => void
   multiplayer?: MultiplayerProp
 }
 
-export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer }: Props) {
+export default function GameBobs27({ matchId, onExit, onShowSummary, onLegFinished, multiplayer }: Props) {
   useDisableScale()
   const { c, isArcade, colors } = useGameColors()
 
@@ -513,6 +514,41 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
     }
   }, [events, state, matchId, multiplayer])
 
+  const legNavigatedRef = useRef<number | null>(null)
+
+  // Mount-Only: Wenn wir mit legFinished=true starten (Rueckkehr aus
+  // Leg-Summary), nicht zurueck navigieren sondern direkt das naechste Leg
+  // starten — so laeuft handleNextLeg (inkl. MP-Broadcast) korrekt.
+  useEffect(() => {
+    if (state.legFinished && !state.finished && !matchEndDelay) {
+      legNavigatedRef.current = state.currentLegIndex
+      handleNextLeg()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-Navigation zur Leg-Summary nach Leg-Ende waehrend des Spiels.
+  useEffect(() => {
+    if (!state.legFinished || state.finished || matchEndDelay) return
+    if (!onLegFinished) return
+    if (legNavigatedRef.current === state.currentLegIndex) return
+    legNavigatedRef.current = state.currentLegIndex
+    const legIdx = state.currentLegIndex
+    const timer = setTimeout(() => {
+      onLegFinished(matchId, legIdx)
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [state.legFinished, state.finished, state.currentLegIndex, matchEndDelay, matchId, onLegFinished])
+
+  // Button-Handler: zur Leg-Summary springen (statt still naechstes Leg starten)
+  const handleShowLegSummary = useCallback(() => {
+    if (onLegFinished) {
+      onLegFinished(matchId, state.currentLegIndex)
+    } else {
+      handleNextLeg()
+    }
+  }, [onLegFinished, matchId, state.currentLegIndex, handleNextLeg])
+
   // Ensure keyboard focus when a local player's turn starts
   useEffect(() => {
     if (!multiplayer?.enabled || isMyTurn) { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() }
@@ -763,7 +799,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
                     </div>
                   ))}</div>}
                   <div style={{ fontSize: 11, color: c.textDim, marginBottom: 8 }}>Stand: {players.map(p => `${p.name} ${state.legWins[p.playerId] ?? 0}`).join(' \u2013 ')}</div>
-                  <button onClick={handleNextLeg} style={{ padding: '8px 16px', fontSize: 14, fontWeight: 700, background: c.accent, border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', touchAction: 'manipulation' }}>Naechstes Leg &rarr;</button>
+                  <button onClick={handleShowLegSummary} style={{ padding: '8px 16px', fontSize: 14, fontWeight: 700, background: c.accent, border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', touchAction: 'manipulation' }}>Naechstes Leg &rarr;</button>
                 </div>
               )}
 
@@ -977,7 +1013,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
                   </div>
                 ))}</div>}
                 <div style={{ fontSize: 12, color: c.textDim, marginBottom: 10 }}>Stand: {players.map(p => `${p.name} ${state.legWins[p.playerId] ?? 0}`).join(' \u2013 ')}</div>
-                <button onClick={handleNextLeg} style={{ padding: '10px 20px', fontSize: 15, fontWeight: 700, background: c.accent, border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', touchAction: 'manipulation' }}>Naechstes Leg &rarr;</button>
+                <button onClick={handleShowLegSummary} style={{ padding: '10px 20px', fontSize: 15, fontWeight: 700, background: c.accent, border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', touchAction: 'manipulation' }}>Naechstes Leg &rarr;</button>
               </div>
             </div>
           )}
@@ -1339,7 +1375,7 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
               <div style={{ fontSize: 13, color: c.textDim, marginBottom: 12 }}>
                 Stand: {players.map(p => `${p.name} ${state.legWins[p.playerId] ?? 0}`).join(' \u2013 ')}
               </div>
-              <button onClick={handleNextLeg} style={{
+              <button onClick={handleShowLegSummary} style={{
                 padding: '12px 28px', fontSize: 16, fontWeight: 700,
                 background: `linear-gradient(135deg, ${c.accent}, ${c.accent}dd)`,
                 border: 'none', color: '#fff', borderRadius: 10, cursor: 'pointer',

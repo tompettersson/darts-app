@@ -10,6 +10,7 @@ import { computeBobs27MatchStats } from '../stats/computeBobs27Stats'
 import { PLAYER_COLORS } from '../playerColors'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { generateBobs27Report } from '../narratives/generateModeReports'
+import Bobs27AggregateSection from '../components/Bobs27AggregateSection'
 
 // Bestimmt Spielerfarbe fuer den Gewinner einer Statistik-Spalte
 function getStatWinnerColors(
@@ -28,9 +29,10 @@ function getStatWinnerColors(
 type Props = {
   matchId: string
   onBack: () => void
+  onOpenLegSummary?: (matchId: string, legIndex: number) => void
 }
 
-export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
+export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }: Props) {
   const { isArcade, colors } = useTheme()
   const styles = useMemo(() => getThemedUI(colors, isArcade), [colors, isArcade])
 
@@ -434,6 +436,16 @@ export default function Bobs27MatchDetails({ matchId, onBack }: Props) {
               </div>
             )
           })()}
+
+          {/* Match-Aggregat + Leg-Liste (nur bei > 1 Leg) */}
+          <Bobs27AggregateSection
+            match={storedMatch}
+            players={players}
+            playerColor={(pid) => rankings.find(r => r.playerId === pid)?.color ?? PLAYER_COLORS[0]}
+            colors={colors}
+            styles={styles}
+            onOpenLeg={onOpenLegSummary ? (idx) => onOpenLegSummary(matchId, idx) : undefined}
+          />
 
           {/* Target-by-target Breakdown */}
           {isSolo ? (

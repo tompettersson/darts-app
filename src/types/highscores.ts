@@ -71,6 +71,14 @@ export type HighscoreCategoryId =
   | 'bobs27-best-score'
   | 'bobs27-best-hitrate'
   | 'bobs27-most-wins'
+  | 'bobs27-best-leg-score'
+  | 'bobs27-most-hits-leg'
+  | 'bobs27-best-double-rate-dart'
+  | 'bobs27-best-double-rate-visit'
+  | 'bobs27-fewest-zero-visits'
+  | 'bobs27-longest-hit-streak'
+  | 'bobs27-best-finish-5'
+  | 'bobs27-most-bulls-leg'
   // Operation
   | 'operation-best-score'
   | 'operation-best-avg-ppd'
@@ -167,6 +175,14 @@ export const HIGHSCORE_CATEGORIES: {
   { id: 'bobs27-best-score', title: 'Bester Endstand', subtitle: "Bob's 27", gameType: 'bobs27', sortOrder: 'desc', format: 'number' },
   { id: 'bobs27-best-hitrate', title: 'Beste Hit-Rate', subtitle: 'Karriere', gameType: 'bobs27', sortOrder: 'desc', format: 'percent', minRequirement: 'min. 5 Matches' },
   { id: 'bobs27-most-wins', title: 'Meiste Siege', subtitle: "Bob's 27", gameType: 'bobs27', sortOrder: 'desc', format: 'number' },
+  { id: 'bobs27-best-leg-score', title: 'Bestes Leg aller Zeiten', subtitle: "Einzel-Leg", gameType: 'bobs27', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'bobs27-most-hits-leg', title: 'Meiste Treffer in einem Leg', subtitle: 'Einzel-Leg', gameType: 'bobs27', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'bobs27-best-double-rate-dart', title: 'Beste Dart-Doppelquote (Leg)', subtitle: 'D1-D20, min. 40 Darts', gameType: 'bobs27', sortOrder: 'desc', format: 'percent', multiPerPlayer: true },
+  { id: 'bobs27-best-double-rate-visit', title: 'Beste Aufnahme-Quote (Leg)', subtitle: 'D1-D20, min. 20 Aufnahmen', gameType: 'bobs27', sortOrder: 'desc', format: 'percent', multiPerPlayer: true },
+  { id: 'bobs27-fewest-zero-visits', title: 'Wenigste Zero Visits (Leg)', subtitle: 'Einzel-Leg', gameType: 'bobs27', sortOrder: 'asc', format: 'number', multiPerPlayer: true },
+  { id: 'bobs27-longest-hit-streak', title: 'Laengste Treffer-Serie', subtitle: 'Einzel-Leg', gameType: 'bobs27', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
+  { id: 'bobs27-best-finish-5', title: 'Bestes Finish (letzte 5)', subtitle: 'Aufnahme-Quote', gameType: 'bobs27', sortOrder: 'desc', format: 'percent', multiPerPlayer: true },
+  { id: 'bobs27-most-bulls-leg', title: 'Meiste Bulls in einem Leg', subtitle: 'Einzel-Leg', gameType: 'bobs27', sortOrder: 'desc', format: 'number', multiPerPlayer: true },
 
   // Operation
   { id: 'operation-best-score', title: 'Meiste Treffer', subtitle: 'Operation: EFKG', gameType: 'operation', sortOrder: 'desc', format: 'number' },

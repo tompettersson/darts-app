@@ -38,6 +38,7 @@ const ShanghaiMatchDetails = lazyRetry(() => import('../ShanghaiMatchDetails'))
 const KillerSummary = lazyRetry(() => import('../KillerSummary'))
 const CricketMatchDetails = lazyRetry(() => import('../CricketMatchDetails'))
 const Bobs27MatchDetails = lazyRetry(() => import('../Bobs27MatchDetails'))
+const Bobs27LegSummary = lazyRetry(() => import('../Bobs27LegSummary'))
 const OperationMatchDetails = lazyRetry(() => import('../OperationMatchDetails'))
 const HallOfFame = lazyRetry(() => import('../HallOfFame'))
 const MatchHistory = lazyRetry(() => import('../MatchHistory'))
@@ -57,6 +58,7 @@ type View =
   | 'shanghai-match-details'
   | 'killer-match-details'
   | 'bobs27-match-details'
+  | 'bobs27-leg-summary'
   | 'operation-match-details'
   | 'hall-of-fame'
   | 'erfolge'
@@ -85,6 +87,7 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
   const [shanghaiDetailMatchId, setShanghaiDetailMatchId] = useState<string | undefined>(undefined)
   const [killerDetailMatchId, setKillerDetailMatchId] = useState<string | undefined>(undefined)
   const [bobs27DetailMatchId, setBobs27DetailMatchId] = useState<string | undefined>(undefined)
+  const [bobs27LegSummaryLeg, setBobs27LegSummaryLeg] = useState<number | undefined>(undefined)
   const [operationDetailMatchId, setOperationDetailMatchId] = useState<string | undefined>(undefined)
   const [playerProfileId, setPlayerProfileId] = useState<string | undefined>(undefined)
 
@@ -110,6 +113,8 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
         onBackToMenu()
       } else if (view === 'match-details' || view === 'atb-match-details' || view === 'cricket-match-details' || view === 'str-match-details' || view === 'highscore-match-details' || view === 'ctf-match-details' || view === 'shanghai-match-details' || view === 'killer-match-details' || view === 'bobs27-match-details' || view === 'operation-match-details') {
         setView(returnFromMatchDetails)
+      } else if (view === 'bobs27-leg-summary') {
+        setView('bobs27-match-details')
       } else {
         setView('stats-menu')
       }
@@ -398,7 +403,27 @@ export default function StatsArea({ onBackToMenu, onOpenCricketMatch, initialVie
 
   // ---------- BOB'S 27 MATCH DETAILS ----------
   if (view === 'bobs27-match-details' && bobs27DetailMatchId) {
-    return <Suspense fallback={suspenseFallback}><Bobs27MatchDetails matchId={bobs27DetailMatchId} onBack={() => setView(returnFromMatchDetails)} /></Suspense>
+    return <Suspense fallback={suspenseFallback}>
+      <Bobs27MatchDetails
+        matchId={bobs27DetailMatchId}
+        onBack={() => setView(returnFromMatchDetails)}
+        onOpenLegSummary={(_mid, legIdx) => {
+          setBobs27LegSummaryLeg(legIdx)
+          setView('bobs27-leg-summary')
+        }}
+      />
+    </Suspense>
+  }
+
+  // ---------- BOB'S 27 LEG SUMMARY (aus History) ----------
+  if (view === 'bobs27-leg-summary' && bobs27DetailMatchId && bobs27LegSummaryLeg !== undefined) {
+    return <Suspense fallback={suspenseFallback}>
+      <Bobs27LegSummary
+        matchId={bobs27DetailMatchId}
+        legIndex={bobs27LegSummaryLeg}
+        onBack={() => setView('bobs27-match-details')}
+      />
+    </Suspense>
   }
 
   // ---------- OPERATION MATCH DETAILS ----------

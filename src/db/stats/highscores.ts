@@ -4,6 +4,13 @@
 import { query } from '../index'
 import { getCachedGroup, setCachedGroup } from '../stats-cache'
 import { HIGHSCORE_CATEGORIES, type HighscoreCategory, type HighscoreCategoryId } from '../../types/highscores'
+import type { Bobs27Event, Bobs27StoredMatch } from '../../types/bobs27'
+import { generateTargets } from '../../dartsBobs27'
+import {
+  computeBobs27LegStats,
+  listBobs27LegIndices,
+  type Bobs27LegStats,
+} from '../../stats/computeBobs27LegStats'
 
 // ============================================================================
 // Types
@@ -791,6 +798,245 @@ export async function getHighscoreBobs27MostWins(limit: number = 10): Promise<Hi
     playerColor: r.player_color ?? undefined,
     value: r.total_wins,
   }))
+}
+
+// ============================================================================
+// Bob's 27 Leg-Level Highscores (Phase 5)
+// Bull-Kennzahlen werden in der Hauptquote NICHT mitgezaehlt.
+// ============================================================================
+
+type Bobs27LegRecord = {
+  matchId: string
+  matchDate: string
+  playerId: string
+  playerName: string
+  playerColor?: string
+  legIndex: number
+  stats: Bobs27LegStats
+  finish5VisitRate: number  // % der letzten 5 Targets (D1-D20) mit >= 1 Treffer
+}
+
+let _bobs27LegCache: { ts: number; data: Bobs27LegRecord[] } | null = null
+const BOBS27_LEG_CACHE_TTL_MS = 10_000
+
+/**
+ * Laedt alle abgeschlossenen Bob's-27-Legs mit Detail-Stats pro Spieler.
+ * Wird intern von allen Leg-Level-Highscores genutzt; memoized fuer 10s.
+ */
+async function getBobs27LegRecords(): Promise<Bobs27LegRecord[]> {
+  const now = Date.now()
+  if (_bobs27LegCache && now - _bobs27LegCache.ts < BOBS27_LEG_CACHE_TTL_MS) {
+    return _bobs27LegCache.data
+  }
+
+  try {
+    const matchRows = await query<{
+      id: string
+      created_at: string
+      start_score: number
+      darts_per_target: number
+      include_bull: number
+      allow_negative: number
+    }>(`
+      SELECT id, created_at, start_score, darts_per_target, include_bull, allow_negative
+      FROM bobs27_matches
+      WHERE finished = 1
+    `, [])
+
+    if (matchRows.length === 0) {
+      _bobs27LegCache = { ts: now, data: [] }
+      return []
+    }
+
+    const playerRows = await query<{
+      match_id: string
+      player_id: string
+      player_name: string
+      player_color: string | null
+    }>(`
+      SELECT mp.match_id, mp.player_id, p.name as player_name, p.color as player_color
+      FROM bobs27_match_players mp
+      JOIN profiles p ON p.id = mp.player_id
+      JOIN bobs27_matches m ON m.id = mp.match_id
+      WHERE m.finished = 1
+        AND mp.player_id NOT LIKE 'guest-%'
+        AND mp.player_id NOT LIKE 'temp-%'
+    `, [])
+
+    const eventRows = await query<{
+      match_id: string
+      type: string
+      seq: number
+      data: string
+    }>(`
+      SELECT e.match_id, e.type, e.seq, e.data
+      FROM bobs27_events e
+      JOIN bobs27_matches m ON m.id = e.match_id
+      WHERE m.finished = 1
+      ORDER BY e.match_id, e.seq ASC
+    `, [])
+
+    const eventsByMatch = new Map<string, Bobs27Event[]>()
+    for (const row of eventRows) {
+      let data: any
+      try { data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data } catch { continue }
+      const ev = { type: row.type, ...data } as Bobs27Event
+      if (!eventsByMatch.has(row.match_id)) eventsByMatch.set(row.match_id, [])
+      eventsByMatch.get(row.match_id)!.push(ev)
+    }
+
+    const playersByMatch = new Map<string, typeof playerRows>()
+    for (const p of playerRows) {
+      if (!playersByMatch.has(p.match_id)) playersByMatch.set(p.match_id, [])
+      playersByMatch.get(p.match_id)!.push(p)
+    }
+
+    const records: Bobs27LegRecord[] = []
+    for (const m of matchRows) {
+      const matchPlayers = playersByMatch.get(m.id) ?? []
+      if (matchPlayers.length === 0) continue
+      const matchEvents = eventsByMatch.get(m.id) ?? []
+      if (matchEvents.length === 0) continue
+
+      const includeBull = Number(m.include_bull) === 1
+      const config = {
+        startScore: Number(m.start_score) || 27,
+        dartsPerTarget: Number(m.darts_per_target) || 3,
+        includeBull,
+        allowNegative: Number(m.allow_negative) === 1,
+        legsCount: 1,
+      }
+      const targets = generateTargets(config)
+
+      const fakeMatch: Bobs27StoredMatch = {
+        id: m.id,
+        title: "Bob's 27",
+        createdAt: m.created_at,
+        players: matchPlayers.map(p => ({ playerId: p.player_id, name: p.player_name })),
+        config,
+        targets,
+        events: matchEvents,
+        finished: true,
+      }
+
+      const legIndices = listBobs27LegIndices(fakeMatch)
+      for (const legIdx of legIndices) {
+        for (const p of matchPlayers) {
+          const stats = computeBobs27LegStats(fakeMatch, p.player_id, legIdx)
+          if (!stats) continue
+
+          const d1to20Rows = stats.doubleRows.filter(r => !r.isBull)
+          const last5 = d1to20Rows.slice(-5)
+          const finish5VisitRate = last5.length > 0
+            ? Math.round(last5.filter(r => r.success === 1).length / last5.length * 1000) / 10
+            : 0
+
+          records.push({
+            matchId: m.id,
+            matchDate: m.created_at,
+            playerId: p.player_id,
+            playerName: p.player_name,
+            playerColor: p.player_color ?? undefined,
+            legIndex: legIdx,
+            stats,
+            finish5VisitRate,
+          })
+        }
+      }
+    }
+
+    _bobs27LegCache = { ts: now, data: records }
+    return records
+  } catch (e) {
+    console.warn('[Highscores] getBobs27LegRecords failed:', e)
+    return []
+  }
+}
+
+function topN(
+  records: Bobs27LegRecord[],
+  value: (r: Bobs27LegRecord) => number,
+  keep: (r: Bobs27LegRecord) => boolean,
+  order: 'desc' | 'asc',
+  limit: number,
+): HighscoreEntrySQL[] {
+  const filtered = records.filter(keep).map(r => ({ record: r, v: value(r) }))
+  filtered.sort((a, b) => order === 'desc' ? b.v - a.v : a.v - b.v)
+  return filtered.slice(0, limit).map((x, i) => ({
+    rank: i + 1,
+    playerId: x.record.playerId,
+    playerName: x.record.playerName,
+    playerColor: x.record.playerColor,
+    value: Math.round(x.v * 10) / 10,
+    matchId: x.record.matchId,
+    matchDate: x.record.matchDate,
+  }))
+}
+
+export async function getHighscoreBobs27BestLegScore(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(records, r => r.stats.finalScore, () => true, 'desc', limit)
+}
+
+export async function getHighscoreBobs27MostHitsLeg(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(records, r => r.stats.totalHits, () => true, 'desc', limit)
+}
+
+export async function getHighscoreBobs27BestDoubleRateDart(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(
+    records,
+    r => r.stats.doubleRatePerDart,
+    r => r.stats.doublesDarts >= 40,  // Mindestanzahl Darts = faire Auswahl
+    'desc', limit,
+  )
+}
+
+export async function getHighscoreBobs27BestDoubleRateVisit(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(
+    records,
+    r => r.stats.doubleRatePerVisit,
+    r => r.stats.doublesVisits >= 20,
+    'desc', limit,
+  )
+}
+
+export async function getHighscoreBobs27FewestZeroVisits(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  // Nur vollstaendige Legs (nicht eliminiert + alle D1-D20 gespielt)
+  return topN(
+    records,
+    r => r.stats.zeroVisits,
+    r => !r.stats.eliminated && r.stats.doublesVisits >= 20,
+    'asc', limit,
+  )
+}
+
+export async function getHighscoreBobs27LongestHitStreak(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(records, r => r.stats.longestHitStreak, () => true, 'desc', limit)
+}
+
+export async function getHighscoreBobs27BestFinish5(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(
+    records,
+    r => r.finish5VisitRate,
+    r => !r.stats.eliminated && r.stats.doublesVisits >= 20,
+    'desc', limit,
+  )
+}
+
+export async function getHighscoreBobs27MostBullsLeg(limit: number = 10): Promise<HighscoreEntrySQL[]> {
+  const records = await getBobs27LegRecords()
+  return topN(
+    records,
+    r => r.stats.bullHits ?? 0,
+    r => r.stats.bullHits !== null,  // nur Legs mit Bull
+    'desc', limit,
+  )
 }
 
 // ============================================================================
@@ -2513,6 +2759,14 @@ export async function getAllHighscoresSQL(): Promise<HighscoreCategory[]> {
         case 'bobs27-best-score': entries = await getHighscoreBobs27BestScore(); break
         case 'bobs27-best-hitrate': entries = await getHighscoreBobs27BestHitRate(); break
         case 'bobs27-most-wins': entries = await getHighscoreBobs27MostWins(); break
+        case 'bobs27-best-leg-score': entries = await getHighscoreBobs27BestLegScore(); break
+        case 'bobs27-most-hits-leg': entries = await getHighscoreBobs27MostHitsLeg(); break
+        case 'bobs27-best-double-rate-dart': entries = await getHighscoreBobs27BestDoubleRateDart(); break
+        case 'bobs27-best-double-rate-visit': entries = await getHighscoreBobs27BestDoubleRateVisit(); break
+        case 'bobs27-fewest-zero-visits': entries = await getHighscoreBobs27FewestZeroVisits(); break
+        case 'bobs27-longest-hit-streak': entries = await getHighscoreBobs27LongestHitStreak(); break
+        case 'bobs27-best-finish-5': entries = await getHighscoreBobs27BestFinish5(); break
+        case 'bobs27-most-bulls-leg': entries = await getHighscoreBobs27MostBullsLeg(); break
         // Operation
         case 'operation-best-score': entries = await getHighscoreOperationBestScore(); break
         case 'operation-best-avg-ppd': entries = await getHighscoreOperationBestAvgPPD(); break

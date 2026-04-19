@@ -18,6 +18,8 @@ import {
   getSpecialStats,
   getPlayerAchievements,
   getBobs27FullStats,
+  getBobs27DoubleHeatmap,
+  getBobs27ExtendedStats,
   getOperationFullStats,
   getKillerFullStats,
   // New Stats (Tasks 16-25)
@@ -46,6 +48,8 @@ import {
   type Stats121Full,
   type SpecialStatsSQL,
   type Bobs27FullStats,
+  type Bobs27DoubleHeatmapRow,
+  type Bobs27ExtendedStats,
   type OperationFullStats,
   type KillerFullStats,
   type CrossGameDashboard,
@@ -116,6 +120,8 @@ export type SQLStatsData = {
   special: SpecialStatsSQL | null
   achievements: { categoryId: string; categoryTitle: string; rank: number; value: number }[]
   bobs27: Bobs27FullStats | null
+  bobs27Extended: Bobs27ExtendedStats | null
+  bobs27Heatmap: Bobs27DoubleHeatmapRow[]
   operation: OperationFullStats | null
   killer: KillerFullStats | null
   // New Stats (Tasks 16-25)
@@ -168,6 +174,8 @@ const emptyData: SQLStatsData = {
   special: null,
   achievements: [],
   bobs27: null,
+  bobs27Extended: null,
+  bobs27Heatmap: [],
   operation: null,
   killer: null,
   // New Stats
@@ -421,12 +429,14 @@ export async function loadGroup(pid: string, group: string, out: Partial<SQLStat
       break
     }
     case 'minigames': {
-      const [bobs27, operation, killer] = await Promise.all([
+      const [bobs27, bobs27Extended, bobs27Heatmap, operation, killer] = await Promise.all([
         safe(getBobs27FullStats(pid), null),
+        safe(getBobs27ExtendedStats(pid), null),
+        safe(getBobs27DoubleHeatmap(pid), []),
         safe(getOperationFullStats(pid), null),
         safe(getKillerFullStats(pid), null),
       ])
-      Object.assign(out, { bobs27, operation, killer })
+      Object.assign(out, { bobs27, bobs27Extended, bobs27Heatmap, operation, killer })
       break
     }
     case 'insights': {

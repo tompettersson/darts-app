@@ -165,6 +165,7 @@ const CTFSummary = lazyRetry(() => import('./screens/CTFSummary'))
 const ShanghaiSummary = lazyRetry(() => import('./screens/ShanghaiSummary'))
 const KillerSummary = lazyRetry(() => import('./screens/KillerSummary'))
 const Bobs27Summary = lazyRetry(() => import('./screens/Bobs27Summary'))
+const Bobs27LegSummary = lazyRetry(() => import('./screens/Bobs27LegSummary'))
 const OperationSummary = lazyRetry(() => import('./screens/OperationSummary'))
 
 // Zufallsspiel (lazy)
@@ -331,6 +332,7 @@ type View =
   | 'new-bobs27'
   | 'game-bobs27'
   | 'summary-bobs27'
+  | 'leg-summary-bobs27'
   | 'new-operation'
   | 'game-operation'
   | 'summary-operation'
@@ -570,6 +572,9 @@ export default function App() {
   // Bob's 27 Match IDs
   const [activeBobs27Id, setActiveBobs27Id] = useState<string | undefined>(() => getOpenBobs27Match()?.id)
   const [summaryBobs27Id, setSummaryBobs27Id] = useState<string | undefined>(undefined)
+  const [legSummaryBobs27Id, setLegSummaryBobs27Id] = useState<string | undefined>(undefined)
+  const [legSummaryBobs27Leg, setLegSummaryBobs27Leg] = useState<number | undefined>(undefined)
+  const [legSummaryBobs27Return, setLegSummaryBobs27Return] = useState<View>('menu')
 
   // Operation Match IDs
   const [activeOperationId, setActiveOperationId] = useState<string | undefined>(() => getOpenOperationMatch()?.id)
@@ -1835,6 +1840,34 @@ export default function App() {
           setSummaryBobs27Id(id)
           setView('summary-bobs27')
         }}
+        onLegFinished={(id, legIdx) => {
+          setLegSummaryBobs27Id(id)
+          setLegSummaryBobs27Leg(legIdx)
+          setLegSummaryBobs27Return('game-bobs27')
+          setView('leg-summary-bobs27')
+        }}
+      />
+    )
+  }
+
+  // BOB'S 27 LEG SUMMARY
+  if (view === 'leg-summary-bobs27' && legSummaryBobs27Id !== undefined && legSummaryBobs27Leg !== undefined) {
+    return (
+      <Bobs27LegSummary
+        matchId={legSummaryBobs27Id}
+        legIndex={legSummaryBobs27Leg}
+        onBack={() => {
+          setView(legSummaryBobs27Return)
+          setLegSummaryBobs27Id(undefined)
+          setLegSummaryBobs27Leg(undefined)
+        }}
+        onNextLeg={(activeBobs27Id === legSummaryBobs27Id || multiplayerMatchId === legSummaryBobs27Id) ? () => {
+          // GameBobs27 erkennt via mount-useEffect, dass legFinished=true ist, und startet
+          // das naechste Leg selbst (inkl. MP-Broadcast via multiplayer.submitEvents).
+          setView(multiplayerMatchId === legSummaryBobs27Id ? 'multiplayer-game' : 'game-bobs27')
+          setLegSummaryBobs27Id(undefined)
+          setLegSummaryBobs27Leg(undefined)
+        } : undefined}
       />
     )
   }
@@ -1845,6 +1878,12 @@ export default function App() {
       <Bobs27Summary
         matchId={summaryBobs27Id}
         isMultiplayerGuest={isMpGuest}
+        onOpenLegSummary={(mid, legIdx) => {
+          setLegSummaryBobs27Id(mid)
+          setLegSummaryBobs27Leg(legIdx)
+          setLegSummaryBobs27Return('summary-bobs27')
+          setView('leg-summary-bobs27')
+        }}
         onBackToMenu={() => {
           mpSummaryDisconnect()
           setView('menu')
@@ -2609,6 +2648,12 @@ export default function App() {
             setSummaryBobs27Id(id)
             setActiveBobs27Id(id)
             setView('summary-bobs27')
+          }}
+          onLegFinished={(id, legIdx) => {
+            setLegSummaryBobs27Id(id)
+            setLegSummaryBobs27Leg(legIdx)
+            setLegSummaryBobs27Return('multiplayer-game')
+            setView('leg-summary-bobs27')
           }}
           multiplayer={mpProps}
         /></>

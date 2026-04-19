@@ -257,6 +257,379 @@ export async function getBobs27Progression(playerId: string): Promise<Bobs27Prog
   }
 }
 
+// ============================================================================
+// Bob's 27 Extended Stats & Doppel-Heatmap (Phase 4)
+// Bull wird strikt von D1-D20 getrennt aggregiert.
+// ============================================================================
+
+export type Bobs27DoubleHeatmapRow = {
+  field: string               // "D1".."D20","Bull"
+  fieldNumber: number         // 1..20 oder 25
+  isBull: boolean
+  attempts: number            // Darts auf dieses Doppel
+  hits: number
+  hitRatePerDart: number      // %
+  visits: number              // Target-Besuche
+  visitsWithHit: number
+  hitRatePerVisit: number     // %
+}
+
+/**
+ * Liefert pro Doppel (D1..D20 + optional Bull) eine Heatmap-Zeile.
+ * Nur abgeschlossene Matches.
+ */
+export async function getBobs27DoubleHeatmap(playerId: string): Promise<Bobs27DoubleHeatmapRow[]> {
+  try {
+    const darts = await query<{
+      target_index: number
+      attempts: number
+      hits: number
+    }>(`
+      SELECT
+        (e.data::jsonb->>'targetIndex')::integer as target_index,
+        COUNT(*) as attempts,
+        SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as hits
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27Throw'
+        AND e.data::jsonb->>'playerId' = ?
+      GROUP BY target_index
+      ORDER BY target_index ASC
+    `, [playerId, playerId])
+
+    const visits = await query<{
+      target_index: number
+      visits: number
+      visits_with_hit: number
+    }>(`
+      SELECT
+        (e.data::jsonb->>'targetIndex')::integer as target_index,
+        COUNT(*) as visits,
+        SUM(CASE WHEN (e.data::jsonb->>'hits')::integer >= 1 THEN 1 ELSE 0 END) as visits_with_hit
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27TargetFinished'
+        AND e.data::jsonb->>'playerId' = ?
+      GROUP BY target_index
+      ORDER BY target_index ASC
+    `, [playerId, playerId])
+
+    const visitMap = new Map<number, { visits: number; visitsWithHit: number }>()
+    for (const v of visits) {
+      visitMap.set(v.target_index, { visits: v.visits, visitsWithHit: v.visits_with_hit })
+    }
+
+    return darts.map(d => {
+      const isBull = d.target_index >= 20
+      const fieldNumber = isBull ? 25 : d.target_index + 1
+      const field = isBull ? 'Bull' : `D${fieldNumber}`
+      const v = visitMap.get(d.target_index) ?? { visits: 0, visitsWithHit: 0 }
+      return {
+        field,
+        fieldNumber,
+        isBull,
+        attempts: d.attempts,
+        hits: d.hits,
+        hitRatePerDart: d.attempts > 0 ? Math.round(d.hits / d.attempts * 1000) / 10 : 0,
+        visits: v.visits,
+        visitsWithHit: v.visitsWithHit,
+        hitRatePerVisit: v.visits > 0 ? Math.round(v.visitsWithHit / v.visits * 1000) / 10 : 0,
+      }
+    })
+  } catch (e) {
+    console.warn('[Stats] getBobs27DoubleHeatmap failed:', e)
+    return []
+  }
+}
+
+export type Bobs27ExtendedStats = {
+  legsPlayed: number
+  avgFinalScore: number
+  bestLegScore: number
+  avgDoubleRatePerDart: number         // NUR D1–D20
+  avgDoubleRatePerVisit: number        // NUR D1–D20
+  avgZeroVisits: number
+  bestImprovement: number
+  strongestDouble: { field: string; rate: number } | null   // nur D1–D20
+  weakestDouble: { field: string; rate: number } | null     // nur D1–D20
+
+  // Bull SEPARAT
+  bullLegsPlayed: number
+  bullRatePerDart: number | null
+  bullRatePerVisit: number | null
+
+  // Siegquote GETRENNT
+  soloMatchesPlayed: number
+  soloCompletionRate: number
+  mpMatchesPlayed: number
+  mpWinRate: number
+}
+
+/**
+ * Langzeit-Statistiken fuer Bob's 27.
+ * - Bull strikt von D1-D20 getrennt.
+ * - Siegquoten Solo vs Multiplayer getrennt.
+ */
+export async function getBobs27ExtendedStats(playerId: string): Promise<Bobs27ExtendedStats> {
+  try {
+    // 1) Per-Leg-Scores (aus LegFinished-Events)
+    const legRows = await query<{
+      match_id: string
+      created_at: string
+      score: number
+    }>(`
+      SELECT
+        e.match_id,
+        m.created_at,
+        (e.data::jsonb->'finalScores'->>?)::integer as score
+      FROM bobs27_events e
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      WHERE e.type = 'Bobs27LegFinished'
+      ORDER BY m.created_at ASC, e.seq ASC
+    `, [playerId, playerId])
+
+    const legScores = legRows
+      .map(r => r.score)
+      .filter((s): s is number => s !== null && s !== undefined && !Number.isNaN(s))
+
+    const legsPlayed = legScores.length
+    const avgFinalScore = legsPlayed > 0 ? legScores.reduce((a, b) => a + b, 0) / legsPlayed : 0
+    const bestLegScore = legsPlayed > 0 ? Math.max(...legScores) : 0
+
+    // Beste Entwicklung: Ø letzte 5 Legs minus Ø erste 5 Legs
+    let bestImprovement = 0
+    if (legsPlayed >= 10) {
+      const first5 = legScores.slice(0, 5)
+      const last5 = legScores.slice(-5)
+      const avgFirst = first5.reduce((a, b) => a + b, 0) / 5
+      const avgLast = last5.reduce((a, b) => a + b, 0) / 5
+      bestImprovement = Math.round((avgLast - avgFirst) * 10) / 10
+    } else if (legsPlayed >= 2) {
+      bestImprovement = Math.max(...legScores) - legScores[0]
+    }
+
+    // 2) D1-D20 Durchschnitte (Dart + Aufnahme) aus Events
+    const dartAggDoubles = await queryOne<{
+      total_darts: number
+      total_hits: number
+    }>(`
+      SELECT
+        COUNT(*) as total_darts,
+        SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as total_hits
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27Throw'
+        AND e.data::jsonb->>'playerId' = ?
+        AND (e.data::jsonb->>'targetIndex')::integer < 20
+    `, [playerId, playerId])
+
+    const visitAggDoubles = await queryOne<{
+      total_visits: number
+      visits_with_hit: number
+    }>(`
+      SELECT
+        COUNT(*) as total_visits,
+        SUM(CASE WHEN (e.data::jsonb->>'hits')::integer >= 1 THEN 1 ELSE 0 END) as visits_with_hit
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27TargetFinished'
+        AND e.data::jsonb->>'playerId' = ?
+        AND (e.data::jsonb->>'targetIndex')::integer < 20
+    `, [playerId, playerId])
+
+    const totalDartsDoubles = dartAggDoubles?.total_darts ?? 0
+    const totalHitsDoubles = dartAggDoubles?.total_hits ?? 0
+    const avgDoubleRatePerDart = totalDartsDoubles > 0
+      ? Math.round(totalHitsDoubles / totalDartsDoubles * 1000) / 10
+      : 0
+    const totalVisitsDoubles = visitAggDoubles?.total_visits ?? 0
+    const visitsWithHitDoubles = visitAggDoubles?.visits_with_hit ?? 0
+    const avgDoubleRatePerVisit = totalVisitsDoubles > 0
+      ? Math.round(visitsWithHitDoubles / totalVisitsDoubles * 1000) / 10
+      : 0
+
+    // 3) Bull-Stats (SEPARAT)
+    const bullDarts = await queryOne<{
+      total_darts: number
+      total_hits: number
+    }>(`
+      SELECT
+        COUNT(*) as total_darts,
+        SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as total_hits
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27Throw'
+        AND e.data::jsonb->>'playerId' = ?
+        AND (e.data::jsonb->>'targetIndex')::integer >= 20
+    `, [playerId, playerId])
+
+    const bullVisits = await queryOne<{
+      total_visits: number
+      visits_with_hit: number
+    }>(`
+      SELECT
+        COUNT(*) as total_visits,
+        SUM(CASE WHEN (e.data::jsonb->>'hits')::integer >= 1 THEN 1 ELSE 0 END) as visits_with_hit
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27TargetFinished'
+        AND e.data::jsonb->>'playerId' = ?
+        AND (e.data::jsonb->>'targetIndex')::integer >= 20
+    `, [playerId, playerId])
+
+    const totalBullDarts = bullDarts?.total_darts ?? 0
+    const totalBullHits = bullDarts?.total_hits ?? 0
+    const totalBullVisits = bullVisits?.total_visits ?? 0
+    const bullVisitsWithHit = bullVisits?.visits_with_hit ?? 0
+
+    const bullRatePerDart = totalBullDarts > 0
+      ? Math.round(totalBullHits / totalBullDarts * 1000) / 10
+      : null
+    const bullRatePerVisit = totalBullVisits > 0
+      ? Math.round(bullVisitsWithHit / totalBullVisits * 1000) / 10
+      : null
+
+    // Bull-Legs = Anzahl Legs (LegFinished + Throw mit targetIndex>=20) — approximiert via distinct match_id
+    const bullLegsRow = await queryOne<{ bull_legs: number }>(`
+      SELECT COUNT(DISTINCT e.match_id) as bull_legs
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27TargetFinished'
+        AND e.data::jsonb->>'playerId' = ?
+        AND (e.data::jsonb->>'targetIndex')::integer >= 20
+    `, [playerId, playerId])
+    const bullLegsPlayed = bullLegsRow?.bull_legs ?? 0
+
+    // 4) Strongest / Weakest Double (nur D1-D20, min. 5 Versuche um Rauschen zu vermeiden)
+    const perField = await query<{
+      target_index: number
+      attempts: number
+      hits: number
+    }>(`
+      SELECT
+        (e.data::jsonb->>'targetIndex')::integer as target_index,
+        COUNT(*) as attempts,
+        SUM(CASE WHEN e.data::jsonb->>'hit' = 'true' THEN 1 ELSE 0 END) as hits
+      FROM bobs27_events e
+      JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+      JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+      WHERE e.type = 'Bobs27Throw'
+        AND e.data::jsonb->>'playerId' = ?
+        AND (e.data::jsonb->>'targetIndex')::integer < 20
+      GROUP BY target_index
+    `, [playerId, playerId])
+
+    let strongestDouble: { field: string; rate: number } | null = null
+    let weakestDouble: { field: string; rate: number } | null = null
+    for (const r of perField) {
+      if (r.attempts < 5) continue
+      const rate = Math.round(r.hits / r.attempts * 1000) / 10
+      const field = `D${r.target_index + 1}`
+      if (!strongestDouble || rate > strongestDouble.rate) strongestDouble = { field, rate }
+      if (!weakestDouble || rate < weakestDouble.rate) weakestDouble = { field, rate }
+    }
+
+    // 5) Zero-Visits pro Leg im Schnitt
+    const zeroVisitsRow = await queryOne<{ avg_zero: number }>(`
+      WITH per_leg_zeros AS (
+        SELECT e.match_id,
+          COUNT(CASE WHEN (e.data::jsonb->>'hits')::integer = 0 THEN 1 END) as zeros
+        FROM bobs27_events e
+        JOIN bobs27_match_players mp ON mp.match_id = e.match_id AND mp.player_id = ?
+        JOIN bobs27_matches m ON m.id = e.match_id AND m.finished = 1
+        WHERE e.type = 'Bobs27TargetFinished'
+          AND e.data::jsonb->>'playerId' = ?
+        GROUP BY e.match_id
+      )
+      SELECT COALESCE(AVG(zeros), 0) as avg_zero FROM per_leg_zeros
+    `, [playerId, playerId])
+    const avgZeroVisits = Math.round((zeroVisitsRow?.avg_zero ?? 0) * 10) / 10
+
+    // 6) Solo vs MP Matches
+    const modeStats = await queryOne<{
+      solo_played: number
+      solo_completed: number
+      mp_played: number
+      mp_won: number
+    }>(`
+      WITH match_meta AS (
+        SELECT
+          m.id,
+          m.winner_id,
+          (SELECT COUNT(*) FROM bobs27_match_players mpx WHERE mpx.match_id = m.id) as player_count,
+          EXISTS(
+            SELECT 1 FROM bobs27_events e2
+            WHERE e2.match_id = m.id
+              AND e2.type = 'Bobs27TargetFinished'
+              AND e2.data::jsonb->>'playerId' = ?
+              AND e2.data::jsonb->>'eliminated' = 'true'
+          ) as was_eliminated
+        FROM bobs27_matches m
+        JOIN bobs27_match_players mp ON mp.match_id = m.id AND mp.player_id = ?
+        WHERE m.finished = 1
+      )
+      SELECT
+        SUM(CASE WHEN player_count = 1 THEN 1 ELSE 0 END) as solo_played,
+        SUM(CASE WHEN player_count = 1 AND NOT was_eliminated THEN 1 ELSE 0 END) as solo_completed,
+        SUM(CASE WHEN player_count > 1 THEN 1 ELSE 0 END) as mp_played,
+        SUM(CASE WHEN player_count > 1 AND winner_id = ? THEN 1 ELSE 0 END) as mp_won
+      FROM match_meta
+    `, [playerId, playerId, playerId])
+
+    const soloPlayed = modeStats?.solo_played ?? 0
+    const soloCompleted = modeStats?.solo_completed ?? 0
+    const mpPlayed = modeStats?.mp_played ?? 0
+    const mpWon = modeStats?.mp_won ?? 0
+
+    return {
+      legsPlayed,
+      avgFinalScore: Math.round(avgFinalScore * 10) / 10,
+      bestLegScore,
+      avgDoubleRatePerDart,
+      avgDoubleRatePerVisit,
+      avgZeroVisits,
+      bestImprovement,
+      strongestDouble,
+      weakestDouble,
+      bullLegsPlayed,
+      bullRatePerDart,
+      bullRatePerVisit,
+      soloMatchesPlayed: soloPlayed,
+      soloCompletionRate: soloPlayed > 0 ? Math.round(soloCompleted / soloPlayed * 1000) / 10 : 0,
+      mpMatchesPlayed: mpPlayed,
+      mpWinRate: mpPlayed > 0 ? Math.round(mpWon / mpPlayed * 1000) / 10 : 0,
+    }
+  } catch (e) {
+    console.warn('[Stats] getBobs27ExtendedStats failed:', e)
+    return {
+      legsPlayed: 0,
+      avgFinalScore: 0,
+      bestLegScore: 0,
+      avgDoubleRatePerDart: 0,
+      avgDoubleRatePerVisit: 0,
+      avgZeroVisits: 0,
+      bestImprovement: 0,
+      strongestDouble: null,
+      weakestDouble: null,
+      bullLegsPlayed: 0,
+      bullRatePerDart: null,
+      bullRatePerVisit: null,
+      soloMatchesPlayed: 0,
+      soloCompletionRate: 0,
+      mpMatchesPlayed: 0,
+      mpWinRate: 0,
+    }
+  }
+}
+
 export async function getBobs27DoubleWeakness(playerId: string): Promise<Bobs27DoubleWeakness[]> {
   try {
     const results = await query<{

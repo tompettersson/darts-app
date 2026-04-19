@@ -2172,6 +2172,13 @@ export default function StatsProfile({
                     <span style={s.statsValue}>{b27.avgDartsPerMatch.toFixed(1)}</span>
                   </div>
                 </div>
+
+                {/* Langzeit-Stats (Phase 4): Bull separat, Siegquoten getrennt, Heatmap */}
+                {sqlStats.data.bobs27Extended && <Bobs27ExtendedBlock
+                  ext={sqlStats.data.bobs27Extended}
+                  heatmap={sqlStats.data.bobs27Heatmap}
+                  s={s}
+                />}
               </>
             )})() : (
               <div style={s.noData as React.CSSProperties}>Keine Bob's 27-Statistiken vorhanden.</div>
@@ -2498,5 +2505,169 @@ export default function StatsProfile({
         )}
       </div>
     </div>
+  )
+}
+
+// ============================================================================
+// Bob's 27 Extended-Block (Phase 4)
+// Bull strikt separiert, Siegquoten Solo/MP getrennt, Doppel-Heatmap.
+// ============================================================================
+function Bobs27ExtendedBlock({
+  ext, heatmap, s,
+}: {
+  ext: import('../db/stats').Bobs27ExtendedStats
+  heatmap: import('../db/stats').Bobs27DoubleHeatmapRow[]
+  s: any
+}) {
+  const fmtPct = (v: number) => `${v.toFixed(1)}%`
+  const fmtPctOrDash = (v: number | null) => v === null ? '\u2013' : `${v.toFixed(1)}%`
+
+  const d1to20 = heatmap.filter(r => !r.isBull)
+  const bullRow = heatmap.find(r => r.isBull) ?? null
+
+  return (
+    <>
+      {/* Langzeit-Kernzahlen */}
+      <div style={s.statsCard}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Langzeit (pro Leg)</div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Legs gespielt</span>
+          <span style={s.statsValueHighlight}>{ext.legsPlayed}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Endscore</span>
+          <span style={s.statsValueHighlight}>{ext.avgFinalScore.toFixed(1)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Bester Endscore</span>
+          <span style={s.statsValueGood}>{ext.bestLegScore}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Doppelquote Dart (D1–D20)</span>
+          <span style={s.statsValueHighlight}>{fmtPct(ext.avgDoubleRatePerDart)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Doppelquote Aufnahme (D1–D20)</span>
+          <span style={s.statsValueHighlight}>{fmtPct(ext.avgDoubleRatePerVisit)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Ø Zero Visits pro Leg</span>
+          <span style={s.statsValue}>{ext.avgZeroVisits.toFixed(1)}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Beste Entwicklung (Ø letzte 5 − erste 5)</span>
+          <span style={ext.bestImprovement >= 0 ? s.statsValueGood : s.statsValueBad}>
+            {ext.bestImprovement >= 0 ? `+${ext.bestImprovement.toFixed(1)}` : ext.bestImprovement.toFixed(1)}
+          </span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Bestes Doppel</span>
+          <span style={s.statsValueGood}>{ext.strongestDouble ? `${ext.strongestDouble.field} · ${fmtPct(ext.strongestDouble.rate)}` : '\u2013'}</span>
+        </div>
+        <div style={s.statsRowLast}>
+          <span style={s.statsLabel}>Schwächstes Doppel</span>
+          <span style={s.statsValueBad}>{ext.weakestDouble ? `${ext.weakestDouble.field} · ${fmtPct(ext.weakestDouble.rate)}` : '\u2013'}</span>
+        </div>
+      </div>
+
+      {/* Bull separat */}
+      <div style={s.statsCard}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Bull (separat)</div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Legs mit Bull gespielt</span>
+          <span style={s.statsValue}>{ext.bullLegsPlayed}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Bull-Quote pro Dart</span>
+          <span style={s.statsValueHighlight}>{fmtPctOrDash(ext.bullRatePerDart)}</span>
+        </div>
+        <div style={s.statsRowLast}>
+          <span style={s.statsLabel}>Bull-Quote pro Aufnahme</span>
+          <span style={s.statsValueHighlight}>{fmtPctOrDash(ext.bullRatePerVisit)}</span>
+        </div>
+      </div>
+
+      {/* Siegquoten getrennt */}
+      <div style={s.statsCard}>
+        <div style={s.statsCardTitle as React.CSSProperties}>Siegquoten (Solo / Multiplayer)</div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Solo Matches gespielt</span>
+          <span style={s.statsValue}>{ext.soloMatchesPlayed}</span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Solo Abschlussquote</span>
+          <span style={ext.soloMatchesPlayed > 0 ? s.statsValueHighlight : s.statsValue}>
+            {ext.soloMatchesPlayed > 0 ? fmtPct(ext.soloCompletionRate) : '\u2013'}
+          </span>
+        </div>
+        <div style={s.statsRow}>
+          <span style={s.statsLabel}>Multiplayer Matches gespielt</span>
+          <span style={s.statsValue}>{ext.mpMatchesPlayed}</span>
+        </div>
+        <div style={s.statsRowLast}>
+          <span style={s.statsLabel}>Multiplayer Siegquote</span>
+          <span style={ext.mpMatchesPlayed > 0 ? s.statsValueHighlight : s.statsValue}>
+            {ext.mpMatchesPlayed > 0 ? fmtPct(ext.mpWinRate) : '\u2013'}
+          </span>
+        </div>
+      </div>
+
+      {/* Doppel-Heatmap */}
+      {heatmap.length > 0 && (
+        <div style={s.statsCard}>
+          <div style={s.statsCardTitle as React.CSSProperties}>Doppel-Heatmap</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', opacity: 0.7 }}>Doppel</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', opacity: 0.7 }}>Treffer% (Dart)</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', opacity: 0.7 }}>Aufnahme%</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', opacity: 0.7 }}>Würfe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d1to20.map(r => (
+                  <HeatmapRow key={r.field} row={r} />
+                ))}
+                {bullRow && (
+                  <>
+                    <tr><td colSpan={4} style={{ padding: '4px 0', fontSize: 11, opacity: 0.6 }}>
+                      — Bull (extra) —
+                    </td></tr>
+                    <HeatmapRow row={bullRow} extra />
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function HeatmapRow({ row, extra }: {
+  row: import('../db/stats').Bobs27DoubleHeatmapRow
+  extra?: boolean
+}) {
+  const rateColor = (v: number) =>
+    v >= 50 ? 'rgba(34,197,94,0.28)' :
+    v >= 30 ? 'rgba(234,179,8,0.28)' :
+    v > 0   ? 'rgba(239,68,68,0.22)' :
+              'transparent'
+  return (
+    <tr style={{ background: extra ? 'rgba(99,102,241,0.10)' : undefined }}>
+      <td style={{ padding: '4px 8px', fontWeight: extra ? 700 : 500 }}>{row.field}</td>
+      <td style={{
+        padding: '4px 8px', textAlign: 'right', fontWeight: 700,
+        background: rateColor(row.hitRatePerDart), borderRadius: 4,
+      }}>{row.hitRatePerDart.toFixed(1)}%</td>
+      <td style={{
+        padding: '4px 8px', textAlign: 'right', fontWeight: 700,
+        background: rateColor(row.hitRatePerVisit), borderRadius: 4,
+      }}>{row.hitRatePerVisit.toFixed(1)}%</td>
+      <td style={{ padding: '4px 8px', textAlign: 'right', opacity: 0.7 }}>{row.attempts}</td>
+    </tr>
   )
 }
