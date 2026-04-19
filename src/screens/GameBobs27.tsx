@@ -313,14 +313,26 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, multiplayer
           if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)
         })()
       } else {
-        // Guest: persist as backup after 5s (in case host disconnected before saving)
+        // Guest: LOCAL memory cache sofort aktualisieren, damit die Summary
+        // winnerId, durationMs, finalScores, legWins sieht (vorher: Stub ohne
+        // diese Felder → Timer 00:00, Unentschieden, Hit-Rate 0%).
+        // finishBobs27Match schreibt auch in die DB; wenn der Host bereits
+        // geschrieben hat, ist das UPDATE idempotent (gleiche Werte).
+        const finishedState = applyBobs27Events(remote)
+        finishBobs27Match(
+          matchId,
+          matchFinishedEvt.winnerId,
+          matchFinishedEvt.totalDarts,
+          matchFinishedEvt.durationMs,
+          matchFinishedEvt.finalScores,
+          finishedState.legWins,
+        ).catch(() => {})
+        // DB-Persist der Events als Backup nach 5s (falls Host disconnected)
         setTimeout(async () => {
           try {
-            // Skip if host already saved
             if (await isMatchFinishedInDB('bobs27_matches', matchId)) return
             await ensureBobs27MatchExistsAsync(matchId, remote, playerIds)
             await persistBobs27Events(matchId, remote)
-            await finishBobs27Match(matchId, matchFinishedEvt.winnerId, matchFinishedEvt.totalDarts, matchFinishedEvt.durationMs, matchFinishedEvt.finalScores)
           } catch {}
         }, 5000)
         if (onShowSummary) setTimeout(() => onShowSummary(matchId), 2000)

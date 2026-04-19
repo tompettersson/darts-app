@@ -4,7 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { getThemedUI } from '../ui'
 import { useTheme } from '../ThemeProvider'
-import { getBobs27MatchById, setBobs27MatchMetadata } from '../storage'
+import { getBobs27MatchById, setBobs27MatchMetadata, computeMatchDurationFromEvents } from '../storage'
 import { applyBobs27Events, formatDuration } from '../dartsBobs27'
 import { computeBobs27MatchStats } from '../stats/computeBobs27Stats'
 import { PLAYER_COLORS } from '../playerColors'
@@ -197,7 +197,7 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
               </div>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: colors.fgDim }}>
-                  {formatDuration(storedMatch.durationMs ?? 0)}
+                  {formatDuration(storedMatch.durationMs || computeMatchDurationFromEvents(storedMatch.events))}
                 </div>
                 <div style={{ fontSize: 11, color: colors.fgMuted }}>Zeit</div>
               </div>
