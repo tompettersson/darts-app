@@ -12,6 +12,7 @@ import {
   type ShanghaiLegStats,
 } from '../stats/computeShanghaiLegStats'
 import { PLAYER_COLORS } from '../playerColors'
+import StatTooltip from '../components/StatTooltip'
 
 type Props = {
   matchId: string
@@ -159,9 +160,12 @@ function LegStatsBlock({
 }) {
   const row = (label: string, value: string, explanation?: string) => (
     <tr>
-      <td style={{ padding: '6px 8px', color: colors.fgMuted, fontSize: 13, whiteSpace: 'nowrap' }}>{label}</td>
+      <td style={{ padding: '6px 8px', color: colors.fgMuted, fontSize: 13, whiteSpace: 'nowrap' }}>
+        {explanation
+          ? <StatTooltip label={label} tooltip={explanation} colors={colors} />
+          : label}
+      </td>
       <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap' }}>{value}</td>
-      {explanation && <td style={{ padding: '6px 8px', color: colors.fgDim, fontSize: 11 }}>{explanation}</td>}
     </tr>
   )
 
