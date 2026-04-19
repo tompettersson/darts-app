@@ -13,6 +13,8 @@ import {
 } from '../stats/computeShanghaiLegStats'
 import { PLAYER_COLORS } from '../playerColors'
 import StatTooltip from '../components/StatTooltip'
+import ShanghaiScoreProgressionChart from '../components/ShanghaiScoreProgressionChart'
+import type { ShanghaiRoundFinishedEvent } from '../types/shanghai'
 
 type Props = {
   matchId: string
@@ -60,6 +62,25 @@ export default function ShanghaiLegSummary({ matchId, legIndex, onBack, onNextLe
       stats: computeShanghaiLegStats(storedMatch, p.playerId, legIndex),
     }))
   }, [storedMatch, players, legIndex])
+
+  // Runden-Events dieses Legs fuer Score-Progression-Chart
+  const legRounds: ShanghaiRoundFinishedEvent[] = useMemo(() => {
+    if (!storedMatch) return []
+    const result: ShanghaiRoundFinishedEvent[] = []
+    let currentLeg = 0
+    for (const ev of storedMatch.events) {
+      if (ev.type === 'ShanghaiLegStarted') { currentLeg = ev.legIndex; continue }
+      if (currentLeg !== legIndex) continue
+      if (ev.type === 'ShanghaiRoundFinished') result.push(ev)
+    }
+    return result
+  }, [storedMatch, legIndex])
+
+  const playerColorMap: Record<string, string> = useMemo(() => {
+    const m: Record<string, string> = {}
+    playerStats.forEach(ps => { m[ps.playerId] = ps.color })
+    return m
+  }, [playerStats])
 
   const legsCount = useMemo(() => {
     if (!storedMatch) return 1
@@ -114,6 +135,19 @@ export default function ShanghaiLegSummary({ matchId, legIndex, onBack, onNextLe
               <div style={{ fontSize: 22, fontWeight: 700, color: colors.fgDim }}>Unentschieden</div>
             )}
           </div>
+
+          {/* Score-Progression-Chart fuer dieses Leg */}
+          {legRounds.length >= 2 && (
+            <div style={{ ...styles.card, marginBottom: 16 }}>
+              <div style={{ ...styles.sub, marginBottom: 8 }}>Punkteverlauf (Leg {legIndex + 1})</div>
+              <ShanghaiScoreProgressionChart
+                rounds={legRounds}
+                players={storedMatch.players}
+                playerColors={playerColorMap}
+                colors={colors}
+              />
+            </div>
+          )}
 
           {playerStats.map(ps => ps.stats && (
             <LegStatsBlock

@@ -6,6 +6,40 @@
 import React, { useMemo } from 'react'
 import type { Bobs27StoredMatch, Bobs27Player } from '../types/bobs27'
 import { computeBobs27MatchAggregateStats, type Bobs27MatchAggregateStats } from '../stats/computeBobs27MatchAggregateStats'
+import type { Bobs27LegStats } from '../stats/computeBobs27LegStats'
+import StatTooltip from './StatTooltip'
+
+// Best-Leg = nicht-eliminiertes Leg mit höchstem Score, sonst höchster Score insgesamt.
+function pickBestLeg(perLeg: Bobs27LegStats[]): Bobs27LegStats | null {
+  if (perLeg.length === 0) return null
+  const nonElim = perLeg.filter(l => !l.eliminated)
+  const pool = nonElim.length > 0 ? nonElim : perLeg
+  return pool.reduce((b, l) => l.finalScore > b.finalScore ? l : b)
+}
+
+// Worst-Leg = frühste Elimination (kleinster eliminatedAtTarget), sonst niedrigster Score.
+function pickWorstLeg(perLeg: Bobs27LegStats[]): Bobs27LegStats | null {
+  if (perLeg.length === 0) return null
+  const elim = perLeg.filter(l => l.eliminated)
+  if (elim.length > 0) {
+    return elim.reduce((w, l) =>
+      (l.eliminatedAtTarget ?? Infinity) < (w.eliminatedAtTarget ?? Infinity) ? l : w)
+  }
+  return perLeg.reduce((w, l) => l.finalScore < w.finalScore ? l : w)
+}
+
+function formatBestLeg(leg: Bobs27LegStats | null): string {
+  if (!leg) return '\u2013'
+  return leg.finalScore >= 0 ? `+${leg.finalScore}` : String(leg.finalScore)
+}
+
+function formatWorstLeg(leg: Bobs27LegStats | null): string {
+  if (!leg) return '\u2013'
+  if (leg.eliminated && leg.eliminatedAtTarget !== null) {
+    return `Elim. bei D${leg.eliminatedAtTarget + 1}`
+  }
+  return leg.finalScore >= 0 ? `+${leg.finalScore}` : String(leg.finalScore)
+}
 
 type Props = {
   match: Bobs27StoredMatch
@@ -57,18 +91,18 @@ export default function Bobs27AggregateSection({
               </tr>
             </thead>
             <tbody>
-              {aggRow('Legs gespielt', aggregates, a => String(a.stats?.legsPlayed ?? 0), colors)}
-              {aggRow('\u00d8 Endscore', aggregates, a => (a.stats?.avgFinalScore ?? 0).toFixed(1), colors)}
-              {aggRow('Bestes Leg', aggregates, a => String(a.stats?.bestLegScore ?? 0), colors, 'success')}
-              {aggRow('Schlechtestes Leg', aggregates, a => String(a.stats?.worstLegScore ?? 0), colors, 'error')}
-              {aggRow('\u00d8 Doppelquote (Dart, D1\u2013D20)', aggregates, a => `${(a.stats?.avgDoubleRatePerDart ?? 0).toFixed(1)}%`, colors)}
-              {aggRow('\u00d8 Doppelquote (Aufnahme, D1\u2013D20)', aggregates, a => `${(a.stats?.avgDoubleRatePerVisit ?? 0).toFixed(1)}%`, colors)}
-              {anyBullPlayed(aggregates) && aggRow('\u00d8 Bull-Quote (Dart, extra)', aggregates, a => formatNullable(a.stats?.avgBullRatePerDart, v => `${v.toFixed(1)}%`), colors, 'accent')}
-              {anyBullPlayed(aggregates) && aggRow('Bull-Aufnahmen getroffen', aggregates, a => formatNullable(a.stats?.bullLegsWithHit, v => String(v)), colors, 'accent')}
-              {aggRow('\u00d8 Zero Visits', aggregates, a => (a.stats?.avgZeroVisits ?? 0).toFixed(1), colors)}
-              {aggRow('Gesamt Treffer', aggregates, a => String(a.stats?.totalHits ?? 0), colors)}
-              {aggRow('Gesamt Darts', aggregates, a => String(a.stats?.totalDarts ?? 0), colors)}
-              {aggRow('Konstanz (\u03c3)', aggregates, a => (a.stats?.scoreStdDev ?? 0).toFixed(1), colors)}
+              {aggRow('Legs gespielt', aggregates, a => String(a.stats?.legsPlayed ?? 0), colors, undefined, 'Anzahl abgeschlossener Legs in diesem Match.')}
+              {aggRow('\u00d8 Endscore', aggregates, a => (a.stats?.avgFinalScore ?? 0).toFixed(1), colors, undefined, 'Durchschnittlicher Endscore über alle Legs (Start 27, +/- je nach Doppel-Treffern).')}
+              {aggRow('Bestes Leg', aggregates, a => formatBestLeg(pickBestLeg(a.stats?.perLeg ?? [])), colors, 'success', 'Leg mit dem höchsten Endscore. Nicht-eliminierte Legs werden bevorzugt.')}
+              {aggRow('Schlechtestes Leg', aggregates, a => formatWorstLeg(pickWorstLeg(a.stats?.perLeg ?? [])), colors, 'error', 'Bei Eliminierung: wie weit gekommen (Abbruch-Doppel). Sonst niedrigster Endscore.')}
+              {aggRow('\u00d8 Doppelquote (Dart, D1\u2013D20)', aggregates, a => `${(a.stats?.avgDoubleRatePerDart ?? 0).toFixed(1)}%`, colors, undefined, 'Mittlere Trefferquote pro Dart auf D1–D20 (ohne Bull). Max 100%.')}
+              {aggRow('\u00d8 Doppelquote (Aufnahme, D1\u2013D20)', aggregates, a => `${(a.stats?.avgDoubleRatePerVisit ?? 0).toFixed(1)}%`, colors, undefined, 'Mittlerer Anteil der D1–D20-Aufnahmen mit mindestens 1 Treffer.')}
+              {anyBullPlayed(aggregates) && aggRow('\u00d8 Bull-Quote (Dart, extra)', aggregates, a => formatNullable(a.stats?.avgBullRatePerDart, v => `${v.toFixed(1)}%`), colors, 'accent', 'Mittlere Bull-Trefferquote pro Dart – separat von D1–D20.')}
+              {anyBullPlayed(aggregates) && aggRow('Bull-Aufnahmen getroffen', aggregates, a => formatNullable(a.stats?.bullLegsWithHit, v => String(v)), colors, 'accent', 'Anzahl Legs mit mindestens 1 Bull-Treffer.')}
+              {aggRow('\u00d8 Zero Visits', aggregates, a => (a.stats?.avgZeroVisits ?? 0).toFixed(1), colors, undefined, 'Durchschnitt pro Leg: Doppel-Aufnahmen ohne einen Treffer (0/3).')}
+              {aggRow('Gesamt Treffer', aggregates, a => String(a.stats?.totalHits ?? 0), colors, undefined, 'Summe der Doppel-Treffer über das ganze Match.')}
+              {aggRow('Gesamt Darts', aggregates, a => String(a.stats?.totalDarts ?? 0), colors, undefined, 'Summe aller geworfenen Darts über das ganze Match.')}
+              {aggRow('Konstanz (\u03c3)', aggregates, a => (a.stats?.scoreStdDev ?? 0).toFixed(1), colors, undefined, 'Standardabweichung der Leg-Endscores. Niedriger = stabilere Leistung.')}
             </tbody>
           </table>
         </div>
@@ -132,6 +166,7 @@ function aggRow(
   render: (a: { stats: Bobs27MatchAggregateStats | null }) => string,
   colors: any,
   tone?: 'success' | 'error' | 'accent',
+  tooltip?: string,
 ) {
   const color =
     tone === 'success' ? colors.success :
@@ -140,7 +175,9 @@ function aggRow(
     colors.fg
   return (
     <tr key={label}>
-      <td style={{ padding: '5px 8px', color: colors.fgMuted, borderBottom: `1px solid ${colors.border}`, whiteSpace: 'nowrap' }}>{label}</td>
+      <td style={{ padding: '5px 8px', color: colors.fgMuted, borderBottom: `1px solid ${colors.border}`, whiteSpace: 'nowrap' }}>
+        {tooltip ? <StatTooltip label={label} tooltip={tooltip} colors={colors} /> : label}
+      </td>
       {aggregates.map(a => (
         <td key={a.playerId} style={{
           padding: '5px 8px', textAlign: 'right', fontWeight: 600,

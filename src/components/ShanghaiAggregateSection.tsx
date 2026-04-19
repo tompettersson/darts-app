@@ -7,6 +7,7 @@ import {
   computeShanghaiMatchAggregateStats,
   type ShanghaiMatchAggregateStats,
 } from '../stats/computeShanghaiMatchAggregateStats'
+import StatTooltip from './StatTooltip'
 
 type Props = {
   match: ShanghaiStoredMatch
@@ -56,21 +57,21 @@ export default function ShanghaiAggregateSection({
               </tr>
             </thead>
             <tbody>
-              {aggRow('Legs gespielt', aggregates, a => String(a.stats?.legsPlayed ?? 0), colors)}
-              {aggRow('\u00d8 Score', aggregates, a => (a.stats?.avgFinalScore ?? 0).toFixed(1), colors)}
-              {aggRow('\u00d8 Score %', aggregates, a => `${(a.stats?.avgScorePercent ?? 0).toFixed(1)}%`, colors, 'accent')}
-              {aggRow('Bestes Leg', aggregates, a => String(a.stats?.bestLegScore ?? 0), colors, 'success')}
-              {aggRow('Schlechtestes Leg', aggregates, a => String(a.stats?.worstLegScore ?? 0), colors, 'error')}
-              {aggRow('\u00d8 Trefferquote', aggregates, a => `${(a.stats?.avgHitRatePerDart ?? 0).toFixed(1)}%`, colors)}
-              {aggRow('\u00d8 Aufnahme-Quote', aggregates, a => `${(a.stats?.avgVisitHitRate ?? 0).toFixed(1)}%`, colors)}
-              {aggRow('\u00d8 Triple-Rate', aggregates, a => `${(a.stats?.avgTripleRate ?? 0).toFixed(1)}%`, colors)}
-              {aggRow('\u00d8 Effizienz', aggregates, a => (a.stats?.avgEfficiency ?? 0).toFixed(1), colors)}
-              {aggRow('\u00d8 Aggressions-Index', aggregates, a => `${(a.stats?.avgAggressionIndex ?? 0).toFixed(1)}%`, colors)}
-              {aggRow('\u00d8 Clutch Score', aggregates, a => (a.stats?.avgClutchScore ?? 0).toFixed(1), colors)}
-              {aggRow('\u00d8 Zero Rounds', aggregates, a => (a.stats?.avgZeroRounds ?? 0).toFixed(1), colors)}
-              {aggRow('\u00d8 Konsistenz', aggregates, a => `${(a.stats?.avgConsistencyRate ?? 0).toFixed(1)}%`, colors)}
-              {aggRow('Shanghai-Rate', aggregates, a => `${(a.stats?.shanghaiRate ?? 0).toFixed(1)}%`, colors, 'accent')}
-              {aggRow('Konstanz (\u03c3)', aggregates, a => (a.stats?.scoreStdDev ?? 0).toFixed(1), colors)}
+              {aggRow('Legs gespielt', aggregates, a => String(a.stats?.legsPlayed ?? 0), colors, undefined, 'Anzahl abgeschlossener Legs (je 20 Runden).')}
+              {aggRow('\u00d8 Score', aggregates, a => (a.stats?.avgFinalScore ?? 0).toFixed(1), colors, undefined, 'Durchschnittlicher Leg-Endscore. Max 1890 (alle 20 Runden 3× Triple).')}
+              {aggRow('\u00d8 Score %', aggregates, a => `${(a.stats?.avgScorePercent ?? 0).toFixed(1)}%`, colors, 'accent', 'Ø Leg-Score geteilt durch 1890 (Maximum). Wichtigste Leistungskennzahl.')}
+              {aggRow('Bestes Leg', aggregates, a => String(a.stats?.bestLegScore ?? 0), colors, 'success', 'Höchster Leg-Endscore in diesem Match.')}
+              {aggRow('Schlechtestes Leg', aggregates, a => String(a.stats?.worstLegScore ?? 0), colors, 'error', 'Niedrigster Leg-Endscore in diesem Match.')}
+              {aggRow('\u00d8 Trefferquote', aggregates, a => `${(a.stats?.avgHitRatePerDart ?? 0).toFixed(1)}%`, colors, undefined, 'Anteil der Darts die das Zielfeld dieser Runde trafen (über alle Legs).')}
+              {aggRow('\u00d8 Aufnahme-Quote', aggregates, a => `${(a.stats?.avgVisitHitRate ?? 0).toFixed(1)}%`, colors, undefined, 'Anteil der Runden mit mindestens 1 Treffer auf die Zielzahl.')}
+              {aggRow('\u00d8 Triple-Rate', aggregates, a => `${(a.stats?.avgTripleRate ?? 0).toFixed(1)}%`, colors, undefined, 'Anteil der Treffer die Triples waren. Höher = gezielterer Scoring-Stil.')}
+              {aggRow('\u00d8 Effizienz', aggregates, a => (a.stats?.avgEfficiency ?? 0).toFixed(1), colors, undefined, 'Punkte pro Treffer. Höher = wertvollere Treffer (mehr Triples).')}
+              {aggRow('\u00d8 Aggressions-Index', aggregates, a => `${(a.stats?.avgAggressionIndex ?? 0).toFixed(1)}%`, colors, undefined, 'Triple-Hits im Verhältnis zu allen Darts. Misst Risiko-/Triple-Orientierung.')}
+              {aggRow('\u00d8 Clutch Score', aggregates, a => (a.stats?.avgClutchScore ?? 0).toFixed(1), colors, undefined, 'Durchschnittlich erzielte Punkte in den hohen Runden 15–20 (Scoring-Phase).')}
+              {aggRow('\u00d8 Zero Rounds', aggregates, a => (a.stats?.avgZeroRounds ?? 0).toFixed(1), colors, undefined, 'Ø Runden pro Leg ohne einen einzigen Treffer auf die Zielzahl.')}
+              {aggRow('\u00d8 Konsistenz', aggregates, a => `${(a.stats?.avgConsistencyRate ?? 0).toFixed(1)}%`, colors, undefined, 'Anteil der Runden mit mindestens 2 Treffern. Höher = stabiler.')}
+              {aggRow('Shanghai-Rate', aggregates, a => `${(a.stats?.shanghaiRate ?? 0).toFixed(1)}%`, colors, 'accent', 'Anteil der Legs mit einem Shanghai (S+D+T einer Zahl in einer Aufnahme).')}
+              {aggRow('Konstanz (\u03c3)', aggregates, a => (a.stats?.scoreStdDev ?? 0).toFixed(1), colors, undefined, 'Standardabweichung der Leg-Endscores. Niedriger = stabilere Leistung.')}
             </tbody>
           </table>
         </div>
@@ -129,6 +130,7 @@ function aggRow(
   render: (a: { stats: ShanghaiMatchAggregateStats | null }) => string,
   colors: any,
   tone?: 'success' | 'error' | 'accent',
+  tooltip?: string,
 ) {
   const color =
     tone === 'success' ? colors.success :
@@ -137,7 +139,9 @@ function aggRow(
     colors.fg
   return (
     <tr key={label}>
-      <td style={{ padding: '5px 8px', color: colors.fgMuted, borderBottom: `1px solid ${colors.border}`, whiteSpace: 'nowrap' }}>{label}</td>
+      <td style={{ padding: '5px 8px', color: colors.fgMuted, borderBottom: `1px solid ${colors.border}`, whiteSpace: 'nowrap' }}>
+        {tooltip ? <StatTooltip label={label} tooltip={tooltip} colors={colors} /> : label}
+      </td>
       {aggregates.map(a => (
         <td key={a.playerId} style={{
           padding: '5px 8px', textAlign: 'right', fontWeight: 600,
