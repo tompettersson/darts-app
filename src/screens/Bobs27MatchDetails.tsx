@@ -7,6 +7,7 @@ import { useTheme } from '../ThemeProvider'
 import { getBobs27MatchById } from '../storage'
 import { applyBobs27Events, formatDuration } from '../dartsBobs27'
 import { computeBobs27MatchStats } from '../stats/computeBobs27Stats'
+import { listBobs27LegIndices } from '../stats/computeBobs27LegStats'
 import { PLAYER_COLORS } from '../playerColors'
 import StatTooltip, { STAT_TOOLTIPS } from '../components/StatTooltip'
 import { generateBobs27Report } from '../narratives/generateModeReports'
@@ -68,6 +69,8 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
 
   const players = match.players
   const isSolo = players.length === 1
+  const legsPlayed = listBobs27LegIndices(storedMatch).length
+  const isMultiLeg = legsPlayed > 1
 
   const playerStats = useMemo(() => {
     return players.map(p => ({
@@ -281,8 +284,9 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
             ) : null
           })()}
 
-          {/* Spieler-Statistiken (Vergleichstabelle) */}
-          {(() => {
+          {/* Spieler-Statistiken (Vergleichstabelle) — nur bei Single-Leg;
+              bei Mehrleg zeigen die Werte nur das letzte Leg, das Aggregat oben deckt es ab. */}
+          {!isMultiLeg && (() => {
             const pIds = rankings.map(p => p.playerId)
             const colorMap: Record<string, string> = {}
             rankings.forEach(p => { colorMap[p.playerId] = p.color })
@@ -298,8 +302,6 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
               rankings.map(p => p.bestTargetDelta?.delta ?? -Infinity), pIds, 'high', colorMap)
             const worstDeltaWin = getStatWinnerColors(
               rankings.map(p => p.worstTargetDelta?.delta ?? Infinity), pIds, 'low', colorMap)
-            const highScoreWin = getStatWinnerColors(
-              rankings.map(p => p.highestSingleTargetScore?.delta ?? 0), pIds, 'high', colorMap)
 
             const thStyle: React.CSSProperties = {
               textAlign: 'right',
@@ -404,8 +406,8 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
                         <td style={tdLabelStyle}><StatTooltip label="Bester Target" tooltip={STAT_TOOLTIPS['Bester Target'] || 'Bester Target'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(bestDeltaWin[i], colors.success)}>
-                            {p.bestTarget
-                              ? `${p.bestTarget.label} (+${p.bestTargetDelta?.delta ?? 0})`
+                            {p.bestTargetDelta
+                              ? `${p.bestTargetDelta.label} (+${p.bestTargetDelta.delta})`
                               : '-'}
                           </td>
                         ))}
@@ -414,18 +416,8 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
                         <td style={tdLabelStyle}><StatTooltip label="Schlechtester Target" tooltip={STAT_TOOLTIPS['Schlechtester Target'] || 'Schlechtester Target'} colors={colors} /></td>
                         {rankings.map((p, i) => (
                           <td key={p.playerId} style={cellStyle(worstDeltaWin[i], colors.error)}>
-                            {p.worstTarget
-                              ? `${p.worstTarget.label} (${p.worstTargetDelta?.delta ?? 0})`
-                              : '-'}
-                          </td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td style={tdLabelStyle}><StatTooltip label="Hoechster Target-Score" tooltip={STAT_TOOLTIPS['Hoechster Target-Score'] || 'Hoechster Target-Score'} colors={colors} /></td>
-                        {rankings.map((p, i) => (
-                          <td key={p.playerId} style={cellStyle(highScoreWin[i], colors.success)}>
-                            {p.highestSingleTargetScore
-                              ? `+${p.highestSingleTargetScore.delta} (${p.highestSingleTargetScore.label})`
+                            {p.worstTargetDelta
+                              ? `${p.worstTargetDelta.label} (${p.worstTargetDelta.delta})`
                               : '-'}
                           </td>
                         ))}
@@ -447,8 +439,8 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
             onOpenLeg={onOpenLegSummary ? (idx) => onOpenLegSummary(matchId, idx) : undefined}
           />
 
-          {/* Target-by-target Breakdown */}
-          {isSolo ? (
+          {/* Target-by-target Breakdown — aus demselben Grund nur bei Single-Leg. */}
+          {!isMultiLeg && (isSolo ? (
             // Solo: einzelne Tabelle
             rankings[0]?.targetResults.length > 0 && (
               <div style={{ ...styles.card, marginBottom: 16 }}>
@@ -462,7 +454,7 @@ export default function Bobs27MatchDetails({ matchId, onBack, onOpenLegSummary }
               <div style={{ ...styles.sub, marginBottom: 8 }}>Target-Vergleich</div>
               <ComparisonTable rankings={rankings} targets={match.targets} colors={colors} />
             </div>
-          )}
+          ))}
 
         </div>
       </div>
