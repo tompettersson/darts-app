@@ -118,8 +118,15 @@ export default function Bobs27Summary({ matchId, onBackToMenu, onRematch, onBack
         isWinner: p.playerId === storedMatch.winnerId,
       }
     }).sort((a, b) => {
-      // Nicht-eliminierte zuerst
+      // Expliziter Gewinner immer vor allen anderen (Engine entscheidet via
+      // Progress + Score; bei Gleichstand ist winnerId null → normale Reihenfolge)
+      if (a.isWinner !== b.isWinner) return a.isWinner ? -1 : 1
+      // Nicht-eliminierte vor eliminierten
       if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1
+      // Weiter gekommen (mehr Targets abgeschlossen) zuerst — deckt Fall "beide
+      // eliminiert, aber einer ist weiter gekommen" korrekt ab
+      if (b.targetsCompleted !== a.targetsCompleted) return b.targetsCompleted - a.targetsCompleted
+      // Bei gleichem Fortschritt: höherer Score
       return b.finalScore - a.finalScore
     })
   }, [players, playerStats, state.playerStates, storedMatch.winnerId])

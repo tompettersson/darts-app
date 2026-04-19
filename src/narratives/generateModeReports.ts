@@ -641,11 +641,13 @@ export function generateBobs27Report(input: {
     parts.push(`Nur ${topPlayer.hitRate.toFixed(0)}% Double-Trefferquote — ein harter Tag.`)
   }
 
-  // Best & Worst Target
-  if (topPlayer.bestTarget) {
+  // Best & Worst Target — "Bestes" nur erwähnen wenn es wirklich Treffer gab
+  if (topPlayer.bestTarget && topPlayer.bestTarget.hits > 0) {
     parts.push(`Bestes Target: ${topPlayer.bestTarget.label} (${topPlayer.bestTarget.hits}/3 Treffer).`)
   }
-  if (topPlayer.worstTarget && topPlayer.worstTarget.hits === 0) {
+  if (topPlayer.worstTarget && topPlayer.worstTarget.hits === 0 && (topPlayer.bestTarget?.hits ?? 0) > 0) {
+    // Schwachstelle nur erwähnen wenn es ein echtes Kontrast-Bild gibt
+    // (sonst: wenn alle Targets 0 Treffer haben, wäre jedes Target "Schwachstelle")
     parts.push(seededPick([
       `Auf ${topPlayer.worstTarget.label} ging nichts — null Treffer.`,
       `Schwachstelle: ${topPlayer.worstTarget.label} ohne Treffer.`,
