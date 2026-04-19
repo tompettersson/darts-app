@@ -739,7 +739,9 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, onLegFinish
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', borderBottom: `1px solid ${c.border}`, flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {(state.match?.config.legsCount ?? 1) > 1 && (
-                <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
+                <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>
+                  FT{Math.ceil((state.match!.config.legsCount ?? 1) / 2)} · Leg {state.currentLegIndex + 1}
+                </span>
               )}
             </div>
             <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch} onCancel={handleDeleteMatch}
@@ -887,7 +889,9 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, onLegFinish
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', borderBottom: `1px solid ${c.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {(state.match?.config.legsCount ?? 1) > 1 && (
-              <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>Leg {state.currentLegIndex + 1}</span>
+              <span style={{ fontSize: 11, color: c.accent, fontWeight: 600 }}>
+                FT{Math.ceil((state.match!.config.legsCount ?? 1) / 2)} · Leg {state.currentLegIndex + 1}
+              </span>
             )}
           </div>
           <GameControls isPaused={gamePaused} onTogglePause={() => { if (gamePaused) handleResume(); else handlePause() }} isMuted={muted} onToggleMute={() => setMuted(m => !m)} onExit={handleExitMatch} onCancel={handleDeleteMatch}
@@ -1242,13 +1246,12 @@ export default function GameBobs27({ matchId, onExit, onShowSummary, onLegFinish
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: c.textBright }}>Bob's 27</span>
           {legsCount > 1 && (
             <span style={{
               fontSize: 12, color: c.accent, fontWeight: 600,
               background: c.accent + '18', padding: '2px 8px', borderRadius: 4,
             }}>
-              Leg {state.currentLegIndex + 1}/{legsCount}
+              FT{Math.ceil(legsCount / 2)} · Leg {state.currentLegIndex + 1}
             </span>
           )}
           <span style={{ fontSize: 13, fontFamily: 'monospace', color: c.textDim }}>

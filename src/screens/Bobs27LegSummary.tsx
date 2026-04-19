@@ -70,14 +70,8 @@ export default function Bobs27LegSummary({ matchId, legIndex, onBack, onNextLeg,
     )
   }
 
-  const legsTotal = Math.max(
-    1,
-    storedMatch.config?.legsCount ?? 1,
-    legIndex + 1,
-    ...Array.from(new Set(storedMatch.events
-      .filter((e): e is Extract<typeof storedMatch.events[number], { type: 'Bobs27LegStarted' }> => e.type === 'Bobs27LegStarted')
-      .map(e => e.legIndex + 1))),
-  )
+  const legsCount = storedMatch.config?.legsCount ?? 1
+  const winsNeeded = Math.ceil(legsCount / 2)
 
   const winnerName = legWinnerId
     ? players.find(p => p.playerId === legWinnerId)?.name ?? null
@@ -88,7 +82,9 @@ export default function Bobs27LegSummary({ matchId, legIndex, onBack, onNextLeg,
   return (
     <div style={styles.page}>
       <div style={styles.headerRow}>
-        <h2 style={{ margin: 0 }}>Leg {legIndex + 1} / {legsTotal}</h2>
+        <h2 style={{ margin: 0 }}>
+          {legsCount > 1 ? `FT${winsNeeded} · Leg ${legIndex + 1}` : `Leg ${legIndex + 1}`}
+        </h2>
         <button style={styles.backBtn} onClick={onBack}>&larr; Zurueck</button>
       </div>
 

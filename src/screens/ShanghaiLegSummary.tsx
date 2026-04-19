@@ -60,12 +60,13 @@ export default function ShanghaiLegSummary({ matchId, legIndex, onBack, onNextLe
     }))
   }, [storedMatch, players, legIndex])
 
-  const legsTotal = useMemo(() => {
-    if (!storedMatch) return legIndex + 1
+  const legsCount = useMemo(() => {
+    if (!storedMatch) return 1
     const structure = storedMatch.structure
-    if (structure.kind === 'legs') return structure.bestOfLegs
+    if (structure.kind === 'legs') return structure.bestOfLegs ?? 1
     return (structure.bestOfSets || 1) * (structure.legsPerSet || 1)
-  }, [storedMatch, legIndex])
+  }, [storedMatch])
+  const winsNeeded = Math.ceil(legsCount / 2)
 
   if (!storedMatch) {
     return (
@@ -82,7 +83,9 @@ export default function ShanghaiLegSummary({ matchId, legIndex, onBack, onNextLe
   return (
     <div style={styles.page}>
       <div style={styles.headerRow}>
-        <h2 style={{ margin: 0 }}>Shanghai · Leg {legIndex + 1} / {legsTotal}</h2>
+        <h2 style={{ margin: 0 }}>
+          {legsCount > 1 ? `Shanghai · FT${winsNeeded} · Leg ${legIndex + 1}` : `Shanghai · Leg ${legIndex + 1}`}
+        </h2>
         <button style={styles.backBtn} onClick={onBack}>&larr; Zurueck</button>
       </div>
 
